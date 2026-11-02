@@ -17,6 +17,7 @@ import type { CampaignState } from '@/types';
 import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 import { useFleetProjection } from '@/domain/useFleetProjection';
+import { useCostProjection } from '@/domain/useCostProjection';
 
 
 interface FleetRadarProps {
@@ -27,6 +28,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
   const { fleet, status, error, intervalMs, refresh } = useFleetProjection();
+  const { data: spend } = useCostProjection();
   const backends = fleet.backends;
   const radarEndpoints = fleet.radarEndpoints;
   const refused = fleet.refused ?? (status === 'refused' ? error : null);
@@ -59,6 +61,21 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           y: { label: 'Queue', unit: 'jobs', format: 'number' },
           basis:
             'Vendor/daemon queue depth as served. Declared catalog values are not live canary measurements; provenance is shown per bar.',
+          detail: 'full',
+        }
+      : undefined;
+
+  const spendEntries = Object.entries(spend?.by_provider ?? {}).filter(([, value]) => Number.isFinite(value) && value > 0);
+  const spendSpec: ChartSpec | undefined =
+    spendEntries.length > 0
+      ? {
+          kind: 'bars',
+          title: 'LLM spend by provider',
+          series: [{ name: 'Spent', points: spendEntries.map(([provider, value]) => ({ x: provider, y: value, display: `$${value.toFixed(4)}` })) }],
+          x: { label: 'Provider', kind: 'category' },
+          y: { label: 'Spend', unit: 'USD', format: 'money' },
+          basis: 'Server cost summary by provider. Unmetered calls are counted, not priced; see the status strip for blind-call count.',
+          headline: { label: 'Total', value: `$${spend?.spent_usd.toFixed(2) ?? '0.00'}` },
           detail: 'full',
         }
       : undefined;
@@ -175,6 +192,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       {queueSpec && (
         <div className="rounded-2xl border border-white/[0.06] bg-black/30 p-4">
           <Chart spec={queueSpec} />
+        </div>
+      )}
+      {spendSpec && (
+        <div className="rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+          <Chart spec={spendSpec} />
         </div>
       )}
 

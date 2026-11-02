@@ -309,11 +309,11 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 }
 
-export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {
+export async function sendChatMessage(sessionId: string, content: string, requestId?: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {
   try {
     const data = (await requestOperation('sendChatMessage', {
       query: { session_id: sessionId },
-      body: { session_id: sessionId, role: 'user', content },
+      body: { session_id: sessionId, role: 'user', content, ...(requestId ? { request_id: requestId } : {}) },
     })) as unknown as {
       user?: ChatMessage;
       user_message?: ChatMessage;
@@ -352,12 +352,13 @@ export async function streamChatMessage(
   sessionId: string,
   content: string,
   onToken: (text: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  requestId?: string,
 ): Promise<StreamDone> {
   const res = await apiFetch(`${API_BASE}/api/chat/stream?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
+    body: JSON.stringify({ session_id: sessionId, role: 'user', content, ...(requestId ? { request_id: requestId } : {}) }),
     signal,
   });
   if (!res.ok || !res.body) throw new Error(`stream refused (HTTP ${res.status})`);

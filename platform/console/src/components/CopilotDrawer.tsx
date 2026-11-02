@@ -32,7 +32,7 @@ import {
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { useTranscript } from '@/domain/transcript-store';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { writeSettlementLabel } from '@/domain/write-settlement';
+import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, authWhoami, wasRecentAuthFailure } from '@/lib/api';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
@@ -86,6 +86,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   const { messages, loading, streamingId, errorMessage, setMessages, setLoading, setStreamingId, setErrorMessage } = useTranscript(sessionId);
   const chatWrite = useWriteSettlement();
   const feedbackWrite = useWriteSettlement();
+  const lastRequestIdRef = useRef<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [runningTribunal, setRunningTribunal] = useState(false);
   const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
@@ -220,7 +221,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     return null;
   };
 
-  const handleSend = async (customPrompt?: string) => {
+  const handleSend = async (customPrompt?: string, retryRequestId?: string) => {
     const rawText = customPrompt || input.trim();
     if (!rawText || loading || runningTribunal) return;
 
@@ -254,6 +255,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     }
     setNeedsLogin(false);
     const activeSessionId = active.id;
+    const requestId = retryRequestId ?? newWriteRequestId();
+    lastRequestIdRef.current = requestId;
     const writeId = chatWrite.begin('chat send');
 
     const tempUserMsg: ChatMessage = {
@@ -321,7 +324,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         setMessages((prev) =>
           prev.map((m) => (m.id === liveId ? { ...m, content: m.content + tok } : m))
         );
-      }, controller.signal);
+      }, controller.signal, requestId);
       settleStream(done);
     } catch (streamErr) {
       if (!mountedRef.current) return;
@@ -349,7 +352,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       }
       console.warn('Stream failed, falling back to unary chat:', streamErr);
       try {
-        const res = await sendChatMessage(activeSessionId, textToSend);
+        const res = await sendChatMessage(activeSessionId, textToSend, requestId);
         if (!mountedRef.current) return;
         if (res) {
           setMessages((prev) => {
@@ -1528,7 +1531,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   aria-label="Retry stalled stream"
                   onClick={() => {
                     setErrorMessage(null);
-                    void handleSend(lastPromptRef.current || undefined);
+                    void handleSend(lastPromptRef.current || undefined, lastRequestIdRef.current || undefined);
                   }}
                   className="shrink-0 px-2.5 py-1 rounded-lg bg-red-400/15 hover:bg-red-400/25 border border-red-400/40 text-red-100 text-[12px] font-semibold transition-all"
                 >

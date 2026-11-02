@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 vi.mock('@/lib/api', () => ({
   fetchFleet: vi.fn(),
   fetchRadar: vi.fn(),
+  fetchCostSummary: vi.fn(),
 }));
 
 function textOf(node: unknown): string {
@@ -18,6 +19,7 @@ function textOf(node: unknown): string {
 describe('FleetRadar credential dimension', () => {
   beforeEach(() => {
     vi.mocked(api.fetchRadar).mockResolvedValue({ radar_endpoints: [] });
+    vi.mocked(api.fetchCostSummary).mockResolvedValue({ ok: true, result: { cap_usd: 10, spent_usd: 0, remaining_usd: 10, unmetered_count: 0, by_provider: {}, active_provider: 'local', local_bypass: true, heuristic: false, currency: 'USD', track_only: false } });
     vi.mocked(api.fetchFleet).mockResolvedValue({
       backends: [
         { name: 'local_simulator', type: 'sim', qubits: 32, t1_us: 'inf', status: 'ONLINE', credential_state: 'ready', queue_depth: 0, cost_per_shot: 0, jurisdiction: 'LOCAL', itar_ear: 'EXEMPT' },
