@@ -303,7 +303,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
 
   const visibleIds = useMemo(() => {
     if (visibleObjects.length <= 24 || viewport.width === 0) return null;
-    const margin = 600;
+    const margin = 160;
     const left = -camera.x / camera.zoom - margin;
     const top = -camera.y / camera.zoom - margin;
     const right = left + viewport.width / camera.zoom + margin * 2;
@@ -731,14 +731,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
               return <path key={link.id} data-kind={link.kind} d={`M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`} />;
             })}
           </svg>
-          {visibleObjects.map((object) => viewport && visibleIds && !visibleIds.has(object.id) ? (
-            <div
-              key={object.id}
-              className="k-workbench-placeholder"
-              style={{ left: object.position.x, top: object.position.y, width: object.size.width, height: object.size.height }}
-              aria-hidden="true"
-            />
-          ) : (
+          {visibleObjects.map((object) => (viewport && visibleIds && !visibleIds.has(object.id) ? null : (
             <WorkCard
               key={object.id}
               object={object}
@@ -760,7 +753,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                 },
               }))}
             />
-          ))}
+          )))}
         </div>
         )
       )}

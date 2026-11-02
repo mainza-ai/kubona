@@ -38,6 +38,7 @@ CLIENT_ONLY = {
     "isTerminalJobStatus": "status label helper",
     "jobStatusLabel": "status label helper",
     "lensImageProxyUrl": "same-origin URL helper",
+    "versionedApiPath": "versioned route alias helper",
     "reportError": "console error reporter",
     "resetDedupForTests": "test reset helper",
     "wasRecentAuthFailure": "auth timing helper",

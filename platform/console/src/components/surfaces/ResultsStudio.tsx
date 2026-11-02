@@ -17,8 +17,8 @@ import {
   
   
 } from 'lucide-react';
-import { CampaignState, SystematicNotebook } from '@/types';
-import { fetchNotebooks, sendChatMessage } from '@/lib/api';
+import { CampaignState, SystematicNotebook, Job } from '@/types';
+import { fetchJobsResult, fetchNotebooks, jobStatusLabel, sendChatMessage } from '@/lib/api';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
 import { Chart } from '@/components/data/LazyChart';
@@ -41,6 +41,31 @@ interface FrameAnnotation {
   timestamp: string;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function readCounts(job: Job): Record<string, number> | null {
+  const result = asRecord(job.result_json);
+  const raw = asRecord(result?.counts);
+  if (!raw) return null;
+  const counts: Record<string, number> = {};
+  for (const [bitstring, value] of Object.entries(raw)) {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isFinite(n) && n >= 0) counts[bitstring] = n;
+  }
+  return Object.keys(counts).length > 0 ? counts : null;
+}
+
 export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [copiedBibtex, setCopiedBibtex] = useState(false);
   const [exported, setExported] = useState(false);
@@ -53,6 +78,7 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [annotations, setAnnotations] = useState<FrameAnnotation[]>([]);
   const [remoteNotebook, setRemoteNotebook] = useState<SystematicNotebook | null>(null);
   const [notebookError, setNotebookError] = useState<string | null>(null);
+  const [measuredCounts, setMeasuredCounts] = useState<{ sessionId: string; jobId: string; backend: string; counts: Record<string, number> } | null>(null);
 
   const target = campaign?.target_system || 'H2';
   // Verified-data gating: when the campaign carries no notebook telemetry,
@@ -73,6 +99,30 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
     });
     return () => { live = false; };
   }, [sessionId, campaign?.notebook]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let live = true;
+    fetchJobsResult(sessionId).then((out) => {
+      if (!live || !out.ok) return;
+      const completed = out.data
+        .filter((job) => jobStatusLabel(job.status) === 'COMPLETED')
+        .sort((a, b) => String(b.completed_at ?? b.created_at).localeCompare(String(a.completed_at ?? a.created_at)));
+      for (const job of completed) {
+        const counts = readCounts(job);
+        if (!counts) continue;
+        const result = asRecord(job.result_json);
+        setMeasuredCounts({
+          sessionId,
+          jobId: job.id,
+          backend: typeof result?.resolved_backend === 'string' ? result.resolved_backend : 'unrecorded backend',
+          counts,
+        });
+        return;
+      }
+    });
+    return () => { live = false; };
+  }, [sessionId]);
 
   const notebook = campaign?.notebook ?? remoteNotebook ?? undefined;
   const groundEnergy: number | undefined = notebook?.quantum_energy ?? campaign?.classical_anchor?.vqe_expectation_energy;
@@ -297,6 +347,31 @@ ${bibtex}
         }
       : undefined;
 
+  const countsForSession = measuredCounts?.sessionId === sessionId ? measuredCounts : null;
+  const countsSpec: ChartSpec | undefined = countsForSession
+    ? (() => {
+        const entries = Object.entries(countsForSession.counts).sort((a, b) => b[1] - a[1]);
+        const total = entries.reduce((sum, [, value]) => sum + value, 0);
+        return {
+          kind: 'bars',
+          title: `Measured bitstring distribution · ${target}`,
+          series: [{
+            name: 'Shots',
+            points: entries.map(([bitstring, shots]) => ({
+              x: bitstring,
+              y: shots,
+              display: `${shots} shots (${total > 0 ? ((shots / total) * 100).toFixed(1) : '0.0'}%)`,
+            })),
+          }],
+          x: { label: 'Bitstring', kind: 'category' },
+          y: { label: 'Shots', unit: 'shots', format: 'number' },
+          headline: { label: 'Total shots', value: String(total) },
+          basis: `Result of completed job ${countsForSession.jobId} on ${countsForSession.backend}; counts are server-returned, not reconstructed.`,
+          detail: 'full',
+        };
+      })()
+    : undefined;
+
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
       {!hasVerifiedData && (
@@ -491,6 +566,7 @@ ${bibtex}
                   </div>
                 </div>
                 {energySpec && <Chart spec={energySpec} className="mt-3" />}
+                {countsSpec && <Chart spec={countsSpec} className="mt-3" />}
               </div>
 
               {/* Lean 4 & Cryptographic Hashes */}

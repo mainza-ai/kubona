@@ -164,10 +164,22 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       Number.isFinite(campaign.classical_anchor.fci_exact_energy);
     const series: ChartSpec['series'] = [{ name: 'VQE energy', points }];
     if (anchorKnown) {
+      const anchor = campaign!.classical_anchor!.fci_exact_energy;
+      const band = Number.isFinite(chemLimit) && chemLimit > 0 ? chemLimit / 1000 : null;
       series.push({
         name: 'FCI anchor',
-        points: points.map((point) => ({ x: point.x, y: campaign!.classical_anchor!.fci_exact_energy })),
+        points: points.map((point) => ({ x: point.x, y: anchor })),
       });
+      if (band != null) {
+        series.push({
+          name: `FCI + ${chemLimit} mHa`,
+          points: points.map((point) => ({ x: point.x, y: anchor + band, display: `${(anchor + band).toFixed(5)} Ha` })),
+        });
+        series.push({
+          name: `FCI − ${chemLimit} mHa`,
+          points: points.map((point) => ({ x: point.x, y: anchor - band, display: `${(anchor - band).toFixed(5)} Ha` })),
+        });
+      }
     }
     return {
       kind: 'line',
@@ -176,11 +188,41 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       x: { label: 'Iteration', kind: 'linear' },
       y: { label: 'Energy', unit: 'Ha', format: 'number' },
       basis: anchorKnown
-        ? 'Measured trajectory against the computed FCI anchor.'
+        ? `Measured trajectory against the computed FCI anchor; dashed limits mark the ±${chemLimit} mHa chemical-accuracy band.`
         : 'Measured trajectory; no computed FCI anchor, so no reference line.',
       detail: 'full',
     };
-  }, [campaign, trajectory]);
+  }, [campaign, trajectory, chemLimit]);
+
+  const errorChart = useMemo<ChartSpec | null>(() => {
+    if (!trajectory || trajectory.length === 0) return null;
+    const anchorKnown =
+      campaign?.classical_anchor?.anchor_computed === true &&
+      typeof campaign?.classical_anchor?.fci_exact_energy === 'number' &&
+      Number.isFinite(campaign.classical_anchor.fci_exact_energy);
+    if (!anchorKnown) return null;
+    const anchor = campaign!.classical_anchor!.fci_exact_energy;
+    const points = trajectory
+      .filter((step) => typeof step.step === 'number' && Number.isFinite(step.step) && Number.isFinite(step.energy))
+      .map((step) => ({
+        x: step.step,
+        y: Math.abs(step.energy - anchor) * 1000,
+        display: `${(Math.abs(step.energy - anchor) * 1000).toFixed(3)} mHa`,
+      }));
+    if (points.length === 0) return null;
+    return {
+      kind: 'line',
+      title: `Error against FCI · ${campaign?.target_system || 'H₂'}`,
+      series: [
+        { name: '|E − FCI|', points },
+        { name: `Chemical-accuracy limit ${chemLimit} mHa`, points: points.map((point) => ({ x: point.x, y: chemLimit, display: `${chemLimit} mHa` })) },
+      ],
+      x: { label: 'Iteration', kind: 'linear' },
+      y: { label: 'Absolute error', unit: 'mHa', format: 'number' },
+      basis: 'Each point is |trajectory energy − computed FCI anchor| × 1000. The limit line is the configured chemical-accuracy threshold.',
+      detail: 'full',
+    };
+  }, [campaign, trajectory, chemLimit]);
 
   const safeIndex = Math.min(Math.max(0, currentStepIndex), Math.max(0, milestones.length - 1));
   const activeMilestone = milestones[safeIndex] || milestones[0];
@@ -254,6 +296,11 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       {energyChart && (
         <div className="mt-5">
           <Chart spec={energyChart} />
+        </div>
+      )}
+      {errorChart && (
+        <div className="mt-5">
+          <Chart spec={errorChart} />
         </div>
       )}
 

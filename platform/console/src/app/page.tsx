@@ -5,12 +5,11 @@ import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, fetchLoopsResult, fetchEventsResult, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, fetchLoopsResult, fetchEventsResult, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { useAuthPhase } from '@/domain/auth-state';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
 import type { WorkbenchObject, WorkbenchObjectKind } from '@/components/workbench/workbench-model';
@@ -38,6 +37,8 @@ import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/
 import { FlightRecorderCard } from '@/components/FlightRecorderCard';
 import { Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
+import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
+import { buildShellSearch, parseShellParams, tabForSurface, type DockSurface, type MeshTab } from '@/lib/shell-params';
 
 const FlightRecorder = dynamic(() => import('@/components/surfaces/FlightRecorder').then((mod) => ({ default: mod.FlightRecorder })), { ssr: false, loading: () => <SurfaceLoading label="flight recorder" /> });
 const EpistemicManifold = dynamic(() => import('@/components/surfaces/EpistemicManifold').then((mod) => ({ default: mod.EpistemicManifold })), { ssr: false, loading: () => <SurfaceLoading label="evidence" /> });
@@ -66,171 +67,6 @@ function formatElapsed(createdAt: string): string {
   const mm = String(Math.floor((s % 60) / 60)).padStart(2, '0');
   const ss = String(s % 60).padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
-}
-
-// Session-expired banner: subscribes to UNAUTH_EVENT (dispatched by api.ts
-// on any HTTP 401) and surfaces "log in again" with a jump straight to the
-// mesh→labs AuthPanel. Dismissible; unsubscribes on unmount. Exported for
-// tests — Home mounts exactly one instance below.
-export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
-  const [eventVisible, setEventVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const authPhase = useAuthPhase();
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const show = () => setEventVisible(true);
-    window.addEventListener(UNAUTH_EVENT, show);
-    return () => window.removeEventListener(UNAUTH_EVENT, show);
-  }, []);
-  const visible = !dismissed && (authPhase === 'expired' || eventVisible);
-  if (!visible) return null;
-  return (
-    <div
-      data-testid="auth-expired-banner"
-      role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-950/90 border-b border-amber-500/40 text-amber-100 text-xs"
-    >
-      <span>Session expired — log in again.</span>
-      <span className="flex items-center gap-2 shrink-0">
-        <button
-          data-testid="auth-banner-login"
-          onClick={onOpenLabs}
-          className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 transition-all"
-        >
-          Log in (Mesh → Labs)
-        </button>
-        <button
-          data-testid="auth-banner-dismiss"
-          onClick={() => { setDismissed(true); setEventVisible(false); }}
-          aria-label="Dismiss session expired banner"
-          className="p-1 rounded-lg text-amber-200/70 hover:text-amber-100 hover:bg-white/10 transition-all"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </span>
-    </div>
-  );
-}
-
-// A single visible refusal for any API error, including wrappers that
-// historically returned []/null. Empty data must never be the only signal.
-export function ApiProblemBanner() {
-  const [problem, setProblem] = useState<ApiProblem | null>(null);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onProblem = (event: Event) => {
-      const detail = (event as CustomEvent<ApiProblem>).detail;
-      if (detail) setProblem(detail);
-    };
-    window.addEventListener(API_PROBLEM_EVENT, onProblem);
-    return () => window.removeEventListener(API_PROBLEM_EVENT, onProblem);
-  }, []);
-  if (!problem) return null;
-  return (
-    <div
-      data-testid="api-problem-banner"
-      role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-rose-950/90 border-b border-rose-500/40 text-rose-100 text-[12px] font-code"
-    >
-      <span className="truncate">
-        API refusal — {problem.path} · {problem.status ?? 'transport'} · {problem.message}. Some surfaces may show empty data until this is fixed.
-      </span>
-      <button
-        type="button"
-        onClick={() => setProblem(null)}
-        aria-label="Dismiss API refusal"
-        className="shrink-0 px-2 py-0.5 rounded border border-rose-400/30 text-rose-200 hover:bg-rose-500/20"
-      >
-        Dismiss
-      </button>
-    </div>
-  );
-}
-
-// Verbatim failure for a refused campaign creation. createSession resolves
-// null on refusal (no body to quote) and the modal cannot render it (owns
-// its own close), so the shell keeps the modal open and renders this text
-// itself — never a silent close.
-export function describeCreateFailure(result: Session | null, error: unknown): string | null {
-  if (result) return null;
-  if (error !== undefined && error !== null) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return `Create campaign failed: ${detail}`;
-  }
-  return 'Create campaign failed: backend refused (createSession returned null) — nothing was created.';
-}
-
-// Deep-link URL sync (Wave-2 shell): the dock surface (+ the active sub-tab
-// for proofs/mesh/arena) round-trips through ?surface= & ?tab= so views are
-// bookmarkable and palette/dock navigation updates the URL without reload.
-// Unknown values fall back to defaults — never a crash. Pure (no window
-// access) so tests can exercise it without mounting Home.
-export type DockSurface = 'arena' | 'recorder' | 'manifold' | 'fleet' | 'proofs' | 'mesh';
-export type ProofsTab = 'manuscripts' | 'tribunal' | 'gallery' | 'circuits';
-export type MeshTab = 'fleet' | 'mesh' | 'guardrails' | 'models' | 'labs' | 'settings';
-
-export interface ShellParams {
-  surface: DockSurface;
-  proofsTab: ProofsTab;
-  meshTab: MeshTab;
-  arenaView: ArenaView;
-}
-
-const SHELL_DEFAULTS: ShellParams = {
-  surface: 'arena',
-  proofsTab: 'manuscripts',
-  meshTab: 'mesh',
-  arenaView: 'workbench',
-};
-
-const VALID_SURFACES: DockSurface[] = ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh'];
-const VALID_PROOFS_TABS: ProofsTab[] = ['manuscripts', 'tribunal', 'gallery', 'circuits'];
-const VALID_MESH_TABS: MeshTab[] = ['fleet', 'mesh', 'guardrails', 'models', 'labs', 'settings'];
-const VALID_ARENA_VIEWS: ArenaView[] = ['workbench', 'orbital', 'proof-dag', 'hardware-qpu'];
-
-export function parseShellParams(search: string): ShellParams {
-  const out: ShellParams = { ...SHELL_DEFAULTS };
-  try {
-    const params = new URLSearchParams(search);
-    const surface = params.get('surface');
-    if (surface !== null && (VALID_SURFACES as string[]).includes(surface)) {
-      out.surface = surface as DockSurface;
-    }
-    const tab = params.get('tab');
-    if (tab === null) return out;
-    if (out.surface === 'proofs' && (VALID_PROOFS_TABS as string[]).includes(tab)) {
-      out.proofsTab = tab as ProofsTab;
-    } else if (out.surface === 'mesh' && (VALID_MESH_TABS as string[]).includes(tab)) {
-      out.meshTab = tab as MeshTab;
-    } else if (out.surface === 'arena' && (VALID_ARENA_VIEWS as string[]).includes(tab)) {
-      out.arenaView = tab as ArenaView;
-    }
-    return out;
-  } catch {
-    return { ...SHELL_DEFAULTS };
-  }
-}
-
-/** Sub-tab carried in ?tab= for the given surface (null = no tab param). */
-export function tabForSurface(surface: DockSurface, tabs: Pick<ShellParams, 'proofsTab' | 'meshTab' | 'arenaView'>): string | null {
-  switch (surface) {
-    case 'proofs':
-      return tabs.proofsTab;
-    case 'mesh':
-      return tabs.meshTab;
-    case 'arena':
-      return tabs.arenaView;
-    default:
-      return null;
-  }
-}
-
-export function buildShellSearch(surface: DockSurface, tab: string | null): string {
-  const params = new URLSearchParams();
-  params.set('surface', surface);
-  if (tab !== null && tab !== '') params.set('tab', tab);
-  const s = params.toString();
-  return s ? `?${s}` : '';
 }
 
 export default function Home() {

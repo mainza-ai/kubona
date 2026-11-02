@@ -38,6 +38,10 @@ describe('FlightRecorder live region (Wave-2)', () => {
     expect(String(live.props.className)).toContain('sr-only');
     // Initial index 3 clamps to the last of 3 milestones.
     expect(String(live.props.children)).toContain('Step 3 of 3');
+    expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' })).toHaveLength(2);
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Error against FCI');
+    expect(text).toContain('Chemical-accuracy limit');
   });
 
   it('updates the announcement only when the step changes (scrub)', async () => {

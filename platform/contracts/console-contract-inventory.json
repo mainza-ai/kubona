@@ -1018,6 +1018,10 @@
       "reason": "test reset helper"
     },
     {
+      "function": "versionedApiPath",
+      "reason": "versioned route alias helper"
+    },
+    {
       "function": "wasRecentAuthFailure",
       "reason": "auth timing helper"
     }
