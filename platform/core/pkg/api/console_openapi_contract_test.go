@@ -85,6 +85,7 @@ func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 		{http.MethodGet, "/api/metasearch/proposals", "/api/metasearch/proposals", http.StatusOK},
 		{http.MethodGet, "/api/hf/downloads", "/api/hf/downloads", http.StatusOK},
 		{http.MethodGet, "/api/ledger/verify?session_id=" + sess.ID, "/api/ledger/verify", http.StatusOK},
+		{http.MethodGet, "/api/memory/recall?session_id=" + sess.ID + "&q=test&bank=experiences&limit=1", "/api/memory/recall", http.StatusOK},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)
@@ -227,4 +228,62 @@ func validateSchemaValue(doc map[string]any, schema map[string]any, value any, a
 		}
 	}
 	return nil
+}
+
+func TestConsoleOpenAPIWriteContracts(t *testing.T) {
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "contract-token")
+	dir := t.TempDir()
+	l, err := ledger.OpenLedger(dir + "/contract_write.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	sup := supervisor.NewSupervisor(l)
+	srv := NewServer(l, sm, jobs.NewRunner(l, nil, 1), sup, watchdog.NewTaskWatchdog(l, sup))
+	sess, err := sm.CreateSession("contract writes", 10, "")
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	task, err := l.CreateTask(sess.ID, "contract task", "measurement", "m1")
+	if err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	handler := srv.Handler()
+	doc := loadConsoleOpenAPI(t)
+	cases := []struct {
+		method   string
+		path     string
+		template string
+		status   int
+		body     string
+	}{
+		{http.MethodPost, "/api/sessions", "/api/sessions", http.StatusCreated, `{"title":"contract create"}`},
+		{http.MethodPost, "/api/tasks", "/api/tasks", http.StatusOK, `{"session_id":"` + sess.ID + `","title":"contract create task"}`},
+		{http.MethodPost, "/api/tasks/" + task.ID, "/api/tasks/{id}", http.StatusOK, `{"session_id":"` + sess.ID + `","status":"done"}`},
+		{http.MethodPut, "/api/workbench/layout?session_id=" + sess.ID, "/api/workbench/layout", http.StatusOK, `{"revision":0,"document":{"version":2,"session_id":"` + sess.ID + `","objects":[],"links":[],"areas":[],"camera":{"x":0,"y":0,"zoom":1}}}`},
+		{http.MethodPut, "/api/canvas/layout?session_id=" + sess.ID, "/api/canvas/layout", http.StatusOK, `{}`},
+		{http.MethodPost, "/api/auth/challenge", "/api/auth/challenge", http.StatusOK, `{}`},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("Authorization", "Bearer contract-token")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != tc.status {
+			t.Errorf("%s %s status %d, want %d: %s", tc.method, tc.path, w.Code, tc.status, strings.TrimSpace(w.Body.String()))
+			continue
+		}
+		contract := responseContractFor(t, doc, tc.method, tc.template)
+		var body any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Errorf("%s %s body is not JSON: %v", tc.method, tc.path, err)
+			continue
+		}
+		if err := validateOpenAPISchema(doc, contract, body, "$"); err != nil {
+			t.Errorf("%s %s violates %s: %v\nbody=%s", tc.method, tc.path, contract, err, w.Body.String())
+		}
+	}
 }

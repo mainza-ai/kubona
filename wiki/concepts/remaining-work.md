@@ -163,8 +163,8 @@ Still open:
   fallbacks.
 - Contract truth: job status is now a canonical lowercase string with a
   `status_code` compatibility field; empty lists are canonical; contract tests
-  cover 42 handler paths and v1 parity for 12 modeled reads; the console sends
-  `Kubona-API-Version: 1` when opted in. The remaining 82 modeled operations are
+  cover 49 handler paths and v1 parity for 12 modeled reads; the console sends
+  `Kubona-API-Version: 1` when opted in. The remaining 75 modeled operations are
   not yet handler-tested; the OpenAPI document is still generated from the
   client response schemas, not the Go route policy. `/api/v1` remains opt-in.
 - Legacy retirement: `WidgetStage` and the legacy molecule canvas stay until
