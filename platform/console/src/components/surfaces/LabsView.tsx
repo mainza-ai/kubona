@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FlaskConical, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { Lab, Session } from '@/types';
-import { fetchLabs, fetchSessions, authWhoami, wasRecentAuthFailure } from '@/lib/api';
+import { fetchLabs, fetchSessions, authWhoami, wasRecentAuthFailure, AUTH_CHANGED_EVENT } from '@/lib/api';
 import { fmtMoney } from '@/lib/guards';
 import { LabOpsPanel } from '@/components/common/LabOpsPanel';
 import { AuthPanel } from '@/components/common/AuthPanel';
@@ -63,6 +63,18 @@ export function LabsView() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof AUTH_CHANGED_EVENT !== 'string') return;
+    const onAuthChanged = () => {
+      authWhoami()
+        .then((me) => setAuthed(me?.authenticated === true))
+        .catch(() => setAuthed(false));
+      void reload();
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+
   const byLab = useMemo(() => {
     const m: Record<string, Session[]> = {};
     for (const s of sessions) {
@@ -111,19 +123,17 @@ export function LabsView() {
           <div id="operator-session">
             <AuthPanel labs={[]} />
           </div>
-          <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
-            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
-            <div className="mt-3 space-y-3">
-              <CreateLabPanel onCreated={reload} />
-              {authed === true && (
-                <>
-                  <TenantGrantPanel labs={labs} />
-                  <KeyRecoveryPanel labs={labs} />
-                  <SessionRefundPanel labs={labs} sessions={sessions} />
-                </>
-              )}
-            </div>
-          </details>
+          <CreateLabPanel onCreated={reload} />
+          {authed === true && (
+            <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
+              <div className="mt-3 space-y-3">
+                <TenantGrantPanel labs={labs} />
+                <KeyRecoveryPanel labs={labs} />
+                <SessionRefundPanel labs={labs} sessions={sessions} />
+              </div>
+            </details>
+          )}
         </div>
       );
     }
@@ -142,6 +152,7 @@ export function LabsView() {
           Laboratories are administered by a lab admin. Sign in to manage this lab; research campaigns remain under Campaigns.
         </p>
         <AuthPanel labs={labs} />
+        <CreateLabPanel onCreated={reload} />
       </div>
     );
   }

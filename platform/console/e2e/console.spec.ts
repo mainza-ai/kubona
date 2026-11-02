@@ -13,7 +13,7 @@ async function expectReady(page: Page) {
 async function openLabs(page: Page) {
   await page.getByTestId('dock-mesh').click();
   await page.getByRole('button', { name: 'Laboratories' }).click();
-  await expect(page.getByText('Operator session')).toBeVisible();
+  await expect(page.getByText('Lab session')).toBeVisible();
 }
 
 async function ensureOperatorLoggedIn(page: Page) {
@@ -48,10 +48,10 @@ async function ensureOperatorLoggedIn(page: Page) {
   // A multi-lab store deliberately does not list labs anonymously; the
   // manual lab-id path is the supported login affordance.
   await page.getByRole('textbox', { name: 'Lab ID', exact: true }).fill(labId);
-  await page.getByRole('button', { name: /Log in with browser key|Session expired — log in again/ }).click();
+  await page.getByRole('button', { name: /Sign in with browser key|Session expired/ }).click();
 
-  await expect(page.getByText(/Operator session/)).toBeVisible();
-  await expect(page.getByText(/anonymous \(bearer only\)/)).toHaveCount(0);
+  await expect(page.getByText(/Lab session/)).toBeVisible();
+  await expect(page.getByText(/not signed in/)).toHaveCount(0);
 
   // The fresh lab has no sessions; create one with the authenticated cookie
   // and wait for the projection, so the dispatch step is not racing a

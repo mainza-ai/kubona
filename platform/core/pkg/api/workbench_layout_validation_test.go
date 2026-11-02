@@ -30,7 +30,7 @@ func TestWorkbenchLayoutRejectsUnknownRefsLinksAreasAndBodies(t *testing.T) {
 		srv.Handler().ServeHTTP(w, req)
 		return w.Code
 	}
-	base := `{"version":2,"session_id":"` + session.ID + `","objects":[{"id":"a","kind":"campaign","position":{"x":0,"y":0},"ref":{"domain":"campaign","id":"` + session.ID + `"}}],"links":[],"areas":[],"camera":{"x":0,"y":0,"zoom":1}}`
+	base := `{"version":2,"session_id":"` + session.ID + `","objects":[{"id":"a","kind":"campaign","position":{"x":0,"y":0},"ref":{"domain":"campaign","id":"` + session.ID + `"}},{"id":"molecule","kind":"molecule","position":{"x":400,"y":0},"ref":{"domain":"campaign","id":"` + session.ID + `"}}],"links":[],"areas":[],"camera":{"x":0,"y":0,"zoom":1}}`
 	if code := put(base); code != http.StatusOK {
 		t.Fatalf("base layout: %d", code)
 	}

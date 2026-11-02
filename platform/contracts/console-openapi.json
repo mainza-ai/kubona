@@ -734,6 +734,26 @@
         }
       }
     },
+    "/api/access": {
+      "get": {
+        "operationId": "fetchAccess",
+        "tags": [
+          "access"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/access"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/autoresearch/harnesses": {
       "get": {
         "operationId": "fetchAutoresearchHarnesses",
@@ -2797,6 +2817,41 @@
           "backends": {
             "type": "array",
             "items": {}
+          }
+        }
+      },
+      "access": {
+        "type": "object",
+        "required": [
+          "mode",
+          "role",
+          "single_lab",
+          "anonymous_chat",
+          "llm_local",
+          "campaign_create",
+          "auth_required"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "single_lab": {
+            "type": "boolean"
+          },
+          "anonymous_chat": {
+            "type": "boolean"
+          },
+          "llm_local": {
+            "type": "boolean"
+          },
+          "campaign_create": {
+            "type": "boolean"
+          },
+          "auth_required": {
+            "type": "boolean"
           }
         }
       },

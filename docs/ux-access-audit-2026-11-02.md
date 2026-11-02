@@ -60,6 +60,11 @@ The P0 access path is now implemented:
   while the daemon holds the lock before resetting a local ledger.
   `scripts/e2e-isolated.py` runs Playwright against a disposable API/console pair on
   dedicated ports, so E2E labs never pollute the operator's workspace.
+- Flicker fix: the Workbench layout save included the `molecule` card kind, which the
+  server allowlist omitted, so every save returned HTTP 400 and the toolbar oscillated
+  between "saving"/"refused". The kind is now accepted and redundant saves are skipped
+  by serialized-document comparison. Live layout PUT returns 200 and the toolbar settles
+  on `applied · revision N`.
 
 Live verification:
 

@@ -69,6 +69,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   const areaDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
   const areaResize = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedDocument = useRef<string>('');
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
   const cameraRef = useRef(camera);
   const zoomCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -279,15 +280,19 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     if (!sessionId || !loaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      const document = workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments, hidden) as unknown as Record<string, unknown>;
+      const serialized = JSON.stringify(document);
+      if (serialized === lastSavedDocument.current) return;
       const requestId = newWriteRequestId();
       setWrite(acceptWrite(requestId, 'saving view'));
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
-        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments, hidden) as unknown as Record<string, unknown>,
+        document,
         requestId,
       ).then((out) => {
         if (out.ok) {
+          lastSavedDocument.current = serialized;
           if (typeof out.revision === 'number') revision.current = out.revision;
           setWrite(settleWrite(requestId, 'applied', `revision ${revision.current}`));
         } else if (out.conflict) {
