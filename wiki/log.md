@@ -4711,3 +4711,8 @@ skipped is the exact failure this incident is about:
 - Add a shared auth phase store (anonymous/checking/authenticated/expired/
   forbidden), wired to 401/403/login/logout/whoami. The expired banner derives
   from the phase while preserving the event path for tests.
+
+## [2026-11-01] impl | Fleet capability matrix
+
+- Add an exact fleet capability table (qubits, queue, cost/shot, jurisdiction,
+  credential, telemetry) beside the queue chart, with per-row provenance.
