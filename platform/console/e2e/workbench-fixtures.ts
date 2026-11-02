@@ -80,10 +80,12 @@ export async function mockApi(page: Page, counts: { loops?: number; jobs?: numbe
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     if (path === '/api/config') return json({ apiUrl: BASE, workbench: true });
     if (path === '/api/sessions') return json({ sessions: [session()] });
+    if (path === '/api/auth/whoami') return json({ authenticated: false });
     if (path === '/api/sessions/perf-session') return json(session());
     if (path === '/api/loops') return json({ loops: loops(counts.loops) });
     if (path === '/api/jobs') return json({ jobs: jobs(counts.jobs) });
     if (path === '/api/obligations/open') return json({ obligations: obligations(counts.obligations) });
+    if (path === '/api/tasks') return json({ tasks: [] });
     if (path === '/api/events') return json({ events: [] });
     if (path === '/api/events/stream') return route.fulfill({ status: 204, body: '' });
     if (path === '/api/sessions/perf-session/campaign') return json(campaign());

@@ -79,14 +79,12 @@ export const RESPONSE_SCHEMAS = {
     ok: bool,
   }),
   'vault.lease': obj({
-    lease: obj({
-      lease_id: str,
-      scope: str,
-      ttl_seconds: num,
-      lease_signature: str,
-      issued_at: str,
-      expires_at: str,
-    }),
+    lease_id: str,
+    scope: str,
+    ttl_seconds: num,
+    lease_signature: str,
+    issued_at: str,
+    expires_at: str,
   }),
   'ledger.verify': obj({
     ok: bool,

@@ -2946,39 +2946,31 @@
       "vault.lease": {
         "type": "object",
         "required": [
-          "lease"
+          "lease_id",
+          "scope",
+          "ttl_seconds",
+          "lease_signature",
+          "issued_at",
+          "expires_at"
         ],
         "properties": {
-          "lease": {
-            "type": "object",
-            "required": [
-              "lease_id",
-              "scope",
-              "ttl_seconds",
-              "lease_signature",
-              "issued_at",
-              "expires_at"
-            ],
-            "properties": {
-              "lease_id": {
-                "type": "string"
-              },
-              "scope": {
-                "type": "string"
-              },
-              "ttl_seconds": {
-                "type": "number"
-              },
-              "lease_signature": {
-                "type": "string"
-              },
-              "issued_at": {
-                "type": "string"
-              },
-              "expires_at": {
-                "type": "string"
-              }
-            }
+          "lease_id": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "type": "number"
+          },
+          "lease_signature": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
           }
         }
       },

@@ -86,14 +86,12 @@ export type QuantumSubmit = {
 };
 
 export type VaultLease = {
-  "lease": {
   "lease_id": string;
   "scope": string;
   "ttl_seconds": number;
   "lease_signature": string;
   "issued_at": string;
   "expires_at": string;
-};
 };
 
 export type LedgerVerify = {

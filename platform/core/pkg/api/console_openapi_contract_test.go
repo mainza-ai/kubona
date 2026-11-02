@@ -21,6 +21,7 @@ import (
 func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
 	t.Setenv("KUBONA_API_TOKEN", "contract-token")
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", strings.Repeat("x", 32))
 	dir := t.TempDir()
 	l, err := ledger.OpenLedger(dir + "/contract.db")
 	if err != nil {
@@ -233,6 +234,7 @@ func validateSchemaValue(doc map[string]any, schema map[string]any, value any, a
 func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
 	t.Setenv("KUBONA_API_TOKEN", "contract-token")
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", strings.Repeat("x", 32))
 	dir := t.TempDir()
 	l, err := ledger.OpenLedger(dir + "/contract_write.db")
 	if err != nil {
@@ -265,6 +267,8 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 		{http.MethodPut, "/api/workbench/layout?session_id=" + sess.ID, "/api/workbench/layout", http.StatusOK, `{"revision":0,"document":{"version":2,"session_id":"` + sess.ID + `","objects":[],"links":[],"areas":[],"camera":{"x":0,"y":0,"zoom":1}}}`},
 		{http.MethodPut, "/api/canvas/layout?session_id=" + sess.ID, "/api/canvas/layout", http.StatusOK, `{}`},
 		{http.MethodPost, "/api/auth/challenge", "/api/auth/challenge", http.StatusOK, `{}`},
+		{http.MethodPost, "/api/ledger/append", "/api/ledger/append", http.StatusOK, `{"session_id":"` + sess.ID + `","event_type":"annotation","payload":{"text":"contract"}}`},
+		{http.MethodPost, "/api/vault/leases", "/api/vault/leases", http.StatusOK, `{"scope":"provider:contract","ttl_seconds":60,"session_id":"` + sess.ID + `"}`},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))

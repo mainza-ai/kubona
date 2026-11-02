@@ -154,14 +154,12 @@ describe('response contracts', () => {
     expect(validateResponse('ledger.verify', { ok: true, fault_count: 0 })).toEqual([]);
     expect(
       validateResponse('vault.lease', {
-        lease: {
-          lease_id: 'l1',
-          scope: 'read',
-          ttl_seconds: 60,
-          lease_signature: 'sig',
-          issued_at: 'now',
-          expires_at: 'later',
-        },
+        lease_id: 'l1',
+        scope: 'read',
+        ttl_seconds: 60,
+        lease_signature: 'sig',
+        issued_at: 'now',
+        expires_at: 'later',
       }),
     ).toEqual([]);
     expect(validateResponse('lens.request', { ok: true, operation_id: 'op' })).toEqual([]);
