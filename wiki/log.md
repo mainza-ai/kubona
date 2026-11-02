@@ -4813,3 +4813,5 @@ skipped is the exact failure this incident is about:
   live cancel verified.
 - Coverage is now 108/123 unique operations; the 15 remaining are observatory
   Atlas, autoresearch/loop, codesign rerun, metastrategy, and tribunal resume.
+  CI `41486920480`, Console E2E `41486920592`, and nightly `41488972234` are
+  green at `24912cb`.
