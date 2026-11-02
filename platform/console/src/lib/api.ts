@@ -199,7 +199,8 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
   }
   return fetch(request, withCredentials(withTimeout)).then((res) => {
     if (res.status === 401) notifyUnauthorized();
-    else if (!res.ok) notifyApiProblem(request, res.status, res.statusText || `HTTP ${res.status}`);
+    else if (res.status === 403) setAuthPhase('forbidden');
+    else if (res.status >= 500) notifyApiProblem(request, res.status, res.statusText || `HTTP ${res.status}`);
     return res;
   }).catch((err) => {
     // A 401/abort is already carried by its own state; report transport
@@ -644,10 +645,11 @@ export async function evaluateDiscoveryPipeline(
 }
 
 export async function fetchCampaignResult(sessionId: string): Promise<ApiResult<import('@/types').CampaignState | null>> {
-  const path = `/api/sessions/${encodeURIComponent(sessionId)}/campaign`;
+  const pathTemplate = '/api/sessions/{id}/campaign';
+  const path = pathTemplate.replace('{id}', encodeURIComponent(sessionId));
   try {
     const data = await dedupedGet<import('@/types').CampaignState>(
-      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`,
+      `${API_BASE}${path}`,
       { headers: authHeaders() },
     );
     return { ok: true, data: contract('campaign', data) };

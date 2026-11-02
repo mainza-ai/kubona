@@ -272,10 +272,12 @@ export type Campaign = {
 export type Epistemics = Record<string, unknown>;
 
 export type Fidelity = {
-  "admitted": boolean;
-  "predicted_fidelity": number;
-  "fidelity_floor": number;
-  "calibration_fresh": boolean;
+  "device_name": string;
+  "predicted_fidelity"?: number;
+  "measured_clifford"?: number;
+  "probe_run"?: boolean;
+  "decision": string;
+  "reason": string;
   "recommended_action": string;
 };
 
@@ -794,7 +796,7 @@ export const API_OPERATIONS = {
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },
-  fetchCampaignResult: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/campaign", response: "campaign" },
+  fetchCampaignResult: { method: "get", path: "/api/sessions/{id}/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },

@@ -405,7 +405,7 @@
     },
     {
       "function": "fetchCampaignResult",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/campaign",
+      "path": "/api/sessions/:id/campaign",
       "method": "GET",
       "contract": "campaign"
     },
