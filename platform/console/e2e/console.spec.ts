@@ -52,6 +52,32 @@ async function ensureOperatorLoggedIn(page: Page) {
 
   await expect(page.getByText(/Operator session/)).toBeVisible();
   await expect(page.getByText(/anonymous \(bearer only\)/)).toHaveCount(0);
+
+  // The fresh lab has no sessions; create one with the authenticated cookie
+  // and wait for the projection, so the dispatch step is not racing a
+  // bootstrap that has not settled yet.
+  const apiUrl = await page.evaluate(async () => {
+    const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
+    return config.apiUrl || 'http://localhost:8080';
+  });
+  await page.evaluate(async (base) => {
+    await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'E2E operator campaign',
+        target_molecule: 'H2',
+        spend_limit_usd: 10,
+        fresh: true,
+      }),
+    });
+  }, apiUrl);
+  await page.goto('/');
+  await expectReady(page);
+  const workbench = page.getByTestId('workbench');
+  await expect(workbench).toBeVisible();
+  await expect.poll(async () => Number(await workbench.getAttribute('data-object-count')), { timeout: 30_000 }).toBeGreaterThan(0);
 }
 
 test.describe('Kubona console against the real local stack', () => {
