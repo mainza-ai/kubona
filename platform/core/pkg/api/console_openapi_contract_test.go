@@ -252,6 +252,10 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("task: %v", err)
 	}
+	msg, err := sm.AddMessage(sess.ID, "assistant", "feedback target", nil)
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
 	handler := srv.Handler()
 	doc := loadConsoleOpenAPI(t)
 	cases := []struct {
@@ -269,6 +273,8 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 		{http.MethodPost, "/api/auth/challenge", "/api/auth/challenge", http.StatusOK, `{}`},
 		{http.MethodPost, "/api/ledger/append", "/api/ledger/append", http.StatusOK, `{"session_id":"` + sess.ID + `","event_type":"annotation","payload":{"text":"contract"}}`},
 		{http.MethodPost, "/api/vault/leases", "/api/vault/leases", http.StatusOK, `{"scope":"provider:contract","ttl_seconds":60,"session_id":"` + sess.ID + `"}`},
+		{http.MethodPost, "/api/ledger/export", "/api/ledger/export", http.StatusOK, `{"session_id":"` + sess.ID + `","format":"json"}`},
+		{http.MethodPost, "/api/chat/feedback", "/api/chat/feedback", http.StatusOK, `{"session_id":"` + sess.ID + `","message_id":"` + msg.ID + `","vote":"up"}`},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
