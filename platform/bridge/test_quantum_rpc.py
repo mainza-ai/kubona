@@ -157,6 +157,18 @@ def test_cancel_queued_job_fences_without_recall(isolated_rail):
     assert runner.store.get(job.job_id).status == "cancelled"
 
 
+def test_cancel_terminal_simulator_is_idempotent(isolated_rail):
+    _, runner = isolated_rail
+    job = runner.store.create(provider="local-simulator", session_id="s1")
+    runner.store.transition(job.job_id, "running")
+    runner.store.transition(job.job_id, "completed")
+    svc = bridge_server.QuantumBridgeServicer()
+    rec = svc.QuantumCancel(_req(job_id=job.job_id, reason="already done"), None)
+    assert rec.ok is True
+    assert rec.provider_recall_attempted is False
+    assert rec.provider_recall_status == "terminal_simulator_no_provider_job"
+
+
 def test_canary_proxy_runs_local_providers(isolated_rail):
     svc = bridge_server.QuantumBridgeServicer()
     resp = svc.RunCanary(_req(providers=["local-simulator"], max_seconds=60), None)

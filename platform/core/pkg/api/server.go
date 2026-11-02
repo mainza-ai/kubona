@@ -1911,7 +1911,11 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, status)
 		return
 	}
-	out := map[string]any{"session_id": res.SessionID, "manifest_version": res.Manifest.Version}
+	manifestVersion, _ := strconv.Atoi(res.Manifest.Version)
+	if manifestVersion == 0 {
+		manifestVersion = 1
+	}
+	out := map[string]any{"session_id": res.SessionID, "manifest_version": manifestVersion}
 	if res.Existing {
 		w.Header().Set("X-Idempotent-Replay", "true")
 		out["replayed"] = true

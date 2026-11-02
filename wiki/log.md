@@ -4794,6 +4794,22 @@ skipped is the exact failure this incident is about:
   a fresh database.
 - Verification: 13 real-stack browser tests (fresh database and repeat runs),
   11 mocked regression E2E tests, 557 console tests, full Go suite, 23 Rust
-  tests, and 44 related Python tests. CI `41458879904` (rerun after a transient Go proxy
-  stream error) and Console E2E `41458879735` are green at `b02aa2b`; nightly
-  `41461725077` is also green there (canary, FPS, both slice60 jobs).
+  tests, and 45 targeted Python tests. CI/E2E were green at `b02aa2b`; nightly
+  `41461725077` is green there.
+
+## [2026-11-02] impl | Provider and operator contract gate
+
+- Added a test-only provider bridge double and real-handler contract cases for
+  literature, ADMET, canary, quantum submit/status/cancel, codesign four-pack,
+  discovery, workflow plan/run, HF search/details/download/cancel, LLM test,
+  chat messages/regenerate/stream/launch/tribunal, and campaign synthesis.
+- Added auth, tenant mutation/rotation, session refund/import, obligation-close,
+  mandate-sign, and cross-lab grant issue/revoke contract cases.
+- Fixed two real contract defects found by the gate: workflow plan returned nil
+  arrays instead of `[]`, and session import returned `manifest_version` as a
+  string instead of the declared number.
+- Made terminal simulator cancellation idempotent (200 with
+  `terminal_simulator_no_provider_job`) instead of a false bridge outage; real
+  live cancel verified.
+- Coverage is now 108/123 unique operations; the 15 remaining are observatory
+  Atlas, autoresearch/loop, codesign rerun, metastrategy, and tribunal resume.
