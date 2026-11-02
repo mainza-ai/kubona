@@ -10,6 +10,7 @@ import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { useAuthPhase } from '@/domain/auth-state';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
 import type { WorkbenchObject, WorkbenchObjectKind } from '@/components/workbench/workbench-model';
@@ -72,13 +73,16 @@ function formatElapsed(createdAt: string): string {
 // mesh→labs AuthPanel. Dismissible; unsubscribes on unmount. Exported for
 // tests — Home mounts exactly one instance below.
 export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
-  const [visible, setVisible] = useState(false);
+  const [eventVisible, setEventVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const authPhase = useAuthPhase();
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const show = () => setVisible(true);
+    const show = () => setEventVisible(true);
     window.addEventListener(UNAUTH_EVENT, show);
     return () => window.removeEventListener(UNAUTH_EVENT, show);
   }, []);
+  const visible = !dismissed && (authPhase === 'expired' || eventVisible);
   if (!visible) return null;
   return (
     <div
@@ -97,7 +101,7 @@ export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void })
         </button>
         <button
           data-testid="auth-banner-dismiss"
-          onClick={() => setVisible(false)}
+          onClick={() => { setDismissed(true); setEventVisible(false); }}
           aria-label="Dismiss session expired banner"
           className="p-1 rounded-lg text-amber-200/70 hover:text-amber-100 hover:bg-white/10 transition-all"
         >
