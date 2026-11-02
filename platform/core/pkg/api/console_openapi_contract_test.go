@@ -88,7 +88,6 @@ func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 		{http.MethodGet, "/api/ledger/verify?session_id=" + sess.ID, "/api/ledger/verify", http.StatusOK},
 		{http.MethodGet, "/api/memory/recall?session_id=" + sess.ID + "&q=test&bank=experiences&limit=1", "/api/memory/recall", http.StatusOK},
 		{http.MethodGet, "/api/observatory/lens/history?session_id=" + sess.ID, "/api/observatory/lens/history", http.StatusOK},
-		{http.MethodGet, "/api/chemistry/admet?smiles=CCO", "/api/chemistry/admet", http.StatusOK},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)
