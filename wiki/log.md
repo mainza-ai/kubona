@@ -4794,5 +4794,6 @@ skipped is the exact failure this incident is about:
   a fresh database.
 - Verification: 13 real-stack browser tests (fresh database and repeat runs),
   11 mocked regression E2E tests, 557 console tests, full Go suite, 23 Rust
-  tests, and 44 related Python tests. CI `41453479027` and Console E2E
-  `41453478802` are green at `301b4cb`.
+  tests, and 44 related Python tests. CI `41458879904` (rerun after a transient Go proxy
+  stream error) and Console E2E `41458879735` are green at `b02aa2b`; nightly
+  `41461725077` is also green there (canary, FPS, both slice60 jobs).
