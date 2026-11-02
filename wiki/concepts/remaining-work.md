@@ -141,11 +141,11 @@ Still open:
   migrations are still open. Lazy surface chunks cut mocked initial transfer
   from 654 KB to 585 KB, still above the 480 KB target; Arena DOM measured 843
   visible / 923 total against the ≤500 target. The fleet view now has an exact
-  capability matrix beside its queue chart.
+  capability matrix plus queue and spend charts.
 - Transport hardening: the typed auth phase store is landed (anonymous /
-  checking / authenticated / expired / forbidden); domain+id event
-  coalescing, chat request ids, and exercising `/api/v1` from the console
-  remain open.
+  checking / authenticated / expired / forbidden) and chat send/stream carry a
+  retained request id across retry; domain+id event coalescing and exercising
+  `/api/v1` from the console remain open.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
 - Write settlement is not yet uniform across every write; LLM settings,
