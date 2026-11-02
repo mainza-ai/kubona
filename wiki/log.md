@@ -4722,3 +4722,8 @@ skipped is the exact failure this incident is about:
 - Add `scripts/console-token-lint.mjs` and a CI step. Existing raw palette
   debt is baselined at 873 occurrences; new debt fails CI and reductions can
   lower the baseline after review.
+
+## [2026-11-01] impl | Spend chart and chat request ids
+
+- Add LLM spend-by-provider chart with exact values/basis in the fleet view.
+- Carry a request id through chat send/stream and reuse it on retry.
