@@ -4763,10 +4763,10 @@ skipped is the exact failure this incident is about:
   offscreen; removed the production FPS badge.
 - Added a tested `KUBONA_CONSOLE_WORKBENCH=0` rollback to the legacy orbital
   surface.
-- Expanded handler contract coverage to 69 unique operations by adding local
+- Expanded handler contract coverage to 68 unique operations by adding local
   read/write fixtures (jobs, settings, QIR, mesh, abort, memory, agents, tenants,
   leases, predictions, exports).
 - Verification: 110 console test files / 557 tests; new 3D and rollback E2E
-  green; Go contract tests green; wiki lint clean. Remaining: 54 unique
+  green; Go contract tests green; wiki lint clean. Remaining: 55 unique
   handler-contract operations, first nightly FPS run, manual AT (waived), W7
   release-gated retirement.
