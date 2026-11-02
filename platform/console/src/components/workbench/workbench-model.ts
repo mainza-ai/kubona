@@ -46,6 +46,10 @@ export type WorkbenchObject = {
   size: { width: number; height: number };
   facts: { label: string; value: string }[];
   chart?: ChartSpec;
+  /** What the card's values are and are not; always shown with the facts. */
+  basis?: string;
+  /** Source references recorded for this object; URLs are validated before render. */
+  sources?: { label: string; url?: string }[];
   /** Authoritative record this card projects; layout never owns content. */
   ref?: { domain: string; id: string };
 };
@@ -160,6 +164,22 @@ function fixed(raw: unknown, digits: number, fallback = 'UNVERIFIED'): string {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw.toFixed(digits) : fallback;
 }
 
+function recordedSources(sources: string[] | undefined): { label: string; url?: string }[] {
+  return (sources ?? [])
+    .filter((source) => typeof source === 'string' && source.trim().length > 0)
+    .slice(0, 4)
+    .map((source) => {
+      const label = source.trim();
+      try {
+        const parsed = new URL(label);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return { label, url: label };
+      } catch {
+        // A non-URL source reference stays visible as text, never as a link.
+      }
+      return { label };
+    });
+}
+
 function energyChart(campaign: CampaignState): ChartSpec | undefined {
   const trajectory = campaign.trajectory ?? [];
   const points = trajectory
@@ -231,12 +251,14 @@ export function buildWorkbench(
       label: 'Hypothesis',
       title: value(epistemics?.statement, 'No evaluated claim yet'),
       detail: 'The claim is a projection of the campaign epistemics, not a chat message.',
+      basis: 'α, β, and γ are the campaign epistemic fractions. They are not a truth score or a confidence interval.',
       position: { x: 0, y: 240 },
-      size: { width: 380, height: 200 },
+      size: { width: 380, height: 240 },
       facts: [
         { label: 'State', value: value(epistemics?.status) },
         { label: 'Corroborated α', value: fixed(epistemics?.alpha_corroborated, 3) },
         { label: 'Contested β', value: fixed(epistemics?.beta_contested, 3) },
+        { label: 'Unverified γ', value: fixed(epistemics?.gamma_unverified, 3) },
       ],
     },
     {
@@ -257,16 +279,22 @@ export function buildWorkbench(
       id: 'measurement',
       kind: 'measurement',
       label: 'Measurement',
-      title: anchored ? 'Classical anchor computed' : 'No measured anchor',
+      title: anchored ? `${value(anchor?.method)} anchor` : 'No measured anchor',
       detail: anchored
-        ? `${value(anchor?.method)} · Δ ${fixed(anchor?.discrepancy_mha, 2)} mHa`
+        ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha VQE against ${fixed(anchor?.fci_exact_energy, 5)} Ha FCI.`
         : 'The campaign carries no computed classical anchor; every value stays UNVERIFIED.',
+      basis: anchored
+        ? `Δ is the recorded VQE−FCI discrepancy in mHa, not an uncertainty. The chemical-accuracy limit is ${fixed(anchor?.chemical_accuracy_limit, 2)} mHa. Source: ${value(anchor?.anchor_source, 'not recorded')}.`
+        : 'No computed anchor means no reference energy, discrepancy, or chemical-accuracy verdict is available.',
       position: { x: 420, y: 240 },
-      size: { width: 380, height: 200 },
+      size: { width: 380, height: 280 },
       facts: [
         { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },
         { label: 'VQE', value: anchored ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha` : 'UNVERIFIED' },
         { label: 'Δ', value: anchored ? `${fixed(anchor?.discrepancy_mha, 2)} mHa` : 'UNVERIFIED' },
+        { label: 'Accuracy limit', value: anchored ? `${fixed(anchor?.chemical_accuracy_limit, 2)} mHa` : 'UNVERIFIED' },
+        { label: 'Accuracy', value: anchored ? (anchor?.chemical_accuracy_passed ? 'PASS' : 'FAIL') : 'UNVERIFIED' },
+        { label: 'UNCERTAINTY', value: 'not recorded' },
       ],
     },
     {
@@ -274,14 +302,20 @@ export function buildWorkbench(
       kind: 'evidence',
       label: 'Evidence',
       title: value(epistemics?.status, 'No epistemic state'),
-      detail: 'Corroboration, contest, and uncertainty are kept separate from a verdict.',
+      detail: (epistemics?.sources?.length ?? 0) > 0
+        ? `${epistemics!.sources.length} source reference${epistemics!.sources.length === 1 ? '' : 's'} recorded.`
+        : 'No source references are recorded for this claim.',
+      basis: 'P(correlated) is a campaign quantity, not a truth verdict. The source list is a reference index; no quote-level excerpt is stored here.',
+      sources: recordedSources(epistemics?.sources),
       position: { x: 840, y: 470 },
-      size: { width: 380, height: 200 },
+      size: { width: 380, height: 280 },
       facts: [
+        { label: 'Corroborated α', value: fixed(epistemics?.alpha_corroborated, 3) },
+        { label: 'Contested β', value: fixed(epistemics?.beta_contested, 3) },
         { label: 'Unverified γ', value: fixed(epistemics?.gamma_unverified, 3) },
         { label: 'P(correlated)', value: fixed(epistemics?.p_correlated, 3) },
+        { label: 'Literature drift', value: fixed(epistemics?.literature_drift_mha, 2) + ' mHa' },
         { label: 'Sources', value: String(epistemics?.sources?.length ?? 0) },
-        { label: 'First source', value: epistemics?.sources?.[0] || 'none recorded' },
       ],
     },
     {

@@ -73,12 +73,12 @@ function obligations(count = OBLIGATIONS) {
   }));
 }
 
-export async function mockApi(page: Page, counts: { loops?: number; jobs?: number; obligations?: number } = {}) {
+export async function mockApi(page: Page, counts: { loops?: number; jobs?: number; obligations?: number; workbench?: boolean } = {}) {
   await page.route('**/api/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
-    if (path === '/api/config') return json({ apiUrl: BASE, workbench: true });
+    if (path === '/api/config') return json({ apiUrl: BASE, workbench: counts.workbench ?? true });
     if (path === '/api/sessions') return json({ sessions: [session()] });
     if (path === '/api/auth/whoami') return json({ authenticated: false });
     if (path === '/api/sessions/perf-session') return json(session());

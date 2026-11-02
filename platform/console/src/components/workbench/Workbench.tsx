@@ -663,7 +663,14 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                 {visibleObjects.map((object) => (
                   <tr key={object.id}>
                     <th scope="row">{object.label}</th>
-                    <td><strong>{object.title}</strong><span>{object.detail}</span></td>
+                    <td>
+                      <strong>{object.title}</strong>
+                      <span>{object.detail}</span>
+                      {object.basis && <span>{object.basis}</span>}
+                      {object.sources?.length ? (
+                        <span>Sources: {object.sources.map((source) => source.label).join(' · ')}</span>
+                      ) : null}
+                    </td>
                     <td>{object.facts.map((fact) => `${fact.label}: ${fact.value}`).join(' · ') || 'No facts recorded'}</td>
                     <td>{onOpenObject ? <Button type="button" size="compact" variant="ghost" onClick={() => onOpenObject(object.kind)}>Open</Button> : '—'}</td>
                   </tr>
@@ -871,6 +878,18 @@ function WorkCard({
           ))}
         </dl>
       )}
+      {object.basis && <p className="k-workbench-basis">{object.basis}</p>}
+      {object.sources?.length ? (
+        <ul className="k-workbench-sources" aria-label={`Sources for ${object.title}`}>
+          {object.sources.map((source) => (
+            <li key={source.label}>
+              {source.url
+                ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+                : <span>{source.label}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {object.chart && (
         <div className="k-workbench-chart">
           <Chart spec={object.chart} />

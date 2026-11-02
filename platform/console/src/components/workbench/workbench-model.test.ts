@@ -92,6 +92,11 @@ describe('workbench model', () => {
     );
     const measurement = objects.find((object) => object.id === 'measurement')!;
     expect(measurement.facts.find((fact) => fact.label === 'FCI')?.value).toBe('-1.13727 Ha');
+    expect(measurement.facts.find((fact) => fact.label === 'UNCERTAINTY')?.value).toBe('not recorded');
+    expect(measurement.basis).toContain('not an uncertainty');
+    const evidence = objects.find((object) => object.id === 'evidence')!;
+    expect(evidence.sources).toEqual([{ label: 'ledger:1' }]);
+    expect(evidence.basis).toContain('not a truth verdict');
     const chart = objects.find((object) => object.id === 'chart')!;
     expect(chart.chart?.series).toHaveLength(2);
     expect(chart.chart?.series[1]?.name).toBe('FCI anchor');
@@ -122,6 +127,21 @@ describe('workbench model', () => {
     const approval = objects.find((object) => object.kind === 'approval');
     expect(approval?.id).toBe('approval-ob-1');
     expect(approval?.facts.find((fact) => fact.label === 'Close ready')?.value).toBe('no');
+  });
+
+  it('links only absolute HTTP(S) evidence sources and leaves references as text', () => {
+    const linked = campaign({
+      epistemics: {
+        ...campaign().epistemics,
+        sources: ['https://example.org/paper', 'ledger:42', 'not a url'],
+      },
+    });
+    const evidence = buildWorkbench(linked).find((object) => object.id === 'evidence')!;
+    expect(evidence.sources).toEqual([
+      { label: 'https://example.org/paper', url: 'https://example.org/paper' },
+      { label: 'ledger:42' },
+      { label: 'not a url' },
+    ]);
   });
 
   it('labels an uncomputed anchor as UNVERIFIED', () => {

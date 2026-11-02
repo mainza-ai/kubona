@@ -133,6 +133,21 @@ export function Inspector({
                     <p className="mt-1 text-[12px] leading-relaxed text-slate-400">{selectedObject.detail}</p>
                   </div>
                   <dl className="space-y-2 text-[12px]">{selectedObject.facts.map((fact) => <Fact key={fact.label} label={fact.label} value={fact.value} />)}</dl>
+                  {selectedObject.basis && <p className="k-inspector-basis">{selectedObject.basis}</p>}
+                  {selectedObject.sources?.length ? (
+                    <div>
+                      <div className="k-inspector-section-label">Sources</div>
+                      <ul className="k-inspector-sources">
+                        {selectedObject.sources.map((source) => (
+                          <li key={source.label}>
+                            {source.url
+                              ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+                              : source.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   {selectedObject.ref && <p className="font-mono text-[12px] text-slate-500">{selectedObject.ref.domain}:{selectedObject.ref.id}</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
                     {onOpenObject && <Button type="button" size="compact" onClick={() => onOpenObject(selectedObject)}>Open</Button>}

@@ -150,6 +150,8 @@ export function SpatialCanvas3D({
   const [fps, setFps] = useState<number | null>(null);
   const fpsRef = useRef<FpsAccumulator | null>(null);
   const fpsHealthyRef = useRef(0);
+  const renderedFramesRef = useRef(0);
+  const telemetryAtRef = useRef(0);
   const [selectedCoordinates, setSelectedCoordinates] = useState<{ r: number; energy: number; ledgerHash: string | null } | null>(null);
   const [hoveredCoordinates, setHoveredCoordinates] = useState<{ r: number; energy: number } | null>(null);
   // Wave-3 WebGL fail-closed: renderer creation throws (or the GPU context
@@ -1183,19 +1185,39 @@ export function SpatialCanvas3D({
     resizeObserver.observe(container);
 
     // W5: no rAF work while the tab is hidden or the observatory is offscreen.
+    // The dataset is the browser-observable contract for that claim: the E2E
+    // gate reads the frame counter and the suspended reason, not a screenshot.
     let inView = true;
     let pageVisible = !document.hidden;
+    let renderState = 'idle';
     const shouldRender = () => shouldRenderFrame(inView, pageVisible);
+    const publishTelemetry = (state: string, force = false) => {
+      const element = containerRef.current;
+      if (!element) return;
+      const now = performance.now();
+      if (!force && now - telemetryAtRef.current < 200) return;
+      telemetryAtRef.current = now;
+      element.dataset.renderFrames = String(renderedFramesRef.current);
+      element.dataset.renderState = state;
+    };
+    const setRenderState = (state: string) => {
+      if (renderState === state) return;
+      renderState = state;
+      publishTelemetry(state, true);
+    };
+    const suspendedReason = () => (pageVisible ? 'offscreen' : 'hidden');
     const resume = () => {
       requestFrame();
     };
     const onVisibility = () => {
       pageVisible = !document.hidden;
+      if (!pageVisible) setRenderState('hidden');
       resume();
     };
     const intersection = new IntersectionObserver(
       (entries) => {
         inView = entries.some((entry) => entry.isIntersecting);
+        if (!inView) setRenderState(suspendedReason());
         resume();
       },
       { rootMargin: '200px' },
@@ -1209,10 +1231,13 @@ export function SpatialCanvas3D({
 
     const renderOnce = () => {
       animId = 0;
-      if (!shouldRender()) return;
+      if (!shouldRender()) {
+        setRenderState(suspendedReason());
+        return;
+      }
       const sample = fpsAcc.tick(performance.now());
       if (sample) {
-        setFps(Math.round(sample.fps));
+        if (process.env.NODE_ENV !== 'production') setFps(Math.round(sample.fps));
         const current = renderer.getPixelRatio();
         let stepped = pixelRatioStepDown(current, sample.fps);
         if (stepped === current && sample.fps >= 58) {
@@ -1231,9 +1256,19 @@ export function SpatialCanvas3D({
       }
       controls.update();
       renderer.render(scene, camera);
+      renderedFramesRef.current += 1;
+      renderState = 'idle';
+      publishTelemetry('idle', renderedFramesRef.current === 1);
     };
     requestFrame = () => {
-      if (animId === 0 && shouldRender()) animId = requestAnimationFrame(renderOnce);
+      if (!shouldRender()) {
+        setRenderState(suspendedReason());
+        return;
+      }
+      if (animId === 0) {
+        setRenderState('active');
+        animId = requestAnimationFrame(renderOnce);
+      }
     };
     requestRenderRef.current = requestFrame;
     controls.addEventListener('change', requestFrame);
@@ -1317,6 +1352,9 @@ export function SpatialCanvas3D({
   return (
     <div
       ref={containerRef}
+      data-testid="observatory-3d"
+      data-render-frames="0"
+      data-render-state="idle"
       className={`relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[#07080B] border border-white/10 ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
       }`}
@@ -1345,9 +1383,11 @@ export function SpatialCanvas3D({
             <span title={anchorComputed ? 'Correlated fraction from the live campaign' : 'No computed anchor — confidence uncomputed'}>{anchorComputed && campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ uncomputed'}</span>
           </div>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[12px] text-slate-400" title="Measured render-loop rate (R-23)">
-            {fps == null ? '… fps' : `${fps} fps`}
-          </span>
+          {process.env.NODE_ENV !== 'production' && (
+            <span className="font-code text-[12px] text-slate-400" title="Measured render-loop rate (R-23, development only)">
+              {fps == null ? '… fps' : `${fps} fps`}
+            </span>
+          )}
         </div>
 
         {/* Viewport Control Badges */}
