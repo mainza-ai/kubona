@@ -1,6 +1,7 @@
 import { afterEach, vi } from 'vitest';
 import { resetSharedResourcesForTests } from '@/domain/shared-resource';
 import { resetTranscriptStoresForTests } from '@/domain/transcript-store';
+import { resetAuthStateForTests } from '@/domain/auth-state';
 
 // Keep component tests synchronous; production still crosses the lazy boundary.
 vi.mock('@/components/data/LazyChart', () => import('@/components/data/DataChart').then((module) => ({ Chart: module.Chart })));
@@ -8,4 +9,5 @@ vi.mock('@/components/data/LazyChart', () => import('@/components/data/DataChart
 afterEach(() => {
   resetSharedResourcesForTests();
   resetTranscriptStoresForTests();
+  resetAuthStateForTests();
 });

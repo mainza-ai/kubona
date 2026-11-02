@@ -4705,3 +4705,9 @@ skipped is the exact failure this incident is about:
 - Move non-default surfaces behind next/dynamic with an explicit loading
   surface. Mocked 361-object boot transfer fell 654 KB → 585 KB; the 480 KB and
   Arena DOM ≤500 targets remain open. E2E a11y waits for lazy chunks.
+
+## [2026-11-01] impl | Typed auth phase store
+
+- Add a shared auth phase store (anonymous/checking/authenticated/expired/
+  forbidden), wired to 401/403/login/logout/whoami. The expired banner derives
+  from the phase while preserving the event path for tests.

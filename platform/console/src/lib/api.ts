@@ -1,5 +1,6 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 import { contract, setContractDriftHandler, type ContractName } from './responseContract';
+import { setAuthPhase } from '@/domain/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
 
 // Build-time default (local dev). The runtime route /api/config can
@@ -118,6 +119,7 @@ function notifyApiProblem(input: RequestInfo | URL, status: number | null, messa
   if (key === lastProblemKey && now - lastProblemAt < 5000) return;
   lastProblemKey = key;
   lastProblemAt = now;
+  if (status === 403) setAuthPhase('forbidden');
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent<ApiProblem>(API_PROBLEM_EVENT, {
       detail: { path, status, message: message.slice(0, 240), at: now },
@@ -142,6 +144,7 @@ export function wasRecentAuthFailure(withinMs = 30000): boolean {
 function notifyUnauthorized(): void {
   const expired = authenticatedSession;
   authenticatedSession = false;
+  setAuthPhase(expired ? 'expired' : 'anonymous');
   lastAuthFailureAt = Date.now();
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent(expired ? UNAUTH_EVENT : AUTH_REQUIRED_EVENT));
@@ -2171,6 +2174,7 @@ export async function authLogin(
       body: { tenant_id: tenantId, pubkey_hex: pubkeyHex, nonce, signature_hex: signatureHex },
     })) as unknown as { ok: true; tenant_id: string; pubkey_fp: string };
     authenticatedSession = true;
+    setAuthPhase('authenticated');
     return data;
   } catch (err) {
     if (err instanceof OperationError) return { error: err.message };
@@ -2182,7 +2186,10 @@ export async function authLogin(
 export async function authLogout(): Promise<boolean> {
   try {
     const data = await requestOperation('authLogout');
-    if (data.ok === true) authenticatedSession = false;
+    if (data.ok === true) {
+      authenticatedSession = false;
+      setAuthPhase('anonymous');
+    }
     return data.ok === true;
   } catch (err) {
     console.error('Failed to log out:', err);
@@ -2194,6 +2201,7 @@ export async function authWhoami(): Promise<AuthSession | null> {
   try {
     const data = (await requestOperation('authWhoami')) as unknown as AuthSession;
     authenticatedSession = data.authenticated === true;
+    setAuthPhase(data.authenticated === true ? 'authenticated' : 'anonymous');
     return data;
   } catch (err) {
     console.error('Failed to check session:', err);
