@@ -383,7 +383,8 @@ honestly unavailable; no root socket in kubonad.
 Deliverables:
 
 1. Off-host encrypted backup destination + OS-level encrypted volume + documented
-   key rotation; scratch restore drill in release acceptance.
+   key rotation; `kubonad restore-drill --db ...` is the local scratch proof, and
+   the same command must be run against the off-host copy during acceptance.
 2. Alert routing for disk/rate/settlement with cooldown and event type.
 3. Manual VoiceOver/NVDA run on the shipped commit, recorded per surface.
 4. Claim/results browser E2E (paging, review, PES table/CSV, full-space status,
@@ -427,6 +428,9 @@ shell steps; manual evidence or explicit waiver recorded.
     are mirrored afterward; interrupted runs become `repair_required` on boot.
   - `GET /api/sessions/{id}/workflows` exposes the journal; no run is presented
     as completed without a terminal receipt.
+  - Normal mixed workflows are Go-owned: job steps use the Go jobs rail,
+    non-job steps use the single-tool `RunWorkflowStep` RPC, and compensations
+    are recorded best-effort.
 - Investigation evidence and benchmark numbers recorded above.
 
 - **Live governed hardware evidence (2026-11-08):** one H2 VQE parent and one
@@ -449,9 +453,16 @@ shell steps; manual evidence or explicit waiver recorded.
 Still open in Phase B: QAOA prepare symmetry with the VQE prepare route and a
 provider-level batch test against the installed Qiskit Runtime.
 
-Still open in Phase C: Go-owned single-step bridge RPC for mixed non-job tools,
-full crash/retry conformance, and compensation rows. The current journal makes
-interruption visible; it does not yet make Python step execution Go-owned.
+Phase C update: normal mixed workflows are now Go-owned. `execution/submit_job`
+steps use the Go jobs rail; every other tool executes through the new
+`RunWorkflowStep` RPC, one tool per call. The Go orchestrator owns sequencing,
+per-step budget checks, journal rows, terminal settlement, and best-effort
+compensation records. Approval-required and agent-created workflows deliberately
+fall back to the Python compatibility engine.
+
+Still open in Phase C: approval/agent workflow migration, full crash/retry
+conformance for mid-step RPC loss, and typed inverse compensation for hardware
+jobs (the journal records unsupported job compensation rather than inventing it).
 
 ## 5. Decisions required before Phase B/E
 

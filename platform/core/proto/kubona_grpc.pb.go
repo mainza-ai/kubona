@@ -36,6 +36,7 @@ const (
 	QuantumBridgeService_RunExperiment_FullMethodName             = "/kubona.QuantumBridgeService/RunExperiment"
 	QuantumBridgeService_WorkflowPlan_FullMethodName              = "/kubona.QuantumBridgeService/WorkflowPlan"
 	QuantumBridgeService_WorkflowRun_FullMethodName               = "/kubona.QuantumBridgeService/WorkflowRun"
+	QuantumBridgeService_RunWorkflowStep_FullMethodName           = "/kubona.QuantumBridgeService/RunWorkflowStep"
 )
 
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
@@ -59,6 +60,7 @@ type QuantumBridgeServiceClient interface {
 	RunExperiment(ctx context.Context, in *ExperimentRequest, opts ...grpc.CallOption) (*ExperimentResponse, error)
 	WorkflowPlan(ctx context.Context, in *WorkflowPlanRequest, opts ...grpc.CallOption) (*WorkflowPlanResponse, error)
 	WorkflowRun(ctx context.Context, in *WorkflowRunRequest, opts ...grpc.CallOption) (*WorkflowRunResponse, error)
+	RunWorkflowStep(ctx context.Context, in *WorkflowStepRequest, opts ...grpc.CallOption) (*WorkflowStepResponse, error)
 }
 
 type quantumBridgeServiceClient struct {
@@ -239,6 +241,16 @@ func (c *quantumBridgeServiceClient) WorkflowRun(ctx context.Context, in *Workfl
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) RunWorkflowStep(ctx context.Context, in *WorkflowStepRequest, opts ...grpc.CallOption) (*WorkflowStepResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkflowStepResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_RunWorkflowStep_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
@@ -260,6 +272,7 @@ type QuantumBridgeServiceServer interface {
 	RunExperiment(context.Context, *ExperimentRequest) (*ExperimentResponse, error)
 	WorkflowPlan(context.Context, *WorkflowPlanRequest) (*WorkflowPlanResponse, error)
 	WorkflowRun(context.Context, *WorkflowRunRequest) (*WorkflowRunResponse, error)
+	RunWorkflowStep(context.Context, *WorkflowStepRequest) (*WorkflowStepResponse, error)
 	mustEmbedUnimplementedQuantumBridgeServiceServer()
 }
 
@@ -320,6 +333,9 @@ func (UnimplementedQuantumBridgeServiceServer) WorkflowPlan(context.Context, *Wo
 }
 func (UnimplementedQuantumBridgeServiceServer) WorkflowRun(context.Context, *WorkflowRunRequest) (*WorkflowRunResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method WorkflowRun not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) RunWorkflowStep(context.Context, *WorkflowStepRequest) (*WorkflowStepResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunWorkflowStep not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) mustEmbedUnimplementedQuantumBridgeServiceServer() {}
 func (UnimplementedQuantumBridgeServiceServer) testEmbeddedByValue()                              {}
@@ -648,6 +664,24 @@ func _QuantumBridgeService_WorkflowRun_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_RunWorkflowStep_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkflowStepRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).RunWorkflowStep(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_RunWorkflowStep_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).RunWorkflowStep(ctx, req.(*WorkflowStepRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuantumBridgeService_ServiceDesc is the grpc.ServiceDesc for QuantumBridgeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -722,6 +756,10 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WorkflowRun",
 			Handler:    _QuantumBridgeService_WorkflowRun_Handler,
+		},
+		{
+			MethodName: "RunWorkflowStep",
+			Handler:    _QuantumBridgeService_RunWorkflowStep_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

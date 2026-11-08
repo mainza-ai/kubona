@@ -151,6 +151,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "restore" {
 		os.Exit(runRestore(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "restore-drill" {
+		os.Exit(runRestoreDrill(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "fk-audit" {
 		os.Exit(runFKAudit(os.Args[2:]))
 	}

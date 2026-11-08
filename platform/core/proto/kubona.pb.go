@@ -3108,6 +3108,200 @@ func (x *WorkflowRunResponse) GetCompensationsJson() string {
 	return ""
 }
 
+// One Go-orchestrated mixed-workflow step. The Go worker owns sequencing,
+// budgets, and compensations; the bridge executes exactly one non-job tool.
+type WorkflowStepRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	StepJson                string                 `protobuf:"bytes,1,opt,name=step_json,json=stepJson,proto3" json:"step_json,omitempty"`
+	WorkflowId              string                 `protobuf:"bytes,2,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	SessionId               string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Token                   string                 `protobuf:"bytes,4,opt,name=token,proto3" json:"token,omitempty"`
+	InputsJson              string                 `protobuf:"bytes,5,opt,name=inputs_json,json=inputsJson,proto3" json:"inputs_json,omitempty"`
+	SessionVerified         bool                   `protobuf:"varint,6,opt,name=session_verified,json=sessionVerified,proto3" json:"session_verified,omitempty"`
+	SessionBudgetCeilingUsd float64                `protobuf:"fixed64,7,opt,name=session_budget_ceiling_usd,json=sessionBudgetCeilingUsd,proto3" json:"session_budget_ceiling_usd,omitempty"`
+	SessionSpentUsd         float64                `protobuf:"fixed64,8,opt,name=session_spent_usd,json=sessionSpentUsd,proto3" json:"session_spent_usd,omitempty"`
+	TenantId                string                 `protobuf:"bytes,9,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *WorkflowStepRequest) Reset() {
+	*x = WorkflowStepRequest{}
+	mi := &file_kubona_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowStepRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowStepRequest) ProtoMessage() {}
+
+func (x *WorkflowStepRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowStepRequest.ProtoReflect.Descriptor instead.
+func (*WorkflowStepRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *WorkflowStepRequest) GetStepJson() string {
+	if x != nil {
+		return x.StepJson
+	}
+	return ""
+}
+
+func (x *WorkflowStepRequest) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *WorkflowStepRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *WorkflowStepRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *WorkflowStepRequest) GetInputsJson() string {
+	if x != nil {
+		return x.InputsJson
+	}
+	return ""
+}
+
+func (x *WorkflowStepRequest) GetSessionVerified() bool {
+	if x != nil {
+		return x.SessionVerified
+	}
+	return false
+}
+
+func (x *WorkflowStepRequest) GetSessionBudgetCeilingUsd() float64 {
+	if x != nil {
+		return x.SessionBudgetCeilingUsd
+	}
+	return 0
+}
+
+func (x *WorkflowStepRequest) GetSessionSpentUsd() float64 {
+	if x != nil {
+		return x.SessionSpentUsd
+	}
+	return 0
+}
+
+func (x *WorkflowStepRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+type WorkflowStepResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	StepId        string                 `protobuf:"bytes,3,opt,name=step_id,json=stepId,proto3" json:"step_id,omitempty"`
+	ResultJson    string                 `protobuf:"bytes,4,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	SpentUsd      float64                `protobuf:"fixed64,5,opt,name=spent_usd,json=spentUsd,proto3" json:"spent_usd,omitempty"`
+	StepRecords   []string               `protobuf:"bytes,6,rep,name=step_records,json=stepRecords,proto3" json:"step_records,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorkflowStepResponse) Reset() {
+	*x = WorkflowStepResponse{}
+	mi := &file_kubona_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowStepResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowStepResponse) ProtoMessage() {}
+
+func (x *WorkflowStepResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowStepResponse.ProtoReflect.Descriptor instead.
+func (*WorkflowStepResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *WorkflowStepResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *WorkflowStepResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *WorkflowStepResponse) GetStepId() string {
+	if x != nil {
+		return x.StepId
+	}
+	return ""
+}
+
+func (x *WorkflowStepResponse) GetResultJson() string {
+	if x != nil {
+		return x.ResultJson
+	}
+	return ""
+}
+
+func (x *WorkflowStepResponse) GetSpentUsd() float64 {
+	if x != nil {
+		return x.SpentUsd
+	}
+	return 0
+}
+
+func (x *WorkflowStepResponse) GetStepRecords() []string {
+	if x != nil {
+		return x.StepRecords
+	}
+	return nil
+}
+
 var File_kubona_proto protoreflect.FileDescriptor
 
 const file_kubona_proto_rawDesc = "" +
@@ -3374,7 +3568,28 @@ const file_kubona_proto_rawDesc = "" +
 	"\fstep_records\x18\x05 \x03(\tR\vstepRecords\x12*\n" +
 	"\x11last_results_json\x18\x06 \x01(\tR\x0flastResultsJson\x12\x1b\n" +
 	"\tspent_usd\x18\a \x01(\x01R\bspentUsd\x12-\n" +
-	"\x12compensations_json\x18\b \x01(\tR\x11compensationsJson*\xb8\x01\n" +
+	"\x12compensations_json\x18\b \x01(\tR\x11compensationsJson\"\xda\x02\n" +
+	"\x13WorkflowStepRequest\x12\x1b\n" +
+	"\tstep_json\x18\x01 \x01(\tR\bstepJson\x12\x1f\n" +
+	"\vworkflow_id\x18\x02 \x01(\tR\n" +
+	"workflowId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05token\x18\x04 \x01(\tR\x05token\x12\x1f\n" +
+	"\vinputs_json\x18\x05 \x01(\tR\n" +
+	"inputsJson\x12)\n" +
+	"\x10session_verified\x18\x06 \x01(\bR\x0fsessionVerified\x12;\n" +
+	"\x1asession_budget_ceiling_usd\x18\a \x01(\x01R\x17sessionBudgetCeilingUsd\x12*\n" +
+	"\x11session_spent_usd\x18\b \x01(\x01R\x0fsessionSpentUsd\x12\x1b\n" +
+	"\ttenant_id\x18\t \x01(\tR\btenantId\"\xc5\x01\n" +
+	"\x14WorkflowStepResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12#\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x17\n" +
+	"\astep_id\x18\x03 \x01(\tR\x06stepId\x12\x1f\n" +
+	"\vresult_json\x18\x04 \x01(\tR\n" +
+	"resultJson\x12\x1b\n" +
+	"\tspent_usd\x18\x05 \x01(\x01R\bspentUsd\x12!\n" +
+	"\fstep_records\x18\x06 \x03(\tR\vstepRecords*\xb8\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -3388,8 +3603,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x18DEGRADATION_QPU_HARDWARE\x10\x01\x12\x1d\n" +
 	"\x19DEGRADATION_AER_NOISE_SIM\x10\x02\x12\x1f\n" +
 	"\x1bDEGRADATION_STATEVECTOR_SIM\x10\x03\x12\"\n" +
-	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xf2\n" +
-	"\n" +
+	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xc0\v\n" +
 	"\x14QuantumBridgeService\x12S\n" +
 	"\x0eExecuteCircuit\x12\x1f.kubona.CircuitExecutionRequest\x1a .kubona.CircuitExecutionResponse\x12C\n" +
 	"\n" +
@@ -3408,7 +3622,8 @@ const file_kubona_proto_rawDesc = "" +
 	"\tRunCanary\x12\x18.kubona.CanaryRunRequest\x1a\x19.kubona.CanaryRunResponse\x12F\n" +
 	"\rRunExperiment\x12\x19.kubona.ExperimentRequest\x1a\x1a.kubona.ExperimentResponse\x12I\n" +
 	"\fWorkflowPlan\x12\x1b.kubona.WorkflowPlanRequest\x1a\x1c.kubona.WorkflowPlanResponse\x12F\n" +
-	"\vWorkflowRun\x12\x1a.kubona.WorkflowRunRequest\x1a\x1b.kubona.WorkflowRunResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
+	"\vWorkflowRun\x12\x1a.kubona.WorkflowRunRequest\x1a\x1b.kubona.WorkflowRunResponse\x12L\n" +
+	"\x0fRunWorkflowStep\x12\x1b.kubona.WorkflowStepRequest\x1a\x1c.kubona.WorkflowStepResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
 
 var (
 	file_kubona_proto_rawDescOnce sync.Once
@@ -3423,7 +3638,7 @@ func file_kubona_proto_rawDescGZIP() []byte {
 }
 
 var file_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_kubona_proto_goTypes = []any{
 	(JobStatus)(0),                      // 0: kubona.JobStatus
 	(DegradationLevel)(0),               // 1: kubona.DegradationLevel
@@ -3465,11 +3680,13 @@ var file_kubona_proto_goTypes = []any{
 	(*WorkflowPlanResponse)(nil),        // 37: kubona.WorkflowPlanResponse
 	(*WorkflowRunRequest)(nil),          // 38: kubona.WorkflowRunRequest
 	(*WorkflowRunResponse)(nil),         // 39: kubona.WorkflowRunResponse
-	nil,                                 // 40: kubona.CircuitExecutionResponse.CountsEntry
+	(*WorkflowStepRequest)(nil),         // 40: kubona.WorkflowStepRequest
+	(*WorkflowStepResponse)(nil),        // 41: kubona.WorkflowStepResponse
+	nil,                                 // 42: kubona.CircuitExecutionResponse.CountsEntry
 }
 var file_kubona_proto_depIdxs = []int32{
 	1,  // 0: kubona.CircuitExecutionResponse.degradation_level:type_name -> kubona.DegradationLevel
-	40, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
+	42, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
 	5,  // 2: kubona.CircuitCutResponse.fragments:type_name -> kubona.SubcircuitFragment
 	12, // 3: kubona.LiteratureGroundingResponse.records:type_name -> kubona.LiteratureRecord
 	22, // 4: kubona.DiscoveryPipelineRequest.candidates:type_name -> kubona.DiscoveryCandidate
@@ -3490,25 +3707,27 @@ var file_kubona_proto_depIdxs = []int32{
 	16, // 19: kubona.QuantumBridgeService.RunExperiment:input_type -> kubona.ExperimentRequest
 	36, // 20: kubona.QuantumBridgeService.WorkflowPlan:input_type -> kubona.WorkflowPlanRequest
 	38, // 21: kubona.QuantumBridgeService.WorkflowRun:input_type -> kubona.WorkflowRunRequest
-	3,  // 22: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
-	6,  // 23: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
-	8,  // 24: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
-	10, // 25: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
-	13, // 26: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
-	15, // 27: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
-	19, // 28: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
-	21, // 29: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
-	24, // 30: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
-	26, // 31: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
-	28, // 32: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
-	30, // 33: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
-	32, // 34: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
-	34, // 35: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
-	17, // 36: kubona.QuantumBridgeService.RunExperiment:output_type -> kubona.ExperimentResponse
-	37, // 37: kubona.QuantumBridgeService.WorkflowPlan:output_type -> kubona.WorkflowPlanResponse
-	39, // 38: kubona.QuantumBridgeService.WorkflowRun:output_type -> kubona.WorkflowRunResponse
-	22, // [22:39] is the sub-list for method output_type
-	5,  // [5:22] is the sub-list for method input_type
+	40, // 22: kubona.QuantumBridgeService.RunWorkflowStep:input_type -> kubona.WorkflowStepRequest
+	3,  // 23: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
+	6,  // 24: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
+	8,  // 25: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
+	10, // 26: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
+	13, // 27: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
+	15, // 28: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
+	19, // 29: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
+	21, // 30: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
+	24, // 31: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
+	26, // 32: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
+	28, // 33: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
+	30, // 34: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
+	32, // 35: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
+	34, // 36: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
+	17, // 37: kubona.QuantumBridgeService.RunExperiment:output_type -> kubona.ExperimentResponse
+	37, // 38: kubona.QuantumBridgeService.WorkflowPlan:output_type -> kubona.WorkflowPlanResponse
+	39, // 39: kubona.QuantumBridgeService.WorkflowRun:output_type -> kubona.WorkflowRunResponse
+	41, // 40: kubona.QuantumBridgeService.RunWorkflowStep:output_type -> kubona.WorkflowStepResponse
+	23, // [23:41] is the sub-list for method output_type
+	5,  // [5:23] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -3525,7 +3744,7 @@ func file_kubona_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   39,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

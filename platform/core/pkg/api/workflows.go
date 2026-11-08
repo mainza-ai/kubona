@@ -171,6 +171,12 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normal mixed workflows are Go-owned step-by-step. Approval-required or
+	// agent-created workflows fall through to the Python compatibility engine.
+	if s.runGoMixedWorkflow(w, r, req, sess.ID, workflowID, ceilingUSD) {
+		return
+	}
+
 	// No dev fallback: the workflow gateway token is the bridge token in
 	// ALL envs. The bridge builds a require_auth gateway around it; a
 	// literal "dev-token" (or an empty token) would run bridged tools
