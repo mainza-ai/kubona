@@ -28,6 +28,13 @@ This plan is being executed incrementally. Landed after the report:
   claim history tests.
 - **Build/gates:** CI and Console E2E green at `f1b7f1f`; Go full suite, 592
   console tests/54.35% branches, Python targeted suite, lint/tsc green.
+- **Hardware QAOA diagnostic (not yet the product rail):** the optimized
+  8-node QAOA circuit from the simulator run was executed on `ibm_marrakesh`
+  (vendor job `dboak8oqtr0c73ae8dpg`, 256 shots). Hardware cut expectation
+  `7.1875` vs classical optimum `10` and local exact optimizer `8.7106`
+  (ratio `0.71875`), usage `2.0 s`, actual `$0.00`. The optimizer remained
+  local and the run bypassed the session/claim ledger; it is evidence for
+  the next hardware-worker phase, not a production result.
 
 Still pending from this plan: hardware VQE/QAOA, full-space accuracy,
 mixed-workflow atomicity, safe sandbox default, at-rest secrets, manual

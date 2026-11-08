@@ -30,10 +30,12 @@ section records what changed and the remaining status.
 >   optimizer `8.901`, shot-measured `7.870`, ratio `0.787`; the `qaoa_run`
 >   settlement path now releases the reservation (re-tested live at `$0`).
 >   The simulator result now carries the optimized `circuit_qasm` for the
->   generic hardware rail. A manual diagnostic hardware submission
->   (`dbo7uooqtr0c73ae4u80`) was queued on `ibm_fez` and then cancelled after
->   the queue wait; it produced **no** hardware result and bypassed the ledger
->   (diagnostic only). No hardware QAOA/VQE result is claimed.
+>   generic hardware rail. A diagnostic final-state run on **`ibm_marrakesh`**
+>   (`dboak8oqtr0c73ae8dpg`, 256 shots) completed: counts produced a cut
+>   expectation of `7.1875` against the classical optimum `10` and local exact
+>   optimizer `8.7106` (ratio `0.71875`), usage `2.0 s`, actual `$0.00`.
+>   The optimizer was local and this diagnostic bypassed the session/claim
+>   ledger; it is not a production hardware result. Hardware VQE is not run.
 > - **Completed QPU**: job `38a0b0642f664c74` / vendor
 >   `dbo2egoou4as73b5dfog`, `ibm_fez` layout `144/143`, 100 shots,
 >   counts `00:57, 01:2, 10:1, 11:40`, usage `2.0 s`, actual `$0.00`,
