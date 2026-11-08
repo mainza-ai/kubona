@@ -34,23 +34,34 @@ function summarize(job: Job): string | null {
         : '';
       return `counts on ${backend} · ${shots} shots · job ${short}${compiler}`;
     }
+    case 'qaoa_run': {
+      const ratio = num(r.approximation_ratio);
+      const cut = num(r.energy);
+      const optimal = num(r.optimal_cut);
+      if (cut === null) return null;
+      return `QAOA MaxCut ${cut.toFixed(3)}${optimal !== null ? ` vs classical ${optimal}` : ''}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · job ${short}`;
+    }
     case 'vqe_run': {
       const e = num(r.energy);
       const fci = num(r.fci_exact_energy);
       const delta = num(r.delta_mha);
       if (e === null) return null;
-      return `VQE ${e.toFixed(6)} Ha${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
+      const unc = num(r.uncertainty);
+      return `VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
     }
     case 'vqe_pes': {
       const pts = Array.isArray(r.points) ? r.points : [];
       if (pts.length === 0) return null;
-      let best = asRecord(pts[0]);
+      let min = asRecord(pts[0]);
+      let closest = asRecord(pts[0]);
       for (const p of pts) {
         const rec = asRecord(p);
-        if ((num(rec.delta_mha) ?? Infinity) < (num(best.delta_mha) ?? Infinity)) best = rec;
+        if ((num(rec.energy) ?? Infinity) < (num(min.energy) ?? Infinity)) min = rec;
+        if ((num(rec.delta_mha) ?? Infinity) < (num(closest.delta_mha) ?? Infinity)) closest = rec;
       }
-      const bestR = num(best.bond_distance);
-      return `VQE PES ${pts.length} points${bestR !== null ? ` · best R=${bestR.toFixed(4)} Å` : ''} · job ${short}`;
+      const minR = num(min.bond_distance);
+      const closeR = num(closest.bond_distance);
+      return `VQE PES ${pts.length} points${minR !== null ? ` · min E R=${minR.toFixed(4)} Å` : ''}${closeR !== null ? ` · closest R=${closeR.toFixed(4)} Å` : ''} · job ${short}`;
     }
     case 'krylov_solve': {
       const e = num(r.ground_state_energy);

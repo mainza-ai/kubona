@@ -245,6 +245,28 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mirror each executed workflow step into the Go ledger. The tools still
+	// run in the Python compute plane, but the session's audit trail must name
+	// every step/tool/result in the same book as the workflow receipt.
+	var wfDef struct {
+		Steps []struct {
+			ID   string `json:"id"`
+			Tool string `json:"tool"`
+		} `json:"steps"`
+	}
+	_ = json.Unmarshal(req.Workflow, &wfDef)
+	toolByStep := map[string]string{}
+	for _, step := range wfDef.Steps {
+		toolByStep[step.ID] = step.Tool
+	}
+	for stepID, result := range lastResults {
+		raw, _ := json.Marshal(result)
+		s.ledger.AppendEvent(sess.ID, "workflow_step", map[string]interface{}{
+			"workflow": resp.WorkflowId, "workflow_id": resp.WorkflowId, "session_id": sess.ID,
+			"step": stepID, "tool": toolByStep[stepID],
+			"result": json.RawMessage(raw), "spent_usd": resp.SpentUsd,
+		})
+	}
 	s.ledger.AppendEvent(sess.ID, "workflow_execution_completed", map[string]interface{}{
 		"workflow_id":     resp.WorkflowId,
 		"session_id":      sess.ID,

@@ -887,10 +887,19 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 80)),
                 )
+            elif kind == "qaoa":
+                from experiments import run_qaoa
+                result = run_qaoa(
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 4096)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                    graph_seed=int(spec.get("graph_seed", 3)),
+                )
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe or pes",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, or qaoa",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

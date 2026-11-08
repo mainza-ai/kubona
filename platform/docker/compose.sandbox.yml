@@ -1,0 +1,22 @@
+# Opt-in host-Docker sandbox profile for autoresearch harness execution.
+#
+# This mounts the host daemon socket into kubonad, which is a real security
+# boundary: anything that can drive the daemon can control host containers.
+# Use only on a trusted local-private host, after reading the sandbox threat
+# notes in docs/local-deployment.md. Without this override the runner remains
+# fail-closed (`docker_runner.available:false`).
+services:
+  kubonad:
+    # The host socket is root:root 0660 under Docker Desktop; the nonroot
+    # kubonad user needs the socket group to call the daemon. This is the
+    # explicit cost of the sandbox profile, not a default.
+    group_add:
+      - "0"
+    environment:
+      KUBONA_SANDBOX_IMAGE: ${KUBONA_SANDBOX_IMAGE:-kubona-quantum-runner:1.1.0}
+      # Host and container share this path so the daemon can read the
+      # generated seccomp profile and the benchmark/workspace mounts.
+      TMPDIR: /tmp/kubona-sandbox
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandbox}:/tmp/kubona-sandbox

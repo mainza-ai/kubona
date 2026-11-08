@@ -55,6 +55,7 @@ const LabsView = dynamic(() => import('@/components/surfaces/LabsView').then((mo
 const LLMSettings = dynamic(() => import('@/components/surfaces/LLMSettings').then((mod) => ({ default: mod.LLMSettings })), { ssr: false, loading: () => <SurfaceLoading label="LLM settings" /> });
 const QuantumSettings = dynamic(() => import('@/components/surfaces/QuantumSettings').then((mod) => ({ default: mod.QuantumSettings })), { ssr: false, loading: () => <SurfaceLoading label="quantum settings" /> });
 const QuantumDispatch = dynamic(() => import('@/components/surfaces/QuantumDispatch').then((mod) => ({ default: mod.QuantumDispatch })), { ssr: false, loading: () => <SurfaceLoading label="quantum dispatch" /> });
+const ExperimentPanel = dynamic(() => import('@/components/common/ExperimentPanel').then((mod) => ({ default: mod.ExperimentPanel })), { ssr: false, loading: () => <SurfaceLoading label="experiment launcher" /> });
 const AutonomyCockpit = dynamic(() => import('@/components/surfaces/AutonomyCockpit').then((mod) => ({ default: mod.AutonomyCockpit })), { ssr: false, loading: () => <SurfaceLoading label="guardrails" /> });
 const SpatialCanvas = dynamic(() => import('@/components/surfaces/SpatialCanvas').then((mod) => ({ default: mod.SpatialCanvas })), { ssr: false, loading: () => <SurfaceLoading label="molecule workbench" /> });
 const GenerativeUIStudio = dynamic(() => import('@/components/surfaces/GenerativeUIStudio').then((mod) => ({ default: mod.GenerativeUIStudio })), { ssr: false, loading: () => <SurfaceLoading label="gallery" /> });
@@ -92,7 +93,7 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
-  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'vault' | 'readiness'>('models');
+  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'experiments' | 'vault' | 'readiness'>('models');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
@@ -1331,6 +1332,7 @@ export default function Home() {
                       ['models', 'Models'],
                       ['quantum', 'Quantum providers'],
                       ['dispatch', 'Quantum dispatch'],
+                      ['experiments', 'Experiments'],
                       ['vault', 'Vault leases'],
                       ['readiness', 'System readiness'],
                     ] as const).map(([id, label]) => (
@@ -1348,6 +1350,7 @@ export default function Home() {
                   {settingsSection === 'models' && <LLMSettings />}
                   {settingsSection === 'quantum' && <QuantumSettings />}
                   {settingsSection === 'dispatch' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
+                  {settingsSection === 'experiments' && <ExperimentPanel sessionId={currentSessionId || null} />}
                   {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
                   {settingsSection === 'readiness' && <SystemReadinessPanel />}
                 </div>

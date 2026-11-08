@@ -1132,7 +1132,14 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 	// nil-check reported ONLINE with the bridge down). Unconfigured
 	// address reads UNKNOWN — honest about not knowing.
 	localSimStatus := "UNKNOWN"
-	if s.bridgeAddr != "" {
+	if sock := strings.TrimSpace(os.Getenv("KUBONA_BRIDGE_SOCKET")); sock != "" {
+		// Production transport is UDS-exclusive. TCP dialing localhost:50051
+		// reports the healthy bridge as DEGRADED in the shipped topology.
+		localSimStatus = "DEGRADED"
+		if fi, err := os.Stat(strings.TrimPrefix(sock, "unix://")); err == nil && fi.Mode()&os.ModeSocket != 0 {
+			localSimStatus = "ONLINE"
+		}
+	} else if s.bridgeAddr != "" {
 		localSimStatus = "DEGRADED"
 		if conn, err := net.DialTimeout("tcp", s.bridgeAddr, 200*time.Millisecond); err == nil {
 			conn.Close()
@@ -1203,9 +1210,19 @@ func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 	ports := []int{8787, 11434, 1234, 47831, 8080, 50051}
 	var detected []map[string]any
 
+	sockPath := strings.TrimPrefix(strings.TrimSpace(os.Getenv("KUBONA_BRIDGE_SOCKET")), "unix://")
+	sockReady := false
+	if sockPath != "" {
+		if fi, err := os.Stat(sockPath); err == nil && fi.Mode()&os.ModeSocket != 0 {
+			sockReady = true
+		}
+	}
 	for _, p := range ports {
 		dialTarget := fmt.Sprintf("127.0.0.1:%d", p)
-		if p == 50051 && s.bridgeAddr != "" {
+		if p == 50051 && sockPath != "" {
+			// UDS-exclusive production bridge: TCP dial is meaningless.
+			dialTarget = ""
+		} else if p == 50051 && s.bridgeAddr != "" {
 			// The bridge lives at the configured gRPC address
 			// (--bridge; bridge:50051 in compose), not on this
 			// daemon's loopback. Dialing loopback here reported a
@@ -1213,10 +1230,15 @@ func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 			// Same standard as the fleet liveness probe below.
 			dialTarget = s.bridgeAddr
 		}
-		conn, err := net.DialTimeout("tcp", dialTarget, 150*time.Millisecond)
-		isListening := (err == nil)
-		if conn != nil {
-			conn.Close()
+		isListening := false
+		if dialTarget == "" {
+			isListening = sockReady
+		} else {
+			conn, err := net.DialTimeout("tcp", dialTarget, 150*time.Millisecond)
+			isListening = err == nil
+			if conn != nil {
+				conn.Close()
+			}
 		}
 
 		serviceName := "Unknown Service"
@@ -1235,13 +1257,19 @@ func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 			serviceName = "Kubona Python Quantum Bridge"
 		}
 
-		detected = append(detected, map[string]any{
+		row := map[string]any{
 			"port":        p,
 			"listening":   isListening,
 			"service":     serviceName,
 			"sovereign":   true,
 			"is_local_ip": true,
-		})
+		}
+		if p == 50051 && sockPath != "" {
+			row["transport"] = "unix"
+			row["socket"] = sockPath
+			row["service"] = "Kubona Python Quantum Bridge (UDS)"
+		}
+		detected = append(detected, row)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"radar_endpoints": detected})

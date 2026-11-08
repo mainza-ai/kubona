@@ -122,6 +122,9 @@ var KnownEventTypes = map[string]bool{
 	"trial":                             true,
 	"tribunal_commit":                   true,
 	"tribunal_turn":                     true,
+	"workflow_execution_completed":      true,
+	"workflow_execution_failed":         true,
+	"workflow_step":                     true,
 	"x402_payment_settled":              true,
 }
 

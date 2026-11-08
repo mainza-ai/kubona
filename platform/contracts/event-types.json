@@ -1224,7 +1224,8 @@
     },
     "workflow_step": {
       "emitters": [
-        "python"
+        "python",
+        "go"
       ],
       "payload": "Workflow step execution receipt.",
       "required": [
@@ -1237,6 +1238,30 @@
       ],
       "payload": "x402 local-only settlement receipt (dormant machinery).",
       "required": []
+    },
+    "workflow_execution_completed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Go mirror of a completed workflow execution (Python remains the executor).",
+      "required": [
+        "workflow_id",
+        "session_id",
+        "steps_completed",
+        "spent_usd"
+      ]
+    },
+    "workflow_execution_failed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Go mirror of a failed workflow execution (Python remains the executor).",
+      "required": [
+        "workflow_id",
+        "session_id",
+        "error",
+        "spent_usd"
+      ]
     }
   },
   "version": 1

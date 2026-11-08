@@ -35,7 +35,7 @@ const MaxStoredResultBytes = 1 * 1024 * 1024
 var knownJobTypes = map[string]bool{
 	"circuit_run": true, "circuit_cut": true, "classical_anchor": true,
 	"claim_eval": true, "krylov_solve": true, "mitigate": true,
-	"pes_sweep": true, "vqe_run": true, "vqe_pes": true,
+	"pes_sweep": true, "vqe_run": true, "vqe_pes": true, "qaoa_run": true,
 }
 
 // W0.1 — CAS-guard live set, bound once from the single source
@@ -791,7 +791,7 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			resultData, execErr = r.executePesSweep(&sp)
 
-		case "vqe_run", "vqe_pes":
+		case "vqe_run", "vqe_pes", "qaoa_run":
 			// The bridge owns the PySCF/Qiskit experiment runner; the Go
 			// worker owns the ledger job, budget, and settlement. The params
 			// object is the versioned experiment spec.
@@ -862,7 +862,7 @@ func (r *Runner) executeJob(j *Job) {
 	// block; settle it through the same funnel so the reservation is released
 	// (the old path kept the envelope after a successful VQE).
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED &&
-		(j.JobType == "vqe_run" || j.JobType == "vqe_pes") {
+		(j.JobType == "vqe_run" || j.JobType == "vqe_pes" || j.JobType == "qaoa_run") {
 		r.settleTerminalFromResult(j, string(j.ResultJSON))
 	}
 	r.ledger.DB().Exec(

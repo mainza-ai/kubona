@@ -15,6 +15,44 @@ rail still writes its Python ledger separately from the Go job ledger.
 The original audit findings are retained below; the “Implementation executed”
 section records what changed and the remaining status.
 
+> ⚑ Status update (later 2026-11-08): the portfolio gaps named in the verdict
+> were exercised after the initial report.
+>
+> - **LiH VQE**: job `8d122fa8…` / session `ea4aa53a…`; 4 qubits,
+>   active-space `ncas=2/nelecas=2`; measured `-7.8618628 Ha`; full FCI
+>   `-7.8823915 Ha` (Δ `20.53 mHa`, contested); active-space CASCI
+>   `-7.8622641 Ha` (Δ `0.401 mHa`, within the active-space target).
+> - **BeH2 VQE**: job `68f226a4…` / session `ef1b5ba4…`; 6 qubits,
+>   active-space `ncas=3/nelecas=4`; measured `-15.5588153 Ha`; full FCI
+>   `-15.5951176 Ha` (Δ `36.30 mHa`, contested); active-space CASCI
+>   `-15.5631370 Ha` (Δ `4.322 mHa`).
+> - **QAOA**: job `ebda920e…`; 8-node MaxCut, exact optimum `10`, exact
+>   optimizer `8.901`, shot-measured `7.870`, ratio `0.787`; the `qaoa_run`
+>   settlement path now releases the reservation (re-tested live at `$0`).
+> - **Completed QPU**: job `38a0b0642f664c74` / vendor
+>   `dbo2egoou4as73b5dfog`, `ibm_fez` layout `144/143`, 100 shots,
+>   counts `00:57, 01:2, 10:1, 11:40`, usage `2.0 s`, actual `$0.00`,
+>   Go status `completed`; this is a hardware Bell characterization, not a
+>   hardware VQE.
+> - **Autoresearch**: the hardened runner is available only with the opt-in
+>   Docker-socket override (`docker_runner.available:true`); loop
+>   `loop-ansatz-search-bd7627a9` completed one sandboxed iteration. The
+>   default compose remains fail-closed.
+> - **Workflow ledger**: the Go route now mirrors `workflow_step` and
+>   `workflow_execution_completed`/`failed` events into the session ledger;
+>   live run `9a74fe4d…` produced both event types. Python still owns the
+>   step-side job/ledger, so this is a mirror, not one transaction.
+> - **Console form**: the `Experiments` settings surface submits VQE/PES/
+>   QAOA through `POST /api/experiments`; typecheck/build pass.
+> - **Results R0**: measurement summary, per-point PES, uncertainty,
+>   below-FCI flag, convergence, proof labeling, negative sentinels, and a
+>   result-JSON export are implemented. Live R0 session
+>   `de02c225-5a8d-4341-bc3b-a08c14ad6218` produced a structured measurement
+>   and a 4-point PES; the result card is unit-covered.
+>
+> See `docs/results-presentation-audit-2026-11-08.md` for the remaining R1
+> work and the presentation acceptance matrix.
+
 **Revision audited:** `a7a8cd2` for the original pass; implementation is at
 `4cb5e7c` (CI + Console E2E green on `develop` and `main`). The implemented
 result presentation is audited separately in

@@ -158,6 +158,7 @@ export interface QuantumFactors {
   recommended_backend: string;
   estimated_spend_usd: number;
   qasm: string;
+  synthesized?: boolean;
   dag_nodes: Record<string, unknown>[];
   dag_edges: Record<string, unknown>[];
   wire_cuts: Record<string, unknown>[];
@@ -173,6 +174,39 @@ export interface ClassicalAnchor {
   chemical_accuracy_limit: number;
   anchor_computed?: boolean;
   anchor_source?: string;
+}
+
+export interface MeasurementSummary {
+  job_id?: string;
+  claim_id?: string;
+  method: string;
+  ansatz?: string;
+  backend?: string;
+  energy: number;
+  energy_exact?: number;
+  fci_exact_energy: number;
+  active_space_fci_energy?: number;
+  uncertainty_mha: number;
+  delta_mha: number;
+  active_space_delta_mha?: number;
+  shots?: number;
+  seed?: number;
+  chemical_accuracy: boolean;
+  active_space_chemical_accuracy?: boolean;
+  converged: boolean;
+  measured: boolean;
+  below_fci: boolean;
+  source?: string;
+}
+
+export interface PesPoint {
+  bond_distance: number;
+  energy: number;
+  energy_exact?: number;
+  fci_exact_energy: number;
+  delta_mha: number;
+  uncertainty_mha: number;
+  chemical_accuracy: boolean;
 }
 
 export interface TrajectoryStep {
@@ -220,6 +254,8 @@ export interface CampaignState {
   quantum_factors: QuantumFactors;
   classical_anchor: ClassicalAnchor;
   trajectory: TrajectoryStep[];
+  measurement?: MeasurementSummary;
+  pes_points?: PesPoint[];
   branches: Array<{ id: string; name: string; step: number; status: string; delta: string }>;
   epistemics: EpistemicState | null;
   admet?: Record<string, unknown>;

@@ -188,8 +188,12 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
 
   const selected = graph.nodes.find((n) => n.id === selectedId) ?? null;
   const provenance = campaign?.notebook?.provenance_hash;
-  const proposedOnly = campaign?.notebook == null;
-  const dagLabel = proposedOnly ? 'Proposed circuit DAG' : 'Measured campaign DAG';
+  // The campaign currently stores the synthesized proposal DAG, not an
+  // executed circuit graph. Keep the measured result in the Measurement /
+  // Claim cards; never relabel a proposal as measured just because a notebook
+  // exists.
+  const proposedOnly = campaign?.notebook == null || campaign?.quantum_factors?.synthesized === true;
+  const dagLabel = proposedOnly ? 'Proposed circuit DAG' : 'Executed circuit DAG';
 
   if (graph.nodes.length === 0) {
     return (
@@ -206,7 +210,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
   return (
     <div data-testid="proof-dag" className="absolute inset-0 flex flex-col">
       <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-slate-500 shrink-0">
-        <ProvenanceBadge kind={proposedOnly ? 'proposed' : 'measured'} detail={proposedOnly ? 'Circuit proposal; not a measurement.' : 'Campaign notebook evidence.'} />
+        <ProvenanceBadge kind={proposedOnly ? 'proposed' : 'measured'} detail={proposedOnly ? 'Synthesized proposal; the execution result is in Measurement/Claim.' : 'Executed circuit evidence.'} />
         <span>{dagLabel} · {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}</span>
       </div>
       {/* Wire-cut ledger: proposed cuts vs measured cut jobs. Proposed cuts

@@ -102,6 +102,30 @@ describe('workbench model', () => {
     expect(chart.chart?.series[1]?.name).toBe('FCI anchor');
   });
 
+  it('surfaces measurement uncertainty and the below-FCI excursion truthfully', () => {
+    const measured = campaign({
+      measurement: {
+        job_id: 'job-1', claim_id: 'claim-1', method: 'VQE', ansatz: 'hardware-efficient',
+        backend: 'qiskit-aer-simulator', energy: -1.1377829714, energy_exact: -1.1372070030,
+        fci_exact_energy: -1.1372701747, uncertainty_mha: 1.3835463, delta_mha: 0.5127968,
+        shots: 16384, seed: 7, chemical_accuracy: true, converged: false, measured: true,
+        below_fci: true, source: 'shot-sampled Pauli expectation',
+      },
+      pes_points: [
+        { bond_distance: 0.7, energy: -1.1371356, fci_exact_energy: -1.1361895, delta_mha: 0.946, uncertainty_mha: 1.867, chemical_accuracy: true },
+        { bond_distance: 0.9, energy: -1.1212512, fci_exact_energy: -1.1205603, delta_mha: 0.691, uncertainty_mha: 1.996, chemical_accuracy: true },
+      ],
+    });
+    const objects = buildWorkbench(measured);
+    const measurement = objects.find((object) => object.id === 'measurement')!;
+    expect(measurement.facts.find((fact) => fact.label === 'Uncertainty')?.value).toBe('± 1.384 mHa');
+    expect(measurement.facts.find((fact) => fact.label === 'Converged')?.value).toBe('no (evaluation cap)');
+    expect(measurement.facts.find((fact) => fact.label === 'Admissibility')?.value).toContain('POINT BELOW FCI');
+    const chart = objects.find((object) => object.id === 'pes-chart')!;
+    expect(chart.chart?.series[0]?.name).toBe('VQE energy');
+    expect(chart.chart?.series[0]?.points.map((p) => p.x)).toEqual([0.7, 0.9]);
+  });
+
   it('projects loop records as agent-run objects', () => {
     const objects = buildWorkbench(campaign(), [
       { id: 'loop-123456789', session_id: 's1', status: 'running', step_count: 3, max_steps: 10, diverged: false, created_at: '', updated_at: '' },
