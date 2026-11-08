@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -147,9 +148,26 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var wfHeader struct {
+		Name             string   `json:"name"`
+		BudgetCeilingUSD *float64 `json:"budget_ceiling_usd"`
+	}
+	_ = json.Unmarshal(req.Workflow, &wfHeader)
+	var ceilingUSD float64
+	if wfHeader.BudgetCeilingUSD != nil && *wfHeader.BudgetCeilingUSD > 0 {
+		ceilingUSD = *wfHeader.BudgetCeilingUSD
+	}
+	// Journal before any step can spend. A crash leaves a visible
+	// repair_required row instead of a ghost or a silent second book.
+	workflowID := fmt.Sprintf("wf-%d", time.Now().UnixNano())
+	if err := s.ledger.CreateWorkflowRun(workflowID, sess.ID, string(req.Workflow), ceilingUSD); err != nil {
+		WriteAPIError(w, "internal", "workflow journal create failed: "+err.Error(), nil)
+		return
+	}
+
 	// Job-only workflows are owned by the Go jobs rail. This branch prevents
 	// a Python job from being created and adopted as a second book.
-	if s.runJobOnlyWorkflow(w, r, req, sess.ID) {
+	if s.runJobOnlyWorkflow(w, r, req, sess.ID, workflowID) {
 		return
 	}
 
@@ -159,20 +177,17 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	// unauthenticated, so refuse before any spend is reserved.
 	bridgeToken := strings.TrimSpace(os.Getenv("KUBONA_BRIDGE_TOKEN"))
 	if bridgeToken == "" {
+		_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "KUBONA_BRIDGE_TOKEN is not configured")
 		WriteAPIError(w, "bad_request", "KUBONA_BRIDGE_TOKEN is not configured: refusing unauthenticated workflow execution", nil)
 		return
 	}
 
-	// Inspect declared ceiling for SQLite spend reservation
-	var wfHeader struct {
-		Name             string   `json:"name"`
-		BudgetCeilingUSD *float64 `json:"budget_ceiling_usd"`
-	}
-	_ = json.Unmarshal(req.Workflow, &wfHeader)
+	// Inspect declared ceiling for SQLite spend reservation.
 	var reservedUSD float64
-	if wfHeader.BudgetCeilingUSD != nil && *wfHeader.BudgetCeilingUSD > 0 {
-		reservedUSD = *wfHeader.BudgetCeilingUSD
+	if ceilingUSD > 0 {
+		reservedUSD = ceilingUSD
 		if err := s.sessionMgr.ReserveSpend(sess.ID, reservedUSD); err != nil {
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "ceiling: "+err.Error())
 			WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("workflow budget reservation refused: %v", err), nil)
 			return
 		}
@@ -183,6 +198,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		if reservedUSD > 0 {
 			_ = s.sessionMgr.ReleaseSpend(sess.ID, reservedUSD)
 		}
+		_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "quantum bridge unavailable")
 		return
 	}
 
@@ -210,6 +226,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		if reservedUSD > 0 {
 			_ = s.sessionMgr.ReleaseSpend(sess.ID, reservedUSD)
 		}
+		_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "bridge WorkflowRun: "+err.Error())
 		WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("bridge WorkflowRun error: %v", err), nil)
 		return
 	}
@@ -225,6 +242,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		_ = s.sessionMgr.ReserveSpend(sess.ID, resp.SpentUsd)
 	}
 
+	_ = s.ledger.SetWorkflowExternalID(workflowID, resp.WorkflowId)
 	var lastResults map[string]interface{}
 	if resp.LastResultsJson != "" {
 		_ = json.Unmarshal([]byte(resp.LastResultsJson), &lastResults)
@@ -235,6 +253,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !resp.Ok {
+		_ = s.ledger.FinishWorkflowRun(workflowID, "failed", resp.SpentUsd, resp.ErrorMessage)
 		s.ledger.AppendEvent(sess.ID, "workflow_execution_failed", map[string]interface{}{
 			"workflow_id":   resp.WorkflowId,
 			"session_id":    sess.ID,
@@ -264,6 +283,25 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	toolByStep := map[string]string{}
 	for _, step := range wfDef.Steps {
 		toolByStep[step.ID] = step.Tool
+	}
+	ordinal := 0
+	allStepsTerminal := true
+	for _, step := range wfDef.Steps {
+		ordinal++
+		result, ok := lastResults[step.ID]
+		if !ok {
+			allStepsTerminal = false
+			_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{
+				RunID: workflowID, StepID: step.ID, Ordinal: ordinal,
+				Tool: step.Tool, Status: "pending",
+			})
+			continue
+		}
+		raw, _ := json.Marshal(result)
+		_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{
+			RunID: workflowID, StepID: step.ID, Ordinal: ordinal,
+			Tool: step.Tool, Status: "completed", ResultJSON: string(raw),
+		})
 	}
 	for stepID, result := range lastResults {
 		raw, _ := json.Marshal(result)
@@ -304,6 +342,11 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		"spent_usd":       resp.SpentUsd,
 	})
 
+	if allStepsTerminal {
+		_ = s.ledger.FinishWorkflowRun(workflowID, "completed", resp.SpentUsd, "")
+	} else {
+		_ = s.ledger.FinishWorkflowRun(workflowID, "repair_required", resp.SpentUsd, "bridge returned no terminal result for every step")
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":              true,
 		"workflow_id":     resp.WorkflowId,
@@ -312,5 +355,6 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		"spent_usd":       resp.SpentUsd,
 		"last_results":    lastResults,
 		"compensations":   compensations,
+		"repair_required": !allStepsTerminal,
 	})
 }

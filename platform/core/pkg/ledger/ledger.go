@@ -455,6 +455,37 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	-- claims IN_PROGRESS, then records its terminal outcome. Retries replay
 	-- the stored receipt byte-identical; same-ID-different-content 409s.
 	-- Spend receipts are audit: no TTL, never deleted.
+	-- Workflow journal: created before dispatch, steps advanced only after
+	-- their terminal result is persisted. status=running on boot means an
+	-- interrupted run; it is surfaced as repair_required, never guessed.
+	CREATE TABLE IF NOT EXISTS workflow_runs (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		external_id TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'running',
+		workflow_json TEXT NOT NULL,
+		budget_ceiling_micro_usd INTEGER NOT NULL DEFAULT 0,
+		spent_micro_usd INTEGER NOT NULL DEFAULT 0,
+		error TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_workflow_runs_session ON workflow_runs(session_id, created_at);
+	CREATE TABLE IF NOT EXISTS workflow_steps (
+		run_id TEXT NOT NULL,
+		step_id TEXT NOT NULL,
+		ordinal INTEGER NOT NULL DEFAULT 0,
+		tool TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'pending',
+		job_id TEXT NOT NULL DEFAULT '',
+		result_json TEXT NOT NULL DEFAULT '',
+		error TEXT NOT NULL DEFAULT '',
+		updated_at DATETIME NOT NULL,
+		PRIMARY KEY (run_id, step_id),
+		FOREIGN KEY (run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE
+	);
+
 	CREATE TABLE IF NOT EXISTS idempotency_keys (
 		session_id TEXT NOT NULL,
 		request_id TEXT NOT NULL,

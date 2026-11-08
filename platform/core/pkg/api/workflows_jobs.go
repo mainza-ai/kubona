@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -19,7 +20,7 @@ import (
 // Mixed workflows still use the Python engine; their completed jobs are
 // adopted by handleWorkflowRun until the full Go worker lands.
 func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
-	req WorkflowRunPayload, sessID string) bool {
+	req WorkflowRunPayload, sessID, workflowID string) bool {
 	var wf struct {
 		Name             string   `json:"name"`
 		BudgetCeilingUSD *float64 `json:"budget_ceiling_usd"`
@@ -45,6 +46,7 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 	if wf.BudgetCeilingUSD != nil && *wf.BudgetCeilingUSD > 0 {
 		if sess, err := s.sessionMgr.GetSession(sessID); err == nil &&
 			sess.SpendLimitUSD > 0 && sess.CurrentSpendUSD+*wf.BudgetCeilingUSD > sess.SpendLimitUSD {
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "workflow ceiling exceeds session spend limit")
 			WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("workflow budget reservation refused: session %s spend limit exceeded", sessID), nil)
 			return true
 		}
@@ -53,8 +55,13 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 	ctx := map[string]any{"session_id": sessID, "input": req.Inputs, "prev": map[string]any{}}
 	results := map[string]any{}
 	spent := 0.0
-	workflowID := fmt.Sprintf("wf-%d", time.Now().UnixNano())
-	for _, step := range wf.Steps {
+	finished := false
+	defer func() {
+		if !finished {
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", spent, "workflow interrupted before a terminal receipt")
+		}
+	}()
+	for ordinal, step := range wf.Steps {
 		rendered, err := renderWorkflowValue(step.Args, ctx)
 		if err != nil {
 			s.ledger.AppendEvent(sessID, "workflow_execution_failed", map[string]any{
@@ -95,8 +102,21 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 			"caller_export_class":  args["caller_export_class"],
 			"export_reviewed":      args["export_reviewed"],
 		}
+		if err := s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{
+			RunID: workflowID, StepID: step.ID, Ordinal: ordinal + 1,
+			Tool: step.Tool, Status: "running",
+		}); err != nil {
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", spent, "workflow journal step failed: "+err.Error())
+			finished = true
+			WriteAPIError(w, "internal", "workflow journal step failed: "+err.Error(), nil)
+			return true
+		}
 		job, err := s.jobRunner.SubmitJob(sessID, "circuit_run", jobParams)
 		if err != nil {
+			_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{RunID: workflowID, StepID: step.ID,
+				Ordinal: ordinal + 1, Tool: step.Tool, Status: "failed", Error: err.Error()})
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", spent, err.Error())
+			finished = true
 			s.ledger.AppendEvent(sessID, "workflow_execution_failed", map[string]any{
 				"workflow_id": workflowID, "session_id": sessID, "step": step.ID, "error": err.Error(),
 			})
@@ -105,6 +125,9 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 		}
 		terminal, ok := waitForWorkflowJob(s.jobRunner, job.ID, 120*time.Second)
 		if !ok {
+			_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{RunID: workflowID, StepID: step.ID,
+				Ordinal: ordinal + 1, Tool: step.Tool, Status: "running", JobID: job.ID})
+			finished = true // leave the run journal running; boot recovery surfaces repair_required
 			WriteAPIError(w, "accepted", "workflow job still running", map[string]any{
 				"workflow_id": workflowID, "step": step.ID, "job_id": job.ID, "status": "running",
 			})
@@ -113,6 +136,11 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 		spent += terminal.ReservedAmount
 		if terminal.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
 			errText := string(terminal.ResultJSON)
+			_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{RunID: workflowID, StepID: step.ID,
+				Ordinal: ordinal + 1, Tool: step.Tool, Status: "failed", JobID: terminal.ID,
+				ResultJSON: errText, Error: errText})
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", spent, errText)
+			finished = true
 			s.ledger.AppendEvent(sessID, "workflow_execution_failed", map[string]any{
 				"workflow_id": workflowID, "session_id": sessID, "step": step.ID,
 				"job_id": terminal.ID, "error": errText,
@@ -130,12 +158,18 @@ func (s *Server) runJobOnlyWorkflow(w http.ResponseWriter, r *http.Request,
 		result["status"] = "completed"
 		results[step.ID] = result
 		ctx["prev"] = results
+		rawResult, _ := json.Marshal(result)
+		_ = s.ledger.UpsertWorkflowStep(ledger.WorkflowStep{RunID: workflowID, StepID: step.ID,
+			Ordinal: ordinal + 1, Tool: step.Tool, Status: "completed", JobID: terminal.ID,
+			ResultJSON: string(rawResult)})
 		s.ledger.AppendEvent(sessID, "workflow_step", map[string]any{
 			"workflow": workflowID, "workflow_id": workflowID, "session_id": sessID,
 			"step": step.ID, "tool": step.Tool, "job_id": terminal.ID,
 			"result": result, "spent_usd": spent,
 		})
 	}
+	_ = s.ledger.FinishWorkflowRun(workflowID, "completed", spent, "")
+	finished = true
 	s.ledger.AppendEvent(sessID, "workflow_execution_completed", map[string]any{
 		"workflow_id": workflowID, "session_id": sessID, "steps_completed": len(wf.Steps), "spent_usd": spent,
 	})

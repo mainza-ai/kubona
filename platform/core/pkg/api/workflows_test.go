@@ -56,7 +56,7 @@ func (f *fakeWorkflowBridge) WorkflowRun(_ context.Context, in *pb.WorkflowRunRe
 		WorkflowId:      "wf-run-1",
 		StepsCompleted:  2,
 		StepRecords:     []string{"rec_1", "rec_2"},
-		LastResultsJson: `{"s2":{"ok":true}}`,
+		LastResultsJson: `{"s1":{"ok":true},"s2":{"ok":true}}`,
 		SpentUsd:        1.25,
 	}, nil
 }
@@ -159,7 +159,7 @@ func TestWorkflowPlanEndpoint(t *testing.T) {
 
 func TestJobOnlyWorkflowUsesGoOwnedJobs(t *testing.T) {
 	fb := &fakeWorkflowBridge{}
-	srv, sm, _, cleanup := setupWorkflowServer(t, fb)
+	srv, sm, l, cleanup := setupWorkflowServer(t, fb)
 	defer cleanup()
 	h := srv.Handler()
 	sess, err := sm.CreateSession("Go workflow", 5.0, "default")
@@ -189,6 +189,21 @@ func TestJobOnlyWorkflowUsesGoOwnedJobs(t *testing.T) {
 	}
 	if fb.lastRunRequest != nil {
 		t.Fatal("job-only workflow must not call the Python workflow engine")
+	}
+	runs, err := l.ListWorkflowRuns(sess.ID, 10)
+	if err != nil || len(runs) != 1 || runs[0].Status != "completed" {
+		t.Fatalf("job-only workflow journal: %+v err=%v", runs, err)
+	}
+	steps, err := l.ListWorkflowSteps(runs[0].ID)
+	if err != nil || len(steps) != 1 || steps[0].Status != "completed" || steps[0].JobID == "" {
+		t.Fatalf("job-only step journal: %+v err=%v", steps, err)
+	}
+	getReq := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sess.ID+"/workflows", nil)
+	getReq.Header.Set("Authorization", "Bearer test-token")
+	getW := httptest.NewRecorder()
+	h.ServeHTTP(getW, getReq)
+	if getW.Code != http.StatusOK || !bytes.Contains(getW.Body.Bytes(), []byte(`"status":"completed"`)) {
+		t.Fatalf("workflow journal read: %d %s", getW.Code, getW.Body.String())
 	}
 }
 
@@ -314,6 +329,10 @@ func TestWorkflowRunBridgeFailureReleasesReservation(t *testing.T) {
 	sessAfter, _ := sm.GetSession(sess.ID)
 	if sessAfter.CurrentSpendUSD != 0.0 {
 		t.Fatalf("expected spend reservation to be released to 0.0, got %f", sessAfter.CurrentSpendUSD)
+	}
+	runs, err := l.ListWorkflowRuns(sess.ID, 10)
+	if err != nil || len(runs) != 1 || runs[0].Status != "failed" {
+		t.Fatalf("failed workflow journal: %+v err=%v", runs, err)
 	}
 }
 
