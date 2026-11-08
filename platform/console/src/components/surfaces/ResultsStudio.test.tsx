@@ -143,7 +143,7 @@ describe('ResultsStudio verification gating (J1)', () => {
     });
 
     const input = tree!.root.findAllByType('input').find((node) => String(node.props['aria-label'] || '').startsWith('Annotate'));
-    expect(input).toBeTruthy();
+    if (!input) throw new Error('annotation input missing');
     await act(async () => {
       input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
     });
@@ -170,7 +170,7 @@ describe('ResultsStudio verification gating (J1)', () => {
     });
 
     const input = tree!.root.findAllByType('input').find((node) => String(node.props['aria-label'] || '').startsWith('Annotate'));
-    expect(input).toBeTruthy();
+    if (!input) throw new Error('annotation input missing');
     await act(async () => {
       input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
     });
