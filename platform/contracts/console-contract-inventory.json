@@ -1034,5 +1034,12 @@
       "reason": "auth timing helper"
     }
   ],
-  "unmodeled_functions": []
+  "unmodeled_functions": [
+    {
+      "function": "runExperiment",
+      "path": "/api/experiments",
+      "method": "POST",
+      "contract": null
+    }
+  ]
 }
