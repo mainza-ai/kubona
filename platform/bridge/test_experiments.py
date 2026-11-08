@@ -23,9 +23,9 @@ def test_h2_vqe_is_measured_and_near_fci():
 def test_unsupported_molecule_refuses():
     from experiments import run_vqe
 
-    res = run_vqe(molecule="LiH")
+    res = run_vqe(molecule="CH4")
     assert res["success"] is False
-    assert "H2 only" in res["error"]
+    assert "refusing" in res["error"]
 
 
 def test_pes_points_are_measured():

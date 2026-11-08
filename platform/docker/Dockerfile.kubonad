@@ -15,6 +15,8 @@
 # boot without fidelity-devices.json, and the old core-only context could
 # never contain it.
 
+FROM docker:27-cli AS dockercli
+
 FROM rust:1-slim-bookworm AS qirbuild
 WORKDIR /qir
 COPY crates/qir-core ./crates/qir-core
@@ -51,6 +53,9 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
 COPY --from=build /kubonad /usr/local/bin/kubonad
 COPY --from=qirbuild /qir/crates/qir-core/target/release/qir-core /usr/local/bin/qir-core
 ENV KUBONA_QIR_CORE_BIN=/usr/local/bin/qir-core
+# The sandbox profile is opt-in and mounts the host daemon socket. The CLI
+# itself is inert without that explicit socket mount.
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=build /src/contracts /contracts
 COPY docker/backup-loop.sh /usr/local/bin/backup-loop.sh
 COPY docker/kubonad-entrypoint.sh /usr/local/bin/kubonad-entrypoint.sh

@@ -57,8 +57,10 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 		jobType = "vqe_run"
 	case "pes":
 		jobType = "vqe_pes"
+	case "qaoa":
+		jobType = "qaoa_run"
 	default:
-		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe or pes", nil)
+		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, or qaoa", nil)
 		return
 	}
 	spec["kind"] = kind

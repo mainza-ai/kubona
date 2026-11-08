@@ -32,6 +32,15 @@ try:
 except ImportError:  # pragma: no cover
     HAS_PYSCF = False
 
+try:
+    from qiskit_nature.second_q.drivers import PySCFDriver
+    from qiskit_nature.second_q.transformers import ActiveSpaceTransformer
+    from qiskit_nature.second_q.mappers import JordanWignerMapper
+    from qiskit_nature.second_q.circuit.library import UCCSD, HartreeFock
+    HAS_NATURE = True
+except ImportError:  # pragma: no cover - bridge image installs qiskit extra
+    HAS_NATURE = False
+
 
 _I = np.eye(2, dtype=complex)
 _X = np.array([[0, 1], [1, 0]], dtype=complex)
@@ -161,10 +170,14 @@ def run_vqe(
     t0 = time.perf_counter()
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing VQE"}
-    if (molecule or "").upper() != "H2":
+    mol = (molecule or "").upper()
+    if mol in _NATURE_ACTIVE:
+        return run_nature_vqe(mol, float(bond_distance), shots=shots,
+                              seed=seed, max_iterations=max_iterations)
+    if mol != "H2":
         return {
             "success": False,
-            "error": "VQE currently supports H2 only; refusing to borrow H2 numbers for another molecule",
+            "error": f"VQE supports H2, {sorted(_NATURE_ACTIVE)}; refusing {mol!r}",
         }
     if not (0.3 <= float(bond_distance) <= 10.0):
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]: refusing"}
@@ -240,6 +253,258 @@ def run_vqe(
         "backend": "qiskit-aer-simulator",
         "measured": True,
         "execution_time_ms": elapsed_ms,
+        "error_message": "",
+    }
+
+
+#: Active spaces for the molecular VQEs. These are deliberately smaller than
+#: the full molecular orbital space; the result reports both the active-space
+#: CASCI and the full-molecule FCI so no one mistakes a reduced model for the
+#: full molecule.
+_NATURE_ACTIVE = {
+    "LIH": {"name": "LiH", "atom": "Li 0 0 0; H 0 0 {r}", "ncas": 2, "nelecas": 2},
+    "BEH2": {"name": "BeH2", "atom": "Be 0 0 0; H 0 0 {r}; H 0 0 -{r}", "ncas": 3, "nelecas": 4},
+}
+
+
+def _full_fci_and_casci(atom: str, ncas: int, nelecas: int) -> tuple[float, float]:
+    """Compute full FCI and active-space CASCI for the same geometry."""
+    from pyscf import gto, scf, fci, mcscf
+    mol = gto.M(atom=atom, basis="sto-3g", charge=0, spin=0, verbose=0)
+    mf = scf.RHF(mol).run()
+    e_fci, _ = fci.FCI(mf).kernel()
+    cas = mcscf.CASCI(mf, ncas, nelecas).run()
+    return float(e_fci), float(cas.e_tot)
+
+
+def _pauli_measurement_energy(
+    ansatz, theta: np.ndarray, qop: Any, shots: int, seed: int,
+) -> dict[str, Any]:
+    """Shot-measure a Qiskit Nature SparsePauliOp on the ansatz state."""
+    qc = ansatz.assign_parameters(theta)
+    from qiskit import transpile
+    # Qiskit Nature UCCSD carries Pauli-evolution pseudo-ops; Aer needs a
+    # concrete basis before measurement. Transpilation is part of execution,
+    # not a substitute for it.
+    qc = transpile(qc, basis_gates=["u1", "u2", "u3", "cx"],
+                   optimization_level=1, seed_transpiler=seed)
+    sim = AerSimulator()
+    total = 0.0
+    variance = 0.0
+    terms: dict[str, Any] = {}
+    for pauli, coeff in zip(qop.paulis, qop.coeffs):
+        label = pauli.to_label()
+        c = float(np.real(coeff))
+        if abs(c) < 1e-14:
+            continue
+        if set(label) <= {"I"}:
+            mean, std = 1.0, 0.0
+        else:
+            measured = qc.copy()
+            # Qiskit Pauli labels are little-endian (qubit 0 is the LAST
+            # character); rotate against the reversed label.
+            for q, ch in enumerate(label[::-1]):
+                if ch == "X":
+                    measured.h(q)
+                elif ch == "Y":
+                    measured.sdg(q)
+                    measured.h(q)
+            measured.measure_all()
+            counts = sim.run(measured, shots=shots, seed_simulator=seed).result().get_counts()
+            n = sum(counts.values())
+            acc = 0
+            for bitstring, count in counts.items():
+                bits = bitstring.replace(" ", "")[::-1]
+                parity = sum(1 for q, ch in enumerate(label[::-1]) if ch != "I" and bits[q] == "1")
+                acc += count * (1 if parity % 2 == 0 else -1)
+            mean = acc / max(1, n)
+            std = math.sqrt(max(0.0, 1.0 - mean * mean) / max(1, n))
+        terms[label] = {"coefficient": c, "expectation": float(mean), "std_error": float(std)}
+        total += c * mean
+        variance += (c * std) ** 2
+    return {"energy": float(total), "uncertainty": float(math.sqrt(max(0.0, variance))),
+            "terms": terms, "shots": shots, "seed": seed}
+
+
+def run_nature_vqe(
+    molecule: str,
+    bond_distance: float,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+) -> dict[str, Any]:
+    """Active-space molecular VQE via Qiskit Nature + PySCF.
+
+    The reported energy is shot-measured. The result explicitly distinguishes
+    the active-space CASCI target from the full-molecule FCI anchor: a reduced
+    active space is not the full molecule, and the claim must be judged against
+    the anchor it actually compared with.
+    """
+    mol = (molecule or "").upper()
+    spec = _NATURE_ACTIVE.get(mol)
+    if spec is None:
+        return {"success": False, "error": f"molecular VQE supports {sorted(_NATURE_ACTIVE)}"}
+    if not HAS_NATURE or not HAS_QISKIT:
+        return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing molecular VQE"}
+    if not (0.3 <= float(bond_distance) <= 10.0):
+        return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
+    t0 = time.perf_counter()
+    atom = spec["atom"].format(r=float(bond_distance))
+    e_full, e_casci = _full_fci_and_casci(atom, int(spec["ncas"]), int(spec["nelecas"]))
+    problem = PySCFDriver(atom=atom, basis="sto-3g", charge=0, spin=0).run()
+    reduced = ActiveSpaceTransformer(
+        num_electrons=int(spec["nelecas"]), num_spatial_orbitals=int(spec["ncas"]),
+    ).transform(problem)
+    mapper = JordanWignerMapper()
+    qop = mapper.map(reduced.hamiltonian.second_q_op())
+    constants = float(sum(reduced.hamiltonian.constants.values()))
+    hf = HartreeFock(reduced.num_spatial_orbitals, reduced.num_particles, mapper)
+    ansatz = UCCSD(reduced.num_spatial_orbitals, reduced.num_particles, mapper,
+                   initial_state=hf)
+    rng = np.random.default_rng(seed)
+    x0 = rng.uniform(-0.15, 0.15, size=ansatz.num_parameters)
+    trajectory: list[dict[str, Any]] = []
+
+    def objective(x: np.ndarray) -> float:
+        sv = Statevector.from_instruction(ansatz.assign_parameters(x))
+        e = float(np.real(sv.expectation_value(qop)) + constants)
+        if len(trajectory) < 500:
+            trajectory.append({"iteration": len(trajectory) + 1, "energy": e,
+                               "theta": [float(v) for v in x]})
+        return e
+
+    from scipy.optimize import minimize
+    opt = minimize(objective, x0, method="COBYLA",
+                   options={"maxiter": int(max_iterations), "rhobeg": 0.3, "tol": 1e-8})
+    theta = np.asarray(opt.x, dtype=float)
+    exact = float(np.real(Statevector.from_instruction(ansatz.assign_parameters(theta))
+                          .expectation_value(qop)) + constants)
+    measured = _pauli_measurement_energy(ansatz, theta, qop, int(shots), int(seed))
+    # The Pauli expectation excludes the active-space constant; add it once
+    # (core/nuclear contribution) before comparing with FCI.
+    e = measured["energy"] + constants
+    measured["constant_energy"] = constants
+    # The shot measurement is the result; the exact value is retained as a
+    # labelled optimizer diagnostic, never silently substituted.
+    delta_full = abs(e - e_full) * 1000.0
+    delta_active = abs(e - e_casci) * 1000.0
+    return {
+        "success": True,
+        "kind": "vqe",
+        "molecule": spec["name"],
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "VQE UCCSD active-space, COBYLA",
+        "ansatz": f"UCCSD active-space {reduced.num_spatial_orbitals} orbitals",
+        "qubit_count": int(qop.num_qubits),
+        "active_space": {"ncas": int(spec["ncas"]), "nelecas": int(spec["nelecas"]),
+                         "spatial_orbitals": int(reduced.num_spatial_orbitals)},
+        "shots": int(shots),
+        "seed": int(seed),
+        "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
+                      "evaluations": int(opt.nfev), "success": bool(opt.success),
+                      "message": str(opt.message)},
+        "theta": [float(v) for v in theta],
+        "energy": float(e),
+        "energy_exact": exact,
+        "energy_measured": float(e),
+        "energy_measured_source": "shot-sampled Pauli expectation",
+        "uncertainty": float(measured["uncertainty"]),
+        "measurements": measured["terms"],
+        "fci_exact_energy": e_full,
+        "active_space_fci_energy": e_casci,
+        "delta_mha": delta_full,
+        "active_space_delta_mha": delta_active,
+        "chemical_accuracy": bool(delta_full <= 1.6e-3),
+        "active_space_chemical_accuracy": bool(delta_active <= 1.6e-3),
+        "converged": bool(opt.success),
+        "trajectory": trajectory,
+        "backend": "qiskit-aer-simulator",
+        "measured": True,
+        "limitations": "Active-space model; full-molecule FCI is reported separately and is the physical comparison.",
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
+def run_qaoa(
+    layers: int = 2,
+    shots: int = 4096,
+    seed: int = 7,
+    max_iterations: int = 80,
+    graph_seed: int = 3,
+) -> dict[str, Any]:
+    """Run QAOA MaxCut on a fixed 8-node 3-regular graph."""
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit/aer unavailable: refusing QAOA"}
+    import itertools
+    import networkx as nx
+    from qiskit import QuantumCircuit
+    from qiskit.quantum_info import Statevector
+    from scipy.optimize import minimize
+
+    if layers < 1 or layers > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    g = nx.random_regular_graph(3, 8, seed=int(graph_seed))
+    edges = sorted(tuple(sorted(e)) for e in g.edges())
+    n = g.number_of_nodes()
+    # Exact MaxCut, computed here (not hardcoded).
+    best = -1
+    mask_best = 0
+    for mask in range(1 << n):
+        cut = sum(1 for a, b in edges if ((mask >> a) & 1) != ((mask >> b) & 1))
+        if cut > best:
+            best, mask_best = cut, mask
+
+    def qaoa(params: np.ndarray) -> QuantumCircuit:
+        qc = QuantumCircuit(n)
+        qc.h(range(n))
+        for layer in range(int(layers)):
+            gamma, beta = float(params[2 * layer]), float(params[2 * layer + 1])
+            for a, b in edges:
+                qc.cx(a, b)
+                qc.rz(2.0 * gamma, b)
+                qc.cx(a, b)
+            qc.rx(2.0 * beta, range(n))
+        return qc
+
+    def cut_value(params: np.ndarray) -> float:
+        sv = Statevector.from_instruction(qaoa(params)).data
+        probs = np.abs(sv) ** 2
+        val = 0.0
+        for idx, p in enumerate(probs):
+            if p <= 0:
+                continue
+            val += p * sum(1 for a, b in edges if ((idx >> a) & 1) != ((idx >> b) & 1))
+        return float(val)
+
+    rng = np.random.default_rng(seed)
+    x0 = rng.uniform(0.0, np.pi, size=2 * int(layers))
+    opt = minimize(lambda x: -cut_value(x), x0, method="COBYLA",
+                   options={"maxiter": int(max_iterations), "rhobeg": 0.2, "tol": 1e-8})
+    theta = np.asarray(opt.x, dtype=float)
+    value = cut_value(theta)
+    qc = qaoa(theta)
+    qc.measure_all()
+    counts = AerSimulator().run(qc, shots=int(shots), seed_simulator=int(seed)).result().get_counts()
+    total = sum(counts.values())
+    shot_cut = sum(count * sum(1 for a, b in edges if ((int(bs.replace(" ", "")[::-1], 2) >> a) & 1) != ((int(bs.replace(" ", "")[::-1], 2) >> b) & 1))
+                  for bs, count in counts.items()) / max(1, total)
+    return {
+        "success": True, "kind": "qaoa", "molecule": "MaxCut",
+        "graph": {"nodes": n, "edges": edges, "regular_degree": 3},
+        "layers": int(layers), "shots": int(shots), "seed": int(seed),
+        "theta": [float(v) for v in theta],
+        "energy": float(shot_cut), "energy_exact": float(value),
+        "energy_measured": float(shot_cut),
+        "optimal_cut": int(best), "optimal_assignment": int(mask_best),
+        "approximation_ratio": float(shot_cut / best) if best > 0 else None,
+        "uncertainty": None, "measured": True,
+        "backend": "qiskit-aer-simulator",
+        "optimizer": {"name": "COBYLA", "success": bool(opt.success),
+                      "evaluations": int(opt.nfev), "message": str(opt.message)},
+        "converged": bool(opt.success),
+        "execution_time_ms": 0.0,
         "error_message": "",
     }
 

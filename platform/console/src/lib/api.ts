@@ -296,6 +296,37 @@ export interface AccessState {
   auth_required: boolean;
 }
 
+export interface ExperimentSubmitResult {
+  ok: boolean;
+  job?: Job;
+  error?: string;
+}
+
+/** Submit a VQE/PES/QAOA experiment. The Go job rail owns execution and the
+ * result is read back through /api/jobs/{id}; this is not a fire-and-forget
+ * client-side simulation. */
+export async function runExperiment(
+  sessionId: string,
+  spec: Record<string, unknown>,
+  requestId: string,
+): Promise<ExperimentSubmitResult> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/experiments`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, spec, request_id: requestId, budget_usd: 1.0 }),
+    });
+    if (!res.ok) {
+      return { ok: false, error: (await res.text()).trim() || `experiment refused (HTTP ${res.status})` };
+    }
+    const data = (await res.json()) as { job?: Job };
+    return { ok: Boolean(data.job), job: data.job };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function fetchAccess(): Promise<AccessState | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/access`, { cache: 'no-store', headers: authHeaders() });

@@ -126,6 +126,42 @@ type SystematicNotebook struct {
 }
 
 // CampaignState is the top-level dynamic state for a research session
+type MeasurementSummary struct {
+	JobID                  string  `json:"job_id,omitempty"`
+	ClaimID                string  `json:"claim_id,omitempty"`
+	Method                 string  `json:"method"`
+	Ansatz                 string  `json:"ansatz,omitempty"`
+	Backend                string  `json:"backend,omitempty"`
+	Energy                 float64 `json:"energy"`
+	EnergyExact            float64 `json:"energy_exact,omitempty"`
+	FCIEnergy              float64 `json:"fci_exact_energy"`
+	ActiveSpaceFCIEnergy   float64 `json:"active_space_fci_energy,omitempty"`
+	UncertaintyMHa         float64 `json:"uncertainty_mha"`
+	DeltaMHa               float64 `json:"delta_mha"`
+	ActiveSpaceDeltaMHa    float64 `json:"active_space_delta_mha,omitempty"`
+	Shots                  int     `json:"shots,omitempty"`
+	Seed                   int     `json:"seed,omitempty"`
+	ChemicalAccuracy       bool    `json:"chemical_accuracy"`
+	ActiveSpaceChemicalAcc bool    `json:"active_space_chemical_accuracy,omitempty"`
+	Converged              bool    `json:"converged"`
+	Measured               bool    `json:"measured"`
+	BelowFCI               bool    `json:"below_fci"`
+	Source                 string  `json:"source,omitempty"`
+}
+
+// PesPoint is one structured point in a potential-energy scan. The old
+// trajectory carried only iteration/energy; a PES chart needs the geometry
+// and the per-point uncertainty.
+type PesPoint struct {
+	BondDistance     float64 `json:"bond_distance"`
+	Energy           float64 `json:"energy"`
+	EnergyExact      float64 `json:"energy_exact,omitempty"`
+	FCIEnergy        float64 `json:"fci_exact_energy"`
+	DeltaMHa         float64 `json:"delta_mha"`
+	UncertaintyMHa   float64 `json:"uncertainty_mha"`
+	ChemicalAccuracy bool    `json:"chemical_accuracy"`
+}
+
 type CampaignState struct {
 	SessionID       string              `json:"session_id"`
 	ResearchGoal    string              `json:"research_goal"`
@@ -134,6 +170,8 @@ type CampaignState struct {
 	QuantumFactors  QuantumFactors      `json:"quantum_factors"`
 	ClassicalAnchor ClassicalAnchor     `json:"classical_anchor"`
 	Trajectory      []TrajectoryStep    `json:"trajectory"`
+	Measurement     *MeasurementSummary `json:"measurement,omitempty"`
+	PesPoints       []PesPoint          `json:"pes_points,omitempty"`
 	Branches        []any               `json:"branches"`
 	Epistemics      *EpistemicState     `json:"epistemics"`
 	ADMET           any                 `json:"admet,omitempty"`

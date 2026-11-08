@@ -125,6 +125,10 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const groundEnergy: number | undefined = notebook?.quantum_energy ?? campaign?.classical_anchor?.vqe_expectation_energy;
   const fciEnergy: number | undefined = notebook?.classical_energy ?? campaign?.classical_anchor?.fci_exact_energy;
   const deltaMHa: number | undefined = notebook?.delta_mha ?? campaign?.classical_anchor?.discrepancy_mha;
+  const measurement = campaign?.measurement;
+  const uncertaintyMHa = measurement?.uncertainty_mha;
+  const converged = measurement?.converged;
+  const belowFci = measurement?.below_fci === true;
   const provenanceHash: string | undefined = notebook?.provenance_hash;
   const lean4AstHash =
     (notebook as { lean4_ast_hash?: string } | undefined)?.lean4_ast_hash ?? null;
@@ -176,7 +180,7 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
 
 \\begin{abstract}
 ${claimVerified
-  ? `We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}. The optimization converged to an energy of ${fmtEnergy(groundEnergy)}\\,\\text{Ha} (error: ${fmtDelta(deltaMHa)}\\,\\text{mHa} against exact FCI anchor ${fmtEnergy(fciEnergy)}\\,\\text{Ha}). Claim evaluated and passed on a computed anchor (epistemics COLLAPSED\\_VERIFIED).`
+  ? `We present a measured variational quantum eigensolver result for ${target}. The optimizer ${converged === false ? 'stopped at its evaluation cap (not reported as converged)' : 'reported convergence'}; the measured energy is ${fmtEnergy(groundEnergy)}${uncertaintyMHa != null ? ` \\pm ${uncertaintyMHa.toFixed(3)}` : ''}\\,\\text{Ha} (Delta ${fmtDelta(deltaMHa)}\\,\\text{mHa} against FCI ${fmtEnergy(fciEnergy)}\\,\\text{Ha}${belowFci ? '; point below FCI; read against uncertainty' : ''}). Claim evaluated on a computed anchor (epistemics COLLAPSED\\_VERIFIED).`
   : `We present a projected variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}. Corridor estimate ${fmtEnergy(groundEnergy)}\\,\\text{Ha} (|\\Delta| ${fmtDelta(deltaMHa)}\\,\\text{mHa}, not measured). No claim in this draft is verified: chemical accuracy is unclaimed until measured, and no Lean 4 verification has run.`}
 \\end{abstract}
 
@@ -226,6 +230,28 @@ ${proofVerified
     setTimeout(() => setCopiedBibtex(false), 2000);
   };
 
+  const handleExportResult = () => {
+    const bundle = {
+      schema_version: 1,
+      exported_at: new Date().toISOString(),
+      campaign,
+      measurement: campaign?.measurement ?? null,
+      pes_points: campaign?.pes_points ?? [],
+      notebook: notebook ?? null,
+    };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `kubona-result-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setExported(true);
+    setTimeout(() => setExported(false), 3000);
+  };
+
   const handleExport = () => {
     const mdContent = `# ${campaign?.notebook?.title || `Variational Quantum Ground State of ${target}`}
 By Kubona Autonomous Scientific Tribunal
@@ -233,12 +259,17 @@ Date: ${new Date().toISOString()}
 Status: ${claimVerified && proofVerified ? 'Verified (COLLAPSED_VERIFIED + proof receipt)' : 'Claim verified (COLLAPSED_VERIFIED); no Lean proof receipt'}
 
 ## Abstract
-We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}.
+We present a measured variational quantum eigensolver result for ${target}.
 
 ## Ground State Integrals
-- VQE Energy: ${fmtEnergy(groundEnergy)} Ha
+- VQE Energy: ${fmtEnergy(groundEnergy)}${uncertaintyMHa != null ? ` ± ${uncertaintyMHa.toFixed(3)} mHa` : ''} Ha
 - Classical FCI Anchor: ${fmtEnergy(fciEnergy)} Ha
 - Discrepancy: ${fmtDelta(deltaMHa)} mHa
+- Optimizer converged: ${converged == null ? 'not recorded' : converged ? 'yes' : 'no (evaluation cap)'}
+- Backend: ${measurement?.backend ?? 'not recorded'}
+- Shots: ${measurement?.shots ?? 'not recorded'}
+- Claim: ${measurement?.claim_id ?? 'not recorded'}
+- Point below FCI: ${belowFci ? 'yes (read against uncertainty)' : 'no'}
 
 ## Systematic Epistemic Sections
 ${(campaign?.notebook?.sections || []).map((s) => `- ${s}`).join('\n')}
@@ -465,6 +496,15 @@ ${bibtex}
           </button>
 
           <button
+            onClick={handleExportResult}
+            title="Download measured result JSON (campaign, measurement, PES points, notebook)"
+            className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-medium flex items-center space-x-1.5 transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Result JSON</span>
+          </button>
+
+          <button
             onClick={handleExport}
             className="px-3.5 py-1.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold flex items-center space-x-1.5 transition shadow-md active:scale-95"
           >
@@ -539,7 +579,7 @@ ${bibtex}
                   <span className="text-[12px] font-mono text-neutral-500">Anchor: §Abstract</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of {target}. Using a hardware-efficient entangler geometry with near-zero parameter initialization, the optimization converged to an energy of {fmtEnergy(groundEnergy)} Ha, demonstrating an absolute error of only {fmtDelta(deltaMHa)} mHa against the exact PySCF STO-3G Full Configuration Interaction (FCI) anchor ({fmtEnergy(fciEnergy)} Ha). Claim evaluated and passed on a computed anchor (epistemics COLLAPSED_VERIFIED).
+                  We present a measured variational quantum eigensolver result for {target}. The optimizer {converged === false ? 'stopped at its evaluation cap (not reported as converged)' : 'reported convergence'}; the measured energy is {fmtEnergy(groundEnergy)}{uncertaintyMHa != null ? ` ± ${uncertaintyMHa.toFixed(3)} mHa` : ''} Ha against the exact PySCF STO-3G Full Configuration Interaction (FCI) anchor ({fmtEnergy(fciEnergy)} Ha), a discrepancy of {fmtDelta(deltaMHa)} mHa.{belowFci ? ' The point estimate is below FCI; this is a statistical excursion and must be read against the stated uncertainty.' : ''} Claim evaluated on a computed anchor (epistemics COLLAPSED_VERIFIED).
                 </p>
               </div>
 

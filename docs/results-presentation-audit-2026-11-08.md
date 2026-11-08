@@ -17,6 +17,20 @@ backend; it is the **result contract and its projection into the UI**.
 The implementation report is
 [`real-experiment-production-audit-2026-11-08.md`](real-experiment-production-audit-2026-11-08.md).
 
+> ⚑ Implementation update (later 2026-11-08): R0 is implemented. The campaign
+> now carries a typed `measurement` and `pes_points`; the workbench shows
+> uncertainty, convergence, backend, shots, seed, claim, and a below-FCI
+> admissibility flag, and renders a VQE/FCI PES chart. PES summaries separate
+> minimum energy from closest-to-FCI. Placeholder zeros use the
+> not-evaluated sentinel. The Proof DAG labels a synthesized proposal as
+> proposed rather than measured. Results Studio generates uncertainty-aware
+> prose and offers a result-JSON export. Live acceptance session:
+> `de02c225-5a8d-4341-bc3b-a08c14ad6218` (measurement
+> `below_fci:true`, uncertainty `1.384 mHa`, claim `clm-de02c225-0001`,
+> spend `$0.00`; PES minimum `R=0.7 Å`, closest-to-FCI `R=0.9 Å`).
+> The remaining R1 items are structured CSV/PES export, claim-history/review
+> UI, optimization-history retention, and generated-prose numeric guards.
+
 ---
 
 ## 1. Live result under test

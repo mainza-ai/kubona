@@ -337,11 +337,15 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if !successTrue() {
 			return nil, false, "vqe reported success=false"
 		}
-		var energy, fci, unc, delta float64
+		var energy, fci, unc, delta, exact, activeFci, activeDelta float64
 		var theta []float64
+		var shots, seed int
+		var method, ansatz, backend string
 		for key, dst := range map[string]*float64{
 			"energy": &energy, "fci_exact_energy": &fci,
 			"uncertainty": &unc, "delta_mha": &delta,
+			"energy_exact": &exact, "active_space_fci_energy": &activeFci,
+			"active_space_delta_mha": &activeDelta,
 		} {
 			if raw, ok := present(key); ok {
 				var v float64
@@ -355,6 +359,21 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if raw, ok := present("theta"); ok {
 			_ = json.Unmarshal(raw, &theta)
+		}
+		if raw, ok := present("shots"); ok {
+			_ = json.Unmarshal(raw, &shots)
+		}
+		if raw, ok := present("seed"); ok {
+			_ = json.Unmarshal(raw, &seed)
+		}
+		if raw, ok := present("method"); ok {
+			_ = json.Unmarshal(raw, &method)
+		}
+		if raw, ok := present("ansatz"); ok {
+			_ = json.Unmarshal(raw, &ansatz)
+		}
+		if raw, ok := present("backend"); ok {
+			_ = json.Unmarshal(raw, &backend)
 		}
 		measuredDelta := math.Abs(energy-fci) * 1000.0
 		if delta == 0 {
@@ -403,6 +422,26 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		ep.Statement = fmt.Sprintf("VQE measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa).",
 			energy, fci, delta)
 		ep.Sources = []string{"bridge:vqe_run:" + jobID}
+		// Amplitudes were not evaluated by this VQE; use the explicit
+		// not-evaluated sentinel rather than zeroes that render as certainty.
+		ep.AlphaCorroborated = -1
+		ep.BetaContested = -1
+		ep.GammaUnverified = -1
+		ep.PCorrelated = -1
+		ep.LiteratureDrift = -1
+		state.Measurement = &MeasurementSummary{
+			JobID: jobID, ClaimID: cite, Method: method, Ansatz: ansatz,
+			Backend: backend, Energy: energy, EnergyExact: exact,
+			FCIEnergy: fci, ActiveSpaceFCIEnergy: activeFci,
+			UncertaintyMHa: unc * 1000.0, DeltaMHa: delta,
+			ActiveSpaceDeltaMHa: activeDelta, Shots: shots, Seed: seed,
+			ChemicalAccuracy: delta <= 1.6, ActiveSpaceChemicalAcc: activeDelta > 0 && activeDelta <= 1.6,
+			Converged: false, Measured: true, BelowFCI: energy < fci,
+			Source: "shot-sampled Pauli expectation",
+		}
+		if raw, ok := present("converged"); ok {
+			_ = json.Unmarshal(raw, &state.Measurement.Converged)
+		}
 		measureLine("VQE measured E=%.6f Ha ± %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; %s).%s",
 			energy, unc, fci, delta, map[bool]string{true: "within", false: "outside"}[nb.ChemicalAccuracy]+" chemical accuracy", citeSuffix(cite))
 		return marshalReplan(&state, true, "VQE energy folded into trajectory")
@@ -414,8 +453,10 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		var points []struct {
 			BondDistance float64   `json:"bond_distance"`
 			Energy       float64   `json:"energy"`
+			EnergyExact  float64   `json:"energy_exact"`
 			Fci          float64   `json:"fci_exact_energy"`
 			DeltaMHa     float64   `json:"delta_mha"`
+			Uncertainty  float64   `json:"uncertainty"`
 			Theta        []float64 `json:"theta"`
 		}
 		rawPoints, ok := present("points")
@@ -427,6 +468,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			if math.Abs(p.DeltaMHa) < math.Abs(best.DeltaMHa) {
 				best = p
 			}
+			state.PesPoints = append(state.PesPoints, PesPoint{
+				BondDistance: p.BondDistance, Energy: p.Energy, EnergyExact: p.EnergyExact,
+				FCIEnergy: p.Fci, DeltaMHa: p.DeltaMHa, UncertaintyMHa: p.Uncertainty * 1000.0,
+				ChemicalAccuracy: math.Abs(p.DeltaMHa) <= 1.6,
+			})
 			state.Trajectory = append(state.Trajectory, TrajectoryStep{
 				Step: len(state.Trajectory) + 1, Energy: p.Energy,
 				Loss: math.Abs(p.Energy - p.Fci), Theta: p.Theta, GradNorm: 0,
@@ -467,9 +513,42 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				state.QuantumFactors.TargetMolecule, state.QuantumFactors.BondDistance,
 				best.Fci, state.QuantumFactors.QASM)
 		}
-		measureLine("VQE PES: %d points, best E=%.6f Ha at R=%.4f Å (Δ=%.3f mHa vs FCI).%s",
-			len(points), best.Energy, best.BondDistance, best.DeltaMHa, "")
+		minPoint := points[0]
+		for _, p := range points {
+			if p.Energy < minPoint.Energy {
+				minPoint = p
+			}
+		}
+		measureLine("VQE PES: %d points; minimum E=%.6f Ha at R=%.4f Å; closest to FCI at R=%.4f Å (Δ=%.3f mHa).%s",
+			len(points), minPoint.Energy, minPoint.BondDistance, best.BondDistance, best.DeltaMHa, citeSuffix(cite))
 		return marshalReplan(&state, true, "VQE PES folded into trajectory")
+
+	case "qaoa_run":
+		if !successTrue() {
+			return nil, false, "QAOA reported success=false"
+		}
+		var value, exact, ratio float64
+		var optimal int
+		for key, dst := range map[string]*float64{
+			"energy": &value, "energy_exact": &exact, "approximation_ratio": &ratio,
+		} {
+			if raw, ok := present(key); ok {
+				var v float64
+				if err := json.Unmarshal(raw, &v); err == nil {
+					*dst = v
+				}
+			}
+		}
+		if raw, ok := present("optimal_cut"); ok {
+			_ = json.Unmarshal(raw, &optimal)
+		}
+		if value == 0 && exact == 0 {
+			return nil, false, "QAOA value absent"
+		}
+		ensureNotebook(&state)
+		measureLine("QAOA MaxCut measured %.3f (exact optimizer %.3f) vs classical optimum %d; ratio %.4f.%s",
+			value, exact, optimal, ratio, citeSuffix(cite))
+		return marshalReplan(&state, true, "QAOA result recorded")
 
 	case "claim_eval":
 		var alpha, beta, gamma *float64

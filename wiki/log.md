@@ -4998,3 +4998,28 @@ skipped is the exact failure this incident is about:
   uncertainty or the lower-bound excursion, and the tribunal over-claims a
   variational violation.
 - Separate report and phased plan: `docs/results-presentation-audit-2026-11-08.md`.
+
+## [2026-11-08] implementation | LiH/BeH2, QAOA, sandbox, QPU, workflow mirror, R0
+
+- LiH VQE job `8d122fa8…` (active space ncas=2/nelecas=2): measured
+  `-7.8618628 Ha` vs full FCI `-7.8823915 Ha` (20.53 mHa, contested);
+  active-space CASCI `-7.8622641 Ha` (0.401 mHa). BeH2 job `68f226a4…`
+  (ncas=3/nelecas=4): `-15.5588153 Ha` vs full FCI `-15.5951176 Ha`
+  (36.30 mHa, contested); active-space CASCI `-15.5631370 Ha` (4.322 mHa).
+- QAOA MaxCut job `ebda920e…`: exact cut 10, exact optimizer 8.901,
+  measured 7.870, ratio 0.787; `qaoa_run` reservation settlement re-tested.
+- Completed QPU job `38a0b0642f664c74` / vendor `dbo2egoou4as73b5dfog`:
+  `ibm_fez` layout 144/143, 100 shots, counts `00:57, 01:2, 10:1, 11:40`,
+  2.0 s usage, `$0.00`, Go `completed`.
+- Autoresearch hardened runner works only with the explicit Docker-socket
+  override; loop `loop-ansatz-search-bd7627a9` completed one sandboxed
+  iteration; default compose stays fail-closed.
+- Go workflow route now mirrors `workflow_step` and
+  `workflow_execution_completed`/`failed` into the session ledger; live run
+  `9a74fe4d…` emitted both. Python still owns the step-side job, so the two
+  books are mirrored, not one transaction.
+- Results R0: typed measurement/PES, uncertainty/convergence/below-FCI,
+  PES chart, proposal-vs-measured proof label, negative sentinels, result
+  JSON export; live session `de02c225-5a8d-4341-bc3b-a08c14ad6218`.
+- Report updates: `docs/real-experiment-production-audit-2026-11-08.md`,
+  `docs/results-presentation-audit-2026-11-08.md`.

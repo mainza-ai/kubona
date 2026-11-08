@@ -167,6 +167,14 @@ function fixed(raw: unknown, digits: number, fallback = 'UNVERIFIED'): string {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw.toFixed(digits) : fallback;
 }
 
+// Negative values are the explicit not-evaluated sentinel for credibility
+// amplitudes and derived campaign quantities. Never render them as 0.000.
+function notEvaluated(raw: unknown, digits: number): string {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0
+    ? raw.toFixed(digits)
+    : 'not evaluated';
+}
+
 function recordedSources(sources: string[] | undefined): { label: string; url?: string }[] {
   return (sources ?? [])
     .filter((source) => typeof source === 'string' && source.trim().length > 0)
@@ -260,9 +268,9 @@ export function buildWorkbench(
       size: { width: 380, height: 240 },
       facts: [
         { label: 'State', value: value(epistemics?.status) },
-        { label: 'Corroborated α', value: fixed(epistemics?.alpha_corroborated, 3) },
-        { label: 'Contested β', value: fixed(epistemics?.beta_contested, 3) },
-        { label: 'Unverified γ', value: fixed(epistemics?.gamma_unverified, 3) },
+        { label: 'Corroborated α', value: notEvaluated(epistemics?.alpha_corroborated, 3) },
+        { label: 'Contested β', value: notEvaluated(epistemics?.beta_contested, 3) },
+        { label: 'Unverified γ', value: notEvaluated(epistemics?.gamma_unverified, 3) },
       ],
     },
     {
@@ -283,23 +291,41 @@ export function buildWorkbench(
       id: 'measurement',
       kind: 'measurement',
       label: 'Measurement',
-      title: anchored ? `${value(anchor?.method)} anchor` : 'No measured anchor',
-      detail: anchored
-        ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha VQE against ${fixed(anchor?.fci_exact_energy, 5)} Ha FCI.`
-        : 'The campaign carries no computed classical anchor; every value stays UNVERIFIED.',
-      basis: anchored
-        ? `Δ is the recorded VQE−FCI discrepancy in mHa, not an uncertainty. The chemical-accuracy limit is ${fixed(anchor?.chemical_accuracy_limit, 2)} mHa. Source: ${value(anchor?.anchor_source, 'not recorded')}.`
-        : 'No computed anchor means no reference energy, discrepancy, or chemical-accuracy verdict is available.',
+      title: campaign.measurement?.method || (anchored ? `${value(anchor?.method)} anchor` : 'No measured anchor'),
+      detail: campaign.measurement
+        ? `${fixed(campaign.measurement.energy, 6)} Ha ± ${fixed(campaign.measurement.uncertainty_mha / 1000, 6)} Ha VQE against ${fixed(campaign.measurement.fci_exact_energy, 6)} Ha FCI.`
+        : anchored
+          ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha VQE against ${fixed(anchor?.fci_exact_energy, 5)} Ha FCI.`
+          : 'The campaign carries no computed classical anchor; every value stays UNVERIFIED.',
+      basis: campaign.measurement
+        ? `Measured ${campaign.measurement.measured ? 'shot' : 'statevector'} value; exact optimizer ${fixed(campaign.measurement.energy_exact, 6)} Ha. Δ is the measured VQE−FCI discrepancy, not an uncertainty.`
+        : anchored
+          ? `Δ is the recorded VQE−FCI discrepancy in mHa, not an uncertainty. The chemical-accuracy limit is ${fixed(anchor?.chemical_accuracy_limit, 2)} mHa. Source: ${value(anchor?.anchor_source, 'not recorded')}.`
+          : 'No computed anchor means no reference energy, discrepancy, or chemical-accuracy verdict is available.',
       position: { x: 420, y: 240 },
-      size: { width: 380, height: 280 },
-      facts: [
-        { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },
-        { label: 'VQE', value: anchored ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha` : 'UNVERIFIED' },
-        { label: 'Δ', value: anchored ? `${fixed(anchor?.discrepancy_mha, 2)} mHa` : 'UNVERIFIED' },
-        { label: 'Accuracy limit', value: anchored ? `${fixed(anchor?.chemical_accuracy_limit, 2)} mHa` : 'UNVERIFIED' },
-        { label: 'Accuracy', value: anchored ? (anchor?.chemical_accuracy_passed ? 'PASS' : 'FAIL') : 'UNVERIFIED' },
-        { label: 'UNCERTAINTY', value: 'not recorded' },
-      ],
+      size: { width: 380, height: 320 },
+      facts: campaign.measurement
+        ? [
+            { label: 'FCI', value: `${fixed(campaign.measurement.fci_exact_energy, 6)} Ha` },
+            { label: 'VQE', value: `${fixed(campaign.measurement.energy, 6)} Ha` },
+            { label: 'Uncertainty', value: `± ${fixed(campaign.measurement.uncertainty_mha, 3)} mHa` },
+            { label: 'Δ', value: `${fixed(campaign.measurement.delta_mha, 3)} mHa` },
+            { label: 'Accuracy limit', value: '1.60 mHa' },
+            { label: 'Accuracy', value: campaign.measurement.chemical_accuracy ? 'PASS' : 'FAIL' },
+            { label: 'Admissibility', value: campaign.measurement.below_fci ? 'POINT BELOW FCI' : 'above FCI' },
+            { label: 'Converged', value: campaign.measurement.converged ? 'yes' : 'no (evaluation cap)' },
+            { label: 'Claim', value: campaign.measurement.claim_id || 'not sealed' },
+            { label: 'Backend', value: campaign.measurement.backend || 'not recorded' },
+            { label: 'Shots', value: campaign.measurement.shots ? String(campaign.measurement.shots) : 'not recorded' },
+          ]
+        : [
+            { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },
+            { label: 'VQE', value: anchored ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha` : 'UNVERIFIED' },
+            { label: 'Δ', value: anchored ? `${fixed(anchor?.discrepancy_mha, 2)} mHa` : 'UNVERIFIED' },
+            { label: 'Accuracy limit', value: anchored ? `${fixed(anchor?.chemical_accuracy_limit, 2)} mHa` : 'UNVERIFIED' },
+            { label: 'Accuracy', value: anchored ? (anchor?.chemical_accuracy_passed ? 'PASS' : 'FAIL') : 'UNVERIFIED' },
+            { label: 'UNCERTAINTY', value: 'not recorded' },
+          ],
     },
     {
       id: 'evidence',
@@ -314,11 +340,11 @@ export function buildWorkbench(
       position: { x: 840, y: 470 },
       size: { width: 380, height: 280 },
       facts: [
-        { label: 'Corroborated α', value: fixed(epistemics?.alpha_corroborated, 3) },
-        { label: 'Contested β', value: fixed(epistemics?.beta_contested, 3) },
-        { label: 'Unverified γ', value: fixed(epistemics?.gamma_unverified, 3) },
-        { label: 'P(correlated)', value: fixed(epistemics?.p_correlated, 3) },
-        { label: 'Literature drift', value: fixed(epistemics?.literature_drift_mha, 2) + ' mHa' },
+        { label: 'Corroborated α', value: notEvaluated(epistemics?.alpha_corroborated, 3) },
+        { label: 'Contested β', value: notEvaluated(epistemics?.beta_contested, 3) },
+        { label: 'Unverified γ', value: notEvaluated(epistemics?.gamma_unverified, 3) },
+        { label: 'P(correlated)', value: notEvaluated(epistemics?.p_correlated, 3) },
+        { label: 'Literature drift', value: typeof epistemics?.literature_drift_mha === 'number' && epistemics.literature_drift_mha >= 0 ? `${fixed(epistemics.literature_drift_mha, 2)} mHa` : 'not evaluated' },
         { label: 'Sources', value: String(epistemics?.sources?.length ?? 0) },
       ],
     },
@@ -333,6 +359,10 @@ export function buildWorkbench(
       facts: [
         { label: 'Verdict', value: value(notebook?.epistemic_verdict) },
         { label: 'Chemical accuracy', value: notebook?.chemical_accuracy ? 'PASS' : 'not claimed' },
+        { label: 'Claim', value: campaign.measurement?.claim_id || 'not sealed' },
+        { label: 'Job', value: campaign.measurement?.job_id?.slice(0, 8) || 'not recorded' },
+        { label: 'Uncertainty', value: campaign.measurement ? `± ${fixed(campaign.measurement.uncertainty_mha, 3)} mHa` : 'not recorded' },
+        { label: 'Optimizer', value: campaign.measurement ? (campaign.measurement.converged ? 'converged' : 'stopped at cap') : 'not recorded' },
       ],
     },
     {
@@ -374,6 +404,9 @@ export function buildWorkbench(
     } catch {
       params = {};
     }
+    const jobResult = (job.result_json && typeof job.result_json === 'object')
+      ? job.result_json as Record<string, unknown>
+      : {};
     objects.push({
       id: `job-${job.id}`,
       kind: 'job',
@@ -385,8 +418,8 @@ export function buildWorkbench(
       size: { width: 380, height: 180 },
       facts: [
         { label: 'Status', value: jobStatusLabel(job.status) },
-        { label: 'Backend', value: value(params.requested_backend ?? params.backend, 'not recorded') },
-        { label: 'Shots', value: value(params.shots, 'not recorded') },
+        { label: 'Backend', value: value(params.requested_backend ?? params.backend ?? jobResult.backend ?? jobResult.resolved_backend, 'not recorded') },
+        { label: 'Shots', value: value(params.shots ?? jobResult.shots, 'not recorded') },
         { label: 'Created', value: job.created_at || 'not recorded' },
         { label: 'Completed', value: job.completed_at || 'not yet' },
         { label: 'Result', value: job.result_json ? 'recorded' : 'not recorded' },
@@ -472,6 +505,31 @@ export function buildWorkbench(
         label: `Section ${index + 1}`,
         value: section,
       })),
+    });
+  }
+  if ((campaign.pes_points?.length ?? 0) > 0) {
+    const points = campaign.pes_points!;
+    objects.push({
+      id: 'pes-chart',
+      kind: 'chart',
+      label: 'Figure',
+      title: `Potential energy surface · ${campaign.target_system || 'campaign'}`,
+      detail: 'Measured energy vs bond distance, with the classical FCI anchor.',
+      position: { x: 840, y: 460 },
+      size: { width: 620, height: 360 },
+      facts: [],
+      chart: {
+        kind: 'line',
+        title: `Potential energy surface · ${campaign.target_system || 'campaign'}`,
+        series: [
+          { name: 'VQE energy', points: points.map((p) => ({ x: p.bond_distance, y: p.energy, display: `${p.energy.toFixed(6)} Ha` })) },
+          { name: 'FCI anchor', points: points.map((p) => ({ x: p.bond_distance, y: p.fci_exact_energy, display: `${p.fci_exact_energy.toFixed(6)} Ha` })) },
+        ],
+        x: { label: 'Bond distance (Å)', kind: 'linear' },
+        y: { label: 'Energy', unit: 'Ha', format: 'number' },
+        basis: 'Measured VQE points against the computed FCI anchor; uncertainty is recorded per point in the job result.',
+        detail: 'full',
+      },
     });
   }
   if (chart) {

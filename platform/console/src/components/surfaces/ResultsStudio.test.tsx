@@ -90,7 +90,8 @@ describe('ResultsStudio verification gating (J1)', () => {
       tree = TestRenderer.create(<ResultsStudio campaign={campaign('COLLAPSED_VERIFIED')} sessionId={null} />);
     });
     const text = JSON.stringify(tree!.toJSON());
-    expect(text).toContain('converged to an energy');
+    expect(text).toContain('measured variational quantum eigensolver result');
+    expect(text).not.toContain('The optimization converged');
     expect(text).toContain('COLLAPSED_VERIFIED');
     expect(text).not.toContain('PROJECTED DRAFT');
     expect(tree!.root.findByProps({ 'data-provenance': 'measured' })).toBeTruthy();

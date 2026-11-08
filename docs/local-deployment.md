@@ -79,6 +79,28 @@ two services after a refresh if a long-running process has already cached it.
 A failed or unmeasurable refresh refuses; it never stamps a fresh timestamp
 without live data.
 
+### Autoresearch sandbox (opt-in)
+
+The default compose stack intentionally has **no Docker socket**: autoresearch
+harnesses refuse (`docker_runner.available:false`) rather than executing code
+on the host. To enable the hardened sandbox on a trusted local host, build the
+runner image and use the sandbox override:
+
+```bash
+docker build -f platform/docker/Dockerfile.quantum-runner \
+  -t kubona-quantum-runner:1.1.0 platform
+mkdir -p /tmp/kubona-sandbox && chmod 777 /tmp/kubona-sandbox
+docker compose --env-file .env \
+  -f platform/docker/compose.prod.yml \
+  -f platform/docker/compose.sandbox.yml up -d --build
+```
+
+`compose.sandbox.yml` mounts `/var/run/docker.sock` into kubonad and shares
+`/tmp/kubona-sandbox` so the daemon can read the generated seccomp profile and
+benchmark/workspace mounts. This is a **root-equivalent host boundary** — do
+not use it on an untrusted host or expose it to remote users. Without the
+override the runner remains fail-closed.
+
 ### Local reset and isolated E2E
 
 The live ledger contains labs and campaigns. Never point E2E at it: the browser
