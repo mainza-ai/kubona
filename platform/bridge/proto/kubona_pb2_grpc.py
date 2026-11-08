@@ -119,6 +119,11 @@ class QuantumBridgeServiceStub(object):
                 request_serializer=kubona__pb2.WorkflowRunRequest.SerializeToString,
                 response_deserializer=kubona__pb2.WorkflowRunResponse.FromString,
                 _registered_method=True)
+        self.RunWorkflowStep = channel.unary_unary(
+                '/kubona.QuantumBridgeService/RunWorkflowStep',
+                request_serializer=kubona__pb2.WorkflowStepRequest.SerializeToString,
+                response_deserializer=kubona__pb2.WorkflowStepResponse.FromString,
+                _registered_method=True)
 
 
 class QuantumBridgeServiceServicer(object):
@@ -226,6 +231,12 @@ class QuantumBridgeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RunWorkflowStep(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuantumBridgeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -313,6 +324,11 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
                     servicer.WorkflowRun,
                     request_deserializer=kubona__pb2.WorkflowRunRequest.FromString,
                     response_serializer=kubona__pb2.WorkflowRunResponse.SerializeToString,
+            ),
+            'RunWorkflowStep': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunWorkflowStep,
+                    request_deserializer=kubona__pb2.WorkflowStepRequest.FromString,
+                    response_serializer=kubona__pb2.WorkflowStepResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -774,6 +790,33 @@ class QuantumBridgeService(object):
             '/kubona.QuantumBridgeService/WorkflowRun',
             kubona__pb2.WorkflowRunRequest.SerializeToString,
             kubona__pb2.WorkflowRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunWorkflowStep(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/RunWorkflowStep',
+            kubona__pb2.WorkflowStepRequest.SerializeToString,
+            kubona__pb2.WorkflowStepResponse.FromString,
             options,
             channel_credentials,
             insecure,

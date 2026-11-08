@@ -61,6 +61,25 @@ func (f *fakeWorkflowBridge) WorkflowRun(_ context.Context, in *pb.WorkflowRunRe
 	}, nil
 }
 
+func (f *fakeWorkflowBridge) RunWorkflowStep(_ context.Context, in *pb.WorkflowStepRequest, _ ...grpc.CallOption) (*pb.WorkflowStepResponse, error) {
+	f.lastRunRequest = &pb.WorkflowRunRequest{
+		SessionId: in.SessionId, Token: in.Token, SessionVerified: in.SessionVerified,
+		TenantId: in.TenantId,
+	}
+	if f.runResponse != nil && !f.runResponse.Ok {
+		return &pb.WorkflowStepResponse{
+			Ok: false, ErrorMessage: f.runResponse.ErrorMessage, SpentUsd: f.runResponse.SpentUsd,
+		}, nil
+	}
+	var step struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(in.StepJson), &step)
+	return &pb.WorkflowStepResponse{
+		Ok: true, StepId: step.ID, ResultJson: `{"ok":true}`, SpentUsd: 0.625,
+	}, nil
+}
+
 func setupWorkflowServer(t *testing.T, fb pb.QuantumBridgeServiceClient) (*api.Server, *session.Manager, *ledger.Ledger, func()) {
 	t.Helper()
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
@@ -333,6 +352,32 @@ func TestWorkflowRunBridgeFailureReleasesReservation(t *testing.T) {
 	runs, err := l.ListWorkflowRuns(sess.ID, 10)
 	if err != nil || len(runs) != 1 || runs[0].Status != "failed" {
 		t.Fatalf("failed workflow journal: %+v err=%v", runs, err)
+	}
+}
+
+func TestMixedWorkflowRunsCompensationAfterStepFailure(t *testing.T) {
+	fb := &fakeWorkflowBridge{runResponse: &pb.WorkflowRunResponse{Ok: false, ErrorMessage: "step failed"}}
+	srv, sm, _, cleanup := setupWorkflowServer(t, fb)
+	defer cleanup()
+	sess, err := sm.CreateSession("Compensation workflow", 10, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, resp := postWorkflow(t, srv.Handler(), "/api/workflows/run", true, map[string]any{
+		"session_id": sess.ID,
+		"workflow": map[string]any{
+			"name": "comp-wf", "budget_ceiling_usd": 5.0,
+			"steps":      []any{map[string]any{"id": "s1", "tool": "compiler/transpile_circuit"}},
+			"on_failure": []any{map[string]any{"id": "undo", "tool": "provenance/write_record"}},
+		},
+	})
+	if status != http.StatusBadRequest {
+		t.Fatalf("failed mixed workflow: %d %v", status, resp)
+	}
+	details, _ := resp["details"].(map[string]any)
+	comps, ok := details["compensations"].([]any)
+	if !ok || len(comps) != 1 {
+		t.Fatalf("failure must surface compensation outcomes: %v", resp)
 	}
 }
 

@@ -115,6 +115,9 @@ func (p *providerContractBridge) WorkflowPlan(context.Context, *pb.WorkflowPlanR
 func (p *providerContractBridge) WorkflowRun(context.Context, *pb.WorkflowRunRequest, ...grpc.CallOption) (*pb.WorkflowRunResponse, error) {
 	return &pb.WorkflowRunResponse{Ok: true, WorkflowId: "wf-contract", StepsCompleted: 1, StepRecords: []string{"s1"}, LastResultsJson: `{}`, SpentUsd: 0, CompensationsJson: `[]`}, nil
 }
+func (p *providerContractBridge) RunWorkflowStep(_ context.Context, in *pb.WorkflowStepRequest, _ ...grpc.CallOption) (*pb.WorkflowStepResponse, error) {
+	return &pb.WorkflowStepResponse{Ok: true, StepId: "s1", ResultJson: `{"ok":true}`, SpentUsd: 0}, nil
+}
 
 func newProviderContractServer(t *testing.T) (*Server, *session.Manager, string, func()) {
 	t.Helper()

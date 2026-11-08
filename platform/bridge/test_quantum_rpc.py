@@ -309,6 +309,28 @@ def test_workflow_run_success(isolated_rail, bridge_token):
     assert mirrored.budget_ceiling_usd == 25.0
 
 
+def test_workflow_step_rpc_runs_exactly_one_tool(isolated_rail, bridge_token):
+    import json
+    sessions, _ = isolated_rail
+    svc = bridge_server.QuantumBridgeServicer()
+    step = {
+        "id": "estimate",
+        "tool": "cost/estimate_cost",
+        "args": {"circuit_qasm": BELL_QASM, "provider": "local-simulator", "shots": 100},
+    }
+    req = _req(
+        step_json=json.dumps(step), workflow_id="wf-step-1",
+        session_id="wf-step-sess", token=bridge_token, inputs_json="{}",
+        session_verified=True, session_budget_ceiling_usd=25.0,
+        session_spent_usd=1.0, tenant_id="tenant-alpha",
+    )
+    resp = svc.RunWorkflowStep(req, None)
+    assert resp.ok is True, resp.error_message
+    assert resp.step_id == "estimate"
+    assert json.loads(resp.result_json)
+    assert sessions.get("wf-step-sess") is not None
+
+
 def test_workflow_run_ceiling_refusal(isolated_rail, bridge_token):
     import json
     svc = bridge_server.QuantumBridgeServicer()

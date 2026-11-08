@@ -261,7 +261,9 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
   with the same key; it re-seals stored provider credentials and prints only
   counts.
 - Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
-  retention: [`docs/backup-restore.md`](backup-restore.md).
+  retention: [`docs/backup-restore.md`](backup-restore.md). Run
+  `kubonad restore-drill --db /abs/kubona.db` before upgrades and against the
+  off-host copy during the quarterly drill.
 - Scheduled encrypted backups (optional profile):
   ```bash
   # add KUBONA_BACKUP_AGE_RECIPIENT=age1... to .env

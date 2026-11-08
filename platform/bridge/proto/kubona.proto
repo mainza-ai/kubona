@@ -263,6 +263,7 @@ service QuantumBridgeService {
   rpc RunExperiment(ExperimentRequest) returns (ExperimentResponse);
   rpc WorkflowPlan(WorkflowPlanRequest) returns (WorkflowPlanResponse);
   rpc WorkflowRun(WorkflowRunRequest) returns (WorkflowRunResponse);
+  rpc RunWorkflowStep(WorkflowStepRequest) returns (WorkflowStepResponse);
 }
 
 // Human quantum dispatch (R-34) + provider cancel (R-33): the transport
@@ -413,6 +414,29 @@ message WorkflowRunResponse {
   string last_results_json = 6;
   double spent_usd = 7;
   string compensations_json = 8;
+}
+
+// One Go-orchestrated mixed-workflow step. The Go worker owns sequencing,
+// budgets, and compensations; the bridge executes exactly one non-job tool.
+message WorkflowStepRequest {
+  string step_json = 1;
+  string workflow_id = 2;
+  string session_id = 3;
+  string token = 4;
+  string inputs_json = 5;
+  bool session_verified = 6;
+  double session_budget_ceiling_usd = 7;
+  double session_spent_usd = 8;
+  string tenant_id = 9;
+}
+
+message WorkflowStepResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string step_id = 3;
+  string result_json = 4;
+  double spent_usd = 5;
+  repeated string step_records = 6;
 }
 
 

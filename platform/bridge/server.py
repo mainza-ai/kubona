@@ -940,6 +940,80 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             result_json=_json.dumps(result),
         )
 
+    def RunWorkflowStep(self, request, context):
+        """Execute exactly one non-job workflow step for the Go orchestrator.
+
+        The Go worker owns step sequencing, per-step budgets, retry policy, and
+        compensation; this RPC never runs a whole workflow. Job steps are
+        submitted through the Go jobs rail and do not use this handler.
+        """
+        import json as _json
+        import uuid as _uuid
+
+        from kubona.mcp.servers import execution as _exec
+        from kubona.mcp.servers._mount import build_gateway
+        from kubona.provenance import Ledger
+        from kubona.workflows.engine import WorkflowEngine, parse_workflow
+
+        try:
+            label = (f"step:{getattr(request, 'tenant_id', '') or 'no-tenant'}:"
+                     f"{getattr(request, 'session_id', '') or 'no-session'}")
+            auth, refusal = _workflow_auth(label, tenant=getattr(request, "tenant_id", "") or "default")
+            if auth is None:
+                return kubona_pb2.WorkflowStepResponse(ok=False, error_message=refusal)
+            if request.session_id and getattr(request, "session_verified", False):
+                from kubona.mcp.servers import cost as _cost
+                raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
+                ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
+                spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
+                owner = f"kubonad-bridge:{label}"
+                for store in (_exec._sessions, _cost._sessions):
+                    store.sync_external_session(
+                        session_id=request.session_id,
+                        owner=owner,
+                        budget_ceiling_usd=ceiling_usd,
+                        spent_usd=spent_usd,
+                        tenant_id=getattr(request, "tenant_id", "") or "",
+                        spend_prepaid=True,
+                    )
+            raw_step = _json.loads(request.step_json or "{}")
+            if not isinstance(raw_step, dict) or not raw_step.get("id") or not raw_step.get("tool"):
+                return kubona_pb2.WorkflowStepResponse(ok=False, error_message="step needs id and tool")
+            step_id = str(raw_step["id"])
+            wf = {
+                "name": "step:" + step_id,
+                "version": 1,
+                "workflow_id": request.workflow_id or _uuid.uuid4().hex[:16],
+                "steps": [raw_step],
+            }
+            parsed = parse_workflow(wf)
+            inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
+            bridge_token = os.getenv("KUBONA_BRIDGE_TOKEN", "")
+            token = request.token or bridge_token
+            gw = build_gateway(require_auth=True, auth=auth)
+            res = WorkflowEngine(gateway=gw, ledger=Ledger()).run(
+                parsed, token=token, session_id=request.session_id or None,
+                inputs=inputs, dry_run=False, force=True,
+            )
+            if not res.get("ok"):
+                return kubona_pb2.WorkflowStepResponse(
+                    ok=False, step_id=step_id,
+                    error_message=str(res.get("error", "workflow step failed")),
+                    step_records=list(res.get("step_records", [])),
+                    spent_usd=float(res.get("spent_usd", 0.0)),
+                )
+            last = res.get("last_results") or {}
+            result = last.get(step_id, {})
+            return kubona_pb2.WorkflowStepResponse(
+                ok=True, step_id=step_id,
+                result_json=_json.dumps(result),
+                spent_usd=float(res.get("spent_usd", 0.0)),
+                step_records=list(res.get("step_records", [])),
+            )
+        except Exception as e:
+            logger.exception("RunWorkflowStep failed")
+            return kubona_pb2.WorkflowStepResponse(ok=False, error_message=f"workflow step failed: {e}")
+
     def WorkflowPlan(self, request, context):
         import json as _json
 
