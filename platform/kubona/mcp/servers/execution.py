@@ -1012,6 +1012,11 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     out = {"ok": True, "job_id": job_id, "session_id": session_id,
            "status": done.status, "circuit_hash": circuit_hash,
            "estimate": pf["estimate"], "fidelity": fidelity}
+    # A synchronous workflow step returns the measured result too. The Go
+    # workflow route adopts this job id into its own jobs book; returning only
+    # the id made that ledger mirror point at a ghost.
+    if done.result is not None:
+        out["result"] = done.result
     if wait_note is not None:
         out["note"] = wait_note
     return out

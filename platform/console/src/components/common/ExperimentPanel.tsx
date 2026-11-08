@@ -21,6 +21,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
   const [shots, setShots] = useState('16384');
   const [layers, setLayers] = useState('2');
   const [iterations, setIterations] = useState('80');
+  const [fullSpace, setFullSpace] = useState(false);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       spec.shots = Number(shots);
       spec.layers = Number(layers);
       spec.max_iterations = Number(iterations);
+      spec.full_space = fullSpace;
       if (kind === 'pes') {
         spec.r_min = 0.6; spec.r_max = 0.9; spec.steps = 5;
       }
@@ -93,6 +95,10 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         </label>
         <label className="space-y-1">Max iterations
           <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+        </label>
+        <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+          <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={kind === 'qaoa' || kind === 'pes' || molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
+          Full orbital space (LiH/BeH2; slower, reports full-FCI gap honestly)
         </label>
       </div>
       {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}

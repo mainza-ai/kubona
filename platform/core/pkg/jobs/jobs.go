@@ -480,6 +480,48 @@ func (r *Runner) JobSession(jobID string) (string, bool) {
 	return sid, sid != ""
 }
 
+// AdoptExternalJob records a completed job that ran in the Python workflow
+// rail but must be visible in the Go jobs book. The Python workflow engine
+// still executes the tool, so this is an adoption, not a second execution:
+// one job id, one result, one Go ledger receipt. No spend reservation is
+// created because the workflow route owns its own ceiling; the adopted row
+// is terminal and cannot be re-run.
+func (r *Runner) AdoptExternalJob(sessionID, jobID, jobType string, resultJSON []byte) (*Job, error) {
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(jobID) == "" {
+		return nil, fmt.Errorf("adopted job needs session and job id")
+	}
+	if existing, err := r.GetJob(jobID); err == nil && existing != nil {
+		return existing, nil
+	}
+	if len(resultJSON) == 0 || !json.Valid(resultJSON) {
+		return nil, fmt.Errorf("adopted job %s has no valid result", jobID)
+	}
+	now := time.Now().UTC()
+	params, _ := json.Marshal(map[string]any{
+		"source": "python_workflow_adopted", "job_id": jobID,
+	})
+	j := &Job{
+		ID: jobID, SessionID: sessionID, Status: pb.JobStatus_JOB_STATUS_COMPLETED,
+		JobType: jobType, ParamsJSON: params, ResultJSON: json.RawMessage(resultJSON),
+		CreatedAt: now, CompletedAt: &now,
+	}
+	if _, err := r.ledger.DB().Exec(
+		`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0)`,
+		j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON),
+		string(j.ResultJSON), j.CreatedAt, now,
+	); err != nil {
+		return nil, fmt.Errorf("adopt external job: %w", err)
+	}
+	receipt := map[string]any{
+		"job_id": jobID, "session_id": sessionID, "job_type": jobType,
+		"status": "completed", "adopted": true, "source": "python_workflow",
+	}
+	r.appendMoneyEvent(sessionID, "job_queued", receipt)
+	r.appendMoneyEvent(sessionID, "job_settled", receipt)
+	return j, nil
+}
+
 // SyncQuantumBridgeJobStatus reconciles a Python QuantumBridgeService job's
 // status into SQLite jobs (F-NEW-05). Every terminal state (completed,
 // failed, cancelled) settles the spend reservation against reported vendor

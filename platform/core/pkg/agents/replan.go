@@ -429,6 +429,18 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		ep.GammaUnverified = -1
 		ep.PCorrelated = -1
 		ep.LiteratureDrift = -1
+		var optimizerHistory []OptimizerPoint
+		if raw, ok := present("trajectory"); ok {
+			var path []struct {
+				Iteration int     `json:"iteration"`
+				Energy    float64 `json:"energy"`
+			}
+			if json.Unmarshal(raw, &path) == nil {
+				for _, p := range path {
+					optimizerHistory = append(optimizerHistory, OptimizerPoint{Iteration: p.Iteration, Energy: p.Energy})
+				}
+			}
+		}
 		state.Measurement = &MeasurementSummary{
 			JobID: jobID, ClaimID: cite, Method: method, Ansatz: ansatz,
 			Backend: backend, Energy: energy, EnergyExact: exact,
@@ -437,7 +449,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			ActiveSpaceDeltaMHa: activeDelta, Shots: shots, Seed: seed,
 			ChemicalAccuracy: delta <= 1.6, ActiveSpaceChemicalAcc: activeDelta > 0 && activeDelta <= 1.6,
 			Converged: false, Measured: true, BelowFCI: energy < fci,
-			Source: "shot-sampled Pauli expectation",
+			Source: "shot-sampled Pauli expectation", OptimizerHistory: optimizerHistory,
 		}
 		if raw, ok := present("converged"); ok {
 			_ = json.Unmarshal(raw, &state.Measurement.Converged)

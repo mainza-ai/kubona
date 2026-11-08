@@ -4699,6 +4699,7 @@
     }
   },
   "x-kubona-unmodeled-functions": [
+    "fetchClaims",
     "runExperiment"
   ],
   "x-kubona-client-only-functions": [

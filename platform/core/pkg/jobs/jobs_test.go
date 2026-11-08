@@ -1274,3 +1274,40 @@ func TestSyncCancelledStatusIsCancelled(t *testing.T) {
 		t.Fatalf("cancel must be a first-class status, got %s", j.Status)
 	}
 }
+
+// A Python workflow step is executed by the workflow engine, but the Go
+// ledger must still own the job identity/result. Adoption is idempotent and
+// emits the normal queued/settled receipts without creating a second run.
+func TestAdoptExternalJobRecordsOneGoBook(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	result := []byte(`{"counts":{"00":512,"11":488},"shots":1000}`)
+	j, err := r.AdoptExternalJob("sess-1", "py-job-123", "circuit_run", result)
+	if err != nil {
+		t.Fatalf("adopt: %v", err)
+	}
+	if j.Status != pb.JobStatus_JOB_STATUS_COMPLETED || string(j.ResultJSON) != string(result) {
+		t.Fatalf("adopted job wrong: %+v", j)
+	}
+	again, err := r.AdoptExternalJob("sess-1", "py-job-123", "circuit_run", []byte(`{"other":true}`))
+	if err != nil || again == nil || string(again.ResultJSON) != string(result) {
+		t.Fatalf("adoption must be idempotent: %+v %v", again, err)
+	}
+	events, err := r.ledger.GetRecentEvents("sess-1", 20)
+	if err != nil {
+		t.Fatalf("events: %v", err)
+	}
+	var queued, settled int
+	for _, e := range events {
+		if e.EventType == "job_queued" {
+			queued++
+		}
+		if e.EventType == "job_settled" {
+			settled++
+		}
+	}
+	if queued != 1 || settled != 1 {
+		t.Fatalf("adoption receipts must fire once: queued=%d settled=%d", queued, settled)
+	}
+}

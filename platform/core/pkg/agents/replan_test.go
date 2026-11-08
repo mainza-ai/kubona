@@ -602,7 +602,7 @@ func TestReplanW114Honesty(t *testing.T) {
 func TestReplanVQERecordsMeasuredPointAndNotebook(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 	updated, changed, note := ReplanWithJobResult(raw, "job-vqe-1", "vqe_run",
-		[]byte(`{"success":true,"energy":-1.1368,"energy_exact":-1.1368,"fci_exact_energy":-1.137270174660903,"delta_mha":0.470174660903,"uncertainty":0.002,"theta":[0.1,0.2],"chemical_accuracy":true}`),
+		[]byte(`{"success":true,"energy":-1.1368,"energy_exact":-1.1368,"fci_exact_energy":-1.137270174660903,"delta_mha":0.470174660903,"uncertainty":0.002,"theta":[0.1,0.2],"chemical_accuracy":true,"trajectory":[{"iteration":1,"energy":-1.1},{"iteration":2,"energy":-1.1368}]}`),
 		"clm-vqe-1")
 	if !changed {
 		t.Fatalf("VQE result must change state: %s", note)
@@ -618,6 +618,10 @@ func TestReplanVQERecordsMeasuredPointAndNotebook(t *testing.T) {
 	if state.ClassicalAnchor.VqeExpectationEnergy != -1.1368 ||
 		!state.ClassicalAnchor.ChemicalAccuracyPassed {
 		t.Fatalf("VQE anchor fields wrong: %+v", state.ClassicalAnchor)
+	}
+	if state.Measurement == nil || len(state.Measurement.OptimizerHistory) != 2 ||
+		state.Measurement.OptimizerHistory[1].Energy != -1.1368 {
+		t.Fatalf("optimizer history not retained: %+v", state.Measurement)
 	}
 	if state.Notebook == nil || state.Notebook.ClassicalAnchor == "not computed" ||
 		state.Notebook.ProvenanceHash == "" || state.Notebook.QuantumEnergy != -1.1368 {

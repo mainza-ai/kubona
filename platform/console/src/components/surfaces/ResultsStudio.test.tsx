@@ -97,6 +97,28 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(tree!.root.findByProps({ 'data-provenance': 'measured' })).toBeTruthy();
   });
 
+  it('renders the PES point table from structured campaign data', async () => {
+    const measured = {
+      ...campaign('COLLAPSED_VERIFIED'),
+      measurement: {
+        job_id: 'job-1', claim_id: 'claim-1', method: 'VQE', backend: 'qiskit-aer-simulator',
+        energy: -1.1378, fci_exact_energy: -1.13727, uncertainty_mha: 1.384, delta_mha: 0.513,
+        chemical_accuracy: true, converged: false, measured: true, below_fci: true,
+      },
+      pes_points: [
+        { bond_distance: 0.7, energy: -1.1371, fci_exact_energy: -1.1362, delta_mha: 0.946, uncertainty_mha: 1.867, chemical_accuracy: true },
+      ],
+    } as unknown as CampaignState;
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<ResultsStudio campaign={measured} sessionId={null} />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('PES points');
+    expect(text).toContain('0.7000');
+    expect(text).toContain('0.946');
+  });
+
   it('renders an empty citable state with no notebook telemetry', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {

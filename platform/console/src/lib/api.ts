@@ -1704,6 +1704,36 @@ export async function fetchJobs(sessionId: string): Promise<Job[]> {
 // Unknown ids 404 → null (never an empty shell). sessionId is REQUIRED:
 // the backend scopes jobs per tenant session and refuses unscopend reads
 // (400) — the client never makes a call it knows will fail.
+export interface ClaimRecord {
+  id: string;
+  session_id: string;
+  turn_kind: string;
+  statement: string;
+  alpha: number;
+  beta: number;
+  gamma: number;
+  verdict: string;
+  evidence_json: string;
+  created_at: string;
+}
+
+/** Read the immutable claim history for a session (newest first). */
+export async function fetchClaims(sessionId: string, limit = 50): Promise<ClaimRecord[] | null> {
+  if (!sessionId) return null;
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims?limit=${Math.min(Math.max(limit, 1), 200)}`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { claims?: ClaimRecord[] };
+    return Array.isArray(data.claims) ? data.claims : [];
+  } catch (err) {
+    console.error('Failed to fetch claims:', err);
+    return null;
+  }
+}
+
 export async function fetchJob(jobId: string, sessionId: string): Promise<Job | null> {
   if (!sessionId) return null;
   try {

@@ -18,6 +18,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [harnesses, setHarnesses] = useState<AutoresearchHarness[]>([]);
   const [loops, setLoops] = useState<AutoresearchLoop[] | null>(null);
   const [harnessId, setHarnessId] = useState('');
+  const [runner, setRunner] = useState<Record<string, unknown> | null>(null);
   const [maxIterations, setMaxIterations] = useState('10');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
     Promise.all([fetchAutoresearchHarnesses(), fetchAutoresearchLoops()]).then(([h, l]) => {
       if (!live) return;
       setHarnesses(h.harnesses);
+      setRunner(h.docker_runner);
       setLoops(l);
       setHarnessId((cur) => cur || h.harnesses[0]?.id || '');
     });
@@ -69,6 +71,14 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
         </div>
         <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[12px] text-slate-300">Refresh</button>
       </div>
+      {runner && runner.available !== true && (
+        <p role="status" className="text-[12px] text-[var(--color-warning)]">
+          Sandbox unavailable — autoresearch is fail-closed by default. {String(runner.reason || '')}
+        </p>
+      )}
+      {runner && runner.available === true && (
+        <p className="text-[12px] text-[var(--color-muted)]">Sandbox ready: {String(runner.image || 'runner')} (read-only, cap-drop, no network).</p>
+      )}
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-slate-200 font-mono">
           {harnesses.length === 0 && <option value="">no harnesses</option>}
