@@ -15,7 +15,7 @@
 # boot without fidelity-devices.json, and the old core-only context could
 # never contain it.
 
-FROM docker:27-cli AS dockercli
+FROM docker:29-cli AS dockercli
 
 FROM rust:1-slim-bookworm AS qirbuild
 WORKDIR /qir
