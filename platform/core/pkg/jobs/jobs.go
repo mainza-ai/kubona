@@ -35,7 +35,7 @@ const MaxStoredResultBytes = 1 * 1024 * 1024
 var knownJobTypes = map[string]bool{
 	"circuit_run": true, "circuit_cut": true, "classical_anchor": true,
 	"claim_eval": true, "krylov_solve": true, "mitigate": true,
-	"pes_sweep": true,
+	"pes_sweep": true, "vqe_run": true, "vqe_pes": true,
 }
 
 // W0.1 — CAS-guard live set, bound once from the single source
@@ -530,13 +530,18 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 		}
 	case "failed", "cancelled":
 		now := time.Now().UTC()
+		terminal := pb.JobStatus_JOB_STATUS_FAILED
+		if strings.EqualFold(strings.TrimSpace(bridgeStatus), "cancelled") ||
+			strings.EqualFold(strings.TrimSpace(bridgeStatus), "canceled") {
+			terminal = pb.JobStatus_JOB_STATUS_CANCELLED
+		}
 		res, err := r.ledger.DB().Exec(
 			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
-			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
+			append([]any{terminal.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
 		)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
-				j.Status = pb.JobStatus_JOB_STATUS_FAILED
+				j.Status = terminal
 				j.ResultJSON = json.RawMessage(resultJSON)
 				j.CompletedAt = &now
 				// Failure/cancel settlement (extended Q-51): measured vendor
@@ -786,6 +791,34 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			resultData, execErr = r.executePesSweep(&sp)
 
+		case "vqe_run", "vqe_pes":
+			// The bridge owns the PySCF/Qiskit experiment runner; the Go
+			// worker owns the ledger job, budget, and settlement. The params
+			// object is the versioned experiment spec.
+			if r.bridgeClient == nil {
+				execErr = fmt.Errorf("bridge unavailable: refusing %s without a compute plane", j.JobType)
+				break
+			}
+			resp, err := r.bridgeClient.RunExperiment(r.ctx, &pb.ExperimentRequest{
+				SpecJson:  string(j.ParamsJSON),
+				SessionId: j.SessionID,
+			})
+			if err != nil {
+				execErr = fmt.Errorf("RunExperiment RPC failed: %w", err)
+				break
+			}
+			if !resp.Ok {
+				execErr = fmt.Errorf("experiment refused: %s", resp.ErrorMessage)
+				break
+			}
+			resultData = []byte(resp.ResultJson)
+			var probe struct {
+				Success bool `json:"success"`
+			}
+			if err := json.Unmarshal(resultData, &probe); err != nil || !probe.Success {
+				execErr = fmt.Errorf("experiment returned no success result: %s", string(resultData))
+			}
+
 		default:
 			execErr = fmt.Errorf("unknown job type: %s", j.JobType)
 		}
@@ -824,6 +857,14 @@ func (r *Runner) executeJob(j *Job) {
 		j.ResultJSON = resultData
 	}
 
+	// Experiment jobs reserve a declared envelope even when the runner is a
+	// zero-cost simulator. A normal completion currently has no vendor usage
+	// block; settle it through the same funnel so the reservation is released
+	// (the old path kept the envelope after a successful VQE).
+	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED &&
+		(j.JobType == "vqe_run" || j.JobType == "vqe_pes") {
+		r.settleTerminalFromResult(j, string(j.ResultJSON))
+	}
 	r.ledger.DB().Exec(
 		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,

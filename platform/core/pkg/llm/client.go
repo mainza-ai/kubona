@@ -22,6 +22,10 @@ type ChatMessage struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	ToolName   string     `json:"tool_name,omitempty"`
+	// ReasoningContent is emitted by reasoning models (NVIDIA Nemotron,
+	// DeepSeek, etc.). It is not assistant content: callers must never
+	// render or parse it as the answer.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 type ChatCompletionRequest struct {
@@ -279,7 +283,17 @@ func (c *Client) completeWithMaxTokens(ctx context.Context, role string, message
 			chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, true)
 	}
 	c.settings.RecordSuccess(providerType)
-	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
+	content := chatResp.Choices[0].Message.Content
+	if strings.TrimSpace(content) == "" && strings.TrimSpace(chatResp.Choices[0].Message.ReasoningContent) != "" {
+		// A reasoning model can spend the entire completion budget thinking
+		// and return no answer. Fail loudly instead of handing callers an
+		// empty string (codesign/tribunal previously treated this as a
+		// generic parse failure and lost the cause).
+		return "", &chatResp, duration, fmt.Errorf(
+			"model returned reasoning_content but no assistant content (finish_reason=%q, completion_tokens=%d): raise the role's max output budget or use a non-reasoning structured model",
+			chatResp.Choices[0].Finish, chatResp.Usage.CompletionTokens)
+	}
+	return content, &chatResp, duration, nil
 }
 
 // StreamChunk is one SSE delta from a streaming completion.

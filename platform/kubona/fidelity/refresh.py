@@ -18,7 +18,20 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+_PACKAGE_CONTRACT = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+
+
+def contract_path() -> Path:
+    """Writable runtime contract, or the package copy in source checkouts.
+
+    Production sets KUBONA_FIDELITY_DEVICES to a writable state-volume path;
+    the image copy is the read-only bootstrap. Never silently write the package
+    path inside an installed image.
+    """
+    override = (os.environ.get("KUBONA_FIDELITY_DEVICES") or "").strip()
+    return Path(override) if override else _PACKAGE_CONTRACT
+
+
 _REQUIRED = ("t1_us", "t2_us", "single_qubit_error", "two_qubit_error", "readout_error")
 
 
@@ -41,7 +54,7 @@ def apply_snapshot(device: str, snapshot: dict[str, Any] | None, *,
     values = {k: _number(snapshot, k, allow_zero=k.endswith("_error")) for k in _REQUIRED}
     if values["t2_us"] > 2.0 * values["t1_us"] + 1e-6:
         raise CalibrationError("physically unsound calibration: t2 > 2*t1")
-    path = contract or CONTRACT
+    path = contract or contract_path()
     doc = json.loads(path.read_text(encoding="utf-8"))
     target = next((d for d in doc.get("devices", []) if d.get("name") == device), None)
     if target is None:
@@ -84,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--device", required=True)
     ap.add_argument("--provider", help="read live calibration from this provider plugin")
     ap.add_argument("--input", help="read a snapshot JSON file instead of a live provider")
+    ap.add_argument("--contract", help="contract path (default: KUBONA_FIDELITY_DEVICES or package copy)")
     ap.add_argument("--write", action="store_true", help="update the contract (default: dry run)")
     args = ap.parse_args(argv)
     try:
@@ -93,7 +107,9 @@ def main(argv: list[str] | None = None) -> int:
             snapshot = _snapshot_from_provider(args.provider)
         else:
             raise CalibrationError("one of --provider or --input is required")
-        target = apply_snapshot(args.device, snapshot, write=args.write)
+        target = apply_snapshot(args.device, snapshot,
+                                contract=Path(args.contract) if args.contract else None,
+                                write=args.write)
     except (CalibrationError, OSError, json.JSONDecodeError) as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 2

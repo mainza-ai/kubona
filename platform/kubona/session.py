@@ -312,6 +312,13 @@ class SessionStore:
                 )
             else:
                 s = existing
+                # A Go-owned mirror created by an earlier quantum submit may
+                # carry the legacy "human" label. Workflow execution authenticates
+                # as a bridge principal; update ownership on the prepaid path so
+                # the same session is not refused as "unknown" by tool ownership
+                # checks. Never overwrite a non-mirror owner.
+                if spend_prepaid and owner and s.meta.get("origin") == "go-sqlite-authority":
+                    s.owner = owner
                 if budget_ceiling_usd is not None:
                     s.budget_ceiling_usd = float(budget_ceiling_usd)
                 s.spent_usd = round(float(spent_usd), 6)

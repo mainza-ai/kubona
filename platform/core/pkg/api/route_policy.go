@@ -98,6 +98,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/chat/launch", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Spend dispatch (mints jobs): attributed session required, dispatch autonomy enforced, caller bound to session tenant, hardware admission (mandate/fidelity/routing) + idempotency inside. Open edge preserves the zero-login local flow; capability gates are the control."},
 	{Pattern: "/api/jobs", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "List: tenant-scoped reads (unscoped list refused, ghosts 404). Dispatch: attributed session, dispatch autonomy, caller binding, hardware admission + content-bound idempotency. Same local-flow posture as launch."},
 	{Pattern: "/api/jobs/", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "Read: job+scope session must share a tenant and the caller must clear the scope session. Cancel: known-job path binds caller to the job session before CancelJob."},
+	{Pattern: "/api/experiments", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "VQE/PES dispatch: known session, dispatch autonomy, caller/session tenant binding, content-bound idempotency; bridge computes, Go ledger owns the job and settlement."},
 	{Pattern: "/api/loops", Methods: "GET,POST", Class: RouteAuthBearer},
 	{Pattern: "/api/loops/", Methods: "GET,POST", Class: RouteAuthBearer},
 	{Pattern: "/api/events", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "Session-keyed event reads bind caller to session tenant."},

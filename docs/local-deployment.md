@@ -61,6 +61,24 @@ Authenticated writes (LLM/quantum settings, mandates, rerun) need either:
 - **API/agent:** send `Authorization: Bearer $KUBONA_API_TOKEN` (the token
   from `.env`) on gated routes.
 
+### Calibration refresh (QPU)
+
+The fidelity gate refuses hardware dispatch when the contract is older than 24
+hours. The state volume owns a writable copy; the image copy is only a
+bootstrap. Refresh it from the live provider **without rebuilding**:
+
+```bash
+docker compose --env-file .env -f platform/docker/compose.prod.yml \
+  run --rm --no-deps bridge \
+  python -m kubona.fidelity.refresh --provider ibm-qiskit --device ibm-heron --write
+```
+
+Both the bridge (`KUBONA_FIDELITY_DEVICES`) and kubonad
+(`KUBONA_CONTRACTS_DIR`) resolve the state-volume contract on boot. Restart the
+two services after a refresh if a long-running process has already cached it.
+A failed or unmeasurable refresh refuses; it never stamps a fresh timestamp
+without live data.
+
 ### Local reset and isolated E2E
 
 The live ledger contains labs and campaigns. Never point E2E at it: the browser

@@ -34,6 +34,24 @@ function summarize(job: Job): string | null {
         : '';
       return `counts on ${backend} · ${shots} shots · job ${short}${compiler}`;
     }
+    case 'vqe_run': {
+      const e = num(r.energy);
+      const fci = num(r.fci_exact_energy);
+      const delta = num(r.delta_mha);
+      if (e === null) return null;
+      return `VQE ${e.toFixed(6)} Ha${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
+    }
+    case 'vqe_pes': {
+      const pts = Array.isArray(r.points) ? r.points : [];
+      if (pts.length === 0) return null;
+      let best = asRecord(pts[0]);
+      for (const p of pts) {
+        const rec = asRecord(p);
+        if ((num(rec.delta_mha) ?? Infinity) < (num(best.delta_mha) ?? Infinity)) best = rec;
+      }
+      const bestR = num(best.bond_distance);
+      return `VQE PES ${pts.length} points${bestR !== null ? ` · best R=${bestR.toFixed(4)} Å` : ''} · job ${short}`;
+    }
     case 'krylov_solve': {
       const e = num(r.ground_state_energy);
       if (e === null) return null;

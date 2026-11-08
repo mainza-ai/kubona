@@ -1,5 +1,6 @@
 # D1: build context is platform/ (pyproject at root). Keep the bridge
-# image free of state, secrets, tests, and the console tree.
+# image free of state, secrets, tests, and the console tree; core/crates
+# remain because the kubonad-specific ignore selects only what it needs.
 __pycache__
 .pytest_cache
 .venv
@@ -10,8 +11,6 @@ __pycache__
 tests
 test_*.py
 console
-core
-crates
 models
 state
 .kubona
@@ -19,3 +18,4 @@ state
 *.db-lock
 *.db-shm
 *.db-wal
+crates/*/target

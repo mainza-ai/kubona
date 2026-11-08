@@ -34,8 +34,8 @@ const (
 	codesignRerunMaxBody          = 1 << 20
 	codesignRerunDefaultSteps     = 4
 	codesignRerunMaxSteps         = 12
-	codesignRerunDefaultTokens    = 512
-	codesignRerunMaxTokensPerStep = 1024
+	codesignRerunDefaultTokens    = 8192
+	codesignRerunMaxTokensPerStep = 8192
 	codesignRerunDefaultTests     = 64
 	codesignRerunMaxTests         = 512
 	codesignRerunMaxOps           = 64
@@ -593,7 +593,9 @@ func buildCodesignPrompt(numQubits, step, maxOps int, current []codesignOp) stri
 	return fmt.Sprintf("Complete the reversible Kickmix circuit. Allowed gates and qubit arity: %s. "+
 		"Only diagonal gates may carry a cond list of measurement-record ids. "+
 		"num_qubits=%d; step=%d; max_ops=%d. Current ops: %s. "+
-		`Reply with JSON only: {"ops": [[name, [qubits], [cond]], ...]}.`,
+		"A valid AND2 result is exactly: {\"ops\":[[\"ccx\",[0,1,2],[]]]}. "+
+		"Reply with JSON only, no prose and no markdown: {\"ops\": [[name, [qubits], [cond]], ...]}. "+
+		"Do not use escaped quotes inside JSON strings.",
 		strings.Join(gates, ", "), numQubits, step, maxOps, string(raw))
 }
 

@@ -39,18 +39,21 @@ COPY contracts ./contracts
 # KUBONA_ERROR_CATALOG by explicit path; without these an image can boot
 # but its first quantum submit fails with FileNotFoundError.
 ENV KUBONA_EVENT_TYPES=/app/contracts/event-types.json \
-    KUBONA_FIDELITY_DEVICES=/app/contracts/fidelity-devices.json \
     KUBONA_ERROR_CATALOG=/app/contracts/error-catalog.csv
 RUN chown -R kubona:kubona /app
 # Seed the socket dir with daemon ownership: the shared bridge-sock volume
 # inherits the image's directory (owner included); without this the volume
 # mounts root-owned and the nonroot bridge cannot create its socket
 # (same pattern as kubonad's state dir in Dockerfile.kubonad).
-RUN mkdir -p /run/kubona && chown kubona:kubona /run/kubona
+RUN mkdir -p /run/kubona /home/kubona/.kubona/contracts \
+    && cp /app/contracts/fidelity-devices.json /home/kubona/.kubona/contracts/fidelity-devices.json \
+    && chown -R kubona:kubona /run/kubona /home/kubona/.kubona
+COPY docker/bridge-entrypoint.sh /usr/local/bin/bridge-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/bridge-entrypoint.sh
 
 USER kubona
 WORKDIR /app/bridge
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
     CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('unix:///run/kubona/bridge.sock')).result(timeout=4)"
 
-CMD ["python", "server.py"]
+ENTRYPOINT ["/usr/local/bin/bridge-entrypoint.sh"]

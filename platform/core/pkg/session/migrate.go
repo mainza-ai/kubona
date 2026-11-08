@@ -45,6 +45,7 @@ var (
 	TerminalJobStatuses = []string{
 		pb.JobStatus_JOB_STATUS_COMPLETED.String(),
 		pb.JobStatus_JOB_STATUS_FAILED.String(),
+		pb.JobStatus_JOB_STATUS_CANCELLED.String(),
 	}
 	// LiveJobStatuses: jobs in these states are still live work — the
 	// CAS-guard live set for cancel/abort sweeps.

@@ -164,6 +164,19 @@ message QuantumKrylovResponse {
   string solver = 9;
 }
 
+message ExperimentRequest {
+  // Versioned experiment spec, e.g. {"kind":"vqe","molecule":"H2",...}.
+  string spec_json = 1;
+  string session_id = 2;
+}
+
+message ExperimentResponse {
+  bool ok = 1;
+  string error_message = 2;
+  // Structured result: energy, FCI, uncertainty, theta, trajectory, backend.
+  string result_json = 3;
+}
+
 message MitigationRequest {
   string qasm = 1;
   string method = 2;
@@ -247,6 +260,7 @@ service QuantumBridgeService {
   rpc QuantumJobStatus(QuantumJobStatusRequest) returns (QuantumJobStatusResponse);
   rpc QuantumCancel(QuantumCancelRequest) returns (QuantumCancelResponse);
   rpc RunCanary(CanaryRunRequest) returns (CanaryRunResponse);
+  rpc RunExperiment(ExperimentRequest) returns (ExperimentResponse);
   rpc WorkflowPlan(WorkflowPlanRequest) returns (WorkflowPlanResponse);
   rpc WorkflowRun(WorkflowRunRequest) returns (WorkflowRunResponse);
 }

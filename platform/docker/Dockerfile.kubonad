@@ -15,6 +15,11 @@
 # boot without fidelity-devices.json, and the old core-only context could
 # never contain it.
 
+FROM rust:1-slim-bookworm AS qirbuild
+WORKDIR /qir
+COPY crates/qir-core ./crates/qir-core
+RUN cargo build --release --locked --manifest-path crates/qir-core/Cargo.toml
+
 FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS build
 
 ARG VERSION=dev
@@ -44,16 +49,21 @@ RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 
 COPY --from=build /kubonad /usr/local/bin/kubonad
+COPY --from=qirbuild /qir/crates/qir-core/target/release/qir-core /usr/local/bin/qir-core
+ENV KUBONA_QIR_CORE_BIN=/usr/local/bin/qir-core
 COPY --from=build /src/contracts /contracts
 COPY docker/backup-loop.sh /usr/local/bin/backup-loop.sh
-RUN chmod 0755 /usr/local/bin/backup-loop.sh
+COPY docker/kubonad-entrypoint.sh /usr/local/bin/kubonad-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/backup-loop.sh /usr/local/bin/kubonad-entrypoint.sh
 ENV KUBONA_CONTRACTS_DIR=/contracts
 
 # Seed the state dir with daemon ownership: a fresh named volume inherits
 # the image's directory (owner included); without this the volume mounts
 # root-owned and the nonroot daemon cannot create its state (boot refuses,
 # fail-closed — observed live before this line existed).
-RUN mkdir -p /home/kubona/.kubona/models /backups && chown -R kubona:kubona /home/kubona/.kubona /backups
+RUN mkdir -p /home/kubona/.kubona/models /home/kubona/.kubona/contracts /backups \
+    && cp /contracts/fidelity-devices.json /home/kubona/.kubona/contracts/fidelity-devices.json \
+    && chown -R kubona:kubona /home/kubona/.kubona /backups
 # Seed the bridge socket dir with daemon ownership (same volume-seeding
 # pattern as above): kubonad joins the bridge's UDS as UID 1000, so the
 # shared bridge-sock volume must not mount root-owned. The bridge seeds
@@ -66,7 +76,7 @@ EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=15s \
     CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
-ENTRYPOINT ["/usr/local/bin/kubonad"]
+ENTRYPOINT ["/usr/local/bin/kubonad-entrypoint.sh"]
 # Loopback default is overridden here: the container port is published by
 # compose, and TLS termination (if any) sits in front — see compose.prod.yml.
 CMD ["--bind", "0.0.0.0", "--port", "8080"]
