@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { History, MessageSquare, RefreshCw } from 'lucide-react';
-import { appendLedgerEvent, fetchClaimReviews, fetchClaims, reviewClaim, sendChatMessage, type ClaimRecord, type ClaimReview } from '@/lib/api';
+import { appendLedgerEvent, fetchClaimReviews, fetchClaimsPage, reviewClaim, sendChatMessage, type ClaimRecord, type ClaimReview } from '@/lib/api';
 
 function evidenceJob(record: ClaimRecord): string | null {
   try {
@@ -14,25 +14,35 @@ function evidenceJob(record: ClaimRecord): string | null {
 }
 
 export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
-  const [claims, setClaims] = useState<{ sessionId: string; rows: ClaimRecord[] } | null>(null);
+  const [claims, setClaims] = useState<{
+    sessionId: string;
+    rows: ClaimRecord[];
+    nextOffset: number;
+    hasMore: boolean;
+  } | null>(null);
   const [error, setError] = useState<{ sessionId: string; message: string } | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [reviewed, setReviewed] = useState<Record<string, 'requested' | 'failed'>>({});
   const [reviews, setReviews] = useState<Record<string, ClaimReview[]>>({});
   const [reason, setReason] = useState('');
   const [nonce, setNonce] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadReviews = (sid: string, rowsToLoad: ClaimRecord[]) => {
+    void Promise.all(rowsToLoad.map(async (claim) => [claim.id, (await fetchClaimReviews(sid, claim.id)) ?? []] as const))
+      .then((pairs) => { setReviews((prev) => ({ ...prev, ...Object.fromEntries(pairs) })); });
+  };
 
   useEffect(() => {
     let cancelled = false;
     if (!sessionId) return () => { cancelled = true; };
-    void fetchClaims(sessionId).then((rows) => {
+    void fetchClaimsPage(sessionId, 50, 0).then((page) => {
       if (cancelled) return;
-      if (rows === null) setError({ sessionId, message: 'claim history unavailable' });
+      if (page === null) setError({ sessionId, message: 'claim history unavailable' });
       else {
         setError(null);
-        setClaims({ sessionId, rows });
-        void Promise.all(rows.map(async (claim) => [claim.id, (await fetchClaimReviews(sessionId, claim.id)) ?? []] as const))
-          .then((pairs) => { if (!cancelled) setReviews(Object.fromEntries(pairs)); });
+        setClaims({ sessionId, rows: page.claims, nextOffset: page.next_offset, hasMore: page.has_more });
+        loadReviews(sessionId, page.claims);
       }
     });
     return () => { cancelled = true; };
@@ -40,6 +50,26 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
 
   const rows = !sessionId ? [] : claims?.sessionId === sessionId ? claims.rows : null;
   const errorMessage = error?.sessionId === sessionId ? error.message : null;
+  const hasMore = !sessionId ? false : claims?.sessionId === sessionId ? claims.hasMore : false;
+
+  const loadOlder = async () => {
+    if (!sessionId || !claims || claims.sessionId !== sessionId || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchClaimsPage(sessionId, 50, claims.nextOffset);
+      if (!page) { setError({ sessionId, message: 'older claim history unavailable' }); return; }
+      setClaims((prev) => {
+        if (!prev || prev.sessionId !== sessionId) return prev;
+        const seen = new Set(prev.rows.map((row) => row.id));
+        const merged = [...prev.rows, ...page.claims.filter((row) => !seen.has(row.id))];
+        return { ...prev, rows: merged, nextOffset: page.next_offset, hasMore: page.has_more };
+      });
+      loadReviews(sessionId, page.claims);
+      setError(null);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const requestReview = async (record: ClaimRecord) => {
     if (!sessionId) return;
@@ -161,6 +191,16 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
             );
           })}
         </ol>
+      )}
+      {hasMore && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={() => void loadOlder()}
+          className="w-full rounded-lg border border-white/10 px-2 py-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)] disabled:opacity-40"
+        >
+          {loadingMore ? 'Loading older claims…' : 'Load older claims'}
+        </button>
       )}
     </section>
   );

@@ -52,3 +52,6 @@ def test_full_space_vqe_reports_the_full_orbital_space():
     # Full-space is an explicitly labelled path; it does not borrow the
     # active-space CASCI target.
     assert res["fci_exact_energy"] == res["active_space_fci_energy"]
+    assert res["claimable"] is False
+    assert res["full_space_status"] == "contested"
+    assert res["chemical_accuracy"] is False

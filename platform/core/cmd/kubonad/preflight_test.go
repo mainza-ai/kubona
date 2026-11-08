@@ -98,3 +98,31 @@ func TestPreflightNotifiesWebhookOnFailure(t *testing.T) {
 		t.Fatalf("webhook hits = %d, want 1", hits)
 	}
 }
+
+func TestPreflightRefusesPlaintextProviderKeyInProduction(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "kubona.db")
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE llm_settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO llm_settings (key, value_json) VALUES ('active_settings', ?)`, `{"providers":{"nvidia":{"api_key":"plaintext-secret"}}}`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+	t.Setenv("KUBONA_ENV", "production")
+	t.Setenv("KUBONA_SECRET_KEY", "")
+	if code := runPreflight([]string{"--db", dbPath, "--backup-dir", filepath.Join(dir, "backups"), "--rate-card=false"}); code == 0 {
+		t.Fatal("production preflight accepted a plaintext stored provider key")
+	}
+}

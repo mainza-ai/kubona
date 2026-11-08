@@ -1042,7 +1042,7 @@
       "contract": null
     },
     {
-      "function": "fetchClaims",
+      "function": "fetchClaimsPage",
       "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
       "method": "GET",
       "contract": null

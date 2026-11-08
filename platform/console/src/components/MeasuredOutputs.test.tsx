@@ -21,7 +21,7 @@ const JOBS = [
   {
     id: 'job-vqe-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_run',
     params_json: {}, result_json: {
-      success: true, energy: -1.1368, fci_exact_energy: -1.13727, delta_mha: 0.47,
+      success: true, energy: -1.1368, fci_exact_energy: -1.13727, delta_mha: 0.47, full_space_status: 'contested',
       uncertainty: 0.001384, backend: 'qiskit-aer-simulator',
     }, created_at: '', completed_at: '2026-10-11T02:30:00Z',
   },
@@ -83,6 +83,7 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('VQE -1.136800 Ha');
     expect(text).toContain('± 1.384 mHa');
     expect(text).toContain('Δ 0.470 mHa');
+    expect(text).toContain('full-space contested');
     expect(text).toContain('min E R=0.7000 Å');
     expect(text).toContain('closest R=0.9000 Å');
     expect(text).toContain('QAOA MaxCut 7.870 vs classical 10');

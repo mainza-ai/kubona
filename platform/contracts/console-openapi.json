@@ -4700,7 +4700,7 @@
   },
   "x-kubona-unmodeled-functions": [
     "fetchClaimReviews",
-    "fetchClaims",
+    "fetchClaimsPage",
     "reviewClaim",
     "runExperiment"
   ],

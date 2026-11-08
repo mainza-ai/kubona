@@ -1774,17 +1774,44 @@ export async function reviewClaim(
   }
 }
 
-/** Read the immutable claim history for a session (newest first). */
-export async function fetchClaims(sessionId: string, limit = 50): Promise<ClaimRecord[] | null> {
+export interface ClaimPage {
+  claims: ClaimRecord[];
+  offset: number;
+  limit: number;
+  next_offset: number;
+  has_more: boolean;
+}
+
+/** Read one newest-first page of immutable claim history for a session. */
+export async function fetchClaimsPage(
+  sessionId: string,
+  limit = 50,
+  offset = 0,
+): Promise<ClaimPage | null> {
   if (!sessionId) return null;
+  const boundedLimit = Math.min(Math.max(limit, 1), 200);
+  const boundedOffset = Math.max(0, offset);
   try {
     const res = await apiFetch(
-      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims?limit=${Math.min(Math.max(limit, 1), 200)}`,
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims?limit=${boundedLimit}&offset=${boundedOffset}`,
       { cache: 'no-store', headers: authHeaders() },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { claims?: ClaimRecord[] };
-    return Array.isArray(data.claims) ? data.claims : [];
+    const data = (await res.json()) as {
+      claims?: ClaimRecord[];
+      offset?: number;
+      limit?: number;
+      next_offset?: number;
+      has_more?: boolean;
+    };
+    const claims = Array.isArray(data.claims) ? data.claims : [];
+    return {
+      claims,
+      offset: typeof data.offset === 'number' ? data.offset : boundedOffset,
+      limit: typeof data.limit === 'number' ? data.limit : boundedLimit,
+      next_offset: typeof data.next_offset === 'number' ? data.next_offset : boundedOffset + claims.length,
+      has_more: data.has_more === true,
+    };
   } catch (err) {
     console.error('Failed to fetch claims:', err);
     return null;

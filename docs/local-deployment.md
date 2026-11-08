@@ -253,6 +253,10 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
 - Secrets: `.env` (chmod 600) for a local install; Docker secrets/OpenBao for
   a shared host. Never commit `.env`; it is gitignored. `kubonad keygen`
   prints the reviewer/operator seeds; write them to `.env`, not shell history.
+  Set `KUBONA_SECRET_KEY` (32-byte hex/base64) before entering provider keys
+  in the console: production refuses new plaintext provider-key writes and
+  `kubonad preflight` fails if a stored key is plaintext. Env-only provider
+  credentials remain valid without it.
 - Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
   retention: [`docs/backup-restore.md`](backup-restore.md).
 - Scheduled encrypted backups (optional profile):

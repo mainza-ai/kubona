@@ -190,6 +190,9 @@ func TestClaimsEndpointResolves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := l.MintClaimRecord(sess.ID, "tribunal", "Second claim", -1, -1, -1, "contested", `{}`); err != nil {
+		t.Fatal(err)
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sess.ID+"/claims?limit=10", nil)
 	w := httptest.NewRecorder()
@@ -203,8 +206,24 @@ func TestClaimsEndpointResolves(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Claims) != 1 || out.Claims[0].TurnKind != "tribunal" || out.Claims[0].Alpha != -1 {
+	if len(out.Claims) != 2 || out.Claims[0].Statement != "Second claim" || out.Claims[1].Alpha != -1 {
 		t.Errorf("claims endpoint wrong: %+v", out.Claims)
+	}
+
+	// Pagination is newest-first and reports whether another page exists.
+	pageReq := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sess.ID+"/claims?limit=1&offset=0", nil)
+	pageW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(pageW, pageReq)
+	var page struct {
+		Claims     []ledger.ClaimRecord `json:"claims"`
+		NextOffset int                  `json:"next_offset"`
+		HasMore    bool                 `json:"has_more"`
+	}
+	if err := json.NewDecoder(pageW.Body).Decode(&page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Claims) != 1 || !page.HasMore || page.NextOffset != 1 {
+		t.Fatalf("claim page wrong: %+v", page)
 	}
 
 	// Review decisions are append-only and do not mutate the claim row.

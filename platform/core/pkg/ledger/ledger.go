@@ -1593,29 +1593,47 @@ func (l *Ledger) ListClaimReviews(sessionID, claimID string, limit int) ([]Claim
 
 // ListClaimRecords returns a session's claim history, newest first.
 func (l *Ledger) ListClaimRecords(sessionID string, limit int) ([]ClaimRecord, error) {
+	records, _, err := l.ListClaimRecordsPage(sessionID, limit, 0)
+	return records, err
+}
+
+// ListClaimRecordsPage returns one page of a session's claim history,
+// newest first, plus whether another page exists. Offset 0 is the newest
+// page. The extra row read is only used for hasMore and is never returned.
+func (l *Ledger) ListClaimRecordsPage(sessionID string, limit, offset int) ([]ClaimRecord, bool, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	l.lock.RLock()
 	defer l.lock.RUnlock()
 
 	rows, err := l.db.Query(
 		`SELECT id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at
-		 FROM claim_records WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`,
-		sessionID, limit)
+		 FROM claim_records WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?`,
+		sessionID, limit+1, offset)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer rows.Close()
 	var out []ClaimRecord
 	for rows.Next() {
 		var c ClaimRecord
 		if err := rows.Scan(&c.ID, &c.SessionID, &c.TurnKind, &c.Statement, &c.Alpha, &c.Beta, &c.Gamma, &c.Verdict, &c.Evidence, &c.CreatedAt); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
 }
 
 // VerifyCampaignHistory asserts the live row equals the newest version.
