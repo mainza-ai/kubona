@@ -10,6 +10,7 @@ def test_h2_vqe_is_measured_and_near_fci():
     res = run_vqe(molecule="H2", bond_distance=0.7414, layers=2,
                   shots=8192, seed=7, max_iterations=80)
     assert res["success"] is True
+    assert res["result_version"] == "experiment-result-v1"
     assert res["measured"] is True
     assert res["method"].startswith("VQE")
     assert res["energy_measured"] == res["energy"]
@@ -34,6 +35,7 @@ def test_pes_points_are_measured():
     res = run_pes(r_min=0.7, r_max=0.78, steps=2, shots=2048,
                   max_iterations=48)
     assert res["success"] is True
+    assert res["result_version"] == "experiment-result-v1"
     assert [p["bond_distance"] for p in res["points"]] == [0.7, 0.78]
     assert all(p["energy"] != 0 for p in res["points"])
     assert all(p["fci_exact_energy"] != 0 for p in res["points"])
