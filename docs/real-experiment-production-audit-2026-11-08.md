@@ -35,7 +35,11 @@ section records what changed and the remaining status.
 >   expectation of `7.1875` against the classical optimum `10` and local exact
 >   optimizer `8.7106` (ratio `0.71875`), usage `2.0 s`, actual `$0.00`.
 >   The optimizer was local and this diagnostic bypassed the session/claim
->   ledger; it is not a production hardware result. Hardware VQE is not run.
+>   ledger; it is not a production hardware result. A hardware VQE diagnostic
+>   was also run on five Pauli bases (1024 shots each): energy `-1.119494 Ha`
+>   vs FCI `-1.137270 Ha` (`17.776 mHa`, not chemical accuracy), 2.0 s per
+>   basis, `$0.00`; optimizer local, no ledger. Hardware VQE is not yet a
+>   production rail.
 > - **Completed QPU**: job `38a0b0642f664c74` / vendor
 >   `dbo2egoou4as73b5dfog`, `ibm_fez` layout `144/143`, 100 shots,
 >   counts `00:57, 01:2, 10:1, 11:40`, usage `2.0 s`, actual `$0.00`,

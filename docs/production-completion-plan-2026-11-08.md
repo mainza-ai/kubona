@@ -35,6 +35,16 @@ This plan is being executed incrementally. Landed after the report:
   (ratio `0.71875`), usage `2.0 s`, actual `$0.00`. The optimizer remained
   local and the run bypassed the session/claim ledger; it is evidence for
   the next hardware-worker phase, not a production result.
+- **Hardware VQE diagnostic (not yet the product rail):** the final
+  hardware-efficient H2 ansatz was measured on `ibm_marrakesh` across five
+  Pauli bases (1024 shots each; vendor jobs `dboartgqtr0c73ae8nh0`,
+  `dboarus4148s73927dag`, `dboas00ou4as73b5p500`, `dboas18ou4as73b5p52g`,
+  `dboas2gqtr0c73ae8nng`). Including the identity coefficient, the hardware
+  energy is `-1.119494 Ha` vs FCI `-1.137270 Ha` (`17.776 mHa`), i.e. not
+  chemical accuracy; each job used 2.0 s, actual `$0.00`. The optimizer was
+  local and this diagnostic bypassed the session/claim ledger. It proves the
+  IBM hardware and observable-measurement path; it is not a production VQE
+  result.
 
 Still pending from this plan: hardware VQE/QAOA, full-space accuracy,
 mixed-workflow atomicity, safe sandbox default, at-rest secrets, manual
