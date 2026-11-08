@@ -132,6 +132,7 @@ type OptimizerPoint struct {
 }
 
 type MeasurementSummary struct {
+	ResultVersion          string           `json:"result_version,omitempty"`
 	JobID                  string           `json:"job_id,omitempty"`
 	ClaimID                string           `json:"claim_id,omitempty"`
 	Method                 string           `json:"method"`
@@ -153,6 +154,17 @@ type MeasurementSummary struct {
 	BelowFCI               bool             `json:"below_fci"`
 	Source                 string           `json:"source,omitempty"`
 	OptimizerHistory       []OptimizerPoint `json:"optimizer_history,omitempty"`
+	Provider               string           `json:"provider,omitempty"`
+	Hardware               bool             `json:"hardware,omitempty"`
+	OptimizerBackend       string           `json:"optimizer_backend,omitempty"`
+	MeasurementBackend     string           `json:"measurement_backend,omitempty"`
+	CI95MHa                float64          `json:"ci95_mha,omitempty"`
+	UsageSeconds           float64          `json:"usage_seconds,omitempty"`
+	ActualUSD              *float64         `json:"actual_usd,omitempty"`
+	Layout                 map[string]any   `json:"layout,omitempty"`
+	Calibration            map[string]any   `json:"calibration,omitempty"`
+	Counts                 map[string]int   `json:"counts,omitempty"`
+	EvidenceRefs           []string         `json:"evidence_refs,omitempty"`
 }
 
 // PesPoint is one structured point in a potential-energy scan. The old

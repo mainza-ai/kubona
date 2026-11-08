@@ -390,6 +390,22 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	);
 	CREATE INDEX IF NOT EXISTS idx_claims_session ON claim_records(session_id);
 
+	-- Claim review history: decisions are append-only and separate from the
+	-- immutable claim row. A claim's current review state is the newest row.
+	CREATE TABLE IF NOT EXISTS claim_reviews (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		claim_id TEXT NOT NULL,
+		decision TEXT NOT NULL,
+		reason TEXT NOT NULL,
+		reviewer TEXT NOT NULL,
+		evidence_json TEXT NOT NULL DEFAULT '{}',
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id),
+		FOREIGN KEY (claim_id) REFERENCES claim_records(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_claim_reviews_claim ON claim_reviews(session_id, claim_id);
+
 	CREATE TABLE IF NOT EXISTS canvas_layouts (
 		session_id TEXT PRIMARY KEY,
 		layout_json TEXT NOT NULL DEFAULT '{}',
@@ -1484,6 +1500,95 @@ func (l *Ledger) MintClaimRecord(sessionID, turnKind, statement string, alpha, b
 	}
 	return &ClaimRecord{ID: id, SessionID: sessionID, TurnKind: turnKind, Statement: statement,
 		Alpha: alpha, Beta: beta, Gamma: gamma, Verdict: verdict, Evidence: evidenceJSON, CreatedAt: now}, nil
+}
+
+// ClaimReview is one append-only human/operator decision about a claim.
+// The claim row itself stays immutable; the newest review is the current
+// decision projection.
+type ClaimReview struct {
+	ID        string `json:"id"`
+	SessionID string `json:"session_id"`
+	ClaimID   string `json:"claim_id"`
+	Decision  string `json:"decision"`
+	Reason    string `json:"reason"`
+	Reviewer  string `json:"reviewer"`
+	Evidence  string `json:"evidence_json"`
+	CreatedAt string `json:"created_at"`
+}
+
+// MintClaimReview records a review decision and appends the corresponding
+// peer_review event. Decisions are a closed vocabulary. The claim must exist
+// in the same session (unknown/foreign claims refuse).
+func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer, evidenceJSON string) (*ClaimReview, error) {
+	decision = strings.ToLower(strings.TrimSpace(decision))
+	switch decision {
+	case "accepted", "contested", "reopened":
+	default:
+		return nil, fmt.Errorf("claim review decision %q is not accepted|contested|reopened", decision)
+	}
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(claimID) == "" || strings.TrimSpace(reviewer) == "" {
+		return nil, fmt.Errorf("claim review needs session, claim, and reviewer")
+	}
+	if strings.TrimSpace(reason) == "" {
+		return nil, fmt.Errorf("claim review needs a reason")
+	}
+	if evidenceJSON == "" {
+		evidenceJSON = "{}"
+	}
+	l.lock.Lock()
+	var exists int
+	if err := l.db.QueryRow(`SELECT COUNT(*) FROM claim_records WHERE id = ? AND session_id = ?`, claimID, sessionID).Scan(&exists); err != nil || exists == 0 {
+		l.lock.Unlock()
+		return nil, fmt.Errorf("claim %s not found in session %s", claimID, sessionID)
+	}
+	var seq int
+	if err := l.db.QueryRow(`SELECT COUNT(*) FROM claim_reviews WHERE session_id = ?`, sessionID).Scan(&seq); err != nil {
+		l.lock.Unlock()
+		return nil, err
+	}
+	seq++
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	id := fmt.Sprintf("rev-%s-%04d", short, seq)
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := l.db.Exec(`INSERT INTO claim_reviews (id, session_id, claim_id, decision, reason, reviewer, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sessionID, claimID, decision, reason, reviewer, evidenceJSON, now)
+	l.lock.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	rec := &ClaimReview{ID: id, SessionID: sessionID, ClaimID: claimID, Decision: decision, Reason: reason, Reviewer: reviewer, Evidence: evidenceJSON, CreatedAt: now}
+	_, _ = l.AppendEventWithSpool(sessionID, "peer_review", map[string]any{
+		"review_id": id, "claim_id": claimID, "decision": decision,
+		"reason": reason, "reviewer": reviewer,
+	})
+	return rec, nil
+}
+
+// ListClaimReviews returns append-only review decisions for one claim,
+// newest first. Unknown claims simply return an empty list.
+func (l *Ledger) ListClaimReviews(sessionID, claimID string, limit int) ([]ClaimReview, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	rows, err := l.db.Query(`SELECT id, session_id, claim_id, decision, reason, reviewer, evidence_json, created_at FROM claim_reviews WHERE session_id = ? AND claim_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`, sessionID, claimID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ClaimReview
+	for rows.Next() {
+		var r ClaimReview
+		if err := rows.Scan(&r.ID, &r.SessionID, &r.ClaimID, &r.Decision, &r.Reason, &r.Reviewer, &r.Evidence, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // ListClaimRecords returns a session's claim history, newest first.

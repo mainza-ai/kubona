@@ -11,6 +11,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
     fetchClaims: vi.fn(),
     sendChatMessage: vi.fn(),
     appendLedgerEvent: vi.fn(),
+    fetchClaimReviews: vi.fn(),
+    reviewClaim: vi.fn(),
   };
 });
 
@@ -59,6 +61,26 @@ describe('ClaimHistory', () => {
     expect(api.appendLedgerEvent).toHaveBeenCalledWith('s1', 'peer_review', expect.objectContaining({ claim_id: 'clm-test-0001' }));
     expect(api.sendChatMessage).toHaveBeenCalledWith('s1', expect.stringContaining('clm-test-0001'));
     expect(JSON.stringify(tree!.toJSON())).toContain('Review requested');
+  });
+
+  it('records an append-only claim decision with a required reason', async () => {
+    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
+    vi.mocked(api.reviewClaim).mockResolvedValueOnce({
+      id: 'rev-test-0001', session_id: 's1', claim_id: claim.id, decision: 'accepted',
+      reason: 'uncertainty reviewed', reviewer: 'operator', evidence_json: '{}',
+      created_at: '2026-11-08T11:00:00Z',
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<ClaimHistory sessionId="s1" />);
+    });
+    const reason = tree!.root.findByProps({ 'aria-label': 'Claim review reason' });
+    await act(async () => { reason.props.onChange({ target: { value: 'uncertainty reviewed' } }); });
+    const accept = tree!.root.findAllByType('button').find((button) => String(button.props.children) === 'accepted');
+    expect(accept).toBeTruthy();
+    await act(async () => { accept!.props.onClick(); await Promise.resolve(); await Promise.resolve(); });
+    expect(api.reviewClaim).toHaveBeenCalledWith('s1', claim.id, 'accepted', 'uncertainty reviewed');
   });
 
   it('surfaces an unavailable history instead of pretending it is empty', async () => {

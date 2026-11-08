@@ -298,8 +298,8 @@ ${proofVerified
     }
     const m = campaign?.measurement;
     if (!m) return;
-    const header = ['job_id', 'claim_id', 'method', 'backend', 'energy_ha', 'energy_exact_ha', 'fci_exact_ha', 'uncertainty_mha', 'delta_mha', 'shots', 'seed', 'chemical_accuracy', 'converged', 'below_fci', 'optimizer_points'];
-    const row = [m.job_id ?? '', m.claim_id ?? '', m.method, m.backend ?? '', m.energy, m.energy_exact ?? '', m.fci_exact_energy, m.uncertainty_mha, m.delta_mha, m.shots ?? '', m.seed ?? '', m.chemical_accuracy, m.converged, m.below_fci, m.optimizer_history?.length ?? 0];
+    const header = ['job_id', 'claim_id', 'method', 'backend', 'energy_ha', 'energy_exact_ha', 'fci_exact_ha', 'uncertainty_mha', 'delta_mha', 'shots', 'seed', 'chemical_accuracy', 'converged', 'below_fci', 'optimizer_points', 'provider', 'hardware', 'ci95_mha', 'usage_seconds', 'actual_usd'];
+    const row = [m.job_id ?? '', m.claim_id ?? '', m.method, m.backend ?? '', m.energy, m.energy_exact ?? '', m.fci_exact_energy, m.uncertainty_mha, m.delta_mha, m.shots ?? '', m.seed ?? '', m.chemical_accuracy, m.converged, m.below_fci, m.optimizer_history?.length ?? 0, m.provider ?? '', m.hardware ?? false, m.ci95_mha ?? '', m.usage_seconds ?? '', m.actual_usd ?? ''];
     downloadText(`kubona-measurement-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.csv`,
       [header, row].map((r) => r.map(csvCell).join(',')).join('\n') + '\n',
       'text/csv;charset=utf-8');

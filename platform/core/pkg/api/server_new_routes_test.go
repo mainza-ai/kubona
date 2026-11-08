@@ -207,9 +207,26 @@ func TestKrylovAndMitigationEndpoints(t *testing.T) {
 		}
 	}
 
+	// Create a session: these proxies are now ledger-bound jobs, so an
+	// unattributed call refuses before bridge work.
+	sessBody, _ := json.Marshal(map[string]any{"title": "krylov mitigation drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessReq.Header.Set("Authorization", "Bearer op-token")
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	if sessW.Code != http.StatusCreated {
+		t.Fatalf("session: %d %s", sessW.Code, sessW.Body.String())
+	}
+	var drillSess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&drillSess); err != nil || drillSess.ID == "" {
+		t.Fatalf("session decode: %v", err)
+	}
+
 	// 1. POST /api/krylov/solve with no bridge client must fail closed (503),
 	// never return a canned energy as a measurement.
-	kBody := []byte(`{"molecule":"H2","bond_distance":0.7414,"subspace_dimension":4,"time_step":0.2}`)
+	kBody := []byte(`{"session_id":"` + drillSess.ID + `","molecule":"H2","bond_distance":0.7414,"subspace_dimension":4,"time_step":0.2}`)
 	kReq := httptest.NewRequest(http.MethodPost, "/api/krylov/solve", bytes.NewReader(kBody))
 	kReq.Header.Set("Authorization", "Bearer op-token")
 	kW := httptest.NewRecorder()
@@ -238,7 +255,7 @@ func TestKrylovAndMitigationEndpoints(t *testing.T) {
 	}
 
 	// 2. POST /api/mitigation/apply with no bridge client must fail closed too.
-	mBody := []byte(`{"qasm":"OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];","method":"ZNE","scale_factors":[1.0, 1.5, 2.0]}`)
+	mBody := []byte(`{"session_id":"` + drillSess.ID + `","qasm":"OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];","method":"ZNE","scale_factors":[1.0, 1.5, 2.0]}`)
 	mReq := httptest.NewRequest(http.MethodPost, "/api/mitigation/apply", bytes.NewReader(mBody))
 	mReq.Header.Set("Authorization", "Bearer op-token")
 	mW := httptest.NewRecorder()

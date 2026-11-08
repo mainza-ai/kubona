@@ -147,6 +147,12 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Job-only workflows are owned by the Go jobs rail. This branch prevents
+	// a Python job from being created and adopted as a second book.
+	if s.runJobOnlyWorkflow(w, r, req, sess.ID) {
+		return
+	}
+
 	// No dev fallback: the workflow gateway token is the bridge token in
 	// ALL envs. The bridge builds a require_auth gateway around it; a
 	// literal "dev-token" (or an empty token) would run bridged tools

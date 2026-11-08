@@ -318,6 +318,10 @@ export function buildWorkbench(
             { label: 'Backend', value: campaign.measurement.backend || 'not recorded' },
             { label: 'Shots', value: campaign.measurement.shots ? String(campaign.measurement.shots) : 'not recorded' },
             { label: 'Optimizer path', value: campaign.measurement.optimizer_history?.length ? `${campaign.measurement.optimizer_history.length} points` : 'not recorded' },
+            { label: 'Provider', value: campaign.measurement.provider || campaign.measurement.backend || 'not recorded' },
+            { label: 'Hardware', value: campaign.measurement.hardware ? 'yes' : 'no (simulator)' },
+            { label: 'CI95', value: campaign.measurement.ci95_mha != null ? `${fixed(campaign.measurement.ci95_mha, 3)} mHa` : 'not recorded' },
+            { label: 'Usage', value: campaign.measurement.usage_seconds != null ? `${fixed(campaign.measurement.usage_seconds, 2)} s` : 'not recorded' },
           ]
         : [
             { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },

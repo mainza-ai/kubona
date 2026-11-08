@@ -42,6 +42,10 @@ func (f *fakeWorkflowBridge) WorkflowPlan(_ context.Context, in *pb.WorkflowPlan
 	}, nil
 }
 
+func (f *fakeWorkflowBridge) ExecuteCircuit(_ context.Context, in *pb.CircuitExecutionRequest, _ ...grpc.CallOption) (*pb.CircuitExecutionResponse, error) {
+	return &pb.CircuitExecutionResponse{Success: true, JobId: in.JobId, Counts: map[string]int64{"00": 1}}, nil
+}
+
 func (f *fakeWorkflowBridge) WorkflowRun(_ context.Context, in *pb.WorkflowRunRequest, _ ...grpc.CallOption) (*pb.WorkflowRunResponse, error) {
 	f.lastRunRequest = in
 	if f.runResponse != nil {
@@ -70,11 +74,12 @@ func setupWorkflowServer(t *testing.T, fb pb.QuantumBridgeServiceClient) (*api.S
 	}
 	sm := session.NewManager(l)
 	jr := jobs.NewRunner(l, fb, 1)
+	jr.Start()
 	sup := supervisor.NewSupervisor(l)
 	wd := watchdog.NewTaskWatchdog(l, sup)
 	srv := api.NewServer(l, sm, jr, sup, wd)
 	optOutAirGap(t, srv)
-	return srv, sm, l, func() { l.Close() }
+	return srv, sm, l, func() { jr.Stop(); l.Close() }
 }
 
 func postWorkflow(t *testing.T, h http.Handler, path string, bearer bool, body any) (int, map[string]any) {
@@ -149,6 +154,41 @@ func TestWorkflowPlanEndpoint(t *testing.T) {
 	}
 	if fb.lastPlanRequest == nil || fb.lastPlanRequest.SessionId != sess.ID {
 		t.Fatalf("bridge plan request not forwarded correctly: %+v", fb.lastPlanRequest)
+	}
+}
+
+func TestJobOnlyWorkflowUsesGoOwnedJobs(t *testing.T) {
+	fb := &fakeWorkflowBridge{}
+	srv, sm, _, cleanup := setupWorkflowServer(t, fb)
+	defer cleanup()
+	h := srv.Handler()
+	sess, err := sm.CreateSession("Go workflow", 5.0, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, resp := postWorkflow(t, h, "/api/workflows/run", true, map[string]any{
+		"session_id": sess.ID,
+		"workflow": map[string]any{
+			"name": "go-owned", "budget_ceiling_usd": 1.0,
+			"steps": []any{map[string]any{
+				"id": "s1", "tool": "execution/submit_job",
+				"args": map[string]any{
+					"circuit_qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];",
+					"provider":     "local-simulator", "shots": 128, "seed": 7,
+				},
+			}},
+		},
+	})
+	if status != http.StatusOK || resp["engine"] != "go-jobs" {
+		t.Fatalf("go-owned workflow: %d %v", status, resp)
+	}
+	last, _ := resp["last_results"].(map[string]any)
+	step, _ := last["s1"].(map[string]any)
+	if step["job_id"] == "" || step["status"] != "completed" {
+		t.Fatalf("job step missing: %v", step)
+	}
+	if fb.lastRunRequest != nil {
+		t.Fatal("job-only workflow must not call the Python workflow engine")
 	}
 }
 

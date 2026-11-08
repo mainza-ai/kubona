@@ -182,6 +182,7 @@ export interface OptimizerPoint {
 }
 
 export interface MeasurementSummary {
+  result_version?: string;
   job_id?: string;
   claim_id?: string;
   method: string;
@@ -203,6 +204,17 @@ export interface MeasurementSummary {
   below_fci: boolean;
   source?: string;
   optimizer_history?: OptimizerPoint[];
+  provider?: string;
+  hardware?: boolean;
+  optimizer_backend?: string;
+  measurement_backend?: string;
+  ci95_mha?: number;
+  usage_seconds?: number;
+  actual_usd?: number;
+  layout?: Record<string, unknown>;
+  calibration?: Record<string, unknown>;
+  counts?: Record<string, number>;
+  evidence_refs?: string[];
 }
 
 export interface PesPoint {
