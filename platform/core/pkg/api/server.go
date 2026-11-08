@@ -2070,6 +2070,31 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, state)
 		return
 	}
+	// Workflow journal: newest-first runs for this session. A
+	// repair_required row means an executor was interrupted; it is never
+	// presented as completed.
+	if strings.HasSuffix(id, "/workflows") {
+		sessionID := strings.TrimSuffix(id, "/workflows")
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
+		limit := 50
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		runs, err := s.ledger.ListWorkflowRuns(sessionID, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if runs == nil {
+			runs = []ledger.WorkflowRun{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workflows": runs})
+		return
+	}
 	// Claim review history/decision: append-only, separate from the immutable
 	// claim row. GET returns reviews; POST records accepted/contested/reopened.
 	if strings.Contains(id, "/claims/") {

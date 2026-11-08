@@ -287,6 +287,13 @@ func main() {
 	} else if reconciled > 0 {
 		slog.Info("[Kubona Core] reconciled persisted loops to sleeping", "count", reconciled)
 	}
+	// Workflows are in-memory executors; a running row after restart has no
+	// live receipt. Mark it repair_required — never guess completion.
+	if interrupted, werr := l.RecoverInterruptedWorkflowRuns(); werr != nil {
+		log.Fatalf("Workflow journal recovery refused: %v", werr)
+	} else if interrupted > 0 {
+		slog.Warn("[Kubona Core] interrupted workflows marked repair_required", "count", interrupted)
+	}
 
 	// 2. Connect to Python Quantum Bridge via gRPC
 	bridgeTarget := *bridgeAddr

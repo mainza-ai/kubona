@@ -416,10 +416,22 @@ shell steps; manual evidence or explicit waiver recorded.
   - Mock/test lanes cover admission, one-batch preparation, and settlement. A live
     Hardware VQE run still requires an operator mandate/backend and is not yet
     claimed as evidence.
+- Durable workflow journal (Phase C first slice):
+  - `workflow_runs` and `workflow_steps` are persisted before dispatch; job-only
+    workflows create a step row before submission and advance it only after the
+    terminal job result.
+  - Mixed workflows get a run row before the Python engine call and step results
+    are mirrored afterward; interrupted runs become `repair_required` on boot.
+  - `GET /api/sessions/{id}/workflows` exposes the journal; no run is presented
+    as completed without a terminal receipt.
 - Investigation evidence and benchmark numbers recorded above.
 
 Still open in Phase B: live H2 parent run through a real mandate, QAOA parent
 reuse, and a provider-level batch test against the installed Qiskit Runtime.
+
+Still open in Phase C: Go-owned single-step bridge RPC for mixed non-job tools,
+full crash/retry conformance, and compensation rows. The current journal makes
+interruption visible; it does not yet make Python step execution Go-owned.
 
 ## 5. Decisions required before Phase B/E
 

@@ -70,8 +70,10 @@ silent omissions.
 
 > 2026-11-08 execution: the unblock slice landed claim pagination, production
 > provider-secret preflight/write refusal, full-space status/claimability gates,
-> and the first `hardware_experiment` parent rail (H2, one Runtime batch, mock
-> lane). Live hardware evidence still requires an operator mandate and run.
+> the first `hardware_experiment` parent rail (H2, one Runtime batch, mock
+> lane), and the durable workflow run/step journal with boot repair. Live
+> hardware evidence still requires an operator mandate and run; mixed workflow
+> steps are visible but not yet Go-owned.
 
 ## 1. Executive verdict
 
