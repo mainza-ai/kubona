@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -200,6 +201,122 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	job, err := s.jobRunner.SubmitJob(sid, "circuit_run", params)
+	if err != nil {
+		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+}
+
+// POST /api/experiments/vqe/hardware — execute a locally optimized H2 VQE
+// ansatz on a real QPU as one parent batch. The source local job supplies the
+// optimizer state and ansatz QASM; the Go parent owns the experiment mandate,
+// reservation, vendor batch, settlement, and claim evidence.
+func (s *Server) handleHardwareVQE(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to launch hardware VQE", nil)
+		return
+	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
+	var req struct {
+		SessionID           string   `json:"session_id"`
+		SourceJobID         string   `json:"source_job_id"`
+		Shots               int      `json:"shots"`
+		Seed                int      `json:"seed"`
+		BudgetUSD           float64  `json:"budget_usd"`
+		Backend             string   `json:"backend"`
+		MandateRef          string   `json:"mandate_ref"`
+		CallerJurisdictions []string `json:"caller_jurisdictions"`
+		CallerExportClass   string   `json:"caller_export_class"`
+		ExportReviewed      bool     `json:"export_reviewed"`
+		RequestID           string   `json:"request_id"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid hardware VQE request: %v", err), nil)
+		return
+	}
+	sid, err := s.requireSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", err.Error(), nil)
+		return
+	}
+	if err := s.requireDispatchAutonomy(sid); err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	source, err := s.jobRunner.GetJob(req.SourceJobID)
+	if err != nil || source == nil || source.SessionID != sid {
+		WriteAPIError(w, "not_found", "source VQE job not found in this session", nil)
+		return
+	}
+	var res struct {
+		Kind              string             `json:"kind"`
+		Success           bool               `json:"success"`
+		Hardware          bool               `json:"hardware"`
+		Molecule          string             `json:"molecule"`
+		BondDistance      float64            `json:"bond_distance"`
+		Layers            int                `json:"layers"`
+		FCIExactEnergy    float64            `json:"fci_exact_energy"`
+		Theta             []float64          `json:"theta"`
+		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
+		AnsatzQASM        string             `json:"ansatz_qasm"`
+	}
+	if err := json.Unmarshal(source.ResultJSON, &res); err != nil ||
+		!res.Success || res.Kind != "vqe" || res.Hardware ||
+		strings.ToUpper(res.Molecule) != "H2" ||
+		len(res.Theta) == 0 || len(res.PauliCoefficients) == 0 ||
+		strings.TrimSpace(res.AnsatzQASM) == "" {
+		WriteAPIError(w, "bad_request", "source job carries no local H2 VQE optimizer state and ansatz_qasm", nil)
+		return
+	}
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+	if req.Seed <= 0 {
+		req.Seed = 7
+	}
+	if req.BudgetUSD <= 0 {
+		req.BudgetUSD = 1.0
+	}
+	backend := strings.TrimSpace(req.Backend)
+	if backend == "" {
+		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
+	}
+	if backend == "" {
+		WriteAPIError(w, "bad_request", "backend is required (or set KUBONA_IBM_QISKIT_BACKEND)", nil)
+		return
+	}
+	params := map[string]any{
+		"molecule": res.Molecule, "bond_distance": res.BondDistance,
+		"layers": res.Layers, "shots": req.Shots, "seed": req.Seed,
+		"theta": res.Theta, "pauli_coefficients": res.PauliCoefficients,
+		"fci_exact_energy": res.FCIExactEnergy,
+		"provider":         "ibm-qiskit", "requested_backend": backend,
+		"fidelity_qasm": res.AnsatzQASM, "max_cost_usd": req.BudgetUSD,
+		"mandate_ref":          req.MandateRef,
+		"caller_jurisdictions": req.CallerJurisdictions,
+		"caller_export_class":  req.CallerExportClass,
+		"export_reviewed":      req.ExportReviewed,
+	}
+	idem, iref := s.idemBegin(sid, req.RequestID, map[string]any{
+		"session_id": sid, "source_job_id": req.SourceJobID, "backend": backend,
+		"shots": req.Shots, "seed": req.Seed, "budget_usd": req.BudgetUSD,
+		"mandate_ref": req.MandateRef, "jurisdictions": req.CallerJurisdictions,
+	}, idemRailJob)
+	if iref != nil {
+		iref.write(w)
+		return
+	}
+	if idem.replay {
+		s.idemReplay(w, idem)
+		return
+	}
+	job, err := s.jobRunner.SubmitJob(sid, "hardware_experiment", params)
 	if err != nil {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return

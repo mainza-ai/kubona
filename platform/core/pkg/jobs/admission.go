@@ -119,6 +119,9 @@ func (r *Runner) planAdmission(sessionID, jobType string, paramsJSON []byte, dec
 		return "", 0, fmt.Errorf("tenant %q autonomy L0 (observe/suggest only): dispatch refused", t.ID)
 	}
 
+	if jobType == "hardware_experiment" {
+		return r.planHardwareExperiment(tenantID, sessionID, paramsJSON)
+	}
 	if jobType != "circuit_run" {
 		return r.planNonCircuitRun(tenantID, sessionID, jobType, paramsJSON, declaredCost)
 	}

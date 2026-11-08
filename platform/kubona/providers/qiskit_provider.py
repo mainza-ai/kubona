@@ -541,6 +541,86 @@ class QiskitProvider(Provider):
             pass
         return out
 
+    def submit_batch(self, qasm_list: list[str], shots: int = 4096,
+                     seed: int = 7, service_factory=None) -> dict[str, Any]:
+        """Submit multiple measurement circuits as one Runtime job.
+
+        This is the provider primitive behind one governed hardware experiment:
+        one vendor job id, one usage reading, one settlement. It is explicitly
+        job/batch mode (Open Plan compatible), never a session.
+        """
+        self._ensure_ready()
+        if not isinstance(qasm_list, list) or not qasm_list:
+            raise ProviderError("hardware batch needs at least one circuit")
+        if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
+            raise ProviderError(f"shots must be an integer >= 1, got {shots!r}")
+        token = self._credential()
+        if not token:
+            raise ProviderError("cannot submit hardware batch without credentials: KUBONA_IBM_QISKIT_TOKEN unset")
+        try:
+            from qiskit import qasm2
+        except ImportError as e:
+            raise ProviderError(f"qiskit qasm2 unavailable: {e}")
+        service = self._service(token, service_factory)
+        backend = self._resolve_backend(service)
+        try:
+            from qiskit_ibm_runtime.executor_sampler import Sampler
+            sampler = Sampler(mode=backend)
+        except (ImportError, ModuleNotFoundError):
+            try:
+                from qiskit_ibm_runtime import SamplerV2 as Sampler
+                sampler = Sampler(mode=backend)
+            except (ImportError, ModuleNotFoundError) as e:
+                raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
+        circuits = []
+        layout = None
+        for qasm in qasm_list:
+            qc = qasm2.loads(str(qasm))
+            original = qc
+            if hasattr(backend, "target"):
+                chosen = self._calibrated_initial_layout(original, backend)
+                qc = self._transpile_for_backend(original, backend, chosen)
+                if layout is None:
+                    layout = self._layout_summary(original, qc)
+            self._validate_job_limits(qc, shots, backend)
+            circuits.append(qc)
+        job = sampler.run(circuits, shots=shots)
+        job_id = str(job.job_id())
+        try:
+            result = job.result()
+            counts_out = []
+            for i in range(len(circuits)):
+                pub = result[i].data.meas
+                counts_out.append({
+                    "".join(str(b) for b in k): int(v)
+                    for k, v in pub.get_counts().items()
+                })
+        except Exception as e:  # noqa: BLE001 — vendor result is data
+            raise ProviderError(f"hardware batch result read failed for job {job_id!r}: {e}")
+        out: dict[str, Any] = {
+            "success": True,
+            "counts": counts_out,
+            "shots": shots,
+            "seed": seed,
+            "backend": getattr(backend, "name", self.backend_name),
+            "job_id": job_id,
+            "hardware_job_id": job_id,
+            "hardware": True,
+            "channel": self._channel(),
+            "layout": layout,
+            "plan": self._plan,
+        }
+        try:
+            usage = job.usage()
+            if usage is not None:
+                out["usage_seconds"] = float(usage)
+                actual = self._actual_usd(float(usage))
+                if actual is not None:
+                    out["actual_usd"] = actual
+        except Exception:
+            pass
+        return out
+
     def poll_hardware_job(self, hardware_job_id: str, service_factory=None) -> dict[str, Any]:
         """Non-blocking vendor status poll for an IBM Runtime job."""
         if not hardware_job_id or not str(hardware_job_id).strip():

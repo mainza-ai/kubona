@@ -68,6 +68,11 @@ silent omissions.
 > It records why each remaining item is blocked, the recommended decisions, and
 > the Phase A–F unblock order.
 
+> 2026-11-08 execution: the unblock slice landed claim pagination, production
+> provider-secret preflight/write refusal, full-space status/claimability gates,
+> and the first `hardware_experiment` parent rail (H2, one Runtime batch, mock
+> lane). Live hardware evidence still requires an operator mandate and run.
+
 ## 1. Executive verdict
 
 The local-private stack is operational: the compose stack boots on a fresh volume,

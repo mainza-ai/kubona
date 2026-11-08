@@ -398,7 +398,26 @@ shell steps; manual evidence or explicit waiver recorded.
   provider-key writes, `kubonad preflight` audit.
 - Full-space honesty: `full_space_status`, `claimable`, uncertainty-gated
   `chemical_accuracy`; `EfficientSU2` stays a labelled smoke path.
+- Hardware VQE parent rail (H2 first):
+  - `hardware_experiment` job type with a parent-only mandate binding
+    (`CanonicalHardwareExperimentBinding`), positive hardware cost, jurisdictions,
+    and fidelity admission.
+  - `POST /api/experiments/vqe/hardware` consumes a completed local H2 VQE job's
+    `theta`, Pauli coefficients, FCI anchor, and `ansatz_qasm`; it never dispatches
+    the bridge directly.
+  - The bridge prepares all measurement-basis circuits and the provider submits
+    them as **one Runtime batch job**; one parent result carries `hardware_job_id`,
+    `usage_seconds`, `actual_usd`, aggregate energy/uncertainty, and
+    `simulated_optimizer:true`.
+  - The parent result folds into the campaign/claim path; hardware claims require
+    measured uncertainty inside the accuracy limit.
+  - Mock/test lanes cover admission, one-batch preparation, and settlement. A live
+    Hardware VQE run still requires an operator mandate/backend and is not yet
+    claimed as evidence.
 - Investigation evidence and benchmark numbers recorded above.
+
+Still open in Phase B: live H2 parent run through a real mandate, QAOA parent
+reuse, and a provider-level batch test against the installed Qiskit Runtime.
 
 ## 5. Decisions required before Phase B/E
 
