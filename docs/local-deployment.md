@@ -256,7 +256,10 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
   Set `KUBONA_SECRET_KEY` (32-byte hex/base64) before entering provider keys
   in the console: production refuses new plaintext provider-key writes and
   `kubonad preflight` fails if a stored key is plaintext. Env-only provider
-  credentials remain valid without it.
+  credentials remain valid without it. To migrate an existing plaintext
+  ledger, stop the daemon and run `kubonad seal-secrets --db /abs/kubona.db`
+  with the same key; it re-seals stored provider credentials and prints only
+  counts.
 - Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
   retention: [`docs/backup-restore.md`](backup-restore.md).
 - Scheduled encrypted backups (optional profile):
