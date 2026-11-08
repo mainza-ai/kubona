@@ -333,7 +333,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		measureLine("anchor recomputed: FCI %.5f -> %.5f Ha, discrepancy %.2f mHa.", oldFCI, fci, delta)
 		return marshalReplan(&state, true, "classical anchor recomputed")
 
-	case "vqe_run":
+	case "vqe_run", "hardware_experiment":
 		if !successTrue() {
 			return nil, false, "vqe reported success=false"
 		}
@@ -459,7 +459,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		ep.Statement = fmt.Sprintf("VQE measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa).",
 			energy, fci, delta)
-		ep.Sources = []string{"bridge:vqe_run:" + jobID}
+		sourceKind := jobType
+		if sourceKind == "" {
+			sourceKind = "vqe_run"
+		}
+		ep.Sources = []string{"bridge:" + sourceKind + ":" + jobID}
 		// Amplitudes were not evaluated by this VQE; use the explicit
 		// not-evaluated sentinel rather than zeroes that render as certainty.
 		ep.AlphaCorroborated = -1

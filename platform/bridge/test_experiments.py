@@ -14,6 +14,7 @@ def test_h2_vqe_is_measured_and_near_fci():
     assert res["measured"] is True
     assert res["method"].startswith("VQE")
     assert res["energy_measured"] == res["energy"]
+    assert res["ansatz_qasm"].startswith("OPENQASM")
     assert res["fci_exact_energy"] == pytest.approx(-1.137270174660903, abs=1e-12)
     # 8k shots is noisy; the exact optimizer point is the convergence check.
     assert abs(res["energy_exact"] - res["fci_exact_energy"]) < 2e-3
@@ -55,3 +56,43 @@ def test_full_space_vqe_reports_the_full_orbital_space():
     assert res["claimable"] is False
     assert res["full_space_status"] == "contested"
     assert res["chemical_accuracy"] is False
+
+
+def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed):
+        calls.append((list(qasm_list), shots, seed))
+        return {
+            "success": True,
+            "counts": [{"00": 512} for _ in qasm_list],
+            "backend": "ibm-test",
+            "hardware_job_id": "hw-1",
+            "usage_seconds": 2.0,
+            "actual_usd": 0.0,
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = experiments.run_vqe_hardware(
+        theta=[0.1] * 8,
+        pauli_coefficients={"II": -1.0, "IZ": 0.2, "ZI": 0.1},
+        layers=2,
+        shots=512,
+        seed=7,
+        bond_distance=0.7414,
+        fci_exact_energy=-0.6,
+    )
+    assert res["success"] is True
+    assert res["hardware"] is True
+    assert res["simulated_optimizer"] is True
+    assert res["hardware_job_id"] == "hw-1"
+    assert res["usage_seconds"] == 2.0
+    assert res["actual_usd"] == 0.0
+    assert len(calls) == 1
+    assert len(calls[0][0]) == 3
+    assert calls[0][1] == 512
+    # All measured counts are |00>, so every non-II expectation is +1.
+    assert res["energy"] == pytest.approx(-0.7)
+    assert res["claimable"] is False

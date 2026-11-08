@@ -897,6 +897,17 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 80)),
                     graph_seed=int(spec.get("graph_seed", 3)),
                 )
+            elif kind == "vqe_hardware":
+                from experiments import run_vqe_hardware
+                result = run_vqe_hardware(
+                    theta=spec.get("theta"),
+                    pauli_coefficients=spec.get("pauli_coefficients"),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 4096)),
+                    seed=int(spec.get("seed", 7)),
+                    bond_distance=float(spec.get("bond_distance", 0.7414)),
+                    fci_exact_energy=spec.get("fci_exact_energy"),
+                )
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,

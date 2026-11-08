@@ -158,6 +158,150 @@ def _shot_energy(
     }
 
 
+def _ansatz_qasm(theta: np.ndarray, layers: int) -> str:
+    """Expose the optimized ansatz (without measurement) for admission/fidelity.
+
+    This is a local CPU artifact, not a hardware result. It lets the Go parent
+    experiment bind its mandate/fidelity check to the actual circuit before the
+    bridge prepares measurement PUBs.
+    """
+    if not HAS_QISKIT:
+        return ""
+    try:
+        from qiskit import qasm2
+        return qasm2.dumps(_ansatz(theta, int(layers)))
+    except Exception:
+        return ""
+
+
+def _hardware_batch(qasm_list: list[str], shots: int, seed: int) -> dict[str, Any]:
+    """Run one provider batch. Overridable in tests; no live call in CI."""
+    from kubona.providers import get_provider
+    provider = get_provider("ibm-qiskit")
+    return provider.submit_batch(qasm_list, shots=int(shots), seed=int(seed))
+
+
+def _hardware_counts_to_energy(
+    counts_list: list[dict[str, int]], coeffs: dict[str, float],
+) -> dict[str, Any]:
+    by_term: dict[str, Any] = {}
+    energy = 0.0
+    variance = 0.0
+    for term, counts in zip(sorted(coeffs), counts_list):
+        c = float(coeffs[term])
+        if term == "II":
+            mean, std = 1.0, 0.0
+        else:
+            total = sum(int(v) for v in counts.values())
+            if total <= 0:
+                raise RuntimeError(f"hardware measurement for {term} returned zero counts")
+            acc = 0
+            for bitstring, n in counts.items():
+                bits = str(bitstring).replace(" ", "")[::-1]
+                parity = sum(1 for q, ch in enumerate(term) if ch != "I" and bits[q] == "1")
+                acc += int(n) * (1 if parity % 2 == 0 else -1)
+            mean = acc / total
+            std = math.sqrt(max(0.0, 1.0 - mean * mean) / total)
+        by_term[term] = {"coefficient": c, "expectation": float(mean), "std_error": float(std)}
+        energy += c * mean
+        variance += (c * std) ** 2
+    return {"energy": float(energy), "uncertainty": float(math.sqrt(max(0.0, variance))),
+            "terms": by_term}
+
+
+def run_vqe_hardware(
+    theta: list[float] | None = None,
+    pauli_coefficients: dict[str, float] | None = None,
+    layers: int = 2,
+    shots: int = 4096,
+    seed: int = 7,
+    bond_distance: float = 0.7414,
+    fci_exact_energy: float | None = None,
+) -> dict[str, Any]:
+    """Execute a locally optimized H2 ansatz on a real QPU as one batch.
+
+    The optimizer stays local (``simulated_optimizer:true``); every reported
+    energy term comes from hardware counts. One provider batch is one vendor
+    job, one usage reading, and one settlement — not N circuit jobs.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing hardware VQE"}
+    if theta is None or not isinstance(theta, (list, tuple)):
+        return {"success": False, "error": "hardware VQE requires the local optimizer theta"}
+    if not (0.3 <= float(bond_distance) <= 10.0):
+        return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]: refusing"}
+    if layers < 1 or layers > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]: refusing"}
+    if shots < 128 or shots > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]: refusing"}
+    theta_arr = np.asarray(theta, dtype=float)
+    if theta_arr.size != 4 * int(layers):
+        return {"success": False, "error": f"theta has {theta_arr.size} values; need {4 * int(layers)}"}
+    coeffs = dict(pauli_coefficients or {})
+    if not coeffs:
+        h4, _, _ = h2_hamiltonian(float(bond_distance))
+        coeffs = pauli_coefficients(h4)
+    if fci_exact_energy is None:
+        _, fci_exact_energy, _ = h2_hamiltonian(float(bond_distance))
+    qc = _ansatz(theta_arr, int(layers))
+    qasms: list[str] = []
+    from qiskit import qasm2
+    for term in sorted(coeffs):
+        measured = qc.copy()
+        for q, ch in enumerate(term):
+            if ch == "X":
+                measured.h(q)
+            elif ch == "Y":
+                measured.sdg(q)
+                measured.h(q)
+        measured.measure_all()
+        qasms.append(qasm2.dumps(measured))
+    try:
+        batch = _hardware_batch(qasms, int(shots), int(seed))
+    except Exception as e:  # noqa: BLE001 — provider refusal is data
+        return {"success": False, "error": f"hardware batch refused: {e}"}
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
+        return {"success": False, "error": "hardware batch returned no per-term counts"}
+    measured = _hardware_counts_to_energy(counts_list, coeffs)
+    energy = measured["energy"]
+    delta = abs(energy - float(fci_exact_energy))
+    claimable = bool(delta <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3)
+    return {
+        "success": True,
+        "kind": "vqe_hardware",
+        "result_version": "experiment-result-v1",
+        "molecule": "H2",
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "VQE hardware-efficient H2, local COBYLA optimizer, hardware final state",
+        "ansatz": f"hardware-efficient layers={int(layers)}",
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "theta": [float(v) for v in theta_arr],
+        "energy": float(energy),
+        "energy_measured": float(energy),
+        "energy_measured_source": "QPU measurement-basis batch",
+        "uncertainty": float(measured["uncertainty"]),
+        "measurements": measured["terms"],
+        "fci_exact_energy": float(fci_exact_energy),
+        "delta_mha": float(delta * 1000.0),
+        "chemical_accuracy": claimable,
+        "chemical_accuracy_limit_mha": 1.6,
+        "claimable": claimable,
+        "simulated_optimizer": True,
+        "hardware": True,
+        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "provider": "ibm-qiskit",
+        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "usage_seconds": batch.get("usage_seconds"),
+        "actual_usd": batch.get("actual_usd"),
+        "execution_time_ms": 0.0,
+        "error_message": "",
+    }
+
+
 def run_vqe(
     molecule: str = "H2",
     bond_distance: float = 0.7414,
@@ -239,6 +383,7 @@ def run_vqe(
                       "evaluations": evals, "success": bool(opt.success),
                       "message": str(opt.message)},
         "theta": [float(v) for v in theta],
+        "ansatz_qasm": _ansatz_qasm(theta, layers),
         "energy": float(energy),
         "energy_exact": float(exact_energy),
         "energy_measured": float(energy),

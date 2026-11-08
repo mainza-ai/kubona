@@ -51,6 +51,12 @@ func (f *fakeBridge) ExecuteQuantumKrylov(ctx context.Context, in *pb.QuantumKry
 func (f *fakeBridge) MitigateCircuit(ctx context.Context, in *pb.MitigationRequest, opts ...grpc.CallOption) (*pb.MitigationResponse, error) {
 	return &pb.MitigationResponse{Success: true, MethodUsed: in.Method}, nil
 }
+func (f *fakeBridge) RunExperiment(ctx context.Context, in *pb.ExperimentRequest, opts ...grpc.CallOption) (*pb.ExperimentResponse, error) {
+	return &pb.ExperimentResponse{
+		Ok:         true,
+		ResultJson: `{"success":true,"kind":"vqe_hardware","hardware":true,"hardware_job_id":"hw-test","usage_seconds":2,"actual_usd":0}`,
+	}, nil
+}
 
 func setupRunner(t *testing.T, bridge pb.QuantumBridgeServiceClient) (*Runner, func()) {
 	t.Helper()
@@ -403,6 +409,39 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 		t.Fatalf("zero-cost metered dispatch must refuse")
 	} else if !strings.Contains(err.Error(), "max_cost_usd") {
 		t.Fatalf("refusal must name the cost, got: %v", err)
+	}
+}
+
+func TestHardwareExperimentRequiresParentMandateAndSettlesOnce(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	p := HardwareExperimentParams{
+		Molecule: "H2", BondDistance: 0.7414, Layers: 2, Shots: 512, Seed: 7,
+		Theta:             []float64{0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1},
+		PauliCoefficients: map[string]float64{"II": -1, "IZ": 0.2, "ZI": 0.1},
+		FCIExactEnergy:    -1.137, Provider: "ibm-qiskit",
+		RequestedBackend: "ibm_brisbane",
+		FidelityQASM:     "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n",
+		MaxCostUSD:       10, CallerJurisdictions: []string{"US"},
+	}
+	if _, err := r.SubmitJob("sess-1", "hardware_experiment", p); err == nil ||
+		!strings.Contains(err.Error(), "mandate_ref") {
+		t.Fatalf("hardware parent without mandate must refuse, got: %v", err)
+	}
+	seedSignedMandateReceipt(t, r.ledger, "sess-1", "hw-parent-receipt", "default",
+		CanonicalHardwareExperimentBinding("sess-1", p), 10)
+	p.MandateRef = "hw-parent-receipt"
+	j, err := r.SubmitJob("sess-1", "hardware_experiment", p)
+	if err != nil {
+		t.Fatalf("hardware parent with parent mandate must admit: %v", err)
+	}
+	settled := pollJob(t, r, j.ID)
+	if settled.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("hardware parent must complete: %+v", settled)
+	}
+	if !strings.Contains(string(settled.ResultJSON), "hw-test") {
+		t.Fatalf("hardware result must retain the vendor job id: %s", settled.ResultJSON)
 	}
 }
 
