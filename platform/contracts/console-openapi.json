@@ -4698,7 +4698,9 @@
       }
     }
   },
-  "x-kubona-unmodeled-functions": [],
+  "x-kubona-unmodeled-functions": [
+    "runExperiment"
+  ],
   "x-kubona-client-only-functions": [
     "apiFetch",
     "configureApiBase",
