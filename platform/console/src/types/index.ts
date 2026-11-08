@@ -199,6 +199,8 @@ export interface MeasurementSummary {
   seed?: number;
   chemical_accuracy: boolean;
   active_space_chemical_accuracy?: boolean;
+  full_space_status?: string;
+  claimable?: boolean;
   converged: boolean;
   measured: boolean;
   below_fci: boolean;

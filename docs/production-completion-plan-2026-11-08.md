@@ -57,8 +57,16 @@ This plan is being executed incrementally. Landed after the report:
   result.
 
 Still pending from this plan: hardware VQE/QAOA, full-space accuracy,
-mixed-workflow atomicity, safe sandbox default, at-rest secrets, manual
-accessibility, off-host backup drills, and release hardening.
+mixed-workflow atomicity, safe sandbox default, ledger-at-rest custody, manual
+accessibility, off-host backup drills, and release hardening. The 2026-11-08
+unblock slice added claim pagination, a production LLM-secret preflight/write
+refusal, and an explicit full-space status gate; those are no longer open as
+silent omissions.
+
+> Blocked-work investigation and sequencing: see
+> [`production-unblock-plan-2026-11-08.md`](production-unblock-plan-2026-11-08.md).
+> It records why each remaining item is blocked, the recommended decisions, and
+> the Phase A–F unblock order.
 
 ## 1. Executive verdict
 

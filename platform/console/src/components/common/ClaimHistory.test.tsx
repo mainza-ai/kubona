@@ -8,7 +8,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>();
   return {
     ...actual,
-    fetchClaims: vi.fn(),
+    fetchClaimsPage: vi.fn(),
     sendChatMessage: vi.fn(),
     appendLedgerEvent: vi.fn(),
     fetchClaimReviews: vi.fn(),
@@ -33,7 +33,7 @@ describe('ClaimHistory', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('renders an honest empty state', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [], offset: 0, limit: 50, next_offset: 0, has_more: false });
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<ClaimHistory sessionId="s1" />);
@@ -44,7 +44,7 @@ describe('ClaimHistory', () => {
   });
 
   it('renders claim evidence and requests a review without mutating the record', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.sendChatMessage).mockResolvedValueOnce({ user: {}, assistant: {} } as never);
     vi.mocked(api.appendLedgerEvent).mockResolvedValueOnce({ ok: true, record_hash: 'rec-review' } as never);
     let tree: TestRenderer.ReactTestRenderer;
@@ -64,7 +64,7 @@ describe('ClaimHistory', () => {
   });
 
   it('records an append-only claim decision with a required reason', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
     vi.mocked(api.reviewClaim).mockResolvedValueOnce({
       id: 'rev-test-0001', session_id: 's1', claim_id: claim.id, decision: 'accepted',
@@ -84,7 +84,7 @@ describe('ClaimHistory', () => {
   });
 
   it('refuses a claim decision without a reason', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<ClaimHistory sessionId="s1" />); });
@@ -96,7 +96,7 @@ describe('ClaimHistory', () => {
   });
 
   it('shows a failed decision without pretending it was applied', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
     vi.mocked(api.reviewClaim).mockResolvedValueOnce(null);
     let tree: TestRenderer.ReactTestRenderer;
@@ -109,15 +109,31 @@ describe('ClaimHistory', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('claim review was refused');
   });
 
+  it('loads the next newest-first page without duplicating rows', async () => {
+    const older = { ...claim, id: 'clm-test-0002', statement: 'Older claim.' };
+    vi.mocked(api.fetchClaimsPage)
+      .mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: true })
+      .mockResolvedValueOnce({ claims: [older], offset: 1, limit: 50, next_offset: 2, has_more: false });
+    vi.mocked(api.fetchClaimReviews).mockResolvedValue([]);
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ClaimHistory sessionId="s1" />); });
+    const load = tree!.root.findAllByType('button').find((button) => String(button.props.children).includes('Load older claims'));
+    if (!load) throw new Error('load older button missing');
+    await act(async () => { load.props.onClick(); await Promise.resolve(); await Promise.resolve(); });
+    expect(api.fetchClaimsPage).toHaveBeenLastCalledWith('s1', 50, 1);
+    expect(JSON.stringify(tree!.toJSON())).toContain('clm-test-0002');
+    expect(JSON.stringify(tree!.toJSON())).toContain('clm-test-0001');
+  });
+
   it('renders the no-session empty state without fetching', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<ClaimHistory sessionId={null} />); });
     expect(JSON.stringify(tree!.toJSON())).toContain('No evaluated claims');
-    expect(api.fetchClaims).not.toHaveBeenCalled();
+    expect(api.fetchClaimsPage).not.toHaveBeenCalled();
   });
 
   it('marks a thrown decision as failed and preserves the reason', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([claim]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
     vi.mocked(api.reviewClaim).mockRejectedValueOnce(new Error('offline'));
     let tree: TestRenderer.ReactTestRenderer;
@@ -131,7 +147,7 @@ describe('ClaimHistory', () => {
   });
 
   it('does not invent an evidence job from malformed evidence JSON', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce([{ ...claim, evidence_json: '{not-json' }]);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [{ ...claim, evidence_json: '{not-json' }], offset: 0, limit: 50, next_offset: 1, has_more: false });
     vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<ClaimHistory sessionId="s1" />); });
@@ -141,7 +157,7 @@ describe('ClaimHistory', () => {
   });
 
   it('surfaces an unavailable history instead of pretending it is empty', async () => {
-    vi.mocked(api.fetchClaims).mockResolvedValueOnce(null);
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce(null);
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<ClaimHistory sessionId="s1" />);

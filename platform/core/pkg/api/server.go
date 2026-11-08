@@ -2134,7 +2134,13 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if limit > 200 {
 			limit = 200
 		}
-		records, err := s.ledger.ListClaimRecords(sessionID, limit)
+		offset := 0
+		if raw := r.URL.Query().Get("offset"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				offset = n
+			}
+		}
+		records, hasMore, err := s.ledger.ListClaimRecordsPage(sessionID, limit, offset)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -2142,7 +2148,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if records == nil {
 			records = []ledger.ClaimRecord{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"claims": records})
+		nextOffset := offset + len(records)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"claims": records, "offset": offset, "limit": limit,
+			"next_offset": nextOffset, "has_more": hasMore,
+		})
 		return
 	}
 	if strings.HasSuffix(id, "/campaign/versions") {

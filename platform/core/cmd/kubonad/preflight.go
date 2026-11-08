@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/rates"
 )
 
@@ -101,6 +102,7 @@ func runPreflight(args []string) int {
 			} else {
 				report("foreign keys", true, "clean")
 			}
+			auditSecretsAtRest(resolvedDB, report, warn)
 		}
 	}
 
@@ -133,6 +135,41 @@ func runPreflight(args []string) int {
 	}
 	fmt.Println("preflight: clean")
 	return 0
+}
+
+// auditSecretsAtRest is a read-only posture check for provider credentials
+// stored in llm_settings. It never prints key material. Production refuses
+// plaintext stored keys (existing rows must be re-saved with a key), and
+// refuses sealed rows it cannot open. A production install with no stored
+// keys and no key is warned, not failed: env-only credentials remain valid,
+// and future UI writes will refuse rather than land plaintext.
+func auditSecretsAtRest(path string, report func(string, bool, string), warn func(string, string)) {
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro&_query_only=1&_busy_timeout=5000", path))
+	if err != nil {
+		report("secrets", false, err.Error())
+		return
+	}
+	defer db.Close()
+	posture, err := llm.AuditSecretsAtRest(db)
+	if err != nil {
+		report("secrets", false, err.Error())
+		return
+	}
+	production := os.Getenv("KUBONA_ENV") == "production"
+	switch {
+	case posture.Sealed > 0 && !posture.KeyConfigured:
+		report("secrets", false, fmt.Sprintf("%d sealed provider key(s) cannot be opened: set KUBONA_SECRET_KEY", posture.Sealed))
+	case posture.Plaintext > 0 && production:
+		report("secrets", false, fmt.Sprintf("%d provider key(s) stored in plaintext: set KUBONA_SECRET_KEY and re-save", posture.Plaintext))
+	case posture.Plaintext > 0:
+		warn("secrets", fmt.Sprintf("%d provider key(s) stored in plaintext (dev); production refuses this", posture.Plaintext))
+	case !posture.KeyConfigured && production:
+		warn("secrets", "KUBONA_SECRET_KEY unset: future UI provider-key writes will be refused; env-only credentials are unaffected")
+	case posture.Sealed > 0:
+		report("secrets", true, fmt.Sprintf("%d sealed provider key(s)", posture.Sealed))
+	default:
+		report("secrets", true, "no stored provider keys")
+	}
 }
 
 func notifyPreflight(failures []string) {
