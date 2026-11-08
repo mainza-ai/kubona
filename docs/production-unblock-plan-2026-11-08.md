@@ -426,8 +426,25 @@ shell steps; manual evidence or explicit waiver recorded.
     as completed without a terminal receipt.
 - Investigation evidence and benchmark numbers recorded above.
 
-Still open in Phase B: live H2 parent run through a real mandate, QAOA parent
-reuse, and a provider-level batch test against the installed Qiskit Runtime.
+- **Live governed hardware evidence (2026-11-08):** one H2 VQE parent and one
+  QAOA parent completed end-to-end through the new rails, with operator-signed
+  parent mandates, Go jobs, vendor batch ids, settled usage, and minted claims:
+  - H2: Go job `d1b6bbcd-dff6-440b-bee8-06cd13233c6a`, vendor
+    `dbofapoqtr0c738cpc40`, `ibm_marrakesh`, 1024 shots. Hardware energy
+    `-1.1269008956 Ha` vs FCI `-1.1372701747 Ha` → `10.3693 mHa`; measured
+    uncertainty `5.9767 mHa`; `$0.00`, `0.0 s` reported usage; claim
+    `clm-36f4e358-0002` **contested** (not chemical accuracy). The optimizer was
+    local (`simulated_optimizer:true`); only the final state was hardware.
+  - QAOA: Go job `135a5978-b30d-49b8-92e2-0dc39cae4b84`, vendor
+    `dbofeq44148s739sv130`, `ibm_marrakesh`, 1024 shots. Hardware cut
+    `7.9521484` vs exact optimum `10`, ratio `0.7952148`; local exact cut
+    `8.9070977`; `$0.00`, `0.0 s`; claim `clm-577501f3-0001` **contested**.
+  - Both are single-parent, single-vendor-batch results. They supersede the old
+    per-term diagnostics for provenance, but are **not** claims of chemical
+    accuracy or quantum advantage.
+
+Still open in Phase B: QAOA prepare symmetry with the VQE prepare route and a
+provider-level batch test against the installed Qiskit Runtime.
 
 Still open in Phase C: Go-owned single-step bridge RPC for mixed non-job tools,
 full crash/retry conformance, and compensation rows. The current journal makes

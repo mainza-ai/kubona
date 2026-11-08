@@ -56,9 +56,15 @@ This plan is being executed incrementally. Landed after the report:
   IBM hardware and observable-measurement path; it is not a production VQE
   result.
 
-Still pending from this plan: hardware VQE/QAOA, full-space accuracy,
-mixed-workflow atomicity, safe sandbox default, ledger-at-rest custody, manual
-accessibility, off-host backup drills, and release hardening. The 2026-11-08
+> ⚑ Correction (2026-11-08): governed hardware H2 VQE and QAOA parent runs are
+> now complete with operator-signed mandates, Go jobs, vendor batch ids,
+> settled usage, and claims. They are contested (H2 `10.369 mHa`, uncertainty
+> `5.977 mHa`; QAOA ratio `0.7952`), not chemical-accuracy or advantage claims.
+> The per-term diagnostics below remain historical external evidence; they were
+> not retroactively upgraded.
+Still pending from this plan: full-space accuracy, full mixed-workflow
+ownership, safe sandbox default, ledger-at-rest custody, manual accessibility,
+off-host backup drills, and release hardening. The 2026-11-08
 unblock slice added claim pagination, a production LLM-secret preflight/write
 refusal, and an explicit full-space status gate; those are no longer open as
 silent omissions.
@@ -148,7 +154,7 @@ feature limitations in the UI and contract.
 | Local compose | fresh-volume boot, loopback-only ports, health/ready, console |
 | Backup/restore | `kubonad restore` and scheduled backup profile implemented and tested |
 | H2 VQE/PES | measured shot energies, FCI anchor, claim, structured campaign fold |
-| QPU | completed Bell/characterization job; no hardware VQE/QAOA result |
+| QPU | governed H2 VQE + QAOA parent runs complete (contested; OpenAI Plan $0) |
 | LiH/BeH2 | active-space VQE measured; full-FCI gap contested (20.53 / 36.30 mHa) |
 | Full-space LiH smoke | 12 qubits, `EfficientSU2`, poor full-FCI result (contested) |
 | QAOA | 8-node 3-regular MaxCut simulator; optimized QASM returned |
@@ -156,7 +162,7 @@ feature limitations in the UI and contract.
 | Claims | history + `peer_review` request event; no decision/reopen state |
 | Autoresearch | opt-in Docker socket only; default `available:false` |
 | Accessibility | automated axe/keyboard/reduced-motion green; manual VoiceOver/NVDA not run |
-| Hardware QPU QAOA | diagnostic submission queued then cancelled; no result claimed |
+| Hardware QPU QAOA | governed parent run complete: cut 7.9521/10, ratio 0.7952, claim contested |
 
 This evidence is reproducible from the repository and the local compose stack.
 It does not upgrade the missing portfolio features.
@@ -167,8 +173,8 @@ It does not upgrade the missing portfolio features.
 
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
-| PC-01 | **Workflow lifecycle is not atomic.** Python executes the step; Go adopts only completed results after the fact. Failed/cancelled steps, and hardware spend inside a workflow, can diverge. | A crash between Python completion and Go adoption leaves a ghost or double-book; a failed hardware step has no Go settlement. | `platform/core/pkg/api/workflows.go:262-292`; `platform/core/pkg/jobs/jobs.go:489-522` |
-| PC-02 | **No hardware VQE or integrated hardware QAOA.** VQE/PES/QAOA runners are Aer only. | The product promise includes real QPU experiments; a hardware Bell run is not a VQE loop. | `platform/bridge/experiments.py:161-259`, `:420-630`; `run_qaoa` has no provider path. |
+| PC-01 | **Workflow lifecycle is not fully atomic.** The durable run/step journal now makes interruption visible and job-only steps Go-owned; mixed non-job steps still execute in Python. | A crash is surfaced as `repair_required` instead of a silent ghost, but mixed steps are not yet Go-owned. | `platform/core/pkg/ledger/workflow_journal.go`; `platform/core/pkg/api/workflows.go`; `workflows_jobs.go` |
+| PC-02 | **Hardware VQE/QAOA was absent; now governed but contested.** H2 VQE and QAOA parent runs completed through one mandate/batch/claim rail; no chemical-accuracy or advantage claim. | The product now has a real hardware path; the remaining gap is scientific accuracy/QAOA prepare symmetry, not dispatch. | Live jobs above; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/bridge/experiments.py` hardware runners. |
 | PC-03 | **Full-space VQE is not scientifically usable.** `full_space:true` uses `EfficientSU2`; the LiH smoke result is far from full FCI. | It cannot support "full molecule" chemical-accuracy claims and must not be presented as a completed feature. | `platform/bridge/experiments.py:259-350`; live LiH smoke: `-5.1880 Ha` vs FCI `-7.8823 Ha` (2694 mHa). |
 | PC-04 | **Launch reproducibility is broken.** `handleChatLaunch` hardcodes `shots:1024` and does not accept/record a seed. | The canonical proposal-launch path cannot reproduce a result from its spec. | `platform/core/pkg/api/server.go:2909-2919` |
 | PC-05 | **Direct experiment routes bypass the job/claim ledger.** Krylov, mitigation, and QIR routes call the bridge directly and return a response. | Results from those routes cannot be cited, cost-settled, or folded into a claim by the same book. | `platform/core/pkg/api/server.go:5564-5742` |

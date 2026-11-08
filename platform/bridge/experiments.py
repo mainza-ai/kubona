@@ -174,10 +174,12 @@ def _ansatz_qasm(theta: np.ndarray, layers: int) -> str:
         return ""
 
 
-def _hardware_batch(qasm_list: list[str], shots: int, seed: int) -> dict[str, Any]:
+def _hardware_batch(qasm_list: list[str], shots: int, seed: int,
+                    backend: str | None = None) -> dict[str, Any]:
     """Run one provider batch. Overridable in tests; no live call in CI."""
-    from kubona.providers import get_provider
-    provider = get_provider("ibm-qiskit")
+    from kubona.providers.qiskit_provider import QiskitProvider
+    from kubona.schema import load_provider
+    provider = QiskitProvider(load_provider("ibm-qiskit"), backend_name=backend)
     return provider.submit_batch(qasm_list, shots=int(shots), seed=int(seed))
 
 
@@ -217,6 +219,7 @@ def run_vqe_hardware(
     seed: int = 7,
     bond_distance: float = 0.7414,
     fci_exact_energy: float | None = None,
+    backend: str | None = None,
 ) -> dict[str, Any]:
     """Execute a locally optimized H2 ansatz on a real QPU as one batch.
 
@@ -257,7 +260,7 @@ def run_vqe_hardware(
         measured.measure_all()
         qasms.append(qasm2.dumps(measured))
     try:
-        batch = _hardware_batch(qasms, int(shots), int(seed))
+        batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
     except Exception as e:  # noqa: BLE001 — provider refusal is data
         return {"success": False, "error": f"hardware batch refused: {e}"}
     counts_list = batch.get("counts")
@@ -782,6 +785,76 @@ def run_qaoa(
         "optimizer": {"name": "COBYLA", "success": bool(opt.success),
                       "evaluations": int(opt.nfev), "message": str(opt.message)},
         "converged": bool(opt.success),
+        "execution_time_ms": 0.0,
+        "error_message": "",
+    }
+
+
+def run_qaoa_hardware(
+    qasm: str,
+    optimal_cut: int,
+    nodes: int,
+    edges: list[list[int]],
+    shots: int = 4096,
+    seed: int = 7,
+    energy_exact: float = 0.0,
+    backend: str | None = None,
+) -> dict[str, Any]:
+    """Execute a locally optimized QAOA final state on a real QPU.
+
+    One provider batch/job; no optimizer runs on hardware. The reported cut is
+    computed from hardware counts against the exact graph optimum.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing hardware QAOA"}
+    if not str(qasm or "").strip():
+        return {"success": False, "error": "hardware QAOA requires circuit_qasm"}
+    if int(optimal_cut) <= 0 or int(nodes) <= 0 or not edges:
+        return {"success": False, "error": "hardware QAOA requires optimal_cut, nodes, and edges"}
+    if shots < 128 or shots > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]: refusing"}
+    try:
+        batch = _hardware_batch([str(qasm)], int(shots), int(seed), backend=backend)
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"hardware batch refused: {e}"}
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != 1:
+        return {"success": False, "error": "hardware batch returned no QAOA counts"}
+    counts = counts_list[0]
+    total = sum(int(v) for v in counts.values())
+    if total <= 0:
+        return {"success": False, "error": "hardware QAOA returned zero counts"}
+    cut_sum = 0
+    for bitstring, n in counts.items():
+        bits = str(bitstring).replace(" ", "")[::-1]
+        mask = 0
+        for i, b in enumerate(bits):
+            if b == "1":
+                mask |= 1 << i
+        cut_sum += int(n) * sum(1 for a, b in edges if ((mask >> int(a)) & 1) != ((mask >> int(b)) & 1))
+    measured_cut = float(cut_sum) / float(total)
+    ratio = measured_cut / float(optimal_cut)
+    return {
+        "success": True,
+        "kind": "qaoa_hardware",
+        "result_version": "experiment-result-v1",
+        "molecule": "MaxCut",
+        "graph": {"nodes": int(nodes), "edges": edges},
+        "shots": int(shots),
+        "seed": int(seed),
+        "counts": counts,
+        "energy": measured_cut,
+        "measured_cut": measured_cut,
+        "energy_exact": float(energy_exact),
+        "optimal_cut": int(optimal_cut),
+        "approximation_ratio": float(ratio),
+        "hardware": True,
+        "simulated_optimizer": True,
+        "provider": "ibm-qiskit",
+        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "usage_seconds": batch.get("usage_seconds"),
+        "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,
         "error_message": "",
     }
