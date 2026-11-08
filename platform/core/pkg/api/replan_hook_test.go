@@ -175,6 +175,40 @@ func TestReplanHookMintsClaimRecord(t *testing.T) {
 	}
 }
 
+func TestHardwareVQEPrepareReturnsBindingAndLaunchRequiresIt(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "")
+	srv, _, cleanup := replanHookTestServer(t, "test_hw_prepare.db")
+	defer cleanup()
+	sess, err := srv.sessionMgr.CreateSession("hardware prepare drill", 50, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := `{"success":true,"kind":"vqe","hardware":false,"molecule":"H2","bond_distance":0.7414,"layers":2,"fci_exact_energy":-1.137,"theta":[0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1],"pauli_coefficients":{"II":-1,"IZ":0.2},"ansatz_qasm":"OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n"}`
+	if _, err := srv.jobRunner.AdoptExternalJob(sess.ID, "src-vqe-hw", "vqe_run", []byte(source)); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"session_id":"` + sess.ID + `","source_job_id":"src-vqe-hw","backend":"ibm_brisbane","budget_usd":1,"caller_jurisdictions":["US"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/experiments/vqe/hardware/prepare", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("prepare: %d %s", w.Code, w.Body.String())
+	}
+	var prep struct {
+		Binding string `json:"binding"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&prep); err != nil || len(prep.Binding) != 64 {
+		t.Fatalf("prepare must return a 64-char parent binding: %+v err=%v", prep, err)
+	}
+	// Launch without the signed parent mandate refuses and returns the same binding.
+	req = httptest.NewRequest(http.MethodPost, "/api/experiments/vqe/hardware", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), prep.Binding) {
+		t.Fatalf("launch without mandate: %d %s", w.Code, w.Body.String())
+	}
+}
+
 // The claims endpoint resolves every cited ID: records listed newest
 // first, unknown sessions resolve empty.
 func TestClaimsEndpointResolves(t *testing.T) {

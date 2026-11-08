@@ -100,6 +100,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/jobs/", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "Read: job+scope session must share a tenant and the caller must clear the scope session. Cancel: known-job path binds caller to the job session before CancelJob."},
 	{Pattern: "/api/experiments", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "VQE/PES dispatch: known session, dispatch autonomy, caller/session tenant binding, content-bound idempotency; bridge computes, Go ledger owns the job and settlement."},
 	{Pattern: "/api/experiments/qaoa/hardware", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Hardware final-state QAOA: loads a local QAOA job's optimized QASM/graph, then uses the governed circuit-run rail (mandate, jurisdiction, fidelity, reservation, settlement). No direct bridge dispatch."},
+	{Pattern: "/api/experiments/vqe/hardware/prepare", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Hardware VQE prepare: reads a local H2 VQE job and returns the canonical parent mandate binding. No spend, no job, no dispatch."},
 	{Pattern: "/api/experiments/vqe/hardware", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Hardware VQE parent: loads a local H2 optimizer/ansatz, then owns one experiment-level mandate, fidelity check, Runtime batch, usage, settlement, and claim evidence. No direct bridge dispatch."},
 	{Pattern: "/api/loops", Methods: "GET,POST", Class: RouteAuthBearer},
 	{Pattern: "/api/loops/", Methods: "GET,POST", Class: RouteAuthBearer},

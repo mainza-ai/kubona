@@ -402,9 +402,11 @@ shell steps; manual evidence or explicit waiver recorded.
   - `hardware_experiment` job type with a parent-only mandate binding
     (`CanonicalHardwareExperimentBinding`), positive hardware cost, jurisdictions,
     and fidelity admission.
-  - `POST /api/experiments/vqe/hardware` consumes a completed local H2 VQE job's
-    `theta`, Pauli coefficients, FCI anchor, and `ansatz_qasm`; it never dispatches
-    the bridge directly.
+  - `POST /api/experiments/vqe/hardware/prepare` reads a local H2 VQE job and
+    returns the canonical parent mandate binding; it spends nothing.
+  - `POST /api/experiments/vqe/hardware` consumes the completed local H2 VQE
+    job's `theta`, Pauli coefficients, FCI anchor, and `ansatz_qasm`; it never
+    dispatches the bridge directly.
   - The bridge prepares all measurement-basis circuits and the provider submits
     them as **one Runtime batch job**; one parent result carries `hardware_job_id`,
     `usage_seconds`, `actual_usd`, aggregate energy/uncertainty, and
