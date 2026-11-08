@@ -119,6 +119,39 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(text).toContain('0.946');
   });
 
+  it('offers a measured CSV export only when a result exists', async () => {
+    const createObjectURL = vi.fn(() => 'blob:measured');
+    const revokeObjectURL = vi.fn();
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    try {
+      const measured = {
+        ...campaign('COLLAPSED_VERIFIED'),
+        measurement: {
+          job_id: 'job-1', claim_id: 'claim-1', method: 'VQE', backend: 'qiskit-aer-simulator',
+          energy: -1.1378, fci_exact_energy: -1.13727, uncertainty_mha: 1.384, delta_mha: 0.513,
+          chemical_accuracy: true, converged: false, measured: true, below_fci: true,
+        },
+      } as unknown as CampaignState;
+      let tree: TestRenderer.ReactTestRenderer;
+      await act(async () => { tree = TestRenderer.create(<ResultsStudio campaign={measured} sessionId={null} />); });
+      const csv = tree!.root.findByProps({ 'data-testid': 'result-csv' });
+      expect(csv).toBeTruthy();
+      vi.stubGlobal('document', {
+        body: { appendChild: vi.fn() },
+        createElement: () => ({ href: '', download: '', click: vi.fn(), remove: vi.fn() }),
+      });
+      await act(async () => { csv!.props.onClick(); });
+      expect(createObjectURL).toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+
   it('renders an empty citable state with no notebook telemetry', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {

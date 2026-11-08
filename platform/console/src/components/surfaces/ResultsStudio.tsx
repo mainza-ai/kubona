@@ -549,6 +549,7 @@ ${bibtex}
           </button>
 
           <button
+            data-testid="result-csv"
             onClick={handleExportCSV}
             disabled={!campaign?.measurement && !(campaign?.pes_points?.length)}
             title="Download measured CSV: PES points when present, otherwise the measurement summary"

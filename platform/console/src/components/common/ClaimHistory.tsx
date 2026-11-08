@@ -74,6 +74,8 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
       setReviews((prev) => ({ ...prev, [record.id]: [review, ...(prev[record.id] ?? [])] }));
       setReason('');
       setError(null);
+    } catch {
+      setError({ sessionId, message: 'claim review request failed; no decision was applied' });
     } finally {
       setReviewing(null);
     }
