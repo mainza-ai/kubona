@@ -150,7 +150,10 @@ If the gVisor/Linux path is not available, the default must say
 - **LLM provider keys:** already sealed with AES-256-GCM when
   `KUBONA_SECRET_KEY` is set. This slice adds preflight auditing and refuses new
   plaintext writes in production; existing plaintext rows must be re-saved.
-- **Ledger:** still plaintext SQLite. The recommended local-private posture is
+- **Ledger:** still plaintext SQLite. `kubonad seal-secrets` now migrates
+  existing plaintext provider credentials to the AES-GCM secretbox after
+  `KUBONA_SECRET_KEY` is set; the ledger itself still relies on OS-level disk
+  encryption. The recommended local-private posture is
   **OS-level full-disk encryption (FileVault/LUKS/BitLocker) plus encrypted
   `age` backups**, not SQLCipher by default: SQLCipher adds 5–15% write
   overhead, the Go driver is a maintained fork rather than the upstream
