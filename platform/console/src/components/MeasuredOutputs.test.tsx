@@ -22,8 +22,22 @@ const JOBS = [
     id: 'job-vqe-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_run',
     params_json: {}, result_json: {
       success: true, energy: -1.1368, fci_exact_energy: -1.13727, delta_mha: 0.47,
-      backend: 'qiskit-aer-simulator',
+      uncertainty: 0.001384, backend: 'qiskit-aer-simulator',
     }, created_at: '', completed_at: '2026-10-11T02:30:00Z',
+  },
+  {
+    id: 'job-pes-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_pes',
+    params_json: {}, result_json: {
+      points: [
+        { bond_distance: 0.7, energy: -1.1371, delta_mha: 0.95 },
+        { bond_distance: 0.9, energy: -1.1212, delta_mha: 0.69 },
+      ],
+    }, created_at: '', completed_at: '2026-10-11T02:31:00Z',
+  },
+  {
+    id: 'job-qaoa-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'qaoa_run',
+    params_json: {}, result_json: { energy: 7.87, optimal_cut: 10, approximation_ratio: 0.787 },
+    created_at: '', completed_at: '2026-10-11T02:32:00Z',
   },
   {
     // R7: FAILED jobs carry completed_at — they must not render as measured.
@@ -67,7 +81,12 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('go-fallback-estimate');
     expect(text).toContain('(estimate)');
     expect(text).toContain('VQE -1.136800 Ha');
+    expect(text).toContain('± 1.384 mHa');
     expect(text).toContain('Δ 0.470 mHa');
+    expect(text).toContain('min E R=0.7000 Å');
+    expect(text).toContain('closest R=0.9000 Å');
+    expect(text).toContain('QAOA MaxCut 7.870 vs classical 10');
+    expect(text).toContain('ratio 0.7870');
     expect(text).toContain('job-kry'.slice(0, 8));
     // The running job must not appear as a measured row (R7 gate holds);
     // it renders in the live-progress section instead (S8b/c) — including
