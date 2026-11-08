@@ -15,7 +15,10 @@ rail still writes its Python ledger separately from the Go job ledger.
 The original audit findings are retained below; the “Implementation executed”
 section records what changed and the remaining status.
 
-**Revision audited:** `a7a8cd2` (`develop` == `main`).
+**Revision audited:** `a7a8cd2` for the original pass; implementation is at
+`4cb5e7c` (CI + Console E2E green on `develop` and `main`). The implemented
+result presentation is audited separately in
+[`results-presentation-audit-2026-11-08.md`](results-presentation-audit-2026-11-08.md).
 **Audit stack:** Docker project `kubona-audit`, current images built from
 `a7a8cd2`, console `127.0.0.1:3000`, API `127.0.0.1:8080`, UDS bridge.
 **LLM under audit:** NVIDIA `nvidia/nemotron-3-ultra-550b-a55b` for

@@ -4984,3 +4984,17 @@ skipped is the exact failure this incident is about:
   projection; reasoning-cap/prompt fixes.
 - Still open: LiH/BeH2 VQE, QAOA, autoresearch Docker runner, completed QPU
   measurement, and unified Go/Python workflow ledger.
+
+## [2026-11-08] verification | Results presentation and research UX audit
+
+- Exercised the live H2 VQE/PES result in the console. The data is
+  ledger-bound, but the researcher surface omits uncertainty, shows
+  placeholder zeros as measured values, labels the proposed template circuit
+  as measured in the Proof DAG, reports the PES “best” by per-point error
+  rather than minimum energy, and generates a manuscript that says
+  “optimization converged” while the VQE result is `converged:false`.
+- The measured VQE point is `-1.137783 Ha` vs FCI `-1.137270 Ha` (below FCI
+  by 0.513 mHa) with `1.384 mHa` uncertainty; the UI does not show the
+  uncertainty or the lower-bound excursion, and the tribunal over-claims a
+  variational violation.
+- Separate report and phased plan: `docs/results-presentation-audit-2026-11-08.md`.
