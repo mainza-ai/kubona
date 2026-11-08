@@ -581,7 +581,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			len(points), minPoint.Energy, minPoint.BondDistance, best.BondDistance, best.DeltaMHa, citeSuffix(cite))
 		return marshalReplan(&state, true, "VQE PES folded into trajectory")
 
-	case "qaoa_run":
+	case "qaoa_run", "qaoa_hardware":
 		if !successTrue() {
 			return nil, false, "QAOA reported success=false"
 		}

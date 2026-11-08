@@ -149,6 +149,33 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			}
 		}
 	}
+	// A completed QAOA hardware run is a citable cut measurement. It is not a
+	// chemistry claim; the verdict records whether the hardware cut matches
+	// the locally optimized exact expectation, not a chemical-accuracy claim.
+	if j.JobType == "qaoa_hardware" {
+		var res struct {
+			Success            bool    `json:"success"`
+			MeasuredCut        float64 `json:"measured_cut"`
+			OptimalCut         int     `json:"optimal_cut"`
+			ApproximationRatio float64 `json:"approximation_ratio"`
+			Backend            string  `json:"backend"`
+			HardwareJobID      string  `json:"hardware_job_id"`
+		}
+		if json.Unmarshal(j.ResultJSON, &res) == nil && res.Success && res.OptimalCut > 0 {
+			evBytes, _ := json.Marshal(map[string]any{
+				"job_id": j.ID, "measured_cut": res.MeasuredCut,
+				"optimal_cut": res.OptimalCut, "approximation_ratio": res.ApproximationRatio,
+				"backend": res.Backend, "hardware": true,
+				"hardware_job_id": res.HardwareJobID,
+			})
+			statement := fmt.Sprintf("QAOA hardware MaxCut %.4f vs exact optimum %d (ratio %.4f).",
+				res.MeasuredCut, res.OptimalCut, res.ApproximationRatio)
+			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "qaoa_hardware",
+				boundRunes(statement, 400), -1, -1, -1, "contested", string(evBytes)); merr == nil {
+				cite = rec.ID
+			}
+		}
+	}
 	// A completed VQE measurement is itself a citable claim. Mint it before
 	// the fold so the notebook line cites the record; a failed/non-measured
 	// result mints nothing.
@@ -187,7 +214,11 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			})
 			statement := fmt.Sprintf("VQE %s at R=%.4f Å measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; uncertainty %.3f mHa).",
 				res.Molecule, res.BondDistance, res.Energy, res.FCI, delta, res.Uncertainty*1000.0)
-			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "vqe_run",
+			claimKind := "vqe_run"
+			if j.JobType == "hardware_experiment" {
+				claimKind = "vqe_hardware"
+			}
+			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, claimKind,
 				boundRunes(statement, 400), -1, -1, -1, verdict, string(evBytes)); merr == nil {
 				cite = rec.ID
 			}

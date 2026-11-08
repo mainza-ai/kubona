@@ -63,8 +63,8 @@ def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
 
     calls = []
 
-    def fake_batch(qasm_list, shots, seed):
-        calls.append((list(qasm_list), shots, seed))
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
         return {
             "success": True,
             "counts": [{"00": 512} for _ in qasm_list],
@@ -83,6 +83,7 @@ def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
         seed=7,
         bond_distance=0.7414,
         fci_exact_energy=-0.6,
+        backend="ibm-test",
     )
     assert res["success"] is True
     assert res["hardware"] is True
@@ -93,6 +94,32 @@ def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
     assert len(calls) == 1
     assert len(calls[0][0]) == 3
     assert calls[0][1] == 512
+    assert calls[0][3] == "ibm-test"
     # All measured counts are |00>, so every non-II expectation is +1.
     assert res["energy"] == pytest.approx(-0.7)
     assert res["claimable"] is False
+
+
+def test_qaoa_hardware_computes_cut_from_one_batch(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"01": 512}], "backend": "ibm-test",
+                "hardware_job_id": "hw-qaoa", "usage_seconds": 1.0, "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = "OPENQASM 2.0;\nqreg q[2];\ncreg c[2];\nmeasure q -> c;"
+    res = experiments.run_qaoa_hardware(
+        qasm=qasm, optimal_cut=2, nodes=2, edges=[[0, 1]], shots=512, seed=7,
+        energy_exact=2.0, backend="ibm-test",
+    )
+    assert res["success"] is True
+    assert res["kind"] == "qaoa_hardware"
+    assert res["measured_cut"] == 1.0
+    assert res["approximation_ratio"] == 0.5
+    assert res["hardware"] is True
+    assert res["hardware_job_id"] == "hw-qaoa"
+    assert calls == [([qasm], 512, 7, "ibm-test")]

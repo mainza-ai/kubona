@@ -126,6 +126,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		Shots               int      `json:"shots"`
 		Seed                int      `json:"seed"`
 		BudgetUSD           float64  `json:"budget_usd"`
+		Backend             string   `json:"backend"`
 		MandateRef          string   `json:"mandate_ref"`
 		GrantChain          []string `json:"grant_chain"`
 		InputLabels         []string `json:"input_labels"`
@@ -178,19 +179,31 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0
 	}
-	params := map[string]any{
-		"qasm": res.CircuitQASM, "requested_backend": "ibm-qiskit",
-		"shots": req.Shots, "seed": req.Seed, "max_cost_usd": req.BudgetUSD,
-		"mandate_ref": req.MandateRef, "grant_chain": req.GrantChain,
-		"input_labels": req.InputLabels, "caller_jurisdictions": req.CallerJurisdictions,
-		"caller_export_class": req.CallerExportClass, "export_reviewed": req.ExportReviewed,
-		"qaoa_meta": map[string]any{
-			"source_job_id": req.SourceJobID, "optimal_cut": res.OptimalCut,
-			"energy_exact": res.EnergyExact, "nodes": res.Graph.Nodes, "edges": res.Graph.Edges,
-		},
+	backend := strings.TrimSpace(req.Backend)
+	if backend == "" {
+		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
+	}
+	if backend == "" {
+		WriteAPIError(w, "bad_request", "backend is required (or set KUBONA_IBM_QISKIT_BACKEND)", nil)
+		return
+	}
+	p := jobs.HardwareExperimentParams{
+		Kind: "qaoa_hardware", Provider: "ibm-qiskit", RequestedBackend: backend,
+		QASM: res.CircuitQASM, FidelityQASM: res.CircuitQASM,
+		OptimalCut: res.OptimalCut, EnergyExact: res.EnergyExact,
+		Nodes: res.Graph.Nodes, Edges: res.Graph.Edges,
+		Shots: req.Shots, Seed: req.Seed, MaxCostUSD: req.BudgetUSD,
+		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
+		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
+	}
+	if p.MandateRef == "" {
+		WriteAPIError(w, "bad_request", "mandate_ref is required: use the prepare flow or sign the parent binding first", map[string]any{
+			"binding": jobs.CanonicalHardwareJobBinding("qaoa_hardware", sid, p),
+		})
+		return
 	}
 	idem, iref := s.idemBegin(sid, req.RequestID, map[string]any{
-		"session_id": sid, "source_job_id": req.SourceJobID, "backend": "ibm-qiskit",
+		"session_id": sid, "source_job_id": req.SourceJobID, "backend": backend,
 		"shots": req.Shots, "seed": req.Seed, "budget_usd": req.BudgetUSD,
 		"mandate_ref": req.MandateRef, "jurisdictions": req.CallerJurisdictions,
 	}, idemRailJob)
@@ -202,7 +215,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		s.idemReplay(w, idem)
 		return
 	}
-	job, err := s.jobRunner.SubmitJob(sid, "circuit_run", params)
+	job, err := s.jobRunner.SubmitJob(sid, "qaoa_hardware", p)
 	if err != nil {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
@@ -271,7 +284,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		return p, fmt.Errorf("backend is required (or set KUBONA_IBM_QISKIT_BACKEND)")
 	}
 	p = jobs.HardwareExperimentParams{
-		Molecule: res.Molecule, BondDistance: res.BondDistance,
+		Kind: "vqe_hardware", Molecule: res.Molecule, BondDistance: res.BondDistance,
 		Layers: res.Layers, Shots: req.Shots, Seed: req.Seed,
 		Theta: res.Theta, PauliCoefficients: res.PauliCoefficients,
 		FCIExactEnergy: res.FCIExactEnergy, Provider: "ibm-qiskit",

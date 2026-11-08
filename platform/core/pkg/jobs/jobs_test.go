@@ -445,6 +445,31 @@ func TestHardwareExperimentRequiresParentMandateAndSettlesOnce(t *testing.T) {
 	}
 }
 
+func TestQAOAHardwareParentAdmissionAndSettlement(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	qasm := "OPENQASM 2.0;\nqreg q[2];\ncreg c[2];\nmeasure q -> c;\n"
+	p := HardwareExperimentParams{
+		Kind: "qaoa_hardware", Provider: "ibm-qiskit", RequestedBackend: "ibm_brisbane",
+		QASM: qasm, FidelityQASM: qasm, OptimalCut: 2, Nodes: 2, Edges: [][2]int{{0, 1}},
+		Shots: 512, Seed: 7, MaxCostUSD: 5, CallerJurisdictions: []string{"US"},
+	}
+	if _, err := r.SubmitJob("sess-1", "qaoa_hardware", p); err == nil ||
+		!strings.Contains(err.Error(), "mandate_ref") {
+		t.Fatalf("QAOA parent without mandate must refuse: %v", err)
+	}
+	seedSignedMandateReceipt(t, r.ledger, "sess-1", "qaoa-parent-receipt", "default",
+		CanonicalHardwareJobBinding("qaoa_hardware", "sess-1", p), 5)
+	p.MandateRef = "qaoa-parent-receipt"
+	j, err := r.SubmitJob("sess-1", "qaoa_hardware", p)
+	if err != nil {
+		t.Fatalf("QAOA parent must admit: %v", err)
+	}
+	if settled := pollJob(t, r, j.ID); settled.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("QAOA parent must complete: %+v", settled)
+	}
+}
+
 func TestAdmissionFidelityRefusesDeepCircuit(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()

@@ -907,6 +907,23 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     bond_distance=float(spec.get("bond_distance", 0.7414)),
                     fci_exact_energy=spec.get("fci_exact_energy"),
+                    backend=spec.get("requested_backend"),
+                )
+            elif kind == "qaoa_hardware":
+                from experiments import run_qaoa_hardware
+                graph = spec.get("graph") or {
+                    "nodes": spec.get("nodes", 0),
+                    "edges": spec.get("edges", []),
+                }
+                result = run_qaoa_hardware(
+                    qasm=spec.get("qasm") or "",
+                    optimal_cut=int(spec.get("optimal_cut", 0)),
+                    nodes=int(graph.get("nodes", 0)),
+                    edges=graph.get("edges") or [],
+                    shots=int(spec.get("shots", 4096)),
+                    seed=int(spec.get("seed", 7)),
+                    energy_exact=float(spec.get("energy_exact", 0.0)),
+                    backend=spec.get("requested_backend"),
                 )
             else:
                 return kubona_pb2.ExperimentResponse(
