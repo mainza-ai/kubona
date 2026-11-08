@@ -47,9 +47,9 @@ RUN chown -R kubona:kubona /app
 # (same pattern as kubonad's state dir in Dockerfile.kubonad).
 # Keep the image state root free of nested seed content: bridge, preflight,
 # and kubonad mount the same new volume concurrently, and Docker's volume
-# copy-up can race on a nested directory ("contracts: file exists"). The
-# entrypoint seeds the writable contract at runtime instead.
-RUN mkdir -p /run/kubona /home/kubona/.kubona/models \
+# copy-up can race on a nested directory ("models: file exists"). The
+# entrypoint seeds the writable contract and model directories at runtime.
+RUN mkdir -p /run/kubona /home/kubona/.kubona \
     && chown -R kubona:kubona /run/kubona /home/kubona/.kubona
 COPY docker/bridge-entrypoint.sh /usr/local/bin/bridge-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/bridge-entrypoint.sh
