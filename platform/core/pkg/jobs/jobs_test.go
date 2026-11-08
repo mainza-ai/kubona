@@ -1311,3 +1311,50 @@ func TestAdoptExternalJobRecordsOneGoBook(t *testing.T) {
 		t.Fatalf("adoption receipts must fire once: queued=%d settled=%d", queued, settled)
 	}
 }
+
+func TestReconcilePythonTerminalJobsIsIdempotent(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	path := t.TempDir() + "/jobs.jsonl"
+	lines := `{"job_id":"py-done-1","session_id":"sess-1","status":"completed","result":{"counts":{"00":2}}}
+{"job_id":"py-fail-1","session_id":"sess-1","status":"failed","error":"vendor refused"}
+{"job_id":"py-queued-1","session_id":"sess-1","status":"queued"}
+{"job_id":"py-ghost-1","session_id":"ghost","status":"completed","result":{}}
+`
+	if err := os.WriteFile(path, []byte(lines), 0600); err != nil {
+		t.Fatal(err)
+	}
+	adopted, skipped := r.ReconcilePythonJobs(path)
+	if adopted != 2 || skipped != 1 {
+		t.Fatalf("reconcile = %d adopted, %d skipped; want 2/1", adopted, skipped)
+	}
+	done, err := r.GetJob("py-done-1")
+	if err != nil || done.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("completed adoption: %+v %v", done, err)
+	}
+	failed, err := r.GetJob("py-fail-1")
+	if err != nil || failed.Status != pb.JobStatus_JOB_STATUS_FAILED {
+		t.Fatalf("failed adoption: %+v %v", failed, err)
+	}
+	if _, err := r.GetJob("py-queued-1"); err == nil {
+		t.Fatal("queued Python job must not be adopted as terminal")
+	}
+	// A second boot is a no-op, never a duplicate receipt.
+	adopted2, _ := r.ReconcilePythonJobs(path)
+	if adopted2 != 0 {
+		t.Fatalf("second reconcile adopted %d", adopted2)
+	}
+}
+
+func TestAugmentQAOAResultComputesMeasuredCut(t *testing.T) {
+	params := []byte(`{"qaoa_meta":{"source_job_id":"q1","optimal_cut":2,"energy_exact":2.0,"nodes":2,"edges":[[0,1]]}}`)
+	result := []byte(`{"counts":{"01":2,"10":1,"00":1}}`)
+	out := augmentQAOAResult(result, params)
+	var parsed map[string]any
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed["measured_cut"] != 0.75 || parsed["approximation_ratio"] != 0.375 || parsed["hardware"] != true {
+		t.Fatalf("unexpected QAOA augmentation: %v", parsed)
+	}
+}

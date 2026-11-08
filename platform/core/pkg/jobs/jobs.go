@@ -717,6 +717,67 @@ func (r *Runner) workerLoop() {
 	}
 }
 
+func augmentQAOAResult(resultData, paramsJSON []byte) []byte {
+	var params struct {
+		QAOAMeta *struct {
+			SourceJobID string   `json:"source_job_id"`
+			OptimalCut  int      `json:"optimal_cut"`
+			EnergyExact float64  `json:"energy_exact"`
+			Nodes       int      `json:"nodes"`
+			Edges       [][2]int `json:"edges"`
+		} `json:"qaoa_meta"`
+	}
+	if json.Unmarshal(paramsJSON, &params) != nil || params.QAOAMeta == nil || len(params.QAOAMeta.Edges) == 0 {
+		return resultData
+	}
+	var result map[string]any
+	if json.Unmarshal(resultData, &result) != nil {
+		return resultData
+	}
+	countsRaw, _ := json.Marshal(result["counts"])
+	var counts map[string]int
+	if json.Unmarshal(countsRaw, &counts) != nil || len(counts) == 0 {
+		return resultData
+	}
+	total := 0
+	cutSum := 0.0
+	for bs, n := range counts {
+		total += n
+		bits := []byte(bs)
+		for i, j := 0, len(bits)-1; i < j; i, j = i+1, j-1 {
+			bits[i], bits[j] = bits[j], bits[i]
+		}
+		mask := 0
+		for i, b := range bits {
+			if b == '1' {
+				mask |= 1 << i
+			}
+		}
+		cut := 0
+		for _, e := range params.QAOAMeta.Edges {
+			if ((mask >> e[0]) & 1) != ((mask >> e[1]) & 1) {
+				cut++
+			}
+		}
+		cutSum += float64(cut * n)
+	}
+	if total == 0 {
+		return resultData
+	}
+	measured := cutSum / float64(total)
+	result["qaoa_meta"] = params.QAOAMeta
+	result["measured_cut"] = measured
+	if params.QAOAMeta.OptimalCut > 0 {
+		result["approximation_ratio"] = measured / float64(params.QAOAMeta.OptimalCut)
+	}
+	result["hardware"] = true
+	out, err := json.Marshal(result)
+	if err != nil {
+		return resultData
+	}
+	return out
+}
+
 func (r *Runner) executeJob(j *Job) {
 	if r.isAborted(j.ID) {
 		r.failJob(j, "aborted by supervisor before execution")
@@ -752,6 +813,7 @@ func (r *Runner) executeJob(j *Job) {
 				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
+				resultData = augmentQAOAResult(resultData, j.ParamsJSON)
 			}
 
 		case "circuit_cut":

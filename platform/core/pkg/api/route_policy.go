@@ -99,6 +99,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/jobs", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "List: tenant-scoped reads (unscoped list refused, ghosts 404). Dispatch: attributed session, dispatch autonomy, caller binding, hardware admission + content-bound idempotency. Same local-flow posture as launch."},
 	{Pattern: "/api/jobs/", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "Read: job+scope session must share a tenant and the caller must clear the scope session. Cancel: known-job path binds caller to the job session before CancelJob."},
 	{Pattern: "/api/experiments", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "VQE/PES dispatch: known session, dispatch autonomy, caller/session tenant binding, content-bound idempotency; bridge computes, Go ledger owns the job and settlement."},
+	{Pattern: "/api/experiments/qaoa/hardware", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Hardware final-state QAOA: loads a local QAOA job's optimized QASM/graph, then uses the governed circuit-run rail (mandate, jurisdiction, fidelity, reservation, settlement). No direct bridge dispatch."},
 	{Pattern: "/api/loops", Methods: "GET,POST", Class: RouteAuthBearer},
 	{Pattern: "/api/loops/", Methods: "GET,POST", Class: RouteAuthBearer},
 	{Pattern: "/api/events", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "Session-keyed event reads bind caller to session tenant."},
