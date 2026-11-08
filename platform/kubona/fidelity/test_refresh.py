@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+
 import pytest
 from datetime import datetime, timezone
 
@@ -55,3 +57,17 @@ def test_refuses_unmeasured_or_unsound(tmp_path, snap):
 def test_unknown_device_refuses(tmp_path):
     with pytest.raises(CalibrationError):
         apply_snapshot("nope", _snap(), contract=_doc(tmp_path))
+
+
+def test_contract_path_honors_env_override(tmp_path, monkeypatch):
+    src = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+    target = tmp_path / "fidelity-devices.json"
+    target.write_text(src.read_text())
+    monkeypatch.setenv("KUBONA_FIDELITY_DEVICES", str(target))
+    from kubona.fidelity import refresh
+    assert refresh.contract_path() == target
+    snap = {"t1_us": 100.0, "t2_us": 90.0, "single_qubit_error": 1e-4,
+            "two_qubit_error": 2e-3, "readout_error": 1e-2,
+            "source": "test", "calibrated_at": "2026-11-08T00:00:00+00:00"}
+    refresh.apply_snapshot("ibm-heron", snap, write=True)
+    assert "test" in target.read_text()

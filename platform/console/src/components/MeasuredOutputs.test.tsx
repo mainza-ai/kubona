@@ -19,6 +19,13 @@ const JOBS = [
     params_json: {}, created_at: '',
   },
   {
+    id: 'job-vqe-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_run',
+    params_json: {}, result_json: {
+      success: true, energy: -1.1368, fci_exact_energy: -1.13727, delta_mha: 0.47,
+      backend: 'qiskit-aer-simulator',
+    }, created_at: '', completed_at: '2026-10-11T02:30:00Z',
+  },
+  {
     // R7: FAILED jobs carry completed_at — they must not render as measured.
     id: 'job-fail-1', session_id: 's', status: 'JOB_STATUS_FAILED', job_type: 'krylov_solve',
     params_json: {}, result_json: { error_message: 'bridge blew up' },
@@ -59,6 +66,8 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('1024 shots');
     expect(text).toContain('go-fallback-estimate');
     expect(text).toContain('(estimate)');
+    expect(text).toContain('VQE -1.136800 Ha');
+    expect(text).toContain('Δ 0.470 mHa');
     expect(text).toContain('job-kry'.slice(0, 8));
     // The running job must not appear as a measured row (R7 gate holds);
     // it renders in the live-progress section instead (S8b/c) — including

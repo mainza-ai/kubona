@@ -579,6 +579,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/chat/launch", s.handleChatLaunch)
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)
+	s.route("/api/experiments", s.handleExperiments)
 	s.route("/api/loops", s.requireBearer(s.handleLoops))
 	s.route("/api/loops/", s.requireBearer(s.handleLoopActions))
 	s.route("/api/events", s.handleEvents)
@@ -1047,19 +1048,7 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 	var stagnationKappa any
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		var cs agents.CampaignState
-		if json.Unmarshal(raw, &cs) == nil && cs.Epistemics != nil {
-			ep := cs.Epistemics
-			claimID := fmt.Sprintf("claim-%s", strings.ToLower(cs.QuantumFactors.TargetMolecule))
-			active = []map[string]any{{
-				"claim_id":   claimID,
-				"record_id":  "",
-				"statement":  ep.Statement,
-				"alpha_corr": ep.AlphaCorroborated,
-				"beta_cont":  ep.BetaContested,
-				"gamma_unv":  ep.GammaUnverified,
-				"collapsed":  ep.Status == "COLLAPSED_VERIFIED",
-				"status":     ep.Status,
-			}}
+		if json.Unmarshal(raw, &cs) == nil {
 			if cs.ClassicalAnchor.AnchorComputed {
 				canonicalAnchor = cs.ClassicalAnchor.FciExactEnergy
 				literatureDrift = cs.ClassicalAnchor.DiscrepancyMHa
@@ -1068,15 +1057,65 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 					cs.ClassicalAnchor.FciExactEnergy+cs.ClassicalAnchor.DiscrepancyMHa/1000.0)
 				stagnationKappa = kappa
 			}
+			if cs.Epistemics != nil {
+				ep := cs.Epistemics
+				claimID := fmt.Sprintf("claim-%s", strings.ToLower(cs.QuantumFactors.TargetMolecule))
+				active = []map[string]any{{
+					"claim_id":   claimID,
+					"record_id":  "",
+					"statement":  ep.Statement,
+					"alpha_corr": ep.AlphaCorroborated,
+					"beta_cont":  ep.BetaContested,
+					"gamma_unv":  ep.GammaUnverified,
+					"collapsed":  ep.Status == "COLLAPSED_VERIFIED",
+					"status":     ep.Status,
+				}}
+			}
 		}
 	}
-	// Latest claim record backs the displayed verdict, when one exists.
+	// Claim records are the durable verdict. CampaignState.Epistemics is
+	// written only by explicit replan folds, so the old read path hid vault
+	// assertions and tribunal verdicts behind an empty proof card. Resolve
+	// precedence here: verified > asserted > contested > pending, newest
+	// first within each class, and surface the chosen record id.
 	recordID := ""
-	if recs, err := s.ledger.ListClaimRecords(sessionID, 1); err == nil && len(recs) > 0 {
-		recordID = recs[0].ID
+	claimStatus := ""
+	if recs, err := s.ledger.ListClaimRecords(sessionID, 25); err == nil {
+		rank := map[string]int{"verified": 3, "asserted": 2, "contested": 1}
+		best := -1
+		for i := range recs {
+			r := &recs[i]
+			if rank[r.Verdict] > best {
+				best = rank[r.Verdict]
+				recordID = r.ID
+				claimStatus = r.Verdict
+				if len(active) == 0 {
+					active = []map[string]any{{
+						"claim_id":   "claim-" + r.ID,
+						"record_id":  r.ID,
+						"statement":  r.Statement,
+						"alpha_corr": r.Alpha,
+						"beta_cont":  r.Beta,
+						"gamma_unv":  r.Gamma,
+						"collapsed":  r.Verdict == "verified",
+						"status":     strings.ToUpper(r.Verdict),
+					}}
+				} else {
+					active[0]["statement"] = r.Statement
+					active[0]["status"] = strings.ToUpper(r.Verdict)
+					active[0]["collapsed"] = r.Verdict == "verified"
+					active[0]["alpha_corr"] = r.Alpha
+					active[0]["beta_cont"] = r.Beta
+					active[0]["gamma_unv"] = r.Gamma
+				}
+			}
+		}
 	}
 	if len(active) > 0 {
 		active[0]["record_id"] = recordID
+		if claimStatus != "" {
+			active[0]["claim_status"] = claimStatus
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"refusal_ratio":        s.epistemicGate.RefusalRatio(),

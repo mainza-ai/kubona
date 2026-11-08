@@ -598,3 +598,29 @@ func TestReplanW114Honesty(t *testing.T) {
 		t.Error("provenance must distinguish 1e-6 bond differences")
 	}
 }
+
+func TestReplanVQERecordsMeasuredPointAndNotebook(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-vqe-1", "vqe_run",
+		[]byte(`{"success":true,"energy":-1.1368,"energy_exact":-1.1368,"fci_exact_energy":-1.137270174660903,"delta_mha":0.470174660903,"uncertainty":0.002,"theta":[0.1,0.2],"chemical_accuracy":true}`),
+		"clm-vqe-1")
+	if !changed {
+		t.Fatalf("VQE result must change state: %s", note)
+	}
+	var state CampaignState
+	if err := json.Unmarshal(updated, &state); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Trajectory) != 1 || state.Trajectory[0].Source != "measured" ||
+		state.Trajectory[0].Watchdog != "measured_vqe" || state.Trajectory[0].Energy != -1.1368 {
+		t.Fatalf("measured VQE trajectory wrong: %+v", state.Trajectory)
+	}
+	if state.ClassicalAnchor.VqeExpectationEnergy != -1.1368 ||
+		!state.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Fatalf("VQE anchor fields wrong: %+v", state.ClassicalAnchor)
+	}
+	if state.Notebook == nil || state.Notebook.ClassicalAnchor == "not computed" ||
+		state.Notebook.ProvenanceHash == "" || state.Notebook.QuantumEnergy != -1.1368 {
+		t.Fatalf("notebook did not cite the measured VQE result: %+v", state.Notebook)
+	}
+}

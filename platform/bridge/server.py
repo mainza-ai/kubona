@@ -66,19 +66,21 @@ class _BridgeTokenAuth:
     """
 
     def __init__(self, token: str, sub: str = "kubonad-bridge",
-                 scopes: tuple = _WORKFLOW_GATEWAY_SCOPES):
+                 scopes: tuple = _WORKFLOW_GATEWAY_SCOPES, tenant: str = "default"):
         self._token = token
         self._sub = sub
         self._scopes = scopes
+        self._tenant = tenant
 
     def verify(self, token: str):
         from kubona.core.auth import AuthError, Principal
         if not self._token or not hmac.compare_digest(token or "", self._token):
             raise AuthError("invalid or missing bridge token")
-        return Principal(sub=self._sub, role="operator", scopes=tuple(self._scopes))
+        return Principal(sub=self._sub, role="operator", scopes=tuple(self._scopes),
+                         tenant=self._tenant)
 
 
-def _workflow_auth(caller_label: str):
+def _workflow_auth(caller_label: str, tenant: str = "default"):
     """Gateway auth for one bridged workflow execution, fail-closed.
 
     The bridge token is required in ALL envs (no dev fallback): without it
@@ -89,7 +91,7 @@ def _workflow_auth(caller_label: str):
         return None, ("bridge token is not configured: refusing "
                       "unauthenticated workflow execution")
     label = (caller_label or "").strip() or "uncategorized"
-    return _BridgeTokenAuth(token, sub=f"kubonad-bridge:{label}"), ""
+    return _BridgeTokenAuth(token, sub=f"kubonad-bridge:{label}", tenant=tenant or "default"), ""
 
 
 # Must match cmd/kubonad/bridge_auth.go byte-for-byte. The shared vector in
@@ -491,6 +493,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             # budget ceiling and spent_usd into Python's SessionStore before
             # submit_job runs preflight.
             if request.session_id and getattr(request, "session_verified", False):
+                from kubona.mcp.servers import cost as _cost
                 raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
                 ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
                 spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
@@ -843,6 +846,62 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             sampling_overhead_kappa=float(res.get("sampling_overhead_kappa", 0.0)),
         )
 
+    def RunExperiment(self, request, context):
+        """Execute a bounded real experiment (VQE/PES) in this compute plane.
+
+        The spec is a versioned JSON object; the closed dispatcher refuses
+        unknown kinds and unsupported molecules instead of borrowing numbers.
+        Provenance is written by the Go job/settlement rail that calls us.
+        """
+        import json as _json
+
+        try:
+            spec = _json.loads(request.spec_json or "{}")
+        except Exception as e:
+            return kubona_pb2.ExperimentResponse(
+                ok=False, error_message=f"invalid experiment spec JSON: {e}", result_json="")
+        if not isinstance(spec, dict):
+            return kubona_pb2.ExperimentResponse(
+                ok=False, error_message="experiment spec must be a JSON object", result_json="")
+        kind = str(spec.get("kind") or "").strip().lower()
+        try:
+            if kind == "vqe":
+                from experiments import run_vqe
+                result = run_vqe(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    bond_distance=float(spec.get("bond_distance", 0.7414)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 65536)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 120)),
+                )
+            elif kind == "pes":
+                from experiments import run_pes
+                result = run_pes(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    r_min=float(spec.get("r_min", 0.5)),
+                    r_max=float(spec.get("r_max", 2.0)),
+                    steps=int(spec.get("steps", 5)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 16384)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                )
+            else:
+                return kubona_pb2.ExperimentResponse(
+                    ok=False,
+                    error_message=f"unknown experiment kind {kind!r}: use vqe or pes",
+                    result_json="")
+        except Exception as e:
+            logger.exception("RunExperiment failed")
+            return kubona_pb2.ExperimentResponse(
+                ok=False, error_message=f"experiment failed: {e}", result_json="")
+        return kubona_pb2.ExperimentResponse(
+            ok=bool(result.get("success")),
+            error_message=str(result.get("error") or result.get("error_message") or ""),
+            result_json=_json.dumps(result),
+        )
+
     def WorkflowPlan(self, request, context):
         import json as _json
 
@@ -904,39 +963,39 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
         logger.info("WorkflowRun called for session %s", request.session_id)
         try:
-            if request.session_id and getattr(request, "session_verified", False):
-                raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
-                ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
-                spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
-                _exec._sessions.sync_external_session(
-                    session_id=request.session_id,
-                    budget_ceiling_usd=ceiling_usd,
-                    spent_usd=spent_usd,
-                    tenant_id=getattr(request, "tenant_id", "") or "",
-                )
-                from kubona.mcp.servers import cost as _cost
-                _cost._sessions.sync_external_session(
-                    session_id=request.session_id,
-                    budget_ceiling_usd=ceiling_usd,
-                    spent_usd=spent_usd,
-                    tenant_id=getattr(request, "tenant_id", "") or "",
-                )
-
-            raw_wf = _json.loads(request.workflow_json)
-            wf = parse_workflow(raw_wf)
-            inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
-            # No dev fallback: the bridge token is required in ALL envs for
-            # workflow execution. Tests provide it via fixture; production
-            # refuses without it instead of running god-mode locally.
-            auth, refusal = _workflow_auth(
-                f"run:{getattr(request, 'tenant_id', '') or 'no-tenant'}:"
-                f"{getattr(request, 'session_id', '') or 'no-session'}")
+            label = (f"run:{getattr(request, 'tenant_id', '') or 'no-tenant'}:"
+                     f"{getattr(request, 'session_id', '') or 'no-session'}")
+            # Authenticate before mirroring any Go session state.
+            auth, refusal = _workflow_auth(label, tenant=getattr(request, "tenant_id", "") or "default")
             if auth is None:
                 return kubona_pb2.WorkflowRunResponse(
                     ok=False,
                     error_message=refusal,
                     workflow_id="",
                 )
+            if request.session_id and getattr(request, "session_verified", False):
+                from kubona.mcp.servers import cost as _cost
+                raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
+                ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
+                spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
+                # The workflow gateway authenticates as kubonad-bridge:<label>;
+                # the mirrored session must be owned by that principal or
+                # submit_job refuses it as an unknown session. Mark it
+                # Go-prepaid so the Python rail never double-charges it.
+                owner = f"kubonad-bridge:{label}"
+                for store in (_exec._sessions, _cost._sessions):
+                    store.sync_external_session(
+                        session_id=request.session_id,
+                        owner=owner,
+                        budget_ceiling_usd=ceiling_usd,
+                        spent_usd=spent_usd,
+                        tenant_id=getattr(request, "tenant_id", "") or "",
+                        spend_prepaid=True,
+                    )
+
+            raw_wf = _json.loads(request.workflow_json)
+            wf = parse_workflow(raw_wf)
+            inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
             bridge_token = os.getenv("KUBONA_BRIDGE_TOKEN", "")
             token = request.token or bridge_token
             gw = build_gateway(require_auth=True, auth=auth)

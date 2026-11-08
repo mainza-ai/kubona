@@ -1,10 +1,15 @@
-# Context is platform/ (shared with the bridge build, whose
-# platform/.dockerignore excludes core/). This Dockerfile-specific ignore
-# is what lets kubonad ship core/ code plus the runtime contracts/.
+# Context is platform/. This Dockerfile-specific ignore lets kubonad ship
+# core/ code, the runtime contracts/, and the native QIR compiler source
+# without pulling the console/test/state trees into the build context.
 *
 !core
 !core/**
+!crates
+!crates/qir-core
+!crates/qir-core/**
 !contracts
 !contracts/**
 !docker
 !docker/backup-loop.sh
+!docker/kubonad-entrypoint.sh
+crates/qir-core/target

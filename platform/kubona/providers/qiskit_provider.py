@@ -654,6 +654,26 @@ class QiskitProvider(Provider):
         return {"provider": self.capability.provider, "ready": self._ready,
                 "hardware_ready": self._credential() is not None and bool(self.backend_name)}
 
+    def vendor_plan(self) -> dict[str, Any] | None:
+        """Authenticated vendor plan/pricing posture, or None when unknown.
+
+        Pre-dispatch estimates use this to distinguish an Open Plan/free
+        instance from pay-as-you-go list price. Missing credentials or an
+        unreadable instance list returns None (never a guessed free plan).
+        """
+        token = self._credential()
+        if not token:
+            return None
+        try:
+            service = self._service(token)
+            self._detect_plan(service)
+            if not self._plan and not self._pricing_type:
+                return None
+            return {"plan": self._plan, "pricing_type": self._pricing_type,
+                    "free": self._plan in ("open", "free") or self._pricing_type == "free"}
+        except Exception:
+            return None
+
     def calibration_snapshot(self) -> dict[str, Any] | None:
         """Live backend calibration medians (Q-14), or None when unmeasurable.
 

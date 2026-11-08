@@ -1251,3 +1251,26 @@ func TestSubmitCrashBetweenReserveAndInsertRestoresCeilings(t *testing.T) {
 		t.Fatalf("post-crash job must settle, got %+v", settled)
 	}
 }
+
+func TestSyncCancelledStatusIsCancelled(t *testing.T) {
+	dir := t.TempDir()
+	l, err := ledger.OpenLedger(dir + "/cancel-status.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	r := NewRunner(l, nil, 1)
+	if err := r.RecordQuantumBridgeJob("job-cancel-status", "s", "ibm-qiskit",
+		"OPENQASM 2.0;", 100, "default", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	r.SyncQuantumBridgeJobStatus("job-cancel-status", "cancelled",
+		`{"hardware_job_id":"hw","usage_seconds":0,"actual_usd":0}`)
+	j, err := r.GetJob("job-cancel-status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Status != pb.JobStatus_JOB_STATUS_CANCELLED {
+		t.Fatalf("cancel must be a first-class status, got %s", j.Status)
+	}
+}

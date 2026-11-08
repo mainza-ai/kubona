@@ -4946,3 +4946,41 @@ skipped is the exact failure this incident is about:
   a first admin can still create a lab.
 - Verification: live Workbench PUT 200, toolbar `applied · revision N`; isolated a11y and
   operator E2E pass; 115 console files / 576 tests; full Go suite; tsc; ESLint; build.
+
+## [2026-11-08] verification | Real-experiment production audit
+
+- Ran the full local-private Docker stack (bridge UDS, Go API, Next.js console)
+  from `a7a8cd2` with NVIDIA `nvidia/nemotron-3-ultra-550b-a55b` for chat and
+  tribunal roles, and IBM Quantum Open Plan credentials for QPU dispatch.
+- Verified live H2/LiH/BeH2 PySCF anchors, H2 simulator execution, quantum
+  Krylov, ZNE, QIR compilation, workflow planning, codesign evaluation, vault
+  pre-registration/claim, and the human chat/console path.
+- Found production blockers: no VQE/PES/QAOA experiment rail; `circuit_run`
+  folds only Meyer-Wallach; campaign notebook/claim epistemics are not linked;
+  workflow `submit_job` fails against Go sessions (Python session split-brain);
+  QIR is `go-fallback-estimate` in the Docker image; stale calibration blocks
+  QPU dispatch and the refresh tool fails in-container; reasoning-model caps
+  return empty content for codesign/tribunal; autoresearch Docker runner is
+  unavailable; IBM Open Plan estimate is list-price $8.000568 while actual is
+  $0; canceled jobs read `failed` in Go.
+- QPU path: live calibration refreshed from `ibm_fez`, dry run admitted; vendor
+  job `dbnvitoqtr0c73ado300` queued 20k+ and was canceled with verified
+  `CANCELLED`, usage 0, actual $0. No current QPU counts were obtained.
+- Full report and staged plan: `docs/real-experiment-production-audit-2026-11-08.md`.
+
+## [2026-11-08] implementation | Real-experiment spine and production fixes
+
+- Landed the first real H2 experiment rail: bridge `RunExperiment` RPC, Go
+  `vqe_run`/`vqe_pes` jobs, `POST /api/experiments`, measured trajectory /
+  notebook / claim fold, and console measured-output rows.
+- Verified live: H2 VQE `-1.1377829714 Ha` vs FCI `-1.1372701747 Ha`
+  (Δ 0.513 mHa, uncertainty 1.384 mHa), claim `clm-69df2967-0001`, ledger
+  spend released to `$0.00`; H2 PES 3-point scan; codesign AND2 valid
+  candidate (`ccx`, TQ=3); tribunal four authored turns with consensus.
+- Production fixes: native Rust `qir-core` in the kubonad image; writable
+  state-volume calibration contract and Docker refresh command; plan-aware
+  Open Plan estimate (`$0` billable, `$8.000568` list price); first-class
+  cancelled status; workflow session ownership; campaign anchor/claim
+  projection; reasoning-cap/prompt fixes.
+- Still open: LiH/BeH2 VQE, QAOA, autoresearch Docker runner, completed QPU
+  measurement, and unified Go/Python workflow ledger.

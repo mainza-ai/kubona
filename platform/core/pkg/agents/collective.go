@@ -423,7 +423,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 // four capped turns fit the 660s server WriteTimeout with margin for the
 // observe rounds. Cloud models rarely bind here; when they do,
 // finish_reason=length is visible in the sealed transcript (never silent).
-const tribunalTurnMaxTokens = 1500
+const tribunalTurnMaxTokens = 8192
 
 // ExecuteTribunalResume continues a tribunal from an exported bundle
 // (R4 turn-bundle flow): ancestor turns seed the new run's evidence store
@@ -760,7 +760,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		// bounded summaries (grounding improves; bytes stay pinned).
 		turn3Prompt, breached3 := projectTurn(3, "turn-3 auditor", []string{
 			fmt.Sprintf("Prior evidence:\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500)),
-			fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget),
+			fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status. Do not call tools in this turn; audit the supplied evidence directly.", target, tier, budget),
 		})
 		auditContent := fmt.Sprintf("No device audit was authored for %s (LLM unavailable). T2 <= 2*T1, Clifford canary fidelity, and the %s spend estimate are unverified; no dispatch approval is claimed.", tier, budget)
 		if llmClient != nil && !breached3 {
@@ -808,7 +808,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
 		turn4Prompt, breached4 := projectTurn(4, "turn-4 scribe", []string{
 			fmt.Sprintf("Prior evidence:\n%s\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500), Summarize(ev3, 1500)),
-			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```. Tag every verdict claim on its own line outside the proposal block: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id), 'inferred:' for conclusions, 'unknown:' for unestablished facts (never assert absence).", target, target, mol, budget, tier, fciAnchor, escapedQASM),
+			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```. Tag every verdict claim on its own line outside the proposal block: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id), 'inferred:' for conclusions, 'unknown:' for unestablished facts (never assert absence). Do not call tools in this turn; use the supplied evidence.", target, target, mol, budget, tier, fciAnchor, escapedQASM),
 		})
 		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```\nseen: proposal block above (this transcript, template fallback — no turn was LLM-authored).\ninferred: P_corr collapse bookkeeping from template values, not measurement.\nunknown: live ab-initio anchor status; hardware noise on the target backend; whether any future turn will be authored.", target, mol, budget, tier, fciAnchor, escapedQASM)
 		if llmClient != nil && !breached4 {

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -144,6 +145,42 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "claim_eval",
 				"Evaluated claim: "+draft.Statement,
 				draft.Alpha, draft.Beta, draft.Gamma, draft.Verdict, string(evBytes)); merr == nil {
+				cite = rec.ID
+			}
+		}
+	}
+	// A completed VQE measurement is itself a citable claim. Mint it before
+	// the fold so the notebook line cites the record; a failed/non-measured
+	// result mints nothing.
+	if j.JobType == "vqe_run" {
+		var res struct {
+			Success      bool    `json:"success"`
+			Energy       float64 `json:"energy"`
+			FCI          float64 `json:"fci_exact_energy"`
+			DeltaMHa     float64 `json:"delta_mha"`
+			Uncertainty  float64 `json:"uncertainty"`
+			Molecule     string  `json:"molecule"`
+			BondDistance float64 `json:"bond_distance"`
+		}
+		if json.Unmarshal(j.ResultJSON, &res) == nil && res.Success && res.Energy != 0 && res.FCI != 0 {
+			delta := res.DeltaMHa
+			if delta == 0 {
+				delta = math.Abs(res.Energy-res.FCI) * 1000.0
+			}
+			verdict := "contested"
+			if delta <= 1.6 {
+				verdict = "verified"
+			}
+			evBytes, _ := json.Marshal(map[string]any{
+				"job_id": j.ID, "molecule": res.Molecule,
+				"bond_distance": res.BondDistance, "energy": res.Energy,
+				"fci_exact_energy": res.FCI, "delta_mha": delta,
+				"uncertainty": res.Uncertainty, "backend": "qiskit-aer-simulator",
+			})
+			statement := fmt.Sprintf("VQE %s at R=%.4f Å measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; uncertainty %.3f mHa).",
+				res.Molecule, res.BondDistance, res.Energy, res.FCI, delta, res.Uncertainty*1000.0)
+			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "vqe_run",
+				boundRunes(statement, 400), -1, -1, -1, verdict, string(evBytes)); merr == nil {
 				cite = rec.ID
 			}
 		}

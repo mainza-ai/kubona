@@ -805,6 +805,28 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         return {"ok": False, "error": pf["reason"], "estimate": pf["estimate"],
                 "session_id": session_id}
 
+    # Vendor plan is an authorization fact. Open Plan/free IBM QPU time must
+    # not be presented (or reserved) at pay-as-you-go list price; keep the
+    # list price as provenance and make the billable estimate zero. Unknown
+    # plan leaves the list-price estimate untouched (never guessed free).
+    exec_plugin = get_provider(provider)  # ProviderError if data-only
+    if provider == "ibm-qiskit":
+        try:
+            plan = exec_plugin.vendor_plan()
+        except Exception:
+            plan = None
+        if plan and plan.get("free"):
+            list_price = pf["estimate"].get("estimated_usd", 0.0)
+            pf["estimate"]["list_price_usd"] = list_price
+            pf["estimate"]["estimated_usd"] = 0.0
+            pf["estimate"]["plan"] = plan.get("plan") or "free"
+            pf["estimate"]["pricing_type"] = plan.get("pricing_type") or "free"
+            pf["estimate"]["notes"] = (
+                f"{pf['estimate'].get('notes') or ''} | Vendor plan={plan.get('plan')} "
+                f"({plan.get('pricing_type')}); list price ${list_price:.6f} kept for provenance, "
+                "billable amount $0.00."
+            ).strip(" |")
+
     # Fidelity gate (Ring 3, second rail beside money): predict whether this
     # run can produce a publishable number BEFORE spending. Simulator-class
     # backends skip (no noise to predict); QPU backends need a catalogued
@@ -827,7 +849,6 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         if refusal is not None:
             return refusal
 
-    exec_plugin = get_provider(provider)  # ProviderError if data-only
     circuit_hash = canonical_hash(circuit)
 
     # Idempotency before spend/enqueue (2026-10-26 audit PYC-02). The old

@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Fork isolation: thread workers intermittently tear down while a
+    // CopilotDrawer console log is still pending (Vitest EnvironmentTeardownError),
+    // turning a fully green suite into a false red. Forks keep each file's
+    // console/RPC lifecycle self-contained; the same 576 assertions run.
+    pool: 'forks',
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     server: {
