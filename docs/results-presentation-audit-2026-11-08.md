@@ -33,6 +33,17 @@ The implementation report is
 
 ---
 
+
+> ⚑ R1 implementation (later 2026-11-08): Results Studio now renders the
+> session claim history and can seal a `peer_review` request; it exports the
+> measurement or PES points as CSV in addition to JSON; the campaign retains
+> the optimizer trajectory (`measurement.optimizer_history`) and renders the
+> point count; and a deterministic numeric-claim guard withholds generated
+> prose if it contains a number absent from the result record. The PES table
+> shows R, measured energy, FCI, Δ, uncertainty, and chemical-accuracy status.
+> Remaining R1: claim-history pagination/filtering and a reviewer decision
+> state (the claim record itself remains immutable).
+
 ## 1. Live result under test
 
 Final H2 VQE, session `69df2967-8599-476f-9274-f921afcfa777`:

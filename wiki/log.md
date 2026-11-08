@@ -5023,3 +5023,16 @@ skipped is the exact failure this incident is about:
   JSON export; live session `de02c225-5a8d-4341-bc3b-a08c14ad6218`.
 - Report updates: `docs/real-experiment-production-audit-2026-11-08.md`,
   `docs/results-presentation-audit-2026-11-08.md`.
+
+## [2026-11-08] implementation | R1 claims/exports, workflow adoption, full-space VQE
+
+- Workflow: completed Python `execution/submit_job` results are adopted into
+  the Go jobs book (`AdoptExternalJob`), with `job_queued`/`job_settled`
+  receipts; live workflow `89c324ab…` adopted job `28dfccf7a2ed4982`.
+- Results R1: claim history + sealed `peer_review` requests, CSV/PES export,
+  PES table, optimizer-history retention/display, and a numeric-claim guard
+  for generated prose.
+- Full-space VQE is an explicit `full_space` option (LiH smoke: 12 qubits,
+  poor full-FCI gap, labelled contested); QAOA returns optimized QASM for a
+  hardware rail but remains simulator-measured; autoresearch surfaces the
+  fail-closed sandbox reason.

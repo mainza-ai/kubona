@@ -176,6 +176,11 @@ export interface ClassicalAnchor {
   anchor_source?: string;
 }
 
+export interface OptimizerPoint {
+  iteration: number;
+  energy: number;
+}
+
 export interface MeasurementSummary {
   job_id?: string;
   claim_id?: string;
@@ -197,6 +202,7 @@ export interface MeasurementSummary {
   measured: boolean;
   below_fci: boolean;
   source?: string;
+  optimizer_history?: OptimizerPoint[];
 }
 
 export interface PesPoint {

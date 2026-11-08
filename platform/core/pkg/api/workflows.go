@@ -261,11 +261,35 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	}
 	for stepID, result := range lastResults {
 		raw, _ := json.Marshal(result)
-		s.ledger.AppendEvent(sess.ID, "workflow_step", map[string]interface{}{
+		// The Python workflow engine executes the step; if it returned a
+		// completed job, adopt that exact job id + result into the Go jobs
+		// book so /api/jobs and the session ledger do not point at a ghost.
+		var adoptedID string
+		if rec, ok := result.(map[string]interface{}); ok {
+			jobID, _ := rec["job_id"].(string)
+			if jobID != "" && strings.EqualFold(fmt.Sprint(rec["status"]), "completed") {
+				if resultBody, ok := rec["result"]; ok {
+					resultJSON, _ := json.Marshal(resultBody)
+					tool := toolByStep[stepID]
+					jobType := "circuit_run"
+					if strings.Contains(tool, "qubo") {
+						jobType = "circuit_run"
+					}
+					if _, err := s.jobRunner.AdoptExternalJob(sess.ID, jobID, jobType, resultJSON); err == nil {
+						adoptedID = jobID
+					}
+				}
+			}
+		}
+		payload := map[string]interface{}{
 			"workflow": resp.WorkflowId, "workflow_id": resp.WorkflowId, "session_id": sess.ID,
 			"step": stepID, "tool": toolByStep[stepID],
 			"result": json.RawMessage(raw), "spent_usd": resp.SpentUsd,
-		})
+		}
+		if adoptedID != "" {
+			payload["adopted_job_id"] = adoptedID
+		}
+		s.ledger.AppendEvent(sess.ID, "workflow_step", payload)
 	}
 	s.ledger.AppendEvent(sess.ID, "workflow_execution_completed", map[string]interface{}{
 		"workflow_id":     resp.WorkflowId,

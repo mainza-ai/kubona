@@ -874,6 +874,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     shots=int(spec.get("shots", 65536)),
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 120)),
+                    full_space=bool(spec.get("full_space", False)),
                 )
             elif kind == "pes":
                 from experiments import run_pes

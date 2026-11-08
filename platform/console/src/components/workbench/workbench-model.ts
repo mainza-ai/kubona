@@ -317,6 +317,7 @@ export function buildWorkbench(
             { label: 'Claim', value: campaign.measurement.claim_id || 'not sealed' },
             { label: 'Backend', value: campaign.measurement.backend || 'not recorded' },
             { label: 'Shots', value: campaign.measurement.shots ? String(campaign.measurement.shots) : 'not recorded' },
+            { label: 'Optimizer path', value: campaign.measurement.optimizer_history?.length ? `${campaign.measurement.optimizer_history.length} points` : 'not recorded' },
           ]
         : [
             { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },

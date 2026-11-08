@@ -1036,6 +1036,12 @@
   ],
   "unmodeled_functions": [
     {
+      "function": "fetchClaims",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
+      "method": "GET",
+      "contract": null
+    },
+    {
       "function": "runExperiment",
       "path": "/api/experiments",
       "method": "POST",

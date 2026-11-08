@@ -4787,12 +4787,19 @@ func (s *Server) handleAutoresearchHarnesses(w http.ResponseWriter, r *http.Requ
 			"mutable_artifact": h.MutableArtifact(),
 		})
 	}
+	available := s.sandboxRunner.IsDockerAvailable()
+	reason := ""
+	if !available {
+		reason = "Docker daemon/image not available: autoresearch execution is fail-closed by default; mount the opt-in sandbox socket profile only on a trusted local host"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"harnesses": out,
 		"docker_runner": map[string]any{
 			"image":     s.sandboxRunner.Config().Image,
-			"available": s.sandboxRunner.IsDockerAvailable(),
+			"available": available,
 			"security":  "NemoClaw-OpenClaw-Hardened (read-only, cap-drop=ALL, net=none)",
+			"mode":      "container",
+			"reason":    reason,
 		},
 	})
 }

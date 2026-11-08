@@ -165,6 +165,7 @@ def run_vqe(
     shots: int = 16384,
     seed: int = 7,
     max_iterations: int = 80,
+    full_space: bool = False,
 ) -> dict[str, Any]:
     """Run a real H2 VQE with a live anchor and shot-measured final energy."""
     t0 = time.perf_counter()
@@ -173,7 +174,8 @@ def run_vqe(
     mol = (molecule or "").upper()
     if mol in _NATURE_ACTIVE:
         return run_nature_vqe(mol, float(bond_distance), shots=shots,
-                              seed=seed, max_iterations=max_iterations)
+                              seed=seed, max_iterations=max_iterations,
+                              full_space=bool(full_space), layers=int(layers))
     if mol != "H2":
         return {
             "success": False,
@@ -257,6 +259,93 @@ def run_vqe(
     }
 
 
+def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
+                         problem: Any, ncas: int, nelecas: int, shots: int,
+                         seed: int, max_iterations: int, layers: int,
+                         t0: float) -> dict[str, Any]:
+    """Full-orbital-space VQE with a compact hardware-efficient ansatz.
+
+    Full UCCSD is combinatorial at 10–14 qubits and was measured to exceed
+    30 minutes for LiH before its first optimization pass. EfficientSU2 keeps
+    the run tractable while still measuring the complete molecular Hamiltonian;
+    the result labels the ansatz and whether the exact optimizer reached the
+    full-FCI target. No active-space reduction is applied.
+    """
+    if not HAS_NATURE or not HAS_QISKIT:
+        return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing molecular VQE"}
+    if layers < 1 or layers > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    from qiskit.circuit.library import EfficientSU2
+    from qiskit.quantum_info import Statevector
+    from scipy.optimize import minimize
+
+    e_full, _ = _full_fci_and_casci(atom, ncas, nelecas)
+    mapper = JordanWignerMapper()
+    qop = mapper.map(problem.hamiltonian.second_q_op())
+    constants = float(sum(problem.hamiltonian.constants.values()))
+    hf = HartreeFock(int(problem.num_spatial_orbitals), problem.num_particles, mapper)
+    ansatz = EfficientSU2(qop.num_qubits, reps=int(layers),
+                          entanglement="linear", initial_state=hf)
+    rng = np.random.default_rng(int(seed))
+    x0 = rng.uniform(-0.15, 0.15, size=ansatz.num_parameters)
+    trajectory: list[dict[str, Any]] = []
+
+    def objective(x: np.ndarray) -> float:
+        sv = Statevector.from_instruction(ansatz.assign_parameters(x))
+        e = float(np.real(sv.expectation_value(qop)) + constants)
+        if len(trajectory) < 500:
+            trajectory.append({"iteration": len(trajectory) + 1, "energy": e,
+                               "theta": [float(v) for v in x]})
+        return e
+
+    opt = minimize(objective, x0, method="COBYLA",
+                   options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8})
+    theta = np.asarray(opt.x, dtype=float)
+    exact = float(np.real(Statevector.from_instruction(ansatz.assign_parameters(theta))
+                          .expectation_value(qop)) + constants)
+    measured = _pauli_measurement_energy(ansatz, theta, qop, int(shots), int(seed))
+    e = measured["energy"] + constants
+    delta_full = abs(e - e_full) * 1000.0
+    return {
+        "success": True,
+        "kind": "vqe",
+        "molecule": spec["name"],
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "VQE EfficientSU2 full-space, COBYLA",
+        "ansatz": f"EfficientSU2 full-space {qop.num_qubits} qubits, layers={int(layers)}",
+        "qubit_count": int(qop.num_qubits),
+        "active_space": {"ncas": ncas, "nelecas": nelecas,
+                         "spatial_orbitals": int(problem.num_spatial_orbitals),
+                         "full_space": True},
+        "shots": int(shots),
+        "seed": int(seed),
+        "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
+                      "evaluations": int(opt.nfev), "success": bool(opt.success),
+                      "message": str(opt.message)},
+        "theta": [float(v) for v in theta],
+        "energy": float(e),
+        "energy_exact": exact,
+        "energy_measured": float(e),
+        "energy_measured_source": "shot-sampled Pauli expectation",
+        "uncertainty": float(measured["uncertainty"]),
+        "measurements": measured["terms"],
+        "fci_exact_energy": e_full,
+        "active_space_fci_energy": e_full,
+        "delta_mha": delta_full,
+        "active_space_delta_mha": delta_full,
+        "chemical_accuracy": bool(delta_full <= 1.6e-3),
+        "active_space_chemical_accuracy": bool(delta_full <= 1.6e-3),
+        "converged": bool(opt.success),
+        "trajectory": trajectory,
+        "backend": "qiskit-aer-simulator",
+        "measured": True,
+        "limitations": "Full orbital space; EfficientSU2 is an expressive ansatz, not a UCCSD guarantee. Accuracy is reported against full FCI.",
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
 #: Active spaces for the molecular VQEs. These are deliberately smaller than
 #: the full molecular orbital space; the result reports both the active-space
 #: CASCI and the full-molecule FCI so no one mistakes a reduced model for the
@@ -332,6 +421,8 @@ def run_nature_vqe(
     shots: int = 8192,
     seed: int = 7,
     max_iterations: int = 80,
+    full_space: bool = False,
+    layers: int = 2,
 ) -> dict[str, Any]:
     """Active-space molecular VQE via Qiskit Nature + PySCF.
 
@@ -350,10 +441,18 @@ def run_nature_vqe(
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
     t0 = time.perf_counter()
     atom = spec["atom"].format(r=float(bond_distance))
-    e_full, e_casci = _full_fci_and_casci(atom, int(spec["ncas"]), int(spec["nelecas"]))
     problem = PySCFDriver(atom=atom, basis="sto-3g", charge=0, spin=0).run()
+    ncas = int(problem.num_spatial_orbitals)
+    particles = problem.num_particles
+    nelecas = int(sum(particles) if isinstance(particles, (tuple, list)) else particles)
+    requested_full = bool(full_space)
+    if requested_full:
+        return _run_full_space_vqe(spec, atom, float(bond_distance), problem,
+                                   ncas, nelecas, shots, seed, max_iterations, layers, t0)
+    ncas, nelecas = int(spec["ncas"]), int(spec["nelecas"])
+    e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas)
     reduced = ActiveSpaceTransformer(
-        num_electrons=int(spec["nelecas"]), num_spatial_orbitals=int(spec["ncas"]),
+        num_electrons=nelecas, num_spatial_orbitals=ncas,
     ).transform(problem)
     mapper = JordanWignerMapper()
     qop = mapper.map(reduced.hamiltonian.second_q_op())
@@ -394,11 +493,13 @@ def run_nature_vqe(
         "molecule": spec["name"],
         "bond_distance": float(bond_distance),
         "basis": "sto-3g",
-        "method": "VQE UCCSD active-space, COBYLA",
-        "ansatz": f"UCCSD active-space {reduced.num_spatial_orbitals} orbitals",
+        "method": "VQE UCCSD full-space, COBYLA" if requested_full else "VQE UCCSD active-space, COBYLA",
+        "ansatz": (f"UCCSD full-space {reduced.num_spatial_orbitals} orbitals"
+                   if requested_full else f"UCCSD active-space {reduced.num_spatial_orbitals} orbitals"),
         "qubit_count": int(qop.num_qubits),
-        "active_space": {"ncas": int(spec["ncas"]), "nelecas": int(spec["nelecas"]),
-                         "spatial_orbitals": int(reduced.num_spatial_orbitals)},
+        "active_space": {"ncas": ncas, "nelecas": nelecas,
+                         "spatial_orbitals": int(reduced.num_spatial_orbitals),
+                         "full_space": requested_full},
         "shots": int(shots),
         "seed": int(seed),
         "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
@@ -421,7 +522,9 @@ def run_nature_vqe(
         "trajectory": trajectory,
         "backend": "qiskit-aer-simulator",
         "measured": True,
-        "limitations": "Active-space model; full-molecule FCI is reported separately and is the physical comparison.",
+        "limitations": ("Full orbital space; full-molecule FCI and CASCI coincide."
+                        if requested_full else
+                        "Active-space model; full-molecule FCI is reported separately and is the physical comparison."),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }
@@ -487,12 +590,18 @@ def run_qaoa(
     qc = qaoa(theta)
     qc.measure_all()
     counts = AerSimulator().run(qc, shots=int(shots), seed_simulator=int(seed)).result().get_counts()
+    try:
+        from qiskit import qasm2
+        qaoa_qasm = qasm2.dumps(qc)
+    except Exception:
+        qaoa_qasm = ""
     total = sum(counts.values())
     shot_cut = sum(count * sum(1 for a, b in edges if ((int(bs.replace(" ", "")[::-1], 2) >> a) & 1) != ((int(bs.replace(" ", "")[::-1], 2) >> b) & 1))
                   for bs, count in counts.items()) / max(1, total)
     return {
         "success": True, "kind": "qaoa", "molecule": "MaxCut",
         "graph": {"nodes": n, "edges": edges, "regular_degree": 3},
+        "circuit_qasm": qaoa_qasm,
         "layers": int(layers), "shots": int(shots), "seed": int(seed),
         "theta": [float(v) for v in theta],
         "energy": float(shot_cut), "energy_exact": float(value),

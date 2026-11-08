@@ -21,9 +21,11 @@ import { CampaignState, SystematicNotebook, Job } from '@/types';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
+import { numericClaimGuard } from '@/lib/resultNarrative';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
+import { ClaimHistory } from '@/components/common/ClaimHistory';
 import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 
@@ -67,6 +69,23 @@ function readCounts(job: Job): Record<string, number> | null {
     if (Number.isFinite(n) && n >= 0) counts[bitstring] = n;
   }
   return Object.keys(counts).length > 0 ? counts : null;
+}
+
+function downloadText(name: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value: unknown): string {
+  const text = value == null ? '' : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
@@ -158,6 +177,20 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const fmtEnergy = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(5));
   const fmtDelta = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(2));
   const provenanceShort = provenanceHash ? provenanceHash.slice(0, 24) : 'not recorded';
+  const abstractNarrative = claimVerified
+    ? `We present a measured variational quantum eigensolver result for ${target}. The optimizer ${converged === false ? 'stopped at its evaluation cap (not reported as converged)' : 'reported convergence'}; the measured energy is ${fmtEnergy(groundEnergy)}${uncertaintyMHa != null ? ` ± ${uncertaintyMHa.toFixed(3)} mHa` : ''} (Delta ${fmtDelta(deltaMHa)} mHa against FCI ${fmtEnergy(fciEnergy)} Ha${belowFci ? '; point below FCI; read against uncertainty' : ''}). Claim evaluated on a computed anchor (epistemics COLLAPSED_VERIFIED).`
+    : `We present a projected variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}. Corridor estimate ${fmtEnergy(groundEnergy)} Ha (|Delta| ${fmtDelta(deltaMHa)} mHa, not measured). No claim in this draft is verified: chemical accuracy is unclaimed until measured, and no Lean 4 verification has run.`;
+  const narrativeAllowed = [
+    groundEnergy, fciEnergy, deltaMHa, uncertaintyMHa,
+    campaign?.measurement?.energy, campaign?.measurement?.energy_exact,
+    campaign?.measurement?.fci_exact_energy, campaign?.measurement?.uncertainty_mha,
+    campaign?.measurement?.delta_mha, 1.6,
+    ...(target.match(/\d+(?:\.\d+)?/g) ?? []).map(Number),
+  ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const narrativeGuard = numericClaimGuard(abstractNarrative, narrativeAllowed);
+  const safeAbstract = narrativeGuard.ok
+    ? abstractNarrative
+    : 'Measured result recorded; the generated abstract was withheld because it contained a number absent from the measurement record.';
 
   const bibtex = `@article{kubona_2026_${target.toLowerCase()},
   title = {Autonomous Variational Discovery of ${target} Potential Energy Surface},
@@ -179,10 +212,8 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
 \\maketitle
 
 \\begin{abstract}
-${claimVerified
-  ? `We present a measured variational quantum eigensolver result for ${target}. The optimizer ${converged === false ? 'stopped at its evaluation cap (not reported as converged)' : 'reported convergence'}; the measured energy is ${fmtEnergy(groundEnergy)}${uncertaintyMHa != null ? ` \\pm ${uncertaintyMHa.toFixed(3)}` : ''}\\,\\text{Ha} (Delta ${fmtDelta(deltaMHa)}\\,\\text{mHa} against FCI ${fmtEnergy(fciEnergy)}\\,\\text{Ha}${belowFci ? '; point below FCI; read against uncertainty' : ''}). Claim evaluated on a computed anchor (epistemics COLLAPSED\\_VERIFIED).`
-  : `We present a projected variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}. Corridor estimate ${fmtEnergy(groundEnergy)}\\,\\text{Ha} (|\\Delta| ${fmtDelta(deltaMHa)}\\,\\text{mHa}, not measured). No claim in this draft is verified: chemical accuracy is unclaimed until measured, and no Lean 4 verification has run.`}
-\\end{abstract}
+${safeAbstract}
+\end{abstract}
 
 \\section{Ground-State Integrals}
 ${claimVerified
@@ -250,6 +281,28 @@ ${proofVerified
     URL.revokeObjectURL(url);
     setExported(true);
     setTimeout(() => setExported(false), 3000);
+  };
+
+  const handleExportCSV = () => {
+    const points = campaign?.pes_points ?? [];
+    if (points.length > 0) {
+      const header = ['bond_distance_angstrom', 'energy_ha', 'energy_exact_ha', 'fci_exact_ha', 'delta_mha', 'uncertainty_mha', 'chemical_accuracy'];
+      const rows = points.map((point) => [
+        point.bond_distance, point.energy, point.energy_exact ?? '', point.fci_exact_energy,
+        point.delta_mha, point.uncertainty_mha, point.chemical_accuracy,
+      ]);
+      downloadText(`kubona-pes-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.csv`,
+        [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n') + '\n',
+        'text/csv;charset=utf-8');
+      return;
+    }
+    const m = campaign?.measurement;
+    if (!m) return;
+    const header = ['job_id', 'claim_id', 'method', 'backend', 'energy_ha', 'energy_exact_ha', 'fci_exact_ha', 'uncertainty_mha', 'delta_mha', 'shots', 'seed', 'chemical_accuracy', 'converged', 'below_fci', 'optimizer_points'];
+    const row = [m.job_id ?? '', m.claim_id ?? '', m.method, m.backend ?? '', m.energy, m.energy_exact ?? '', m.fci_exact_energy, m.uncertainty_mha, m.delta_mha, m.shots ?? '', m.seed ?? '', m.chemical_accuracy, m.converged, m.below_fci, m.optimizer_history?.length ?? 0];
+    downloadText(`kubona-measurement-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.csv`,
+      [header, row].map((r) => r.map(csvCell).join(',')).join('\n') + '\n',
+      'text/csv;charset=utf-8');
   };
 
   const handleExport = () => {
@@ -496,6 +549,16 @@ ${bibtex}
           </button>
 
           <button
+            onClick={handleExportCSV}
+            disabled={!campaign?.measurement && !(campaign?.pes_points?.length)}
+            title="Download measured CSV: PES points when present, otherwise the measurement summary"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>CSV</span>
+          </button>
+
+          <button
             onClick={handleExportResult}
             title="Download measured result JSON (campaign, measurement, PES points, notebook)"
             className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-medium flex items-center space-x-1.5 transition"
@@ -522,6 +585,40 @@ ${bibtex}
             <div className="space-y-6">
               {/* Measured job outputs: what ran, bound to job ids */}
               <MeasuredOutputs sessionId={sessionId ?? null} />
+              {(campaign?.pes_points?.length ?? 0) > 0 && (
+                <div className="rounded-xl border border-white/10 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+                    <span className="text-[12px] font-semibold text-white">PES points</span>
+                    <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[12px]">
+                      <thead className="text-[var(--color-muted)]">
+                        <tr className="border-b border-white/10">
+                          <th className="px-2 py-1 text-left">R (Å)</th>
+                          <th className="px-2 py-1 text-right">E (Ha)</th>
+                          <th className="px-2 py-1 text-right">FCI (Ha)</th>
+                          <th className="px-2 py-1 text-right">Δ (mHa)</th>
+                          <th className="px-2 py-1 text-right">σ (mHa)</th>
+                          <th className="px-2 py-1 text-right">Chem. acc.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaign!.pes_points!.map((point) => (
+                          <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
+                            <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
+                            <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
+                            <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
+                            <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right">{point.chemical_accuracy ? 'PASS' : 'outside'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               {/* Paper Title & Metadata */}
               <div
                 onClick={() => setSelectedAnchor('§Title')}
@@ -579,7 +676,7 @@ ${bibtex}
                   <span className="text-[12px] font-mono text-neutral-500">Anchor: §Abstract</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  We present a measured variational quantum eigensolver result for {target}. The optimizer {converged === false ? 'stopped at its evaluation cap (not reported as converged)' : 'reported convergence'}; the measured energy is {fmtEnergy(groundEnergy)}{uncertaintyMHa != null ? ` ± ${uncertaintyMHa.toFixed(3)} mHa` : ''} Ha against the exact PySCF STO-3G Full Configuration Interaction (FCI) anchor ({fmtEnergy(fciEnergy)} Ha), a discrepancy of {fmtDelta(deltaMHa)} mHa.{belowFci ? ' The point estimate is below FCI; this is a statistical excursion and must be read against the stated uncertainty.' : ''} Claim evaluated on a computed anchor (epistemics COLLAPSED_VERIFIED).
+                  {safeAbstract}
                 </p>
               </div>
 
@@ -702,6 +799,8 @@ ${bibtex}
             <p className="text-[12px] text-neutral-400 leading-normal">
               Highlight equations, sections, or proof tokens to leave targeted annotations. Prompt the agent swarm to re-verify specific derivations.
             </p>
+
+            <ClaimHistory sessionId={sessionId ?? null} />
 
             {/* Current Selected Anchor Indicator */}
             <div className="p-2.5 rounded-lg bg-neutral-900/80 border border-neutral-800 flex items-center justify-between text-xs font-mono">
