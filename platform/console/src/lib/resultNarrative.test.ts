@@ -14,6 +14,13 @@ describe('numeric claim guard', () => {
     expect(guard.unsupported).toContain('8.901');
   });
 
+  it('handles empty prose, integer claims, and non-finite allowances', () => {
+    expect(numericClaims('no digits here')).toEqual([]);
+    expect(numericClaimGuard('', [])).toEqual({ ok: true, unsupported: [] });
+    expect(unsupportedNumericClaims('1', [1])).toEqual([]);
+    expect(unsupportedNumericClaims('2', [NaN])).toEqual(['2']);
+  });
+
   it('rejects a fabricated precision that does not match the recorded value', () => {
     expect(unsupportedNumericClaims('energy 9.2 Ha', [9.1])).toEqual(['9.2']);
   });
