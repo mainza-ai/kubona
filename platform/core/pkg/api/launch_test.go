@@ -118,3 +118,52 @@ func TestChatLaunchCarriesDesignedBy(t *testing.T) {
 		t.Errorf("absent attribution must stay absent, got %v", params["designed_by"])
 	}
 }
+
+// A launch is a reproducible experiment spec: shots and seed must be recorded
+// on the job, and an explicit caller value must survive unchanged.
+func TestChatLaunchPersistsShotsAndSeed(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+
+	sessBody, _ := json.Marshal(map[string]any{"title": "launch spec drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sess); err != nil {
+		t.Fatal(err)
+	}
+
+	qasm := "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n"
+	for _, tc := range []struct {
+		shots, seed         int
+		wantShots, wantSeed int
+	}{
+		{0, 0, 1024, 7},
+		{4096, 11, 4096, 11},
+	} {
+		body, _ := json.Marshal(map[string]any{
+			"session_id": sess.ID, "qasm": qasm, "backend": "local_simulator",
+			"budget_usd": 1.0, "shots": tc.shots, "seed": tc.seed,
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/chat/launch", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("launch: %d %s", w.Code, w.Body.String())
+		}
+		var out struct {
+			Job struct {
+				Params map[string]any `json:"params_json"`
+			} `json:"job"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		if int(out.Job.Params["shots"].(float64)) != tc.wantShots || int(out.Job.Params["seed"].(float64)) != tc.wantSeed {
+			t.Fatalf("launch spec = shots %v seed %v, want %d/%d", out.Job.Params["shots"], out.Job.Params["seed"], tc.wantShots, tc.wantSeed)
+		}
+	}
+}

@@ -340,7 +340,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		var energy, fci, unc, delta, exact, activeFci, activeDelta float64
 		var theta []float64
 		var shots, seed int
-		var method, ansatz, backend string
+		var method, ansatz, backend, resultVersion, provider, optimizerBackend, measurementBackend string
+		var hardware bool
+		var ci95, usageSeconds float64
+		var actualUSD *float64
+		var layout, calibration map[string]any
+		var counts map[string]int
+		var evidenceRefs []string
 		for key, dst := range map[string]*float64{
 			"energy": &energy, "fci_exact_energy": &fci,
 			"uncertainty": &unc, "delta_mha": &delta,
@@ -374,6 +380,38 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if raw, ok := present("backend"); ok {
 			_ = json.Unmarshal(raw, &backend)
+		}
+		for key, dst := range map[string]*string{
+			"result_version": &resultVersion, "provider": &provider,
+			"optimizer_backend": &optimizerBackend, "measurement_backend": &measurementBackend,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("hardware"); ok {
+			_ = json.Unmarshal(raw, &hardware)
+		}
+		if raw, ok := present("ci95_mha"); ok {
+			_ = json.Unmarshal(raw, &ci95)
+		}
+		if raw, ok := present("usage_seconds"); ok {
+			_ = json.Unmarshal(raw, &usageSeconds)
+		}
+		if raw, ok := present("actual_usd"); ok {
+			_ = json.Unmarshal(raw, &actualUSD)
+		}
+		if raw, ok := present("layout"); ok {
+			_ = json.Unmarshal(raw, &layout)
+		}
+		if raw, ok := present("calibration"); ok {
+			_ = json.Unmarshal(raw, &calibration)
+		}
+		if raw, ok := present("counts"); ok {
+			_ = json.Unmarshal(raw, &counts)
+		}
+		if raw, ok := present("evidence_refs"); ok {
+			_ = json.Unmarshal(raw, &evidenceRefs)
 		}
 		measuredDelta := math.Abs(energy-fci) * 1000.0
 		if delta == 0 {
@@ -450,6 +488,10 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			ChemicalAccuracy: delta <= 1.6, ActiveSpaceChemicalAcc: activeDelta > 0 && activeDelta <= 1.6,
 			Converged: false, Measured: true, BelowFCI: energy < fci,
 			Source: "shot-sampled Pauli expectation", OptimizerHistory: optimizerHistory,
+			ResultVersion: resultVersion, Provider: provider, Hardware: hardware,
+			OptimizerBackend: optimizerBackend, MeasurementBackend: measurementBackend,
+			CI95MHa: ci95, UsageSeconds: usageSeconds, ActualUSD: actualUSD,
+			Layout: layout, Calibration: calibration, Counts: counts, EvidenceRefs: evidenceRefs,
 		}
 		if raw, ok := present("converged"); ok {
 			_ = json.Unmarshal(raw, &state.Measurement.Converged)

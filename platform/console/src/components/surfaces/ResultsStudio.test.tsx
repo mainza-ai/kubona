@@ -142,7 +142,8 @@ describe('ResultsStudio verification gating (J1)', () => {
       );
     });
 
-    const input = tree!.root.findByType('input');
+    const input = tree!.root.findAllByType('input').find((node) => String(node.props['aria-label'] || '').startsWith('Annotate'));
+    expect(input).toBeTruthy();
     await act(async () => {
       input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
     });
@@ -168,7 +169,8 @@ describe('ResultsStudio verification gating (J1)', () => {
       );
     });
 
-    const input = tree!.root.findByType('input');
+    const input = tree!.root.findAllByType('input').find((node) => String(node.props['aria-label'] || '').startsWith('Annotate'));
+    expect(input).toBeTruthy();
     await act(async () => {
       input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
     });

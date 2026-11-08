@@ -1036,9 +1036,21 @@
   ],
   "unmodeled_functions": [
     {
+      "function": "fetchClaimReviews",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/reviews",
+      "method": "GET",
+      "contract": null
+    },
+    {
       "function": "fetchClaims",
       "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
       "method": "GET",
+      "contract": null
+    },
+    {
+      "function": "reviewClaim",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
+      "method": "POST",
       "contract": null
     },
     {

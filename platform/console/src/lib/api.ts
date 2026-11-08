@@ -566,6 +566,8 @@ export interface LaunchProposalOptions {
   callerJurisdictions?: string[];
   callerExportClass?: string;
   exportReviewed?: boolean;
+  shots?: number;
+  seed?: number;
 }
 
 export async function launchProposal(
@@ -588,6 +590,8 @@ export async function launchProposal(
         ...(options.callerJurisdictions !== undefined ? { caller_jurisdictions: options.callerJurisdictions } : {}),
         ...(options.callerExportClass !== undefined ? { caller_export_class: options.callerExportClass } : {}),
         ...(options.exportReviewed !== undefined ? { export_reviewed: options.exportReviewed } : {}),
+        ...(options.shots !== undefined ? { shots: options.shots } : {}),
+        ...(options.seed !== undefined ? { seed: options.seed } : {}),
       },
     })) as unknown as { job: Job; loop: Loop };
   } catch (err) {
@@ -1715,6 +1719,59 @@ export interface ClaimRecord {
   verdict: string;
   evidence_json: string;
   created_at: string;
+}
+
+export interface ClaimReview {
+  id: string;
+  session_id: string;
+  claim_id: string;
+  decision: 'accepted' | 'contested' | 'reopened';
+  reason: string;
+  reviewer: string;
+  evidence_json: string;
+  created_at: string;
+}
+
+export async function fetchClaimReviews(sessionId: string, claimId: string): Promise<ClaimReview[] | null> {
+  if (!sessionId || !claimId) return null;
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/reviews`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { reviews?: ClaimReview[] };
+    return Array.isArray(data.reviews) ? data.reviews : [];
+  } catch (err) {
+    console.error('Failed to fetch claim reviews:', err);
+    return null;
+  }
+}
+
+export async function reviewClaim(
+  sessionId: string,
+  claimId: string,
+  decision: ClaimReview['decision'],
+  reason: string,
+): Promise<ClaimReview | null> {
+  if (!sessionId || !claimId || !reason.trim()) return null;
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/review`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ decision, reason: reason.trim() }),
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { review?: ClaimReview };
+    return data.review ?? null;
+  } catch (err) {
+    console.error('Failed to review claim:', err);
+    return null;
+  }
 }
 
 /** Read the immutable claim history for a session (newest first). */

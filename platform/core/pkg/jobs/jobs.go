@@ -82,6 +82,7 @@ type Runner struct {
 	wg           sync.WaitGroup
 	ctx          context.Context
 	cancel       context.CancelFunc
+	started      bool
 	// aborted marks job IDs a supervisor abort settled as failed. Workers
 	// consult it at execution entry and after bridge calls so an abort that
 	// lands mid-flight still wins over a late completion.
@@ -174,6 +175,13 @@ func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, wor
 }
 
 func (r *Runner) Start() {
+	r.mu.Lock()
+	if r.started {
+		r.mu.Unlock()
+		return
+	}
+	r.started = true
+	r.mu.Unlock()
 	for i := 0; i < r.workers; i++ {
 		r.wg.Add(1)
 		go r.workerLoop()

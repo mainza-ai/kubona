@@ -2067,6 +2067,54 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, state)
 		return
 	}
+	// Claim review history/decision: append-only, separate from the immutable
+	// claim row. GET returns reviews; POST records accepted/contested/reopened.
+	if strings.Contains(id, "/claims/") {
+		parts := strings.SplitN(id, "/claims/", 2)
+		sessionID, rest := parts[0], parts[1]
+		claimID := strings.TrimSuffix(strings.TrimSuffix(rest, "/reviews"), "/review")
+		if claimID != "" && (strings.HasSuffix(rest, "/reviews") || strings.HasSuffix(rest, "/review")) {
+			if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+				return
+			}
+			if r.Method == http.MethodGet || strings.HasSuffix(rest, "/reviews") {
+				reviews, err := s.ledger.ListClaimReviews(sessionID, claimID, 50)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if reviews == nil {
+					reviews = []ledger.ClaimReview{}
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"reviews": reviews})
+				return
+			}
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			var req struct {
+				Decision string `json:"decision"`
+				Reason   string `json:"reason"`
+				Evidence string `json:"evidence_json"`
+			}
+			if err := decodeStrict(r, &req); err != nil {
+				WriteAPIError(w, "bad_request", fmt.Sprintf("invalid review request: %v", err), nil)
+				return
+			}
+			reviewer := "operator"
+			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+				reviewer = "operator-bearer"
+			}
+			rec, err := s.ledger.MintClaimReview(sessionID, claimID, req.Decision, req.Reason, reviewer, req.Evidence)
+			if err != nil {
+				WriteAPIError(w, "bad_request", err.Error(), nil)
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"review": rec})
+			return
+		}
+	}
 	// Claim history: every cited [clm-…] ID resolves here, newest first.
 	// Unknown sessions resolve to an empty list, never an error shell.
 	if strings.HasSuffix(id, "/claims") {
@@ -2814,6 +2862,8 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		SessionID string          `json:"session_id"`
 		QASM      string          `json:"qasm"`
 		Backend   string          `json:"backend"`
+		Shots     int             `json:"shots"`
+		Seed      int             `json:"seed"`
 		BudgetUSD float64         `json:"budget_usd"`
 		Proposal  json.RawMessage `json:"proposal"`
 		// G3: launch accepts the full jobs field set — without these,
@@ -2905,11 +2955,21 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0
 	}
+	// The launch request is the reproducibility record. Defaults are named
+	// once here; callers may override shots/seed through the request or the
+	// proposal. Never write a launch job with an unrecorded sampling spec.
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+	if req.Seed <= 0 {
+		req.Seed = 7
+	}
 
 	jobParams := map[string]any{
 		"qasm":                 req.QASM,
 		"requested_backend":    req.Backend,
-		"shots":                1024,
+		"shots":                req.Shots,
+		"seed":                 req.Seed,
 		"max_cost_usd":         req.BudgetUSD,
 		"mandate_ref":          req.MandateRef,
 		"grant_chain":          req.GrantChain,
@@ -2928,6 +2988,7 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	// effective spend-binding values, not raw proposal bytes.
 	idem, iref := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
 		"session_id": req.SessionID, "qasm": req.QASM, "backend": req.Backend,
+		"shots": req.Shots, "seed": req.Seed,
 		"budget_usd": req.BudgetUSD, "mandate_ref": req.MandateRef,
 		"grant_chain": req.GrantChain, "input_labels": req.InputLabels,
 		"caller_jurisdictions": req.CallerJurisdictions,
@@ -5623,6 +5684,52 @@ func writeBridgeUnavailable(w http.ResponseWriter, computation, detail string) {
 	})
 }
 
+// runDirectComputeJob turns a formerly synchronous bridge proxy into a
+// ledger-bound job and waits for its terminal result. The wait is bounded;
+// a timeout returns the live job id instead of pretending a result exists.
+func (s *Server) runDirectComputeJob(w http.ResponseWriter, r *http.Request,
+	sessionID, jobType string, params map[string]any) (*jobs.Job, bool) {
+	if sessionID == "" {
+		WriteAPIError(w, "bad_request", "session_id is required: results are spend-attributed and ledger-bound", nil)
+		return nil, false
+	}
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", fmt.Sprintf("session %s not found", sessionID), nil)
+		return nil, false
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
+		return nil, false
+	}
+	s.jobRunner.Start()
+	job, err := s.jobRunner.SubmitJob(sessionID, jobType, params)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return nil, false
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		current, getErr := s.jobRunner.GetJob(job.ID)
+		if getErr != nil {
+			WriteAPIError(w, "job_unreadable", getErr.Error(), map[string]any{"job_id": job.ID})
+			return job, false
+		}
+		if current != nil && (current.Status == pb.JobStatus_JOB_STATUS_COMPLETED ||
+			current.Status == pb.JobStatus_JOB_STATUS_FAILED ||
+			current.Status == pb.JobStatus_JOB_STATUS_CANCELLED) {
+			return current, true
+		}
+		if time.Now().After(deadline) {
+			writeJSON(w, http.StatusAccepted, map[string]any{
+				"success": false, "result_computed": false, "job_id": job.ID,
+				"status": "running", "error_message": "computation still running; poll /api/jobs/" + job.ID,
+			})
+			return job, false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -5630,11 +5737,13 @@ func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
+		SessionID         string  `json:"session_id"`
 		Molecule          string  `json:"molecule"`
 		BondDistance      float64 `json:"bond_distance"`
 		SubspaceDimension int     `json:"subspace_dimension"`
 		TimeStep          float64 `json:"time_step"`
 		Shots             int     `json:"shots"`
+		MaxCostUSD        float64 `json:"max_cost_usd"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -5657,36 +5766,28 @@ func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
 		req.Shots = 1024
 	}
 
-	bridge := s.jobRunner.BridgeClient()
-	if bridge != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		resp, err := bridge.ExecuteQuantumKrylov(ctx, &pb.QuantumKrylovRequest{
-			Molecule:          req.Molecule,
-			BondDistance:      req.BondDistance,
-			SubspaceDimension: int32(req.SubspaceDimension),
-			TimeStep:          req.TimeStep,
-			Shots:             int32(req.Shots),
-		})
-		if err == nil && resp != nil {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"success":                    resp.Success,
-				"ground_state_energy":        resp.GroundStateEnergy,
-				"classical_fci_energy":       resp.ClassicalFciEnergy,
-				"subspace_eigenvalues":       resp.SubspaceEigenvalues,
-				"subspace_dimension":         resp.SubspaceDimension,
-				"meyer_wallach_entanglement": resp.MeyerWallachEntanglement,
-				"execution_time_ms":          resp.ExecutionTimeMs,
-				"error_message":              resp.ErrorMessage,
-				// J5: solver attribution must survive this proxy —
-				// downstream folds gate MW on it.
-				"solver": resp.Solver,
-			})
-			return
-		}
+	if req.MaxCostUSD <= 0 {
+		req.MaxCostUSD = 1.0
 	}
-
-	writeBridgeUnavailable(w, "krylov_solve", "bridge client is nil or the ExecuteQuantumKrylov RPC failed.")
+	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "krylov_solve", map[string]any{
+		"molecule": req.Molecule, "bond_distance": req.BondDistance,
+		"subspace_dimension": req.SubspaceDimension, "time_step": req.TimeStep,
+		"shots": req.Shots, "max_cost_usd": req.MaxCostUSD,
+	})
+	if job == nil || !terminal {
+		return
+	}
+	if job.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		writeBridgeUnavailable(w, "krylov_solve", "ledger-bound Krylov job failed: "+string(job.ResultJSON))
+		return
+	}
+	var result map[string]any
+	if err := json.Unmarshal(job.ResultJSON, &result); err != nil {
+		writeBridgeUnavailable(w, "krylov_solve", "Krylov job result unreadable")
+		return
+	}
+	result["job_id"] = job.ID
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleMitigationApply(w http.ResponseWriter, r *http.Request) {
@@ -5696,10 +5797,12 @@ func (s *Server) handleMitigationApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
+		SessionID    string    `json:"session_id"`
 		QASM         string    `json:"qasm"`
 		Method       string    `json:"method"`
 		ScaleFactors []float64 `json:"scale_factors"`
 		Shots        int       `json:"shots"`
+		MaxCostUSD   float64   `json:"max_cost_usd"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -5716,30 +5819,27 @@ func (s *Server) handleMitigationApply(w http.ResponseWriter, r *http.Request) {
 		req.Shots = 1024
 	}
 
-	bridge := s.jobRunner.BridgeClient()
-	if bridge != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
-		resp, err := bridge.MitigateCircuit(ctx, &pb.MitigationRequest{
-			Qasm:         req.QASM,
-			Method:       req.Method,
-			ScaleFactors: req.ScaleFactors,
-			Shots:        int32(req.Shots),
-		})
-		if err == nil && resp != nil {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"success":           resp.Success,
-				"unmitigated_value": resp.UnmitigatedValue,
-				"mitigated_value":   resp.MitigatedValue,
-				"error_bound":       resp.ErrorBound,
-				"method_used":       resp.MethodUsed,
-				"error_message":     resp.ErrorMessage,
-			})
-			return
-		}
+	if req.MaxCostUSD <= 0 {
+		req.MaxCostUSD = 1.0
 	}
-
-	writeBridgeUnavailable(w, "mitigation_apply", "bridge client is nil or the MitigateCircuit RPC failed.")
+	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "mitigate", map[string]any{
+		"qasm": req.QASM, "method": req.Method, "scale_factors": req.ScaleFactors,
+		"shots": req.Shots, "max_cost_usd": req.MaxCostUSD,
+	})
+	if job == nil || !terminal {
+		return
+	}
+	if job.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		writeBridgeUnavailable(w, "mitigation_apply", "ledger-bound mitigation job failed: "+string(job.ResultJSON))
+		return
+	}
+	var result map[string]any
+	if err := json.Unmarshal(job.ResultJSON, &result); err != nil {
+		writeBridgeUnavailable(w, "mitigation_apply", "mitigation job result unreadable")
+		return
+	}
+	result["job_id"] = job.ID
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handlePaymentSettle(w http.ResponseWriter, r *http.Request) {

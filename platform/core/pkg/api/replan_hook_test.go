@@ -178,6 +178,7 @@ func TestReplanHookMintsClaimRecord(t *testing.T) {
 // The claims endpoint resolves every cited ID: records listed newest
 // first, unknown sessions resolve empty.
 func TestClaimsEndpointResolves(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
 	srv, l, cleanup := replanHookTestServer(t, "test_claims_endpoint.db")
 	defer cleanup()
 
@@ -185,7 +186,8 @@ func TestClaimsEndpointResolves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.MintClaimRecord(sess.ID, "tribunal", "Tribunal consensus: go", -1, -1, -1, "verified", `{}`); err != nil {
+	rec, err := l.MintClaimRecord(sess.ID, "tribunal", "Tribunal consensus: go", -1, -1, -1, "verified", `{}`)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,6 +205,22 @@ func TestClaimsEndpointResolves(t *testing.T) {
 	}
 	if len(out.Claims) != 1 || out.Claims[0].TurnKind != "tribunal" || out.Claims[0].Alpha != -1 {
 		t.Errorf("claims endpoint wrong: %+v", out.Claims)
+	}
+
+	// Review decisions are append-only and do not mutate the claim row.
+	reviewBody := []byte(`{"decision":"contested","reason":"re-check variance"}`)
+	revReq := httptest.NewRequest(http.MethodPost, "/api/sessions/"+sess.ID+"/claims/"+rec.ID+"/review", bytes.NewReader(reviewBody))
+	revReq.Header.Set("Authorization", "Bearer test-token")
+	revW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(revW, revReq)
+	if revW.Code != http.StatusCreated {
+		t.Fatalf("review create: %d %s", revW.Code, revW.Body.String())
+	}
+	revGet := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sess.ID+"/claims/"+rec.ID+"/reviews", nil)
+	revGetW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(revGetW, revGet)
+	if revGetW.Code != http.StatusOK || !strings.Contains(revGetW.Body.String(), `"decision":"contested"`) {
+		t.Fatalf("review history: %d %s", revGetW.Code, revGetW.Body.String())
 	}
 
 	missReq := httptest.NewRequest(http.MethodGet, "/api/sessions/ghost/claims", nil)
