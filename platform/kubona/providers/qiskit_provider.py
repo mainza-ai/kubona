@@ -569,7 +569,10 @@ class QiskitProvider(Provider):
         except (ImportError, ModuleNotFoundError):
             try:
                 from qiskit_ibm_runtime import SamplerV2 as Sampler
-                sampler = Sampler(mode=backend)
+                try:
+                    sampler = Sampler(mode=backend)
+                except TypeError:
+                    sampler = Sampler(backend=backend)
             except (ImportError, ModuleNotFoundError) as e:
                 raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
         circuits = []

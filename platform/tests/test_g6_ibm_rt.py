@@ -37,7 +37,7 @@ def fake_runtime(monkeypatch):
             # real PrimitiveResult is subscriptable: result[0].data.meas
             def result():
                 pub = types.SimpleNamespace(data=types.SimpleNamespace(meas=Pub()))
-                return (pub,)
+                return (pub, pub)
             class Job:
                 def job_id(self): return "ibm-job-1"
                 def result(self): return result()
@@ -47,7 +47,19 @@ def fake_runtime(monkeypatch):
     mod = types.ModuleType("qiskit_ibm_runtime")
     mod.QiskitRuntimeService = _service
     mod.SamplerV2 = _sampler
+
+    class ExecutorSampler:
+        def __init__(self, mode=None, backend=None):
+            self._inner = _sampler(mode if mode is not None else backend)
+
+        def run(self, circuits, shots=0):
+            return self._inner.run(circuits, shots=shots)
+
+    exec_mod = types.ModuleType("qiskit_ibm_runtime.executor_sampler")
+    exec_mod.Sampler = ExecutorSampler
+    mod.executor_sampler = exec_mod
     monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", mod)
+    monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime.executor_sampler", exec_mod)
     return captured
 
 
@@ -77,3 +89,22 @@ def test_ibm_runtime_path_when_credentials_present(fake_runtime, monkeypatch):
     assert out["counts"] == {"00": 256, "11": 256}
     assert fake_runtime["token"] == "test-token"
     assert fake_runtime["shots"] == 512
+
+
+def test_ibm_runtime_batch_is_one_job_with_per_circuit_counts(fake_runtime, monkeypatch):
+    import qiskit
+    from qiskit import qasm2
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    p = QiskitProvider(load_provider("ibm-qiskit"), backend_name="ibm_brisbane")
+    qc = qiskit.QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure_all()
+    qasm = qasm2.dumps(qc)
+    out = p.submit_batch([qasm, qasm], shots=256, seed=11)
+    assert out["hardware"] is True
+    assert out["hardware_job_id"] == "ibm-job-1"
+    assert len(out["counts"]) == 2
+    assert out["counts"][0] == {"00": 256, "11": 256}
+    assert fake_runtime["shots"] == 256
