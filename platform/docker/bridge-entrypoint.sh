@@ -5,7 +5,7 @@ set -eu
 # in the writable state volume; seed it on first boot and pass that path to
 # every provider/fidelity loader.
 STATE="${KUBONA_STATE_DIR:-/home/kubona/.kubona}"
-mkdir -p "$STATE/contracts"
+mkdir -p "$STATE/contracts" "$STATE/models"
 if [ ! -f "$STATE/contracts/fidelity-devices.json" ]; then
   cp /app/contracts/fidelity-devices.json "$STATE/contracts/fidelity-devices.json"
 fi
