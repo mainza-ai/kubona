@@ -1,9 +1,37 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08  
-**Current code head:** `bb75068` (docs-only commit; functional code `22d42cb`)  
+**Current code head:** `f1b7f1f` (code `624564c` + test/build fixes)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
+
+## 0. Execution log (2026-11-08)
+
+This plan is being executed incrementally. Landed after the report:
+
+- **Experiment result identity:** bridge results carry
+  `result_version:"experiment-result-v1"`; `MeasurementSummary` carries
+  version, provider, hardware flag, optimizer/measurement backends, CI95,
+  usage, actual USD, layout, calibration, counts, and evidence refs.
+- **Reproducible launch:** `/api/chat/launch` accepts and persists `shots` and
+  `seed` (defaults are explicit); the console helper forwards both.
+- **Direct compute routes:** Krylov and mitigation now create a ledger-bound
+  job and wait for the terminal result; anonymous/unattributed calls refuse.
+- **Go-owned job-only workflows:** workflows whose steps are all
+  `execution/submit_job` execute on the Go jobs rail and never create a
+  Python ghost; mixed workflows retain the Python path/adoption bridge.
+- **Claim review:** append-only `claim_reviews` with
+  `accepted|contested|reopened` decisions, reviewer/reason/evidence, API, and
+  Claim History controls; the claim row remains immutable.
+- **Results UI:** measured CSV, PES table, optimizer history, provider/
+  hardware/CI/usage facts, and review decisions; numeric-claim guard and
+  claim history tests.
+- **Build/gates:** CI and Console E2E green at `f1b7f1f`; Go full suite, 592
+  console tests/54.35% branches, Python targeted suite, lint/tsc green.
+
+Still pending from this plan: hardware VQE/QAOA, full-space accuracy,
+mixed-workflow atomicity, safe sandbox default, at-rest secrets, manual
+accessibility, off-host backup drills, and release hardening.
 
 ## 1. Executive verdict
 
