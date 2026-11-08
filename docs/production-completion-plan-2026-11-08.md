@@ -28,6 +28,16 @@ This plan is being executed incrementally. Landed after the report:
   claim history tests.
 - **Build/gates:** CI and Console E2E green at `f1b7f1f`; Go full suite, 592
   console tests/54.35% branches, Python targeted suite, lint/tsc green.
+- **Python terminal-job reconciliation:** on boot, `kubonad` adopts terminal
+  Python `jobs.jsonl` records that have no Go row (idempotent; queued/running
+  rows stay live). This closes the crash window left by the mixed-workflow
+  adoption bridge.
+- **Governed hardware QAOA launch:** `POST /api/experiments/qaoa/hardware`
+  takes a local QAOA job's optimized QASM/graph and submits it through the
+  existing circuit-run admission rail: mandate, jurisdiction, fidelity,
+  reservation, settlement. It never dispatches directly to the bridge. The
+  hardware counts are augmented with `measured_cut`/ratio and shown in the
+  measured outputs surface.
 - **Hardware QAOA diagnostic (not yet the product rail):** the optimized
   8-node QAOA circuit from the simulator run was executed on `ibm_marrakesh`
   (vendor job `dboak8oqtr0c73ae8dpg`, 256 shots). Hardware cut expectation
