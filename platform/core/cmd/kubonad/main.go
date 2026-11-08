@@ -318,6 +318,21 @@ func main() {
 	// 3. Initialize Core Subsystems
 	sessionMgr := session.NewManager(l)
 	jobRunner := jobs.NewRunner(l, bridgeClient, 4)
+	// 2b. Reconcile terminal Python workflow jobs into the Go book. A crash
+	// between a Python completion and the Go adoption loop must not leave a
+	// permanent ghost; queued/running Python rows stay with the live bridge.
+	pyStateDir := strings.TrimSpace(os.Getenv("KUBONA_STATE_DIR"))
+	if pyStateDir == "" {
+		if home, herr := os.UserHomeDir(); herr == nil {
+			pyStateDir = filepath.Join(home, ".kubona")
+		}
+	}
+	if pyStateDir != "" {
+		adopted, skipped := jobRunner.ReconcilePythonJobs(filepath.Join(pyStateDir, "jobs.jsonl"))
+		if adopted > 0 || skipped > 0 {
+			slog.Info("[Kubona Core] reconciled Python workflow jobs", "adopted", adopted, "skipped", skipped)
+		}
+	}
 	// Compile gate: every circuit_run is analyzed pre-dispatch and the
 	// provenance (compiler + fallback flag) persists on the job row.
 	jobRunner.SetCompiler(qir.NewCompiler())

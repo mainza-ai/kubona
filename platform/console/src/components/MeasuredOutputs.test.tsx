@@ -120,6 +120,19 @@ describe('MeasuredOutputs', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('No completed jobs yet');
   });
 
+  it('surfaces a hardware QAOA final-state cut alongside the simulator result', async () => {
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: [{
+      id: 'job-qaoa-hw-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'circuit_run',
+      params_json: {}, result_json: {
+        counts: { '01': 2, '10': 1 }, resolved_backend: 'ibm_marrakesh',
+        measured_cut: 0.75, approximation_ratio: 0.375, qaoa_meta: { optimal_cut: 2 },
+      }, created_at: '', completed_at: '2026-11-08T10:00:00Z',
+    }] }) }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
+    expect(JSON.stringify(tree!.toJSON())).toContain('QAOA hardware cut 0.7500');
+  });
+
   it('stays silent when the backend is unreachable', async () => {
     vi.stubGlobal('fetch', async () => ({ ok: false }));
     let tree: TestRenderer.ReactTestRenderer;

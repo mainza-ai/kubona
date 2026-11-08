@@ -580,6 +580,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)
 	s.route("/api/experiments", s.handleExperiments)
+	s.route("/api/experiments/qaoa/hardware", s.handleQAOAHardware)
 	s.route("/api/loops", s.requireBearer(s.handleLoops))
 	s.route("/api/loops/", s.requireBearer(s.handleLoopActions))
 	s.route("/api/events", s.handleEvents)

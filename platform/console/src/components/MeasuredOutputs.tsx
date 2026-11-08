@@ -24,6 +24,11 @@ function summarize(job: Job): string | null {
   switch (job.job_type) {
     case 'circuit_run': {
       const counts = asRecord(r.counts);
+      const cut = num(r.measured_cut);
+      if (r.qaoa_meta && cut !== null) {
+        const ratio = num(r.approximation_ratio);
+        return `QAOA hardware cut ${cut.toFixed(4)}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · ${str(r.resolved_backend) || 'hardware'} · job ${short}`;
+      }
       const shots = Object.values(counts).reduce<number>(
         (a, v) => a + (typeof v === 'number' ? v : 0),
         0
