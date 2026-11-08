@@ -69,7 +69,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-3" aria-label="Experiment launcher">
       <div>
         <span className="text-xs font-semibold text-white">Real experiment launcher</span>
-        <p className="text-[12px] text-slate-500">Submits a ledger-bound VQE/PES/QAOA job. The result below is read from the job record; no client-side simulation.</p>
+        <p className="text-[12px] text-[var(--color-muted)]">Submits a ledger-bound VQE/PES/QAOA job. The result below is read from the job record; no client-side simulation.</p>
       </div>
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Kind
@@ -96,11 +96,11 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         </label>
       </div>
       {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
-      <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">
+      <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
       {job && (
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-slate-300 space-y-0.5">
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
           {job.status === 'completed' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
           {job.status === 'completed' && cut != null && <div>classical optimum {cut}</div>}
