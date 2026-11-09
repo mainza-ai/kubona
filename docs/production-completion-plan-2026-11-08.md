@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `526674a` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `2fa72b3` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
@@ -175,6 +175,9 @@ feature limitations in the UI and contract.
 - `70cb947`, `ead17da` — hardware loop receipts carry layout/calibration;
   result-version gate regression test; BeH2/CEO docs corrected. CI/E2E green
   at `ead17da`.
+- `2fa72b3` — live `ibm_fez` SPSA VQE loop, QAOA loop, and molecular ZNE
+  completed through the governed parent rail with signed receipts; QAOA
+  layer bug found and fixed. Evidence in `docs/live-qpu-2026-11-09.md`.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 
@@ -207,14 +210,14 @@ It does not upgrade the missing portfolio features.
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
 | PC-01 | **Approval workflows are Go-owned; job compensation remains partial.** Approval-required/agent-created workflows now require a signed single-use token and run through the Go mixed rail. No explicit inverse exists for job-step compensation. | A crash is surfaced as `repair_required`; job compensation is refused rather than faked. | `platform/core/pkg/api/workflow_approval.go`; `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go` |
-| PC-02 | **Hardware iterative loops implemented; live acceptance pending.** H2/active-space LiH/BeH2 final QASM and QAOA remain governed; `loop:true` now makes every objective a QPU batch via bridge COBYLA loops, with parent aggregation and no `simulated_optimizer` label. Tests use a mock QPU batch; no live loop mandate has run. | The code path exists; the remaining gap is a live bounded loop run/settlement/claim. | `platform/bridge/experiments.py` `run_vqe_hardware_loop`/`run_qaoa_hardware_loop`; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/core/pkg/api/experiments.go`. |
+| PC-02 | **Hardware iterative loops live-validated.** `loop:true` made every objective a real QPU batch on `ibm_fez`: SPSA VQE 9 batches (`-1.12536 Ha`, 11.9 mHa delta), QAOA 4 batches (cut 5.953/10, ratio 0.595). Both completed with signed receipts and `simulated_optimizer:false`; neither is a chemical-accuracy/advantage claim. | No code gap; higher shot/iteration tuning is a scientific-accuracy decision, not missing dispatch. | `docs/live-qpu-2026-11-09.md`; `platform/bridge/experiments.py`. |
 | PC-03 | **Full-space CEO now reaches LiH/BeH2 targets.** The old CEO measurement was invalid due to an interleaved-spin assumption; the corrected block-spin pool reaches LiH 0.0399 mHa exact / 0.4499 mHa measured and BeH2 0.3933 mHa exact / 0.0146 mHa measured at 262144 shots. CEO is the default; UCCSD remains selectable. | Full-molecule claims remain gated by measured delta, shot uncertainty, and exact diagnostic. | `platform/bridge/adapt.py`; `docs/full-space-chemistry-2026-11-08.md`. |
 | PC-04 | **Closed 2026-11-09 verification.** `handleChatLaunch` accepts and persists shots and seed, including proposal-driven launches. | A launch records its sampling spec. | `platform/core/pkg/api/server.go` launch block; `launch_test.go` |
 | PC-05 | **Closed for Krylov/mitigation, including labels.** `runDirectComputeJob` creates a ledger-bound JSON experiment job and waits for terminal state; QIR compile remains stateless analysis, not a measured experiment. | Direct compute results have a job id, spend/ledger attribution, and the complete solver/mitigation receipt. | `platform/core/pkg/api/server.go` direct compute jobs; `platform/core/pkg/jobs/jobs.go` JSON cases |
 | PC-06 | **Sandbox live on Linux VM; macOS native remains closed.** `sandboxd` + gVisor was proven on a Lima Ubuntu arm64 VM: health available, benchmark UID 1000, network blocked, read-only, cap-drop=ALL. macOS Docker Desktop still has no `runsc`; the API reports unavailable. | Use a Linux VM/host or keep autoresearch off; do not add a weaker macOS fallback. | `platform/core/pkg/sandbox/sidecar.go`; `platform/docker/compose.sandbox.yml`; `docs/sandbox-live-2026-11-09.md`. |
 | PC-07 | **Closed.** Append-only `claim_reviews` stores accepted/contested/reopened decisions with reviewer, reason, and evidence; the claim measurement remains immutable and the API/UI expose the history. | A researcher can review without mutating the measurement. | `platform/core/pkg/ledger/ledger.go` claim review methods; `ClaimHistory.tsx` |
 | PC-08 | **No versioned experiment-result contract.** Result truth is split among job JSON, campaign `measurement`/`pes_points`, notebook text, and UI prose. | Hardware metadata, counts, layout, calibration, usage, cost, per-point evidence, and CIs cannot be guaranteed across rails. | `platform/core/pkg/agents/campaign_synth.go:128-180`; bridge result shape; `ResultsStudio` projections |
-| PC-09 | **Molecular hardware ZNE implemented; PES opt-in absent.** `run_vqe_hardware(..., mitigation="ZNE")` uses exact unitary folding, per-term QPU measurement, and total-energy extrapolation with measured/inferred labels. PES still does not request mitigation per point. | Mitigated molecular VQE is implementable and tested with a mock batch; live mitigated QPU acceptance and PES opt-in remain. | `platform/bridge/experiments.py` `run_vqe_hardware`; `platform/bridge/mitigation.py` |
+| PC-09 | **Molecular hardware ZNE live-validated.** Gov. H2 vendor `dbos2u44148s739th03g`: scales 1/3/5, mitigated `-1.1441740297 Ha`, 6.904 mHa delta, 12.036 mHa uncertainty, `measured:false`, not claimable. PES still has no mitigation opt-in. | Live mitigation works; a PES opt-in is a product-scope choice, not a correctness gap. | `docs/live-qpu-2026-11-09.md`; `platform/bridge/experiments.py` |
 | PC-10 | **Secrets/at-rest posture is not end-to-end.** `.env` is the supported secret store; the ledger is plaintext; Docker secrets/OpenBao are optional. | A lost host or backup exposes ledger/API material; "production local-private" must state and test this boundary. | `docs/local-deployment.md:250-260`; `docs/production-readiness-plan-2026-10-31.md` P1-3 |
 | PC-11 | **Recovery is implemented but not operationally closed.** Off-host backup/restore drills and migration rollback are not proven as a routine release gate. | A local production host needs a repeatable disaster-recovery proof, not only unit tests. | Backup profile; restore docs; current CI has backup smoke, not a full restore drill. |
 
