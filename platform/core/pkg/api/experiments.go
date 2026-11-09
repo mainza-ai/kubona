@@ -117,7 +117,8 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "method_not_allowed", "POST required to launch hardware QAOA", nil)
 		return
 	}
-	if s.refuseIfDiskBlocked(w) {
+	prepareOnly := strings.HasSuffix(r.URL.Path, "/prepare")
+	if !prepareOnly && s.refuseIfDiskBlocked(w) {
 		return
 	}
 	var req struct {
@@ -196,9 +197,17 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}
+	binding := jobs.CanonicalHardwareJobBinding("qaoa_hardware", sid, p)
+	if prepareOnly {
+		writeJSON(w, http.StatusOK, map[string]any{"binding": binding, "spec": map[string]any{
+			"kind": "qaoa_hardware", "provider": p.Provider, "requested_backend": p.RequestedBackend,
+			"shots": p.Shots, "seed": p.Seed, "max_cost_usd": p.MaxCostUSD, "mandate_required": true,
+		}})
+		return
+	}
 	if p.MandateRef == "" {
 		WriteAPIError(w, "bad_request", "mandate_ref is required: use the prepare flow or sign the parent binding first", map[string]any{
-			"binding": jobs.CanonicalHardwareJobBinding("qaoa_hardware", sid, p),
+			"binding": binding,
 		})
 		return
 	}

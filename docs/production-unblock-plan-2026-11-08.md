@@ -450,8 +450,9 @@ shell steps; manual evidence or explicit waiver recorded.
     per-term diagnostics for provenance, but are **not** claims of chemical
     accuracy or quantum advantage.
 
-Still open in Phase B: QAOA prepare symmetry with the VQE prepare route and a
-provider-level batch test against the installed Qiskit Runtime.
+Phase B update: QAOA now has a prepare route symmetric with VQE
+(`/api/experiments/qaoa/hardware/prepare`) and the provider batch-path test is
+green. Live H2 and QAOA parent results are recorded above.
 
 Phase C update: normal mixed workflows are now Go-owned. `execution/submit_job`
 steps use the Go jobs rail; every other tool executes through the new
