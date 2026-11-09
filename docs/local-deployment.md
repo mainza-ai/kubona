@@ -311,8 +311,10 @@ a `--strict` failure.
 
 `kubonad preflight` is the stack-start gate (compose runs it before kubonad).
 It checks the same rate-card/ledger/FK/backup conditions. Set
-`KUBONA_ALERT_WEBHOOK_URL` to receive a JSON `{"text": ...}` POST when
-preflight or a scheduled backup fails. Set `KUBONA_STRICT_CONTRACTS=1` to
+`KUBONA_ALERT_WEBHOOK_URL` to receive a JSON alert POST when preflight or a
+scheduled backup fails, when the disk guard escalates to blocked, or when a
+job settlement is skipped because vendor usage is missing/invalid. Alerts are
+best-effort and never block the monetary/state path. Set `KUBONA_STRICT_CONTRACTS=1` to
 turn console response-contract drift into a visible failure instead of an
 advisory banner.
 

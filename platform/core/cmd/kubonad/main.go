@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/alerts"
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/hf"
@@ -275,6 +276,10 @@ func main() {
 				"level": snap.Level, "avail_bytes": snap.AvailBytes,
 				"paths": snap.Paths, "reason": snap.Reason,
 			})
+			if snap.Level != disk.LevelOK {
+				alerts.Notify(context.Background(), "disk_guard", map[bool]string{true: "critical", false: "warning"}[snap.Level == disk.LevelBlocked],
+					fmt.Sprintf("level=%s reason=%s available=%d", snap.Level, snap.Reason, snap.AvailBytes))
+			}
 			slog.Warn("[Kubona Core] disk guard", "level", snap.Level, "reason", snap.Reason)
 		})
 	diskGuard.PollOnce() // fail-closed first reading before serving
