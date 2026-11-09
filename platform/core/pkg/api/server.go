@@ -1326,6 +1326,78 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// StartCalibrationRefresh runs an opt-in periodic live calibration read.
+// It reuses the bridge's provider snapshot path; failures are logged and do
+// not mutate the last known profile. Set KUBONA_CALIBRATION_REFRESH_SECONDS
+// and KUBONA_IBM_QISKIT_BACKEND to enable it.
+func (s *Server) StartCalibrationRefresh(ctx context.Context, interval time.Duration, backend string) {
+	backend = strings.TrimSpace(backend)
+	if interval <= 0 || backend == "" || s.jobRunner == nil || s.jobRunner.BridgeClient() == nil {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			if err := s.refreshCalibrationProfile(ctx, backend); err != nil {
+				slog.Warn("[Kubona Core] scheduled calibration refresh failed", "backend", backend, "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func (s *Server) refreshCalibrationProfile(ctx context.Context, backend string) error {
+	bridge := s.jobRunner.BridgeClient()
+	if bridge == nil {
+		return fmt.Errorf("bridge unavailable")
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	spec, _ := json.Marshal(map[string]any{"kind": "calibration", "backend": backend})
+	resp, err := bridge.RunExperiment(callCtx, &pb.ExperimentRequest{
+		SpecJson: string(spec), SessionId: "scheduled-calibration-refresh",
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Ok {
+		return fmt.Errorf("bridge refused: %s", resp.ErrorMessage)
+	}
+	var out struct {
+		Snapshot struct {
+			Qubits         int     `json:"qubits"`
+			T1Us           float64 `json:"t1_us"`
+			T2Us           float64 `json:"t2_us"`
+			SingleQubitErr float64 `json:"single_qubit_error"`
+			TwoQubitErr    float64 `json:"two_qubit_error"`
+			ReadoutErr     float64 `json:"readout_error"`
+			Source         string  `json:"source"`
+			Version        string  `json:"version"`
+			CalibratedAt   string  `json:"calibrated_at"`
+		} `json:"snapshot"`
+	}
+	if err := json.Unmarshal([]byte(resp.ResultJson), &out); err != nil {
+		return fmt.Errorf("snapshot decode: %w", err)
+	}
+	device, err := fidelity.ResolveDeviceForBackend(backend)
+	if err != nil {
+		return err
+	}
+	profile := fidelity.DeviceProfile{
+		Name: device, Qubits: out.Snapshot.Qubits,
+		T1Us: out.Snapshot.T1Us, T2Us: out.Snapshot.T2Us,
+		SingleQubitErr: out.Snapshot.SingleQubitErr, TwoQubitErr: out.Snapshot.TwoQubitErr,
+		ReadoutErr: out.Snapshot.ReadoutErr, Source: out.Snapshot.Source,
+		Version: out.Snapshot.Version, CalibratedAt: out.Snapshot.CalibratedAt,
+	}
+	return s.fidelityGate.UpdateProfile(profile)
+}
+
 func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 	// Probe local ports
 	ports := []int{8787, 11434, 1234, 47831, 8080, 50051}

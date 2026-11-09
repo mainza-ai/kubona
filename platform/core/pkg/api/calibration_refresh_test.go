@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
@@ -48,7 +49,7 @@ func TestCalibrationRefreshInstallsLiveProfile(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("calibration refresh: %d %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"version":"live-test"`) {
+	if !strings.Contains(w.Body.String(), `"fidelity_version":"live-test"`) {
 		t.Fatalf("live profile not installed: %s", w.Body.String())
 	}
 	_ = os.Remove(dir + "/cal.db")
@@ -120,5 +121,34 @@ func TestCalibrationRefreshRefusesUpstreamAndInvalidSnapshot(t *testing.T) {
 				t.Fatalf("%s must 502, got %d: %s", name, w.Code, w.Body.String())
 			}
 		}
+	}
+}
+
+func TestScheduledCalibrationRefreshUpdatesFleetProfile(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "cal-token")
+	dir := t.TempDir()
+	l, err := ledger.OpenLedger(dir + "/cal4.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	sup := supervisor.NewSupervisor(l)
+	srv := api.NewServer(l, sm, jobs.NewRunner(l, &calibrationBridge{}, 1), sup, watchdog.NewTaskWatchdog(l, sup))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv.StartCalibrationRefresh(ctx, 5*time.Millisecond, "ibm_test")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		req := httptest.NewRequest(http.MethodGet, "/api/fleet", nil)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code == http.StatusOK && strings.Contains(w.Body.String(), `"fidelity_version":"live-test"`) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("scheduled refresh did not install live profile: %d %s", w.Code, w.Body.String())
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
