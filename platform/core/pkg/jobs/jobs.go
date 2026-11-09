@@ -1065,14 +1065,17 @@ func (r *Runner) executeJob(j *Job) {
 		(j.JobType == "vqe_run" || j.JobType == "vqe_pes" || j.JobType == "qaoa_run" || j.JobType == "hardware_experiment" || j.JobType == "qaoa_hardware") {
 		r.settleTerminalFromResult(j, string(j.ResultJSON))
 	}
-	r.ledger.DB().Exec(
-		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
-		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
-	)
+	// Attach the receipt before publishing the terminal row: a poller that
+	// sees COMPLETED must never observe a result whose receipt is still in
+	// flight. The receipt event is hash-chained; the row update follows.
 	settledAppended := false
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
 		settledAppended = r.attachResultReceipt(j)
 	}
+	r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
+		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
+	)
 	if !settledAppended {
 		r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 	}
