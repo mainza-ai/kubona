@@ -385,7 +385,9 @@ Deliverables:
 1. Off-host encrypted backup destination + OS-level encrypted volume + documented
    key rotation; `kubonad restore-drill --db ...` is the local scratch proof, and
    the same command must be run against the off-host copy during acceptance.
-2. Alert routing for disk/rate/settlement with cooldown and event type.
+2. Alert routing for disk/settlement is wired through
+   `KUBONA_ALERT_WEBHOOK_URL` (preflight/backup plus disk_guard and
+   settlement_skipped events); rate-limit routing remains open.
 3. Manual VoiceOver/NVDA run on the shipped commit, recorded per surface.
 4. Claim/results browser E2E (paging, review, PES table/CSV, full-space status,
    workflow adoption).

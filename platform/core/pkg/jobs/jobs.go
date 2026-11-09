@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mainza-ai/kubona/core/pkg/alerts"
 	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -1036,6 +1037,7 @@ func (r *Runner) emitSettlementSkipped(j *Job, reason string) {
 	if j == nil {
 		return
 	}
+	alerts.Notify(context.Background(), "settlement_skipped", "warning", j.ID+": "+reason)
 	r.appendMoneyEvent(j.SessionID, ledger.SettlementSkippedUnknownUsageEvent, map[string]any{
 		"job_id":              j.ID,
 		"reserved_amount_usd": j.ReservedAmount,
