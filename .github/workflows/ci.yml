@@ -114,7 +114,7 @@ jobs:
       # so the default run skips it — a red bridge test went unnoticed.
       # It is fast (~seconds) and hermetic (no creds, no network).
       - name: Bridge contract suite (credential fail-closed pins)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py -q
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py bridge/test_adapt.py -q
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor

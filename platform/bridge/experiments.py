@@ -13,6 +13,7 @@ refuse instead of borrowing H2 numbers.
 from __future__ import annotations
 
 import math
+import os
 import time
 from typing import Any
 
@@ -313,6 +314,7 @@ def run_vqe(
     seed: int = 7,
     max_iterations: int = 80,
     full_space: bool = False,
+    full_space_pool: str = "uccsd",
 ) -> dict[str, Any]:
     """Run a real H2 VQE with a live anchor and shot-measured final energy."""
     t0 = time.perf_counter()
@@ -322,7 +324,8 @@ def run_vqe(
     if mol in _NATURE_ACTIVE:
         return run_nature_vqe(mol, float(bond_distance), shots=shots,
                               seed=seed, max_iterations=max_iterations,
-                              full_space=bool(full_space), layers=int(layers))
+                              full_space=bool(full_space), layers=int(layers),
+                              full_space_pool=str(full_space_pool or "uccsd"))
     if mol != "H2":
         return {
             "success": False,
@@ -416,49 +419,65 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
                          problem: Any, ncas: int, nelecas: int, shots: int,
                          seed: int, max_iterations: int, layers: int,
                          t0: float) -> dict[str, Any]:
-    """Full-orbital-space VQE with a compact hardware-efficient ansatz.
+    """Full-orbital-space ADAPT-VQE with a complete, explicit operator pool.
 
-    Full UCCSD is combinatorial at 10–14 qubits and was measured to exceed
-    30 minutes for LiH before its first optimization pass. EfficientSU2 keeps
-    the run tractable while still measuring the complete molecular Hamiltonian;
-    the result labels the ansatz and whether the exact optimizer reached the
-    full-FCI target. No active-space reduction is applied.
+    The old path used an EfficientSU2 circuit and was honestly labelled
+    contested because the ansatz had no UCCSD/CEO guarantee.  This path uses
+    the real adaptive algorithm in ``adapt.py``: every pool gradient is
+    evaluated, the selected operators are optimized, and the result is judged
+    on a shot-measured Pauli expectation with its standard uncertainty.
     """
     if not HAS_NATURE or not HAS_QISKIT:
         return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing molecular VQE"}
-    if layers < 1 or layers > 8:
-        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
-    from qiskit.circuit.library import EfficientSU2
-    from qiskit.quantum_info import Statevector
-    from scipy.optimize import minimize
+    try:
+        from adapt import AdaptConfig, AdaptError, run_adapt_vqe
+    except Exception as e:  # pragma: no cover - image dependency failure
+        return {"success": False, "error": f"adaptive VQE unavailable: {e}"}
 
     e_full, _ = _full_fci_and_casci(atom, ncas, nelecas)
     mapper = JordanWignerMapper()
     qop = mapper.map(problem.hamiltonian.second_q_op())
     constants = float(sum(problem.hamiltonian.constants.values()))
-    hf = HartreeFock(int(problem.num_spatial_orbitals), problem.num_particles, mapper)
-    ansatz = EfficientSU2(qop.num_qubits, reps=int(layers),
-                          entanglement="linear", initial_state=hf)
-    rng = np.random.default_rng(int(seed))
-    x0 = rng.uniform(-0.15, 0.15, size=ansatz.num_parameters)
-    trajectory: list[dict[str, Any]] = []
 
-    def objective(x: np.ndarray) -> float:
-        sv = Statevector.from_instruction(ansatz.assign_parameters(x))
-        e = float(np.real(sv.expectation_value(qop)) + constants)
-        if len(trajectory) < 500:
-            trajectory.append({"iteration": len(trajectory) + 1, "energy": e,
-                               "theta": [float(v) for v in x]})
-        return e
-
-    opt = minimize(objective, x0, method="COBYLA",
-                   options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8})
-    theta = np.asarray(opt.x, dtype=float)
-    exact = float(np.real(Statevector.from_instruction(ansatz.assign_parameters(theta))
-                          .expectation_value(qop)) + constants)
-    measured = _pauli_measurement_energy(ansatz, theta, qop, int(shots), int(seed))
-    e = measured["energy"] + constants
-    delta_full = abs(e - e_full) * 1000.0
+    pool = str(spec.get("full_space_pool") or os.getenv("KUBONA_ADAPT_POOL") or "uccsd").strip().lower()
+    if pool not in ("uccsd", "ceo"):
+        return {"success": False, "error": f"full_space_pool {pool!r} must be uccsd|ceo"}
+    # A full-space claim needs enough samples for its uncertainty not to
+    # decide the answer.  The caller's shot count is a floor, never a cap:
+    # asking for 8k shots still returns a result, but it cannot silently
+    # borrow chemical accuracy from a lower-noise run.
+    measurement_shots = max(int(shots), int(os.getenv("KUBONA_ADAPT_MIN_SHOTS", "262144")))
+    max_ops = max(8, min(40, int(layers) * 8))
+    if os.getenv("KUBONA_ADAPT_MAX_OPS"):
+        try:
+            max_ops = int(os.environ["KUBONA_ADAPT_MAX_OPS"])
+        except ValueError:
+            return {"success": False, "error": "KUBONA_ADAPT_MAX_OPS must be an integer"}
+    cfg = AdaptConfig(
+        pool=pool,
+        max_ops=max_ops,
+        max_iterations=max(20, int(max_iterations)),
+        shots=measurement_shots,
+        seed=int(seed),
+        time_limit_s=float(os.getenv("KUBONA_ADAPT_TIME_LIMIT_S", "900")),
+        target_mha=1.6,
+    )
+    try:
+        res = run_adapt_vqe(problem, qop, constants, mapper, float(e_full), cfg)
+    except (AdaptError, ValueError, RuntimeError) as e:
+        return {"success": False, "error": f"adaptive VQE refused: {e}"}
+    exact_delta = abs(res.energy_exact - e_full) * 1000.0
+    claimable = (res.delta_mha <= 1.6 and res.uncertainty <= 1.6 and exact_delta <= 1.6)
+    if claimable:
+        status = "within_target"
+    elif res.stopped in ("time_limit", "max_ops") and exact_delta > 1.6:
+        status = "resource_exhausted"
+    elif exact_delta <= 1.6:
+        status = "measurement_noise"
+    elif res.delta_mha <= 1.6 and res.uncertainty <= 1.6:
+        status = "measurement_noise"
+    else:
+        status = "contested"
     return {
         "success": True,
         "kind": "vqe",
@@ -466,46 +485,53 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
         "molecule": spec["name"],
         "bond_distance": float(bond_distance),
         "basis": "sto-3g",
-        "method": "VQE EfficientSU2 full-space, COBYLA",
-        "ansatz": f"EfficientSU2 full-space {qop.num_qubits} qubits, layers={int(layers)}",
+        "method": f"ADAPT-VQE ({pool.upper()} pool), COBYLA",
+        "ansatz": f"ADAPT-VQE {pool.upper()} pool, {len(res.selected)} selected operators",
         "qubit_count": int(qop.num_qubits),
         "active_space": {"ncas": ncas, "nelecas": nelecas,
                          "spatial_orbitals": int(problem.num_spatial_orbitals),
                          "full_space": True},
-        "shots": int(shots),
+        "shots": int(measurement_shots),
         "seed": int(seed),
         "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
-                      "evaluations": int(opt.nfev), "success": bool(opt.success),
-                      "message": str(opt.message)},
-        "theta": [float(v) for v in theta],
-        "energy": float(e),
-        "energy_exact": exact,
-        "energy_measured": float(e),
-        "energy_measured_source": "shot-sampled Pauli expectation",
-        "uncertainty": float(measured["uncertainty"]),
-        "measurements": measured["terms"],
-        "fci_exact_energy": e_full,
-        "active_space_fci_energy": e_full,
-        "delta_mha": delta_full,
-        "active_space_delta_mha": delta_full,
-        "chemical_accuracy": bool(delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
-        "active_space_chemical_accuracy": bool(delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
+                      "evaluations": int(res.evaluations),
+                      "success": res.stopped in ("within_target", "gradient_converged"),
+                      "message": res.stopped},
+        "theta": res.theta,
+        "selected_operators": res.selected,
+        "pool_size": int(res.pool_size),
+        "adapt": {"stopped": res.stopped, "elapsed_s": res.elapsed_s,
+                  "gradient_tol": cfg.gradient_tol, "time_limit_s": cfg.time_limit_s},
+        "energy": float(res.energy_measured),
+        "energy_exact": float(res.energy_exact),
+        "energy_measured": float(res.energy_measured),
+        "energy_measured_source": "shot-sampled Pauli expectation (qubit-wise commuting groups)",
+        "uncertainty": float(res.uncertainty),
+        "measurements": res.measurements,
+        "fci_exact_energy": float(e_full),
+        "active_space_fci_energy": float(e_full),
+        "delta_mha": float(res.delta_mha),
+        "exact_delta_mha": float(exact_delta),
+        "active_space_delta_mha": float(res.delta_mha),
+        "chemical_accuracy": bool(claimable),
+        "active_space_chemical_accuracy": bool(claimable),
         "chemical_accuracy_limit_mha": 1.6,
-        "full_space_status": "within_target" if (delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3) else "contested",
-        "claimable": bool(delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
-        "converged": bool(opt.success),
-        "trajectory": trajectory,
+        "full_space_status": status,
+        "claimable": bool(claimable),
+        "converged": bool(res.stopped in ("within_target", "gradient_converged")),
+        "trajectory": [],
         "backend": "qiskit-aer-simulator",
         "provider": "qiskit-aer-simulator",
         "hardware": False,
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
         "measured": True,
-        "limitations": "Full orbital space; EfficientSU2 is an expressive ansatz, not a UCCSD guarantee. Accuracy is reported against full FCI.",
+        "limitations": ("Full orbital space; ADAPT-VQE operator pool is explicit. "
+                        "The exact statevector value is an optimizer diagnostic; "
+                        "the claim uses the shot-measured energy and uncertainty."),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }
-
 
 #: Active spaces for the molecular VQEs. These are deliberately smaller than
 #: the full molecular orbital space; the result reports both the active-space
@@ -584,6 +610,7 @@ def run_nature_vqe(
     max_iterations: int = 80,
     full_space: bool = False,
     layers: int = 2,
+    full_space_pool: str = "uccsd",
 ) -> dict[str, Any]:
     """Active-space molecular VQE via Qiskit Nature + PySCF.
 
@@ -608,7 +635,8 @@ def run_nature_vqe(
     nelecas = int(sum(particles) if isinstance(particles, (tuple, list)) else particles)
     requested_full = bool(full_space)
     if requested_full:
-        return _run_full_space_vqe(spec, atom, float(bond_distance), problem,
+        return _run_full_space_vqe({**spec, "full_space_pool": full_space_pool},
+                                   atom, float(bond_distance), problem,
                                    ncas, nelecas, shots, seed, max_iterations, layers, t0)
     ncas, nelecas = int(spec["ncas"]), int(spec["nelecas"])
     e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas)

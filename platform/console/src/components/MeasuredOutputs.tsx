@@ -53,7 +53,7 @@ function summarize(job: Job): string | null {
       if (e === null) return null;
       const unc = num(r.uncertainty);
       const fullSpace = str(r.full_space_status);
-      return `VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}${fullSpace === 'contested' ? ' · full-space contested' : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
+      return `VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}${fullSpace && fullSpace !== 'within_target' ? ` · full-space ${fullSpace.replace(/_/g, ' ')}` : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
     }
     case 'vqe_pes': {
       const pts = Array.isArray(r.points) ? r.points : [];

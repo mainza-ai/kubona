@@ -45,17 +45,22 @@ def test_pes_points_are_measured():
 def test_full_space_vqe_reports_the_full_orbital_space():
     from experiments import run_vqe
 
-    res = run_vqe(molecule="LiH", bond_distance=1.6, layers=2, shots=128,
+    res = run_vqe(molecule="LiH", bond_distance=1.6, layers=1, shots=128,
                   seed=7, max_iterations=1, full_space=True)
     assert res["success"] is True
     assert res["active_space"]["full_space"] is True
     assert res["qubit_count"] == 12
+    assert res["method"].startswith("ADAPT-VQE")
+    assert len(res["selected_operators"]) >= 1
     # Full-space is an explicitly labelled path; it does not borrow the
     # active-space CASCI target.
     assert res["fci_exact_energy"] == res["active_space_fci_energy"]
     assert res["claimable"] is False
-    assert res["full_space_status"] == "contested"
+    # One optimization pass per selected operator is not allowed to claim a
+    # converged answer; resource exhaustion is the honest terminal state.
+    assert res["full_space_status"] in ("resource_exhausted", "contested", "measurement_noise")
     assert res["chemical_accuracy"] is False
+    assert res["uncertainty"] > 0
 
 
 def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):

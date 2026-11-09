@@ -22,6 +22,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
   const [layers, setLayers] = useState('2');
   const [iterations, setIterations] = useState('80');
   const [fullSpace, setFullSpace] = useState(false);
+  const [fullSpacePool, setFullSpacePool] = useState<'uccsd' | 'ceo'>('uccsd');
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       spec.layers = Number(layers);
       spec.max_iterations = Number(iterations);
       spec.full_space = fullSpace;
+      if (fullSpace) spec.full_space_pool = fullSpacePool;
       if (kind === 'pes') {
         spec.r_min = 0.6; spec.r_max = 0.9; spec.steps = 5;
       }
@@ -100,6 +102,14 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
           <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={kind === 'qaoa' || kind === 'pes' || molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
           Full orbital space (LiH/BeH2; slower, reports full-FCI gap honestly)
         </label>
+        {fullSpace && (
+          <label className="col-span-2 space-y-1">Full-space operator pool
+            <select aria-label="Full-space operator pool" value={fullSpacePool} onChange={(e) => setFullSpacePool(e.target.value as 'uccsd' | 'ceo')} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
+              <option value="uccsd">ADAPT-VQE · UCCSD pool (validated)</option>
+              <option value="ceo">CEO-ADAPT-VQE · coupled exchange pool (experimental)</option>
+            </select>
+          </label>
+        )}
       </div>
       {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
