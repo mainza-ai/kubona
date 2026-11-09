@@ -1258,6 +1258,9 @@ func TestCancelledBridgeJobSettlesFromPreCancelUsage(t *testing.T) {
 	if j.ReservedAmount != 2.5 {
 		t.Fatalf("cancel with pre-cancel usage must settle to $2.50, got %v", j.ReservedAmount)
 	}
+	if j.Status != pb.JobStatus_JOB_STATUS_CANCELLED {
+		t.Fatalf("operator cancel must be a first-class cancelled status, got %s", j.Status)
+	}
 }
 
 // Reservation atomicity: a crash between ReserveSpend and the job-row INSERT
