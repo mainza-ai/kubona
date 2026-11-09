@@ -2,7 +2,7 @@
 
 **Scope:** fully functional local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant product, not a demo.
-**Audited head:** `0680ba7` (2026-11-09 slices through `746ddca`, then
+**Audited head:** `526674a` (2026-11-09 slices through `746ddca`, then
 CEO/hardware-loop/mitigation/claimable/sandbox/result-gate work).
 **Method:** re-read the current Go/Python/console code and tests, not the prior
 status prose. The earlier completion report contained stale entries; this page
@@ -196,5 +196,6 @@ Implemented after the audit:
 - Tests: LiH active-space PES; existing PES points; fleet/fidelity; console tsc.
 - Commits: `3252180` (CEO/hardware loops/ZNE/result gate), `4c4ea51`
   (claimable PES + live gVisor proof), `956deab` (claimable/measured campaign
-  and claim guard), `a3dbc89` (plan update). CI/E2E green at `4c4ea51`;
-  re-verify the later docs heads.
+  and claim guard), `5872c6c` (live calibration refresh), `4d8830d` (signed
+  ledger result receipts), `526674a` (receipt publication ordering).
+  CI/E2E green at `526674a`.
