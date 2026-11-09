@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-10-29
+updated: 2026-11-09
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -112,7 +112,7 @@ layer** (maintainer synthesis).
 > | P3 third-party review + staging canary catch | **OPEN** | Mechanism exists (review package, canary with injected-regression proof, [[log]] 2026-09-29). Missing: Round-2/3 were independent in-repo audits, not third-party-human review; no real provider-side regression caught in staging is recorded. |
 > | P4 public repo + outside provider + Search Mode | **PARTIAL** | Proven: repo public (Q-27 closed 2026-10-26; "now-public" [[log]] 2026-10-23); Search Mode beat a hand-designed baseline in simulation, simulator-era ([[log]] 2026-08-17); SDK conformance suite built as the Q-24-C gate artifact ([[log]] 2026-10-10). Missing: no merged outside/third-party provider ("no true external sidecar"); no library entry through the full simulator→approval→hardware pipeline; no correctness-harness staging catch recorded. |
 > | P5 multi-tenant scale + monetization live | **OPEN** | Tenant-scoped ledger + per-tenant sharding landed ([[production-readiness-audit-2026-10-26]] Phase 7); x402 dormant by decision (Q-23, Q-53). Missing: multi-tenant deployment proof and a live monetization rail. |
-> | P6 lab runs the full discovery loop | **PARTIAL** | Proven: simulator-era full-loop gate test green ([[log]] 2026-08-17); workflow engine, labs, literature lane, ResultsStudio landed ([[log]] 2026-10-24). Missing: no recorded lab run of ground→experiment→report→archive with every claim ledger-traced. |
+> | P6 lab runs the full discovery loop | **PARTIAL / NOT COMPLETE** | The real chemistry/QAOA/spin-chain experiment rail folds measured jobs, and exact finite-scope math conjecture jobs now exist. Missing: the campaign protocol still runs a toy ansatz search rather than choosing and sequencing real jobs; no recorded lab run of ground→real experiment→report→archive; hardware spin-chain, excited-state/reaction experiments, and the full result projection remain open. See [[core-scientific-capability-gaps]]. |
 >
 > Post-audit modern leg: the classical-anchor half is now live PySCF (Q-55; [[production-readiness-audit-2026-10-26]] P0-8) and real-QPU Bell execution with budget settlement is proven (P1 row); a VQE-vs-FCI Ring-1 claim-collapse run is not recorded. CI is green under branch protection (runs `40455512876`, `40467016495`, `40803947946` in [[log]] and the audit execution record).
 

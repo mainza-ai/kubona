@@ -6,9 +6,9 @@ benchmark_systems:
 classical_anchor_methods:
 - RHF
 - Exact-Diagonalization-FCI
-- DMRG
-description: Standard STO-3G minimal basis molecular Hamiltonian pack with FCI/RHF
-  anchors.
+- CASCI
+description: STO-3G molecular Hamiltonian pack with live PySCF RHF/FCI/CASCI anchors
+  for the supported H2/LiH/BeH2/H2O families.
 domain_category: chemistry
 hamiltonian_generator: kubona.anchors.chemistry.MolecularAnchorEngine
 min_qubit_support: 2

@@ -2,7 +2,7 @@
 type: concept
 name: Science Discovery Platform
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-11-09
 tags: [kubona, science, discovery, experiments]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -16,6 +16,14 @@ users and agents design, run, and archive experiments, and where the platform it
 conduct experiments autonomously and return results in an organized, systematic form.
 Quantum hardware ([[qir-mlir-compilation]], [[provider-capability-schema]]) is one
 instrument family; literature, public datasets, and classical compute are the others.
+
+> ⚑ Capability audit (2026-11-09): the 7-stage table below is the design.
+> Only the chemistry/QAOA execution slice is live; physics simulation, live
+> mathematical law discovery, and a campaign over the real experiment rail are
+> still gaps. The first physics (`spin_chain`), exact conjecture, and H2O
+> active-space slices are now implemented; campaign closure over the real rail
+> remains. See [[core-scientific-capability-gaps]] and
+> `docs/core-scientific-capabilities-2026-11-09.md`.
 
 ## The discovery loop (what "conducting an experiment" means end-to-end)
 

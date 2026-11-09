@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-11-09
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -26,7 +26,21 @@ status: tracked
 > **Historical note (updated 2026-10-17):** The numbered findings below record the state of
 > the tree at the 2026-10-04 forensic baseline (see [[forensic-audit-2026]]) before Phases
 > 1–6, Waves 0–2, Cloudroom S1–S8, REA R0–R6, leanrea L1–L5, M0–M6, and A1–A4 landed. See
-> the `## Critical (structural)` table below for current verified status.
+> the `## Science-capability additions (2026-11-09)
+
+- 🔴 **Physics simulation missing.** The `materials_condensed_matter_v1`
+  domain pack declares `kubona.science.lattice.HubbardModel`, but the module
+  is absent; there is no spin-chain/lattice experiment. See
+  [[core-scientific-capability-gaps]] (SC-01/SC-02).
+- 🟠 **Mathematical discovery is catalog-only.** No conjecture generator,
+  law search, counterexample pipeline, or ledger-bound math experiment exists.
+- 🟠 **Chemistry portfolio is three molecules.** H2/LiH/BeH2 VQE is real;
+  general molecules, excited states, reaction paths, and geometry optimization
+  are absent.
+- 🟠 **Discovery campaign uses a toy harness.** It does not execute the
+  VQE/PES/QAOA job rail end-to-end.
+
+## Critical (structural)` table below for current verified status.
 
 A systematic audit on 2026-10-04 revealed that over 90% of what was documented in the blueprint across the
 89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was at that time either
@@ -58,6 +72,20 @@ unimplemented, stubbed, or disguised behind static UI facades:
 - **Phase 4: Autoresearch Engine, Fidelity Accounting & Rings 3-4:** Karpathy Autoresearch 4-part harness registry, autonomous ansatz genome search with cheap pre-checks, Ring 3 fidelity accounting gate (predict $\to$ probe $\to$ admit/downgrade/refuse), and §13 meta-search self-evolution engine.
 - **Phase 5: The Seven Core Observatory Surfaces (Next.js 16 + TypeScript):** Surface 1 (Spatial Canvas via React Flow), Surface 2 (4D Scrubbable Flight Recorder), Surface 3 (Dynamic Wavefunction Rings), Surface 4 (Cryptographic Mandate Cockpit), Surface 5 (Fleet Radar & ITAR Shield), Surface 6 (Cognitive Mesh & Air-Gap Switch), Surface 7 (Citable Results Studio).
 - **Phase 6: Multi-Tenant Sandboxing, Production CI & Zero-Placeholder Verification:** Docker workload container isolation, unified multi-language CI pipeline, automated end-to-end campaign tests, and zero-placeholder audit across the codebase.
+
+## Science-capability additions (2026-11-09)
+
+- 🔴 **Physics simulation missing.** The `materials_condensed_matter_v1`
+  domain pack declares `kubona.science.lattice.HubbardModel`, but the module
+  is absent; there is no spin-chain/lattice experiment. See
+  [[core-scientific-capability-gaps]] (SC-01/SC-02).
+- 🟠 **Mathematical discovery is catalog-only.** No conjecture generator,
+  law search, counterexample pipeline, or ledger-bound math experiment exists.
+- 🟠 **Chemistry portfolio is three molecules.** H2/LiH/BeH2 VQE is real;
+  general molecules, excited states, reaction paths, and geometry optimization
+  are absent.
+- 🟠 **Discovery campaign uses a toy harness.** It does not execute the
+  VQE/PES/QAOA job rail end-to-end.
 
 ## Critical (structural)
 

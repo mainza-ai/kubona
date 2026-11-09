@@ -40,6 +40,19 @@ const JOBS = [
     created_at: '', completed_at: '2026-10-11T02:32:00Z',
   },
   {
+    id: 'job-spin-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'spin_chain',
+    params_json: {}, result_json: {
+      model: 'tfim', n_sites: 4, energy: -3.19, energy_exact: -3.21, uncertainty: 0.004,
+      gap: 0.8, claimable: false,
+    }, created_at: '', completed_at: '2026-10-11T02:33:00Z',
+  },
+  {
+    id: 'job-conj-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'conjecture_run',
+    params_json: {}, result_json: {
+      candidate_count: 1, candidates: [{ law: 'a(n) = a(n-1) + a(n-2)', status: 'conjecture' }],
+    }, created_at: '', completed_at: '2026-10-11T02:34:00Z',
+  },
+  {
     // R7: FAILED jobs carry completed_at — they must not render as measured.
     id: 'job-fail-1', session_id: 's', status: 'JOB_STATUS_FAILED', job_type: 'krylov_solve',
     params_json: {}, result_json: { error_message: 'bridge blew up' },
@@ -88,6 +101,10 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('closest R=0.9000 Å');
     expect(text).toContain('QAOA MaxCut 7.870 vs classical 10');
     expect(text).toContain('ratio 0.7870');
+    expect(text).toContain('spin chain tfim n=4');
+    expect(text).toContain('not claimable');
+    expect(text).toContain('math conjecture 1 candidate(s)');
+    expect(text).toContain('not a theorem');
     expect(text).toContain('job-kry'.slice(0, 8));
     // The running job must not appear as a measured row (R7 gate holds);
     // it renders in the live-progress section instead (S8b/c) — including

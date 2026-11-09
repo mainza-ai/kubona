@@ -63,8 +63,9 @@ def test_wrong_schema_version_refuses():
 def test_generator_allowlist_and_phantom():
     with pytest.raises(PackError, match="allowlist"):
         resolve_generator("evil_pkg.Backdoor")
+    assert resolve_generator("kubona.science.lattice.HubbardModel").__name__ == "HubbardModel"
     with pytest.raises(PackError, match="unresolvable"):
-        resolve_generator("kubona.science.lattice.HubbardModel")
+        resolve_generator("kubona.science.missing_model.MissingModel")
 
 
 def test_signature_verifies_and_tamper_refuses():

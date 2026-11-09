@@ -3,7 +3,7 @@ name: Autonomous Mathematical Discovery
 type: concept
 tags: [concept, ai-discovery, reasoning, chain-of-thought, search, proofs]
 date: 2026-10-08
-updated: 2026-10-08
+updated: 2026-11-09
 status: adopted
 sources: [source-openai-math-corpus, source-gap-analysis-plan]
 ---
@@ -81,5 +81,15 @@ Kubona incorporates these discovery mechanisms into its autonomous research arch
 - **Ring 3 (Execute):** Heavy symbolic and numeric calculations are partitioned across sandboxed microservices.
 - **Ring 4 (Analyze & Prove):** Candidate solutions are formalized in [[lean4]] and verified with [[comparator]].
 - **Ring 5 (Report & Provenance):** Verified discoveries are archived to the algorithm library via [[karpathy-autoresearch]] with cryptographic [[provenance-and-reproducibility|ledger]] receipts.
+
+> ⚑ Correction (2026-11-09): the corpus catalog and Comparator/Lean
+> verification utility exist, but there is no live conjecture-generation,
+> law-discovery, counterexample-search, or ledger-bound math experiment. The
+> "Integration into Kubona" section below is design intent, not current
+> capability. A first exact finite-domain conjecture/law-discovery engine now
+> exists (`science/conjecture.py`), but it is not a theorem prover and does not
+> search open corpus problems. The gap is tracked in
+> [[core-scientific-capability-gaps]] and
+> `docs/core-scientific-capabilities-2026-11-09.md`.
 
 See also [[source-openai-math-corpus]], [[openai-math]], [[karpathy-autoresearch]], [[five-ring-research-loop]], [[formal-proof-verification-lean-comparator]].

@@ -938,6 +938,30 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 80)),
                     graph_seed=int(spec.get("graph_seed", 3)),
                 )
+            elif kind == "spin_chain":
+                from lattice_experiment import run_spin_chain
+                result = run_spin_chain(
+                    model=str(spec.get("model") or "tfim"),
+                    n_sites=int(spec.get("n_sites", 4)),
+                    coupling=float(spec.get("coupling", 1.0)),
+                    field=float(spec.get("field", 1.0)),
+                    anisotropy=float(spec.get("anisotropy", 1.0)),
+                    periodic=bool(spec.get("periodic", True)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 8192)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 160)),
+                    target_error=float(spec.get("target_error", 1e-3)),
+                )
+            elif kind == "conjecture":
+                from kubona.science.conjecture import discover_sequence_laws
+                holdout = spec.get("holdout")
+                result = discover_sequence_laws(
+                    spec.get("values") or [],
+                    holdout=None if holdout is None else int(holdout),
+                    max_order=int(spec.get("max_order", 6)),
+                    max_degree=int(spec.get("max_degree", 6)),
+                )
             elif kind == "vqe_hardware":
                 from experiments import run_vqe_hardware, run_vqe_hardware_loop
                 if bool(spec.get("loop")):
@@ -1002,7 +1026,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, vqe_hardware, or qaoa_hardware",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, spin_chain, conjecture, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

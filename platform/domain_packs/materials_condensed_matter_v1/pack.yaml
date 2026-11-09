@@ -1,11 +1,10 @@
 author: Kubona Quantum Epistemic Core
 benchmark_systems:
 - Hubbard_1D_4site
-- Hubbard_2D_4site
 classical_anchor_methods:
-- Matrix-Product-States
 - Exact-Diagonalization
-description: 1D and 2D Fermi-Hubbard lattice model with Matrix Product State baselines.
+description: 1D Fermi-Hubbard exact-diagonalization anchor (2-6 sites) plus 1D
+  spin-chain quantum simulation targets.
 domain_category: condensed_matter
 hamiltonian_generator: kubona.science.lattice.HubbardModel
 min_qubit_support: 4

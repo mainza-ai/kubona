@@ -3,7 +3,7 @@ name: Mathematical Physics Anchors
 type: concept
 tags: [concept, quantum-advantage-realism, anchors, mathematical-physics, benchmarks]
 date: 2026-10-08
-updated: 2026-10-08
+updated: 2026-11-09
 status: adopted
 sources: [source-openai-math-corpus, source-frontier-repo-audit-2026]
 ---
@@ -50,6 +50,12 @@ When an autonomous agent runs a VQE or QAOA campaign in Kubona:
 4. **Honest Provenance:** Reports explicitly state the backend used (simulator vs physical QPU) and benchmark against the analytical anchor. The platform never claims quantum advantage when the result simply approximates an already proven mathematical closed form.
 
 ---
+
+> ⚑ Correction (2026-11-09): these are table/closed-form anchors, not a
+> many-body simulator. There is no lattice/spin-chain experiment or measured
+> physics result behind them; `kubona.science.lattice` was referenced by the
+> materials pack but did not exist. The missing capability is tracked in
+> [[core-scientific-capability-gaps]].
 
 ## 3. Platform Integration
 
