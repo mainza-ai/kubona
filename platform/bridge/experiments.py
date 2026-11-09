@@ -1247,9 +1247,6 @@ def run_qaoa_hardware_loop(
     actual_values: list[float] = []
     last_layout: Any = None
     last_calibration: Any = None
-    opt_name = str(optimizer or "spsa").strip().lower()
-    if opt_name not in ("spsa", "cobyla"):
-        return {"success": False, "error": f"hardware loop optimizer {optimizer!r} must be spsa|cobyla"}
 
     def objective(x: np.ndarray) -> float:
         nonlocal last_layout, last_calibration
