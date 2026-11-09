@@ -2,6 +2,7 @@ package fidelity
 
 import (
 	"testing"
+	"time"
 )
 
 func TestFidelityAccountingAdmission(t *testing.T) {
@@ -141,4 +142,29 @@ func TestUpdateProfileInstallsAliases(t *testing.T) {
 			t.Fatalf("alias %s not installed: %+v", name, got)
 		}
 	}
+}
+
+func TestUpdateProfileRefusesIncompleteSnapshots(t *testing.T) {
+	gate := NewFidelityGate()
+	base := DeviceProfile{Name: "ibm_heron", Qubits: 156, T1Us: 100, T2Us: 80,
+		SingleQubitErr: 0.001, TwoQubitErr: 0.01, ReadoutErr: 0.01,
+		Source: "s", Version: "v", CalibratedAt: "2026-11-09T00:00:00Z"}
+	cases := []DeviceProfile{base, base, base, base, base}
+	cases[0].Name = ""
+	cases[1].T1Us = 0
+	cases[2].ReadoutErr = 1.1
+	cases[3].Version = ""
+	cases[4].CalibratedAt = ""
+	for i, p := range cases {
+		if err := gate.UpdateProfile(p); err == nil {
+			t.Fatalf("case %d must refuse incomplete/invalid profile", i)
+		}
+	}
+}
+
+func TestCalibrationFreshnessContract(t *testing.T) {
+	if MaxCalibrationAgeHours() <= 0 {
+		t.Fatal("calibration freshness contract must be positive")
+	}
+	_ = StaleCalibrations(time.Now())
 }
