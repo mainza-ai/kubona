@@ -4744,8 +4744,10 @@
   "x-kubona-unmodeled-functions": [
     "fetchClaimReviews",
     "fetchClaimsPage",
+    "planDiscovery",
     "refreshCalibration",
     "reviewClaim",
+    "runDiscoveryProtocol",
     "runExperiment"
   ],
   "x-kubona-client-only-functions": [
