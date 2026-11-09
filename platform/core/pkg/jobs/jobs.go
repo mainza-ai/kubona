@@ -2,11 +2,15 @@ package jobs
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +102,10 @@ type Runner struct {
 	// fidelityGate predicts whether a hardware run can produce a publishable
 	// number before spending (Ring 3 second rail beside money).
 	fidelityGate *fidelity.FidelityGate
+	// resultSigner signs the result-receipt ledger event. Nil still produces
+	// a hash-chained receipt but marks it signed=false; production should
+	// commission KUBONA_RESULT_SIGNING_KEY_HEX (or the reviewer key).
+	resultSigner ed25519.PrivateKey
 	// compiler analyzes circuits pre-dispatch (see SubmitJob). Nil means
 	// no analysis runs and compile columns stay empty — the honest
 	// "unanalyzed" state, never a silent skip. Wired by the daemon; tests
@@ -145,6 +153,39 @@ func (r *Runner) getCompiler() *qir.Compiler {
 
 // SetSettledHook registers the post-completion callback (planner replan).
 // Nil clears it. Safe to call before or after Start.
+// SetResultSigner installs the Ed25519 key used for the per-result receipt
+// ledger event. It does not affect admission or job execution.
+func (r *Runner) SetResultSigner(key ed25519.PrivateKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resultSigner = append(ed25519.PrivateKey(nil), key...)
+}
+
+// LoadResultSigningKey reads the configured result-signing key. The dedicated
+// variable wins; the reviewer key is a documented fallback so one commissioned
+// local deployment does not need a second key. Invalid/absent keys return
+// false (receipts remain hash-chained but signed=false).
+func LoadResultSigningKey() (ed25519.PrivateKey, bool) {
+	for _, name := range []string{"KUBONA_RESULT_SIGNING_KEY_HEX", "KUBONA_REVIEWER_PRIVKEY_HEX"} {
+		rawHex := strings.TrimSpace(os.Getenv(name))
+		if rawHex == "" {
+			continue
+		}
+		raw, err := hex.DecodeString(rawHex)
+		if err != nil {
+			continue
+		}
+		switch len(raw) {
+		case ed25519.PrivateKeySize:
+			key := ed25519.PrivateKey(append([]byte(nil), raw...))
+			return key, true
+		case ed25519.SeedSize:
+			return ed25519.NewKeyFromSeed(raw), true
+		}
+	}
+	return nil, false
+}
+
 func (r *Runner) SetSettledHook(hook func(*Job)) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1028,12 +1069,57 @@ func (r *Runner) executeJob(j *Job) {
 		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
-	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+	settledAppended := false
+	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
+		settledAppended = r.attachResultReceipt(j)
+	}
+	if !settledAppended {
+		r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+	}
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
 		if hook := r.getSettledHook(); hook != nil {
 			hook(j)
 		}
 	}
+}
+
+// attachResultReceipt appends a signed ledger-backed receipt inside the
+// result object, then persists the updated result. The event hash is computed
+// over the pre-receipt job payload; the receipt itself names that entry and
+// the SHA-256 of the result it attests.
+func (r *Runner) attachResultReceipt(j *Job) bool {
+	if len(j.ResultJSON) == 0 {
+		return false
+	}
+	resultHash := sha256.Sum256(j.ResultJSON)
+	rec, err := r.ledger.AppendSignedEvent(j.SessionID, "job_settled", j, r.resultSigner)
+	if err != nil || rec == nil {
+		return false
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(j.ResultJSON, &obj) != nil || obj == nil {
+		return false
+	}
+	receipt, _ := json.Marshal(map[string]any{
+		"algorithm":         "ed25519",
+		"ledger_entry_hash": rec.EntryHash,
+		"result_sha256":     hex.EncodeToString(resultHash[:]),
+		"signer_pubkey":     rec.SignerPubkey,
+		"signature":         rec.Signature,
+		"signed":            rec.Signature != "",
+		"hash_version":      rec.HashVersion,
+		"signature_domain":  rec.SignatureDomain,
+	})
+	obj["result_receipt"] = receipt
+	updated, err := json.Marshal(obj)
+	if err != nil {
+		return false
+	}
+	j.ResultJSON = updated
+	if _, err := r.ledger.DB().Exec(`UPDATE jobs SET result_json = ? WHERE id = ?`, string(updated), j.ID); err != nil {
+		return false
+	}
+	return true
 }
 
 // validateExperimentResultVersion enforces the one versioned experiment

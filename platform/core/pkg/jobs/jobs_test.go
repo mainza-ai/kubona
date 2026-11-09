@@ -415,6 +415,8 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 func TestHardwareExperimentRequiresParentMandateAndSettlesOnce(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
+	_, signer, _ := ed25519.GenerateKey(nil)
+	r.SetResultSigner(signer)
 
 	p := HardwareExperimentParams{
 		Molecule: "H2", BondDistance: 0.7414, Layers: 2, Shots: 512, Seed: 7,
@@ -442,6 +444,11 @@ func TestHardwareExperimentRequiresParentMandateAndSettlesOnce(t *testing.T) {
 	}
 	if !strings.Contains(string(settled.ResultJSON), "hw-test") {
 		t.Fatalf("hardware result must retain the vendor job id: %s", settled.ResultJSON)
+	}
+	if !strings.Contains(string(settled.ResultJSON), "result_receipt") ||
+		!strings.Contains(string(settled.ResultJSON), "ledger_entry_hash") ||
+		!strings.Contains(string(settled.ResultJSON), `"signed":true`) {
+		t.Fatalf("completed result must carry its signed ledger receipt: %s", settled.ResultJSON)
 	}
 }
 

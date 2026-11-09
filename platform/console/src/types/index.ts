@@ -220,6 +220,16 @@ export interface ExperimentResult {
   measurements?: Record<string, unknown>;
   points?: Record<string, unknown>[];
   mitigation?: Record<string, unknown> | null;
+  result_receipt?: {
+    algorithm: 'ed25519';
+    ledger_entry_hash: string;
+    result_sha256: string;
+    signer_pubkey?: string;
+    signature?: string;
+    signed: boolean;
+    hash_version?: number;
+    signature_domain?: string;
+  };
   error_message?: string;
   [key: string]: unknown;
 }

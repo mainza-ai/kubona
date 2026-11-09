@@ -45,6 +45,20 @@
     "measurements": { "type": "object" },
     "points": { "type": "array", "items": { "type": "object" } },
     "mitigation": { "type": ["object", "null"] },
+    "result_receipt": {
+      "type": "object",
+      "required": ["algorithm", "ledger_entry_hash", "result_sha256", "signed"],
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "ledger_entry_hash": { "type": "string" },
+        "result_sha256": { "type": "string" },
+        "signer_pubkey": { "type": "string" },
+        "signature": { "type": "string" },
+        "signed": { "type": "boolean" },
+        "hash_version": { "type": "integer" },
+        "signature_domain": { "type": "string" }
+      }
+    },
     "error_message": { "type": "string" }
   },
   "additionalProperties": true
