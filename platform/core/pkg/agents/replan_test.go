@@ -628,3 +628,21 @@ func TestReplanVQERecordsMeasuredPointAndNotebook(t *testing.T) {
 		t.Fatalf("notebook did not cite the measured VQE result: %+v", state.Notebook)
 	}
 }
+
+func TestReplanPesHonorsExplicitUnclaimablePoint(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, _ := ReplanWithJobResult(raw, "job-sweep-claim", "vqe_pes",
+		[]byte(`{"success":true,"molecule":"LiH","points":[
+			{"bond_distance":1.5,"energy":-7.8816,"energy_exact":-7.8821,"fci_exact_energy":-7.88236,"delta_mha":0.7,"uncertainty":0.0005,"claimable":false,"theta":[0.1]}
+		]}`), "")
+	if !changed {
+		t.Fatal("PES with explicit claimability must fold")
+	}
+	state := decodeReplan(t, updated)
+	if len(state.PesPoints) != 1 {
+		t.Fatalf("expected one point, got %+v", state.PesPoints)
+	}
+	if state.PesPoints[0].ChemicalAccuracy {
+		t.Fatal("claimable:false must not become chemical accuracy from delta alone")
+	}
+}

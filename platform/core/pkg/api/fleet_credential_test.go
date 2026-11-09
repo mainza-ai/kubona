@@ -127,3 +127,22 @@ func TestFleetCredentialPresentReadsReady(t *testing.T) {
 		t.Fatalf("quantinuum_h1 without token must read credentialless, got %v", got)
 	}
 }
+
+func TestFleetCalibrationAgeFromSharedContract(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+	b := backendByName(t, fleetBackends(t, srv.Handler()), "ibm_heron")
+	if _, ok := b["calibration_at"].(string); !ok {
+		t.Fatalf("ibm_heron missing calibration_at: %v", b)
+	}
+	age, ok := b["calibration_age_hours"].(float64)
+	if !ok || age < 0 {
+		t.Fatalf("ibm_heron calibration age must be measured: %v", b)
+	}
+	if _, ok := b["calibration_fresh"].(bool); !ok {
+		t.Fatalf("ibm_heron calibration_fresh must be boolean: %v", b)
+	}
+	if b["fidelity_source"] == nil || b["fidelity_version"] == nil {
+		t.Fatalf("calibration provenance missing: %v", b)
+	}
+}

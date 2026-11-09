@@ -516,6 +516,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			DeltaMHa     float64   `json:"delta_mha"`
 			Uncertainty  float64   `json:"uncertainty"`
 			Theta        []float64 `json:"theta"`
+			Claimable    *bool     `json:"claimable,omitempty"`
 		}
 		rawPoints, ok := present("points")
 		if !ok || json.Unmarshal(rawPoints, &points) != nil || len(points) == 0 {
@@ -526,10 +527,17 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			if math.Abs(p.DeltaMHa) < math.Abs(best.DeltaMHa) {
 				best = p
 			}
+			chemicalAccuracy := math.Abs(p.DeltaMHa) <= 1.6
+			if p.Claimable != nil {
+				// Full-space/uncertainty-gated points may report a measured
+				// delta inside 1.6 mHa while the exact diagnostic or shot
+				// uncertainty still refuses the claim. Never override that.
+				chemicalAccuracy = *p.Claimable
+			}
 			state.PesPoints = append(state.PesPoints, PesPoint{
 				BondDistance: p.BondDistance, Energy: p.Energy, EnergyExact: p.EnergyExact,
 				FCIEnergy: p.Fci, DeltaMHa: p.DeltaMHa, UncertaintyMHa: p.Uncertainty * 1000.0,
-				ChemicalAccuracy: math.Abs(p.DeltaMHa) <= 1.6,
+				ChemicalAccuracy: chemicalAccuracy,
 			})
 			state.Trajectory = append(state.Trajectory, TrajectoryStep{
 				Step: len(state.Trajectory) + 1, Energy: p.Energy,

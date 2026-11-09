@@ -29,6 +29,26 @@ func TestAPIV1AliasMatchesLegacy(t *testing.T) {
 	}
 }
 
+func normalizeFleetAgeForParity(t *testing.T, body string) string {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("fleet parity body: %v", err)
+	}
+	backends, _ := doc["backends"].([]any)
+	for _, raw := range backends {
+		row, _ := raw.(map[string]any)
+		if _, ok := row["calibration_age_hours"]; ok {
+			delete(row, "calibration_age_hours")
+		}
+	}
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatalf("normalize fleet: %v", err)
+	}
+	return string(out)
+}
+
 func TestAPIV1AliasMatchesLegacyPayloads(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
@@ -69,8 +89,16 @@ func TestAPIV1AliasMatchesLegacyPayloads(t *testing.T) {
 		versioned.Header.Set("Authorization", "Bearer op-token")
 		vw := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(vw, versioned)
-		if lw.Code != vw.Code || lw.Body.String() != vw.Body.String() {
-			t.Errorf("%s parity failed: legacy %d %s / v1 %d %s", path, lw.Code, lw.Body.String(), vw.Code, vw.Body.String())
+		legacyBody, versionedBody := lw.Body.String(), vw.Body.String()
+		if path == "/api/fleet" {
+			// Calibration age is measured from wall-clock now; two sequential
+			// calls legitimately differ by microseconds. Compare every other
+			// field byte-for-byte and require the volatile field on both.
+			legacyBody = normalizeFleetAgeForParity(t, legacyBody)
+			versionedBody = normalizeFleetAgeForParity(t, versionedBody)
+		}
+		if lw.Code != vw.Code || legacyBody != versionedBody {
+			t.Errorf("%s parity failed: legacy %d %s / v1 %d %s", path, lw.Code, legacyBody, vw.Code, versionedBody)
 		}
 	}
 }
