@@ -4744,6 +4744,7 @@
   "x-kubona-unmodeled-functions": [
     "fetchClaimReviews",
     "fetchClaimsPage",
+    "refreshCalibration",
     "reviewClaim",
     "runExperiment"
   ],
