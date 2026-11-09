@@ -272,13 +272,14 @@ def test_hardware_vqe_can_measure_a_nature_ansatz_qasm(monkeypatch):
     qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];"
     res = experiments.run_vqe_hardware(
         theta=[], pauli_coefficients={"II": -1.0, "ZZ": 0.25},
-        molecule="LiH", ansatz_qasm=qasm, constant_energy=-7.0,
+        molecule="LiH", ansatz_qasm=qasm, constant_energy=-7.0, layers=0,
         shots=512, seed=7, bond_distance=1.5, fci_exact_energy=-7.0,
         backend="ibm-test",
     )
     assert res["success"] is True
     assert res["molecule"] == "LiH"
     assert res["constant_energy"] == -7.0
+    assert res["layers"] == 1
     assert res["energy"] == pytest.approx(-7.0 + (-1.0 + 0.25))
     assert len(calls) == 1
 
@@ -290,6 +291,7 @@ def test_nature_vqe_exposes_hardware_ansatz_and_terms():
                   seed=7, max_iterations=1, full_space=False)
     assert res["success"] is True
     assert res["ansatz_qasm"].startswith("OPENQASM")
+    assert res["layers"] == 1
     assert res["pauli_coefficients"]
     assert res["constant_energy"] != 0
     assert res["active_space"]["full_space"] is False
