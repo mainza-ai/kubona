@@ -164,6 +164,7 @@ services:
       # provider keys in the local ledger. Set it for production; unset
       # keeps legacy plaintext readable (dev migration) and logs a warning.
       KUBONA_SECRET_KEY: ${KUBONA_SECRET_KEY:-}
+      KUBONA_CALIBRATION_CHECK_SECONDS: ${KUBONA_CALIBRATION_CHECK_SECONDS:-3600}
       # >=32 chars; required for /api/vault/leases (secret lease rail).
       KUBONA_LEASE_HMAC_KEY: ${KUBONA_LEASE_HMAC_KEY:-}
       # Shared secret for the private bridge RPCs. Defaults to the API
