@@ -114,7 +114,7 @@ export function HardwareLaunchPanel({
         <Radio className="w-4 h-4 text-amber-300" />
         <span className="text-xs font-semibold text-white">Governed QPU launch</span>
       </div>
-      <p className="text-[12px] text-[var(--color-muted)]">Prepares the exact {sourceKind === 'vqe_run' ? 'VQE' : sourceKind === 'qaoa_run' ? 'QAOA' : 'spin-chain'} parent binding, signs it with this browser's WebCrypto key, then submits through mandate, fidelity, reservation, and settlement gates. Nothing here bypasses the Go rail.</p>
+      <p className="text-[12px] text-[var(--color-muted)]">Prepares the exact {sourceKind === 'vqe_run' ? 'VQE' : sourceKind === 'qaoa_run' ? 'QAOA' : 'spin-chain'} parent binding, signs it with the browser WebCrypto key, then submits through mandate, fidelity, reservation, and settlement gates. Nothing here bypasses the Go rail.</p>
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Backend
           <input aria-label="Hardware backend" value={backend} onChange={(e) => setBackend(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
