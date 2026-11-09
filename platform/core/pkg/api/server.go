@@ -595,6 +595,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/fidelity", s.handleFidelity)
 	s.route("/api/epistemics", s.handleEpistemics)
 	s.route("/api/fleet", s.handleFleet)
+	s.route("/api/fleet/calibration/refresh", s.requireBearer(s.handleCalibrationRefresh))
 	s.route("/api/radar", s.handleRadar)
 	s.route("/api/ledger/verify", s.requireBearer(s.handleLedgerVerify))
 	s.route("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
@@ -1245,6 +1246,84 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 		backends = append(backends, row)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"backends": backends})
+}
+
+// POST /api/fleet/calibration/refresh — fetch one live IBM backend
+// calibration snapshot through the bridge and install it into the in-process
+// fidelity gate. This is an authenticated, read-only vendor operation (no
+// spend, no job); a missing credential or unmeasurable backend refuses rather
+// than leaving the old profile silently "fresh".
+func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to refresh calibration", nil)
+		return
+	}
+	var req struct {
+		Backend string `json:"backend"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid calibration refresh request: %v", err), nil)
+		return
+	}
+	backend := strings.TrimSpace(req.Backend)
+	if backend == "" {
+		WriteAPIError(w, "bad_request", "backend is required", nil)
+		return
+	}
+	bridge := s.jobRunner.BridgeClient()
+	if bridge == nil {
+		WriteAPIError(w, "unavailable", "bridge unavailable: cannot refresh calibration", nil)
+		return
+	}
+	spec, _ := json.Marshal(map[string]any{"kind": "calibration", "backend": backend})
+	resp, err := bridge.RunExperiment(r.Context(), &pb.ExperimentRequest{
+		SpecJson: string(spec), SessionId: "operator-calibration-refresh",
+	})
+	if err != nil {
+		WriteAPIError(w, "upstream", fmt.Sprintf("calibration refresh failed: %v", err), nil)
+		return
+	}
+	if !resp.Ok {
+		WriteAPIError(w, "upstream", "calibration refresh refused: "+resp.ErrorMessage, nil)
+		return
+	}
+	var out struct {
+		Snapshot struct {
+			Qubits         int     `json:"qubits"`
+			T1Us           float64 `json:"t1_us"`
+			T2Us           float64 `json:"t2_us"`
+			SingleQubitErr float64 `json:"single_qubit_error"`
+			TwoQubitErr    float64 `json:"two_qubit_error"`
+			ReadoutErr     float64 `json:"readout_error"`
+			Source         string  `json:"source"`
+			Version        string  `json:"version"`
+			CalibratedAt   string  `json:"calibrated_at"`
+		} `json:"snapshot"`
+	}
+	if err := json.Unmarshal([]byte(resp.ResultJson), &out); err != nil {
+		WriteAPIError(w, "upstream", "calibration snapshot is not decodable", nil)
+		return
+	}
+	device, err := fidelity.ResolveDeviceForBackend(backend)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	profile := fidelity.DeviceProfile{
+		Name: device, Qubits: out.Snapshot.Qubits,
+		T1Us: out.Snapshot.T1Us, T2Us: out.Snapshot.T2Us,
+		SingleQubitErr: out.Snapshot.SingleQubitErr, TwoQubitErr: out.Snapshot.TwoQubitErr,
+		ReadoutErr: out.Snapshot.ReadoutErr, Source: out.Snapshot.Source,
+		Version: out.Snapshot.Version, CalibratedAt: out.Snapshot.CalibratedAt,
+	}
+	if err := s.fidelityGate.UpdateProfile(profile); err != nil {
+		WriteAPIError(w, "upstream", "calibration snapshot refused: "+err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"backend": backend, "device": device, "profile": profile,
+		"source": "live-backend-properties",
+	})
 }
 
 func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {

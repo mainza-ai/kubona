@@ -98,3 +98,29 @@ func TestFidelityContractParity(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateProfileAcceptsValidatedLiveSnapshot(t *testing.T) {
+	gate := NewFidelityGate()
+	profile := DeviceProfile{
+		Name: "ibm_heron", Qubits: 156, T1Us: 150, T2Us: 100,
+		SingleQubitErr: 0.0002, TwoQubitErr: 0.002, ReadoutErr: 0.01,
+		Source: "backend-properties:test", Version: "live-test",
+		CalibratedAt: "2026-11-09T00:00:00+00:00",
+	}
+	if err := gate.UpdateProfile(profile); err != nil {
+		t.Fatalf("valid live profile must be accepted: %v", err)
+	}
+	got, ok := gate.Profile("ibm_heron")
+	if !ok || got.Version != "live-test" {
+		t.Fatalf("live profile not installed: %+v", got)
+	}
+	profile.T2Us = 400
+	if err := gate.UpdateProfile(profile); err == nil {
+		t.Fatal("T2 > 2*T1 live profile must be refused")
+	}
+	profile.T2Us = 100
+	profile.Source = ""
+	if err := gate.UpdateProfile(profile); err == nil {
+		t.Fatal("live profile without provenance must be refused")
+	}
+}

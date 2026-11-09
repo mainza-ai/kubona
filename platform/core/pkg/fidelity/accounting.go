@@ -192,6 +192,52 @@ func (fg *FidelityGate) Profile(deviceName string) (DeviceProfile, bool) {
 	return p, ok
 }
 
+// UpdateProfile installs a live calibration profile after validating the
+// same physicality/provenance rules used at bootstrap. The zero value or an
+// unmeasurable provider snapshot must refuse; a live read never fabricates
+// the missing fields.
+func (fg *FidelityGate) UpdateProfile(p DeviceProfile) error {
+	name := strings.TrimSpace(p.Name)
+	if name == "" {
+		return fmt.Errorf("live calibration profile needs a name")
+	}
+	if p.Qubits <= 0 || p.T1Us <= 0 || p.T2Us <= 0 {
+		return fmt.Errorf("live calibration profile %s has non-positive qubits/T1/T2", name)
+	}
+	if p.T2Us > 2*p.T1Us {
+		return fmt.Errorf("live calibration profile %s violates T2 <= 2*T1", name)
+	}
+	if p.SingleQubitErr < 0 || p.TwoQubitErr < 0 || p.ReadoutErr < 0 ||
+		p.SingleQubitErr > 1 || p.TwoQubitErr > 1 || p.ReadoutErr > 1 {
+		return fmt.Errorf("live calibration profile %s has an error outside [0,1]", name)
+	}
+	if strings.TrimSpace(p.Source) == "" || strings.TrimSpace(p.Version) == "" || strings.TrimSpace(p.CalibratedAt) == "" {
+		return fmt.Errorf("live calibration profile %s lacks source/version/calibrated_at provenance", name)
+	}
+	fg.mu.Lock()
+	defer fg.mu.Unlock()
+	if fg.profiles == nil {
+		fg.profiles = make(map[string]DeviceProfile)
+	}
+	fg.profiles[name] = p
+	for _, alias := range p.Aliases {
+		a := p
+		a.Name = alias
+		fg.profiles[alias] = a
+	}
+	if hy := strings.ReplaceAll(name, "_", "-"); hy != name {
+		alias := p
+		alias.Name = hy
+		fg.profiles[hy] = alias
+	}
+	if us := strings.ReplaceAll(name, "-", "_"); us != name {
+		alias := p
+		alias.Name = us
+		fg.profiles[us] = alias
+	}
+	return nil
+}
+
 func (fg *FidelityGate) bootstrapProfiles() {
 	// Loaded from platform/contracts/fidelity-devices.json (Phase 1 drift-proof
 	// shared contract across Go and Python). T1/T2 are validated for
