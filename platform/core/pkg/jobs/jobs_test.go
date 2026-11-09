@@ -1463,3 +1463,14 @@ func TestLoadResultSigningKeyPrefersConfiguredKey(t *testing.T) {
 		t.Fatal("invalid signing key must refuse")
 	}
 }
+
+func TestRunnerBridgeAndActiveCountAreSafe(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	if r.BridgeClient() == nil {
+		t.Fatal("runner must expose the configured bridge client")
+	}
+	if n := r.ActiveJobCount(); n < 0 {
+		t.Fatalf("active count must be non-negative, got %d", n)
+	}
+}
