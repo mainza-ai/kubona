@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 type AdmissionDecision string
@@ -319,4 +320,30 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 		Reason:            "Fidelity exceeds floor and aligns with Clifford probe. Hardware execution authorized.",
 		RecommendedAction: "Proceed with cryptographic AP2 spend mandate signing",
 	}
+}
+
+// StaleCalibrations returns hardware profiles older than the shared
+// freshness budget. A missing/unparseable calibrated_at is stale: an unknown
+// timestamp must never be treated as fresh. Local simulators are excluded
+// (they are not calibrated devices).
+func StaleCalibrations(now time.Time) []DeviceProfile {
+	c := loadFidelityContract()
+	maxAge := c.MaxCalibrationAgeHours
+	if maxAge <= 0 {
+		maxAge = 24.0
+	}
+	out := []DeviceProfile{}
+	for _, p := range c.Devices {
+		if p.Name == "local-simulator" {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, p.CalibratedAt)
+		if err != nil {
+			at, err = time.Parse("2006-01-02", p.CalibratedAt)
+		}
+		if err != nil || now.Sub(at).Hours() > maxAge {
+			out = append(out, p)
+		}
+	}
+	return out
 }

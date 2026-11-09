@@ -35,9 +35,10 @@ surface. The remaining blockers are functional, not cosmetic:
    Docker Desktop host has no `runsc`; autoresearch stays unavailable. A Linux
    host/VM is required for a hostile-code boundary.
 5. **Calibration/queue operations are partial.** Live refresh exists through the
-   bridge image; `/api/fleet` now exposes calibration age (this audit slice), but
-   there is no scheduled refresh worker, queue-position/ETA surface, or
-   calibration-age alert. QPU dispatch can still go stale.
+   bridge image; `/api/fleet` exposes calibration age and a boot/hourly
+   stale/resumed alert is now sealed; there is still no automated refresh
+   worker, queue-position/ETA surface, or UI refresh action. QPU dispatch can
+   still go stale until the operator refreshes.
 6. **Result truth is split across contracts.** Job JSON, campaign `measurement`,
    PES `points`, notebook text, and UI projections are not one typed
    `ExperimentResult`. `result_version` exists on new results, but there is no
@@ -170,6 +171,8 @@ Implemented after the audit:
 - Console PES range inputs and full-space controls for LiH/BeH2.
 - `/api/fleet` calibration provenance/age/freshness from the fidelity contract.
 - Console fleet table renders calibration age and STALE.
+- `kubonad` boots a calibration monitor that seals `calibration_stale` /
+  `calibration_resumed` events and alerts on transitions.
 - Bridge Aer label corrected from “noisy density matrix” to shot simulation.
 - Tests: LiH active-space PES; existing PES points; fleet/fidelity; console tsc.
 

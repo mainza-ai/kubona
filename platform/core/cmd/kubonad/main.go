@@ -289,6 +289,9 @@ func main() {
 			slog.Warn("[Kubona Core] disk guard", "level", snap.Level, "reason", snap.Reason)
 		})
 	diskGuard.PollOnce() // fail-closed first reading before serving
+	calStop := make(chan struct{})
+	defer close(calStop)
+	startCalibrationWatch(calStop, l)
 	diskStop := make(chan struct{})
 	defer close(diskStop)
 	go diskGuard.Start(diskStop, time.Duration(diskPollSeconds)*time.Second)

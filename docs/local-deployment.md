@@ -77,7 +77,10 @@ Both the bridge (`KUBONA_FIDELITY_DEVICES`) and kubonad
 (`KUBONA_CONTRACTS_DIR`) resolve the state-volume contract on boot. Restart the
 two services after a refresh if a long-running process has already cached it.
 A failed or unmeasurable refresh refuses; it never stamps a fresh timestamp
-without live data.
+without live data. `kubonad` checks the shared contract on boot and hourly
+(`KUBONA_CALIBRATION_CHECK_SECONDS`, default 3600), seals
+`calibration_stale`/`calibration_resumed` ledger events, and alerts on the
+transition; `/api/fleet` exposes the exact age and freshness per device.
 
 ### Autoresearch sandbox (opt-in, gVisor)
 
