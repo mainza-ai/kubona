@@ -51,7 +51,7 @@ class AdaptError(RuntimeError):
 
 @dataclass(frozen=True)
 class AdaptConfig:
-    pool: str = "uccsd"
+    pool: str = "ceo"
     max_ops: int = 8
     max_iterations: int = 120
     gradient_tol: float = 1e-5
