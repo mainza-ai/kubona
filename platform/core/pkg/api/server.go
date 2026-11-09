@@ -1323,6 +1323,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		q := *out.Queue
 		q.FetchedAt = time.Now().UTC()
 		s.setProviderQueue("ibm-qiskit", backend, q)
+		out.Queue = &q
 	}
 	device, err := fidelity.ResolveDeviceForBackend(backend)
 	if err != nil {
