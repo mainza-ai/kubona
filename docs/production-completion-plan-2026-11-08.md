@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `956deab` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `ead17da` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
@@ -171,6 +171,9 @@ feature limitations in the UI and contract.
   live gVisor proof recorded (`docs/sandbox-live-2026-11-09.md`).
 - `956deab` — campaign/claim paths honor `claimable` and `measured`; mitigated
   or exact-refused results cannot become "verified" from delta alone.
+- `70cb947`, `ead17da` — hardware loop receipts carry layout/calibration;
+  result-version gate regression test; BeH2/CEO docs corrected. CI/E2E green
+  at `ead17da`.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 
