@@ -952,6 +952,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 160)),
                     target_error=float(spec.get("target_error", 1e-3)),
+                    state_mode=str(spec.get("state_mode") or "vqe"),
                 )
             elif kind == "conjecture":
                 from kubona.science.conjecture import discover_sequence_laws

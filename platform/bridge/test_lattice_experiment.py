@@ -26,6 +26,19 @@ def test_tfim_experiment_is_shot_measured_and_anchored():
     assert "observable_state" in res
 
 
+def test_exact_state_mode_measures_the_known_ground_state():
+    res = run_spin_chain(
+        model="tfim", n_sites=4, coupling=1.0, field=1.0,
+        periodic=True, layers=2, shots=12000, seed=9, state_mode="exact",
+    )
+    assert res["success"] is True, res
+    assert res["state_mode"] == "exact"
+    assert res["simulated_optimizer"] is False
+    assert res["ground_state_reached"] is True
+    assert res["claimable"] is False
+    assert abs(res["energy"] - res["energy_exact"]) < 5 * res["uncertainty"]
+
+
 def test_conjecture_requires_valid_domain():
     res = run_spin_chain(model="not-a-model", n_sites=4)
     assert res["success"] is False
