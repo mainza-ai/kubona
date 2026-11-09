@@ -60,8 +60,8 @@ async function ensureOperatorLoggedIn(page: Page) {
     const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
     return config.apiUrl || 'http://localhost:8080';
   });
-  await page.evaluate(async (base) => {
-    await fetch(`${base}/api/sessions`, {
+  const createdSessionId = await page.evaluate(async (base) => {
+    const res = await fetch(`${base}/api/sessions`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -72,12 +72,16 @@ async function ensureOperatorLoggedIn(page: Page) {
         fresh: true,
       }),
     });
+    const body = await res.json() as { id?: string };
+    return body.id || '';
   }, apiUrl);
+  if (!createdSessionId) throw new Error('operator session creation returned no id');
   await page.goto('/');
   await expectReady(page);
   const workbench = page.getByTestId('workbench');
   await expect(workbench).toBeVisible();
   await expect.poll(async () => Number(await workbench.getAttribute('data-object-count')), { timeout: 30_000 }).toBeGreaterThan(0);
+  return createdSessionId;
 }
 
 test.describe('Kubona console against the real local stack', () => {
@@ -221,6 +225,42 @@ test.describe('Kubona console against the real local stack', () => {
     await dialog.getByRole('textbox').fill(workflow.name);
     await dialog.getByRole('button', { name: 'Run workflow' }).click();
     await expect(page.getByText(/workflow .* completed 1/)).toBeVisible();
+  });
+
+  test('real LiH PES runs through the ledger and renders measured points', async ({ page }) => {
+    const sessionId = await ensureOperatorLoggedIn(page);
+    const apiUrl = await page.evaluate(async () => {
+      const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
+      return config.apiUrl || 'http://localhost:8080';
+    });
+    const submitted = await page.evaluate(async ({ base, sid }) => {
+      const res = await fetch(`${base}/api/experiments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sid,
+          spec: {
+            kind: 'pes', molecule: 'LiH', r_min: 1.4, r_max: 1.6, steps: 2,
+            layers: 1, shots: 128, max_iterations: 2, full_space: false,
+          },
+          budget_usd: 1,
+          request_id: `e2e-pes-${Date.now()}`,
+        }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { base: apiUrl, sid: sessionId });
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(201);
+    const jobId = submitted.body?.job?.id as string | undefined;
+    expect(jobId).toBeTruthy();
+    await expect.poll(async () => page.evaluate(async ({ base, sid, id }) => {
+      const res = await fetch(`${base}/api/jobs/${id}?session_id=${sid}`, { credentials: 'include' });
+      const body = await res.json() as { job?: { status?: string } };
+      return body.job?.status || '';
+    }, { base: apiUrl, sid: sessionId, id: jobId }), { timeout: 30_000 }).toBe('completed');
+    await page.goto('/?surface=proofs&tab=manuscripts');
+    await expect(page.getByText('PES points', { exact: true })).toBeVisible();
+    await expect(page.getByText('1.4000', { exact: true })).toBeVisible();
   });
 
   test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {
