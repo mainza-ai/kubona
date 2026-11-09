@@ -295,8 +295,10 @@ def run_vqe_hardware(
         "molecule": str(molecule or "H2"),
         "bond_distance": float(bond_distance),
         "basis": "sto-3g",
-        "method": "VQE hardware-efficient H2, local COBYLA optimizer, hardware final state",
-        "ansatz": f"hardware-efficient layers={int(layers)}",
+        "method": (f"VQE {molecule} active-space UCCSD, local COBYLA optimizer, hardware final state"
+                   if ansatz_qasm and str(molecule or "H2").upper() != "H2" else "VQE H2 hardware-efficient, local COBYLA optimizer, hardware final state"),
+        "ansatz": (f"active-space UCCSD ({qc.num_qubits} qubits)"
+                   if ansatz_qasm and str(molecule or "H2").upper() != "H2" else f"hardware-efficient layers={int(layers)}"),
         "layers": int(layers),
         "shots": int(shots),
         "seed": int(seed),
