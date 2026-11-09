@@ -49,7 +49,7 @@ func TestCalibrationRefreshInstallsLiveProfile(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("calibration refresh: %d %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"fidelity_version":"live-test"`) {
+	if !strings.Contains(w.Body.String(), `"version":"live-test"`) {
 		t.Fatalf("live profile not installed: %s", w.Body.String())
 	}
 	_ = os.Remove(dir + "/cal.db")
