@@ -114,7 +114,7 @@ export interface Job {
   // The bridge may return params/result as a JSON string (large payloads)
   // or as a decoded object; consumers must handle both via asRecord().
   params_json: Record<string, unknown> | string;
-  result_json?: Record<string, unknown> | string | null;
+  result_json?: ExperimentResult | Record<string, unknown> | string | null;
   created_at: string;
   completed_at?: string;
   compiler_used?: string;
