@@ -2,8 +2,8 @@
 
 **Scope:** fully functional local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant product, not a demo.
-**Audited head:** `d016e41` plus the working-tree PES/fleet changes described
-below.
+**Audited head:** `d016e41` plus the committed 2026-11-09 PES/fleet/CI95/
+calibration slice through `99f5462`.
 **Method:** re-read the current Go/Python/console code and tests, not the prior
 status prose. The earlier completion report contained stale entries; this page
 corrects them explicitly.
@@ -114,7 +114,7 @@ These corrections do not close the items in §3.
 
 ## 4. Execution plan (updated)
 
-### Phase 0 — finish the current functional slice
+### Phase 0 — finish the current functional slice (status: implemented/tested)
 
 1. **PES LiH/BeH2 + UI** (implemented in this slice).
    - Bridge delegates points to `run_vqe`; active and full-space; per-point
