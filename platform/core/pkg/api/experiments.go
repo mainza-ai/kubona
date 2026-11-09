@@ -129,6 +129,8 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		BudgetUSD           float64  `json:"budget_usd"`
 		Backend             string   `json:"backend"`
 		MandateRef          string   `json:"mandate_ref"`
+		Loop                bool     `json:"loop"`
+		MaxIterations       int      `json:"max_iterations"`
 		GrantChain          []string `json:"grant_chain"`
 		InputLabels         []string `json:"input_labels"`
 		CallerJurisdictions []string `json:"caller_jurisdictions"`
@@ -193,6 +195,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		QASM: res.CircuitQASM, FidelityQASM: res.CircuitQASM,
 		OptimalCut: res.OptimalCut, EnergyExact: res.EnergyExact,
 		Nodes: res.Graph.Nodes, Edges: res.Graph.Edges,
+		Loop: req.Loop, MaxIterations: req.MaxIterations,
 		Shots: req.Shots, Seed: req.Seed, MaxCostUSD: req.BudgetUSD,
 		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
@@ -243,6 +246,10 @@ type hardwareVQEIntent struct {
 	BudgetUSD           float64  `json:"budget_usd"`
 	Backend             string   `json:"backend"`
 	MandateRef          string   `json:"mandate_ref"`
+	Loop                bool     `json:"loop"`
+	MaxIterations       int      `json:"max_iterations"`
+	Mitigation          string   `json:"mitigation"`
+	MitigationScales    []int    `json:"mitigation_scales"`
 	CallerJurisdictions []string `json:"caller_jurisdictions"`
 	CallerExportClass   string   `json:"caller_export_class"`
 	ExportReviewed      bool     `json:"export_reviewed"`
@@ -269,6 +276,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		Theta             []float64          `json:"theta"`
 		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
 		AnsatzQASM        string             `json:"ansatz_qasm"`
+		AnsatzQPY         string             `json:"ansatz_qpy"`
 		ActiveSpace       struct {
 			FullSpace bool `json:"full_space"`
 		} `json:"active_space"`
@@ -303,6 +311,8 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		Theta: res.Theta, PauliCoefficients: res.PauliCoefficients,
 		FCIExactEnergy: res.FCIExactEnergy, ConstantEnergy: res.ConstantEnergy,
 		Provider: "ibm-qiskit", QASM: res.AnsatzQASM,
+		Mitigation: req.Mitigation, MitigationScales: req.MitigationScales,
+		Loop: req.Loop, MaxIterations: req.MaxIterations, AnsatzQPY: res.AnsatzQPY,
 		RequestedBackend: backend, FidelityQASM: res.AnsatzQASM,
 		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef,
 		CallerJurisdictions: req.CallerJurisdictions,

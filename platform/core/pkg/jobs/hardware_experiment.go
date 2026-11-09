@@ -28,6 +28,11 @@ type HardwareExperimentParams struct {
 	RequestedBackend    string             `json:"requested_backend"`
 	FidelityQASM        string             `json:"fidelity_qasm"`
 	QASM                string             `json:"qasm"`
+	Mitigation          string             `json:"mitigation,omitempty"`
+	MitigationScales    []int              `json:"mitigation_scales,omitempty"`
+	Loop                bool               `json:"loop,omitempty"`
+	MaxIterations       int                `json:"max_iterations,omitempty"`
+	AnsatzQPY           string             `json:"ansatz_qpy,omitempty"`
 	OptimalCut          int                `json:"optimal_cut"`
 	EnergyExact         float64            `json:"energy_exact"`
 	Nodes               int                `json:"nodes"`
@@ -61,6 +66,11 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Provider          string             `json:"provider"`
 		RequestedBackend  string             `json:"requested_backend"`
 		QASM              string             `json:"qasm"`
+		Mitigation        string             `json:"mitigation,omitempty"`
+		MitigationScales  []int              `json:"mitigation_scales,omitempty"`
+		Loop              bool               `json:"loop,omitempty"`
+		MaxIterations     int                `json:"max_iterations,omitempty"`
+		AnsatzQPY         string             `json:"ansatz_qpy,omitempty"`
 		OptimalCut        int                `json:"optimal_cut"`
 		EnergyExact       float64            `json:"energy_exact"`
 		Nodes             int                `json:"nodes"`
@@ -71,6 +81,8 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Theta: p.Theta, PauliCoefficients: p.PauliCoefficients,
 		FCIExactEnergy: p.FCIExactEnergy, ConstantEnergy: p.ConstantEnergy, Provider: p.Provider,
 		RequestedBackend: p.RequestedBackend, QASM: p.QASM,
+		Mitigation: p.Mitigation, MitigationScales: p.MitigationScales,
+		Loop: p.Loop, MaxIterations: p.MaxIterations, AnsatzQPY: p.AnsatzQPY,
 		OptimalCut: p.OptimalCut, EnergyExact: p.EnergyExact,
 		Nodes: p.Nodes, Edges: p.Edges,
 	}
@@ -100,9 +112,23 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 		if p.Molecule != "H2" && strings.TrimSpace(p.QASM) == "" {
 			return "", 0, fmt.Errorf("hardware_experiment for %s requires the optimized active-space ansatz QASM", p.Molecule)
 		}
+		if p.Loop {
+			if p.MaxIterations < 1 || p.MaxIterations > 30 {
+				return "", 0, fmt.Errorf("hardware loop max_iterations must be in [1,30]")
+			}
+			if p.Molecule != "H2" && strings.TrimSpace(p.AnsatzQPY) == "" {
+				return "", 0, fmt.Errorf("hardware loop for %s requires ansatz_qpy", p.Molecule)
+			}
+		}
 	case "qaoa_hardware":
-		if strings.TrimSpace(p.QASM) == "" || p.OptimalCut <= 0 || p.Nodes <= 0 || len(p.Edges) == 0 {
-			return "", 0, fmt.Errorf("qaoa_hardware requires qasm, optimal_cut, nodes, and edges")
+		if p.OptimalCut <= 0 || p.Nodes <= 0 || len(p.Edges) == 0 {
+			return "", 0, fmt.Errorf("qaoa_hardware requires optimal_cut, nodes, and edges")
+		}
+		if !p.Loop && strings.TrimSpace(p.QASM) == "" {
+			return "", 0, fmt.Errorf("qaoa_hardware requires qasm")
+		}
+		if p.Loop && (p.MaxIterations < 1 || p.MaxIterations > 30) {
+			return "", 0, fmt.Errorf("QAOA hardware loop max_iterations must be in [1,30]")
 		}
 	default:
 		return "", 0, fmt.Errorf("unsupported hardware experiment type %q", jobType)
@@ -121,6 +147,23 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	}
 	if jobType == "hardware_experiment" && (len(p.Theta) == 0 || len(p.PauliCoefficients) == 0) {
 		return "", 0, fmt.Errorf("hardware_experiment requires local theta and pauli_coefficients")
+	}
+	if p.Mitigation != "" {
+		if strings.ToUpper(strings.TrimSpace(p.Mitigation)) != "ZNE" {
+			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (only ZNE)", p.Mitigation)
+		}
+		if len(p.MitigationScales) > 0 {
+			seen := map[int]bool{}
+			for _, scale := range p.MitigationScales {
+				if scale < 1 || scale%2 == 0 {
+					return "", 0, fmt.Errorf("mitigation scale %d must be a positive odd integer", scale)
+				}
+				seen[scale] = true
+			}
+			if len(seen) < 2 {
+				return "", 0, fmt.Errorf("mitigation requires at least two distinct scales")
+			}
+		}
 	}
 	if p.FidelityQASM == "" {
 		return "", 0, fmt.Errorf("%s requires fidelity_qasm", jobType)

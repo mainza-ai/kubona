@@ -10,7 +10,8 @@ molecular orbital space (no active-space reduction), STO-3G.
 - operator pools:
   - `uccsd`: Qiskit Nature singles/doubles mapped through Jordan-Wigner;
   - `ceo`: generalized qubit singles, opposite-spin OVP-CEO `+`/`-`, and
-    same-spin QE/OVP-CEO families;
+    same-spin QE/OVP-CEO families, built on the **block** spin-orbital layout
+    (alpha 0..nso-1, beta nso..2nso-1);
 - exact energy gradients at the current state;
 - explicit operator selection, full-parameter COBYLA optimization, and
   monotonic-energy protection;
@@ -49,14 +50,33 @@ This is a simulator result, not hardware and not a quantum-advantage claim.
 The hardware H2/QAOA evidence lives in
 `docs/production-unblock-plan-2026-11-08.md`.
 
-## CEO pool boundary
+## CEO pool boundary — corrected 2026-11-09
 
-CEO-ADAPT is implemented and selectable (`full_space_pool: "ceo"`; 750
-operators for LiH). On the same LiH point it selected 10 operators and
-stalled near `4.66 mHa` exact error; it did **not** reach the target in the
-measured window. It remains labelled experimental. The validated full-space
-default is the UCCSD pool, not a claim that every CEO construction converges
-on every molecule.
+The 2026-11-08 CEO result was invalid: `_ceo_pool` assumed interleaved
+even/odd spin orbitals, but the pinned Qiskit Nature Jordan-Wigner layout is
+block-ordered (alpha block, then beta block). The pool therefore omitted the
+opposite-spin excitation family that carries the leading correlation and
+stalled near `4.66 mHa` exact error.
+
+The layout is now derived from `num_spatial_orbitals` and asserted against
+the HF determinant's block occupation. On the same LiH point, CEO-ADAPT
+selected 20 operators and reached:
+
+| quantity | value |
+|---|---|
+| exact energy | `-7.8823223741 Ha` (diagnostic) |
+| exact delta | `0.0399 mHa` |
+| measured delta | `0.4499 mHa` |
+| shot uncertainty | `0.5219 mHa` |
+| shots | `262144` |
+| status | `within_target` |
+| wall time | ~63 s |
+
+CEO is now the default full-space pool (`full_space_pool:"ceo"`); the UCCSD
+pool remains selectable as the validated reference. Both are measured, and
+the claim gate still requires measured delta, uncertainty, and exact delta to
+pass. This does not make every CEO construction converge on every molecule;
+the pool and selected operators are reported with the result.
 
 ## BeH2 boundary
 
@@ -73,6 +93,7 @@ pool recorded in the result.
 - The simulator cost grows with the number of selected operators and Pauli
   terms; the bridge enforces a 900 s default `KUBONA_ADAPT_TIME_LIMIT_S`.
 - `KUBONA_ADAPT_MAX_OPS` and `KUBONA_ADAPT_MIN_SHOTS` are operator controls;
-  defaults are 8×layers capped at 20 and 262144 shots.
+  the default operator cap is 40 (capped at 64) and the default measurement
+  floor is 262144 shots.
 - BeH2 chemical accuracy needs a better pool/optimizer schedule, not a label
   change. Until then the result is a measured, contested full-space run.

@@ -875,7 +875,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 120)),
                     full_space=bool(spec.get("full_space", False)),
-                    full_space_pool=str(spec.get("full_space_pool") or "uccsd"),
+                    full_space_pool=str(spec.get("full_space_pool") or "ceo"),
                 )
             elif kind == "pes":
                 from experiments import run_pes
@@ -889,7 +889,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 80)),
                     full_space=bool(spec.get("full_space", False)),
-                    full_space_pool=str(spec.get("full_space_pool") or "uccsd"),
+                    full_space_pool=str(spec.get("full_space_pool") or "ceo"),
                 )
             elif kind == "krylov":
                 from krylov import solve_quantum_krylov
@@ -918,40 +918,70 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     graph_seed=int(spec.get("graph_seed", 3)),
                 )
             elif kind == "vqe_hardware":
-                from experiments import run_vqe_hardware
-                result = run_vqe_hardware(
-                    theta=spec.get("theta"),
-                    pauli_coefficients=spec.get("pauli_coefficients"),
-                    layers=int(spec.get("layers", 2)),
-                    shots=int(spec.get("shots", 4096)),
-                    seed=int(spec.get("seed", 7)),
-                    bond_distance=float(spec.get("bond_distance", 0.7414)),
-                    fci_exact_energy=spec.get("fci_exact_energy"),
-                    backend=spec.get("requested_backend"),
-                    molecule=str(spec.get("molecule") or "H2"),
-                    ansatz_qasm=spec.get("qasm") or spec.get("ansatz_qasm"),
-                    constant_energy=float(spec.get("constant_energy", 0.0)),
-                )
+                from experiments import run_vqe_hardware, run_vqe_hardware_loop
+                if bool(spec.get("loop")):
+                    result = run_vqe_hardware_loop(
+                        theta=spec.get("theta"),
+                        pauli_coefficients=spec.get("pauli_coefficients"),
+                        layers=int(spec.get("layers", 2)),
+                        shots=int(spec.get("shots", 4096)),
+                        seed=int(spec.get("seed", 7)),
+                        bond_distance=float(spec.get("bond_distance", 0.7414)),
+                        fci_exact_energy=spec.get("fci_exact_energy"),
+                        backend=spec.get("requested_backend"),
+                        molecule=str(spec.get("molecule") or "H2"),
+                        ansatz_qpy=spec.get("ansatz_qpy"),
+                        constant_energy=float(spec.get("constant_energy", 0.0)),
+                        max_iterations=int(spec.get("max_iterations", 8)),
+                    )
+                else:
+                    result = run_vqe_hardware(
+                        theta=spec.get("theta"),
+                        pauli_coefficients=spec.get("pauli_coefficients"),
+                        layers=int(spec.get("layers", 2)),
+                        shots=int(spec.get("shots", 4096)),
+                        seed=int(spec.get("seed", 7)),
+                        bond_distance=float(spec.get("bond_distance", 0.7414)),
+                        fci_exact_energy=spec.get("fci_exact_energy"),
+                        backend=spec.get("requested_backend"),
+                        molecule=str(spec.get("molecule") or "H2"),
+                        ansatz_qasm=spec.get("qasm") or spec.get("ansatz_qasm"),
+                        constant_energy=float(spec.get("constant_energy", 0.0)),
+                        mitigation=spec.get("mitigation"),
+                        mitigation_scales=spec.get("mitigation_scales"),
+                    )
             elif kind == "qaoa_hardware":
-                from experiments import run_qaoa_hardware
+                from experiments import run_qaoa_hardware, run_qaoa_hardware_loop
                 graph = spec.get("graph") or {
                     "nodes": spec.get("nodes", 0),
                     "edges": spec.get("edges", []),
                 }
-                result = run_qaoa_hardware(
-                    qasm=spec.get("qasm") or "",
-                    optimal_cut=int(spec.get("optimal_cut", 0)),
-                    nodes=int(graph.get("nodes", 0)),
-                    edges=graph.get("edges") or [],
-                    shots=int(spec.get("shots", 4096)),
-                    seed=int(spec.get("seed", 7)),
-                    energy_exact=float(spec.get("energy_exact", 0.0)),
-                    backend=spec.get("requested_backend"),
-                )
+                if bool(spec.get("loop")):
+                    result = run_qaoa_hardware_loop(
+                        nodes=int(graph.get("nodes", 0)),
+                        edges=graph.get("edges") or [],
+                        optimal_cut=int(spec.get("optimal_cut", 0)),
+                        layers=int(spec.get("layers", 2)),
+                        shots=int(spec.get("shots", 4096)),
+                        seed=int(spec.get("seed", 7)),
+                        max_iterations=int(spec.get("max_iterations", 8)),
+                        backend=spec.get("requested_backend"),
+                    )
+                else:
+                    result = run_qaoa_hardware(
+                        qasm=spec.get("qasm") or "",
+                        optimal_cut=int(spec.get("optimal_cut", 0)),
+                        nodes=int(graph.get("nodes", 0)),
+                        edges=graph.get("edges") or [],
+                        shots=int(spec.get("shots", 4096)),
+                        seed=int(spec.get("seed", 7)),
+                        energy_exact=float(spec.get("energy_exact", 0.0)),
+                        backend=spec.get("requested_backend"),
+                    )
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, or qaoa",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")
