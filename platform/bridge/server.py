@@ -888,6 +888,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     shots=int(spec.get("shots", 16384)),
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 80)),
+                    full_space=bool(spec.get("full_space", False)),
+                    full_space_pool=str(spec.get("full_space_pool") or "uccsd"),
                 )
             elif kind == "qaoa":
                 from experiments import run_qaoa

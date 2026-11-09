@@ -128,3 +128,19 @@ def test_qaoa_hardware_computes_cut_from_one_batch(monkeypatch):
     assert res["hardware"] is True
     assert res["hardware_job_id"] == "hw-qaoa"
     assert calls == [([qasm], 512, 7, "ibm-test")]
+
+
+def test_pes_supports_active_space_lih_and_reports_each_point():
+    from experiments import run_pes
+
+    res = run_pes(molecule="LiH", r_min=1.4, r_max=1.6, steps=2, layers=1,
+                  shots=128, seed=7, max_iterations=2)
+    assert res["success"] is True
+    assert res["molecule"] == "LiH"
+    assert res["full_space"] is False
+    assert len(res["points"]) == 2
+    for point in res["points"]:
+        assert point["energy"] == point["energy"]
+        assert point["uncertainty"] > 0
+        assert point["fci_exact_energy"] != 0
+        assert point["method"].startswith("VQE UCCSD")

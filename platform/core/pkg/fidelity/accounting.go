@@ -37,11 +37,12 @@ type DeviceProfile struct {
 }
 
 type fidelityContract struct {
-	SchemaVersion     string            `json:"schema_version"`
-	DefaultFloorGo    float64           `json:"default_floor_go"`
-	DriftTolerance    float64           `json:"drift_tolerance"`
-	ProviderDeviceMap map[string]string `json:"provider_device_map"`
-	Devices           []DeviceProfile   `json:"devices"`
+	SchemaVersion          string            `json:"schema_version"`
+	DefaultFloorGo         float64           `json:"default_floor_go"`
+	DriftTolerance         float64           `json:"drift_tolerance"`
+	MaxCalibrationAgeHours float64           `json:"max_calibration_age_hours"`
+	ProviderDeviceMap      map[string]string `json:"provider_device_map"`
+	Devices                []DeviceProfile   `json:"devices"`
 }
 
 var (
@@ -80,6 +81,16 @@ func loadFidelityContract() fidelityContract {
 		}
 	})
 	return loadedContract
+}
+
+// MaxCalibrationAgeHours is the shared freshness budget from the fidelity
+// contract. Zero/invalid falls back to the documented 24h v1 budget.
+func MaxCalibrationAgeHours() float64 {
+	c := loadFidelityContract()
+	if c.MaxCalibrationAgeHours <= 0 {
+		return 24.0
+	}
+	return c.MaxCalibrationAgeHours
 }
 
 // ProviderDeviceMap returns the canonical provider -> device mapping from

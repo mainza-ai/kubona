@@ -897,12 +897,23 @@ def run_pes(
     shots: int = 4096,
     seed: int = 7,
     max_iterations: int = 60,
+    full_space: bool = False,
+    full_space_pool: str = "uccsd",
 ) -> dict[str, Any]:
-    """Run a real H2 VQE potential-energy scan over a caller-stated grid."""
+    """Run a real VQE potential-energy scan over a caller-stated grid.
+
+    Supported molecules are H2 (the original hardware-efficient path) and
+    LiH/BeH2 through the same molecular VQE rail.  ``full_space`` selects the
+    ADAPT full-orbital-space path; active-space LiH/BeH2 remains the default.
+    Every point carries its own measured energy, uncertainty, FCI anchor, and
+    delta; a failed point refuses the scan instead of returning a partial
+    curve as if it were complete.
+    """
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing PES"}
-    if (molecule or "").upper() != "H2":
-        return {"success": False, "error": "PES currently supports H2 only; refusing another molecule"}
+    mol = (molecule or "").upper()
+    if mol not in ("H2", "LIH", "BEH2"):
+        return {"success": False, "error": f"PES supports H2, LiH, BeH2; refusing {molecule!r}"}
     try:
         rmin, rmax, n = float(r_min), float(r_max), int(steps)
     except (TypeError, ValueError):
@@ -911,12 +922,16 @@ def run_pes(
         return {"success": False, "error": "require 0.3 <= r_min < r_max <= 10.0: refusing"}
     if n < 2 or n > 21:
         return {"success": False, "error": "steps must be in [2,21]: refusing"}
+    if bool(full_space) and mol == "H2":
+        return {"success": False, "error": "H2 has no active-space reduction; full_space is for LiH/BeH2"}
     t0 = time.perf_counter()
     points = []
     for i in range(n):
         r = rmin + (rmax - rmin) * i / (n - 1)
-        res = run_vqe(molecule="H2", bond_distance=r, layers=layers,
-                      shots=shots, seed=seed + i, max_iterations=max_iterations)
+        res = run_vqe(molecule=mol, bond_distance=r, layers=layers,
+                      shots=shots, seed=seed + i, max_iterations=max_iterations,
+                      full_space=bool(full_space),
+                      full_space_pool=full_space_pool)
         if not res.get("success"):
             return {"success": False, "error": f"PES point {r:.4f} failed: {res.get('error')}",
                     "failed_point": r, "completed_points": points}
@@ -926,20 +941,26 @@ def run_pes(
             "energy_exact": res["energy_exact"],
             "uncertainty": res["uncertainty"],
             "fci_exact_energy": res["fci_exact_energy"],
-            "rhf_mean_field_energy": res["rhf_mean_field_energy"],
+            "active_space_fci_energy": res.get("active_space_fci_energy"),
+            "rhf_mean_field_energy": res.get("rhf_mean_field_energy"),
             "delta_mha": res["delta_mha"],
+            "exact_delta_mha": res.get("exact_delta_mha"),
             "chemical_accuracy": res["chemical_accuracy"],
-            "theta": res["theta"],
+            "claimable": res.get("claimable", res["chemical_accuracy"]),
+            "full_space_status": res.get("full_space_status"),
+            "method": res.get("method"),
+            "theta": res.get("theta", []),
         })
     return {
         "success": True,
         "kind": "pes",
         "result_version": "experiment-result-v1",
-        "molecule": "H2",
+        "molecule": res.get("molecule", mol),
         "basis": "sto-3g",
         "r_min": rmin,
         "r_max": rmax,
         "steps": n,
+        "full_space": bool(full_space),
         "points": points,
         "backend": "qiskit-aer-simulator",
         "measured": True,

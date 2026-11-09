@@ -209,6 +209,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <th scope="col" className="py-1 pr-3">Backend</th>
                 <th scope="col" className="py-1 pr-3">Qubits</th>
                 <th scope="col" className="py-1 pr-3">Queue</th>
+                <th scope="col" className="py-1 pr-3">Calibration</th>
                 <th scope="col" className="py-1 pr-3">Cost/shot</th>
                 <th scope="col" className="py-1 pr-3">Jurisdiction</th>
                 <th scope="col" className="py-1 pr-3">Credential</th>
@@ -221,6 +222,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <th scope="row" className="py-1.5 pr-3 font-sans font-medium text-slate-200">{backend.name}</th>
                   <td className="py-1.5 pr-3">{typeof backend.qubits === 'number' ? backend.qubits : '—'}</td>
                   <td className="py-1.5 pr-3">{typeof backend.queue_depth === 'number' ? backend.queue_depth : '—'}</td>
+                  <td className="py-1.5 pr-3" title={backend.fidelity_source || undefined}>
+                    {typeof backend.calibration_age_hours === 'number'
+                      ? `${backend.calibration_age_hours.toFixed(1)}h${backend.calibration_fresh === false ? ' · STALE' : ''}`
+                      : '—'}
+                  </td>
                   <td className="py-1.5 pr-3">{typeof backend.cost_per_shot === 'number' ? `$${backend.cost_per_shot.toFixed(6)}` : '—'}</td>
                   <td className="py-1.5 pr-3">{backend.jurisdiction || '—'}</td>
                   <td className="py-1.5 pr-3">{backend.credential_state || '—'}</td>

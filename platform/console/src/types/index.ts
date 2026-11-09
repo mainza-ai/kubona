@@ -737,6 +737,11 @@ export interface BackendInfo {
   telemetry?: string;
   catalog_verified?: string | null;
   queue_depth?: number | null;
+  calibration_at?: string | null;
+  calibration_age_hours?: number | null;
+  calibration_fresh?: boolean | null;
+  fidelity_source?: string | null;
+  fidelity_version?: string | null;
   cost_per_shot?: number | null;
   jurisdiction?: string | null;
   itar_ear?: string | null;

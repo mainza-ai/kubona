@@ -625,7 +625,7 @@ def _execute_qasm_inner(
         if HAS_AER and any(k in requested_backend.lower() for k in ("aer", "local", "sim")):
             resolved_backend = "qiskit_aer.AerSimulator"
             degradation_level = 2
-            degradation_reason = "Executed Aer noisy density matrix simulator"
+            degradation_reason = "Executed Aer shot simulation (no noise model attached; exact statevector also recorded when within bounds)"
             backend = Aer.get_backend("aer_simulator")
             # If circuit has no measurements, save statevector
             qc_meas = qc.copy()
