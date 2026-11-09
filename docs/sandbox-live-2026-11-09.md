@@ -47,3 +47,21 @@ daemon can submit requests.
   than silently running untrusted code under a weaker runtime.
 - The VM proof used a rootful Docker daemon for `runsc`; the compose profile
   documents the same requirement.
+
+
+## macOS host runbook (supported path)
+
+Native macOS Docker Desktop still has no `runsc`. On macOS, run the sandbox
+inside a Linux VM instead of weakening the runtime:
+
+1. `limactl create --name kubona-sandbox --cpus=4 --memory=4 --disk=20 template:docker`
+2. `limactl start kubona-sandbox`
+3. Install gVisor from `https://storage.googleapis.com/gvisor/releases/release/latest/aarch64/gvisor.tar.zstd` (use `x86_64` on Intel); run `runsc install` in the VM.
+4. Start a rootful Docker daemon in the VM for `runsc` (the rootless Lima daemon rejects the systemd cgroup request).
+5. Build/copy the Linux `kubonad` binary and run:
+   `kubonad sandboxd --socket /tmp/sandbox.sock --image python:3.12-slim --runtime runsc --scratch /tmp/kubona-sandboxd`
+6. Point `KUBONA_SANDBOX_SOCKET` at the VM socket. The host `kubonad` stays
+   Docker-socket-free; only the broker has the socket.
+
+The exact live proof (health 200, UID 1000, network blocked, read-only,
+cap-drop=ALL) is above. Do not run `sandboxd` with `runc` as a fallback.
