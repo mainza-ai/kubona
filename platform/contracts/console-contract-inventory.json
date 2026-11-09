@@ -1056,6 +1056,12 @@
       "contract": null
     },
     {
+      "function": "refreshCalibration",
+      "path": "/api/fleet/calibration/refresh",
+      "method": "POST",
+      "contract": null
+    },
+    {
       "function": "reviewClaim",
       "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
       "method": "POST",
