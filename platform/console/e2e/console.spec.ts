@@ -356,6 +356,11 @@ test.describe('result-surface browser contracts with deterministic fixtures', ()
         chemical_accuracy: true,
       },
       measurement: { uncertainty_mha: 0.513, converged: true },
+      pes_points: [{
+        bond_distance: 1.5, energy: -7.8816, energy_exact: -7.8821,
+        fci_exact_energy: -7.88236, delta_mha: 0.7, uncertainty_mha: 0.513,
+        ci95_mha: 1.005, chemical_accuracy: true,
+      }],
       updated_at: new Date().toISOString(),
     };
     const job = {
@@ -411,6 +416,9 @@ test.describe('result-surface browser contracts with deterministic fixtures', ()
     await page.goto('/?surface=proofs&tab=manuscripts');
     await expect(page.getByText('Citable Results Studio', { exact: false })).toBeVisible();
     await expect(page.getByText('full-space resource exhausted', { exact: false })).toBeVisible();
+    await expect(page.getByText('PES points', { exact: true })).toBeVisible();
+    await expect(page.getByText('1.5000', { exact: true })).toBeVisible();
+    await expect(page.getByText('1.005', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Load older claims' })).toBeVisible();
     await page.getByRole('button', { name: 'Load older claims' }).click();
     await expect(page.getByText('Older claim from page two.')).toBeVisible();
