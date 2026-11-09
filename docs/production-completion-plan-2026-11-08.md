@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `27476a2` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `c5428cb` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
@@ -184,6 +184,10 @@ feature limitations in the UI and contract.
   engine, shot-measured `spin_chain` jobs, exact rational conjecture jobs,
   H2O active-space VQE, exact-state readout mode, console controls, and real
   E2E coverage. CI/E2E green at `27476a2`.
+- `6284ced`, `990fefe`, `a0f8fb1`, `34e6afb`, `07e43de`, `c5428cb` — hardware
+  spin-chain parent rail, H2 excited/reaction chemistry, measured discovery
+  protocol, protocol UI, and coverage/contract fixes. CI/E2E green at
+  `c5428cb`; live hardware spin-chain acceptance remains operator-gated.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 

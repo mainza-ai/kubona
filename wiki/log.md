@@ -5096,3 +5096,24 @@ skipped is the exact failure this incident is about:
 - Still open: live QPU spin-chain acceptance, general-molecule
   excited/reaction workflows, conjecture novelty boundary, and hardware/
   protocol launch UI.
+
+## [2026-11-09] verification | measured science program closure
+
+- Hardware spin-chain: bridge `spin_chain_hardware` validates a unitary source
+  ansatz, measures every Pauli term plus Z magnetization in one governed QPU
+  batch, and returns vendor/usage/layout receipts; Go prepare/launch applies
+  mandate, fidelity, settlement, and version gates. E2E covers prepare and
+  mandate refusal; no live QPU run was made.
+- Chemistry: H2 deflation VQE excited state and H2→2H reaction energy are
+  measured simulator results with exact spectra/FCI endpoints; unsupported
+  molecules refuse.
+- Discovery: `/api/discovery/plan` deterministically selects a bounded goal
+  experiment; `/api/discovery/run` executes real jobs sequentially, records
+  protocol/step ledger events, and returns stored measured summaries. Console
+  protocol panel and schema/types are live.
+- Verification: full Go suite, Go coverage `64.4%` (floor 64%), bridge tests
+  `23 passed`, console `599 passed`, tsc/eslint/build, wiki lint, placeholder
+  and token gates; CI + Console E2E green at `c5428cb`.
+- Remaining: live QPU spin-chain acceptance, general-molecule
+  excited/reaction workflows, conjecture novelty boundary, and hardware launch
+  UI.
