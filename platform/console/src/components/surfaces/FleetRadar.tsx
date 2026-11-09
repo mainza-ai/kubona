@@ -224,24 +224,24 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       )}
 
       {canRefreshCalibration && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.06] bg-black/30 p-3 text-xs">
-          <span className="text-slate-300">IBM calibration refresh</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
+          <span className="text-[var(--color-muted)]">IBM calibration refresh</span>
           <input
             aria-label="IBM backend for calibration refresh"
             value={calibrationBackend}
             onChange={(event) => setCalibrationBackend(event.target.value)}
             placeholder="ibm_fez"
-            className="w-36 rounded border border-white/10 bg-black/60 px-2 py-1 font-mono text-slate-200"
+            className="w-36 rounded border border-[var(--color-border)] bg-[var(--color-fill)] px-2 py-1 font-mono text-[var(--color-text)]"
           />
           <button
             type="button"
             onClick={onRefreshCalibration}
             disabled={calibrationBusy}
-            className="rounded border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 font-semibold text-cyan-200 disabled:opacity-50"
+            className="rounded border border-[var(--color-pulse-cyan)] bg-[var(--color-fill)] px-2 py-1 font-semibold text-[var(--color-pulse-cyan)] disabled:opacity-50"
           >
             {calibrationBusy ? 'Refreshing…' : 'Refresh calibration'}
           </button>
-          {calibrationNote && <span role="status" className="text-slate-400">{calibrationNote}</span>}
+          {calibrationNote && <span role="status" className="text-[var(--color-muted)]">{calibrationNote}</span>}
         </div>
       )}
 
