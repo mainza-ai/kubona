@@ -35,7 +35,6 @@ test('a ledger job event invalidates the jobs projection while the stream is liv
     return json({});
   });
   await page.goto('/');
-  await page.waitForTimeout(2500);
-  expect(streamRequests).toBeGreaterThanOrEqual(1);
-  expect(jobsRequests).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => streamRequests, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => jobsRequests, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
 });
