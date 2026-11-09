@@ -5,7 +5,7 @@ import { WorkflowPanel } from './WorkflowPanel';
 import ConfirmDialog from './ConfirmDialog';
 import * as api from '@/lib/api';
 
-vi.mock('@/lib/api', () => ({ planWorkflow: vi.fn(), runWorkflow: vi.fn() }));
+vi.mock('@/lib/api', () => ({ planWorkflow: vi.fn(), runWorkflow: vi.fn(), approveWorkflow: vi.fn() }));
 
 describe('WorkflowPanel', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -35,5 +35,28 @@ describe('WorkflowPanel', () => {
     await act(async () => { await tree!.root.findByType(ConfirmDialog).props.onConfirm(); });
     await vi.waitFor(() => expect(api.runWorkflow).toHaveBeenCalled());
     expect(JSON.stringify(tree!.toJSON())).toContain('completed ');
+  });
+
+  it('mints and passes an approval token for agent workflows', async () => {
+    vi.mocked(api.approveWorkflow).mockResolvedValue({
+      ok: true, approval_token: 'signed-token', workflow_sha256: 'abc', expires_at: '2099-01-01T00:00:00Z',
+    });
+    vi.mocked(api.runWorkflow).mockResolvedValue({
+      ok: true, workflow_id: 'wf-2', steps_completed: 1, step_records: [], spent_usd: 0, last_results: {}, compensations: [],
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<WorkflowPanel sessionId="s1" />); });
+    await act(async () => {
+      await tree!.root.findAllByType('button').find((b) => JSON.stringify(b.props.children).includes('Approve'))!.props.onClick();
+    });
+    await vi.waitFor(() => expect(api.approveWorkflow).toHaveBeenCalled());
+    expect(tree!.root.findByProps({ 'aria-label': 'Workflow approval token' }).props.value).toBe('signed-token');
+    await act(async () => {
+      tree!.root.findAllByType('button').find((b) => JSON.stringify(b.props.children).includes('Run workflow'))!.props.onClick();
+    });
+    const gate = tree!.root.findByType(ConfirmDialog);
+    await act(async () => { gate.findByType('input').props.onChange({ target: { value: 'provider-audit' } }); });
+    await act(async () => { await tree!.root.findByType(ConfirmDialog).props.onConfirm(); });
+    await vi.waitFor(() => expect(api.runWorkflow).toHaveBeenCalledWith(expect.objectContaining({ approval_token: 'signed-token' })));
   });
 });

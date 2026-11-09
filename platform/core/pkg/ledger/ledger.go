@@ -485,6 +485,16 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		PRIMARY KEY (run_id, step_id),
 		FOREIGN KEY (run_id) REFERENCES workflow_runs(id) ON DELETE CASCADE
 	);
+	CREATE TABLE IF NOT EXISTS workflow_approvals (
+		token_hash TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		workflow_sha256 TEXT NOT NULL,
+		approved_by TEXT NOT NULL DEFAULT '',
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME NOT NULL,
+		used_at DATETIME NOT NULL DEFAULT '',
+		FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+	);
 
 	CREATE TABLE IF NOT EXISTS idempotency_keys (
 		session_id TEXT NOT NULL,

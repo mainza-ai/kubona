@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { planWorkflow, runWorkflow } from '@/lib/api';
+import { approveWorkflow, planWorkflow, runWorkflow } from '@/lib/api';
 import type { WorkflowDefinition } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
@@ -20,7 +20,8 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'plan' | 'run' | null>(null);
+  const [busy, setBusy] = useState<'plan' | 'run' | 'approve' | null>(null);
+  const [approvalToken, setApprovalToken] = useState('');
   const [confirm, setConfirm] = useState<WorkflowDefinition | null>(null);
   const runWrite = useWriteSettlement();
 
@@ -55,13 +56,29 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
     }
   };
 
+  const onApprove = async () => {
+    if (!sessionId) return;
+    const workflow = parse();
+    if (!workflow) return;
+    setBusy('approve');
+    setError(null);
+    try {
+      const out = await approveWorkflow({ session_id: sessionId, workflow, ttl_seconds: 3600 });
+      setApprovalToken(out.approval_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const onRun = async () => {
     if (!confirm) return;
     setBusy('run');
     setResult(null);
     const requestId = runWrite.begin('run workflow');
     try {
-      const out = await runWorkflow({ session_id: sessionId, workflow: confirm });
+      const out = await runWorkflow({ session_id: sessionId, workflow: confirm, ...(approvalToken.trim() ? { approval_token: approvalToken.trim() } : {}) });
       runWrite.applied(requestId, 'workflow completed');
       setResult(out as unknown as Record<string, unknown>);
       setConfirm(null);
@@ -81,9 +98,15 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
         <p className="text-[12px] text-slate-500">Plan validates against the tool registry. Running executes tools and reserves the declared budget — confirm with the workflow name.</p>
       </div>
       <textarea aria-label="Workflow JSON" value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} spellCheck={false} className="w-full rounded-lg bg-black/60 border border-white/10 px-2 py-1 text-[12px] font-mono text-slate-200" />
+      <label className="block text-[12px] text-slate-400">Approval token (agent-created / approval-required workflows)
+        <input aria-label="Workflow approval token" type="password" value={approvalToken} onChange={(e) => setApprovalToken(e.target.value)} className="mt-1 w-full rounded-lg bg-black/60 border border-white/10 px-2 py-1 text-[12px] font-mono text-slate-200" />
+      </label>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" onClick={() => void onPlan()} disabled={busy !== null} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">
           {busy === 'plan' ? 'Planning…' : 'Plan (dry run)'}
+        </button>
+        <button type="button" onClick={() => void onApprove()} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-lg bg-indigo-500/15 border border-indigo-400/30 text-indigo-200 text-[12px] disabled:opacity-40">
+          {busy === 'approve' ? 'Approving…' : 'Approve current workflow'}
         </button>
         <button type="button" onClick={() => { const wf = parse(); if (wf) setConfirm(wf); }} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-200 text-[12px] disabled:opacity-40">
           Run workflow…

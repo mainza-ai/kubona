@@ -42,6 +42,7 @@ var errorRegistry = map[string]errorSpec{
 	"forbidden":            {"auth", 403, false, "use an operator-authorized credential for this action"},
 	"rate_limited":         {"auth", 429, true, "back off and retry after the limiter window"},
 	"bad_request":          {"validation", 400, false, "fix the request shape (see message details)"},
+	"approval_required":    {"validation", 400, false, "approve the exact workflow with POST /api/workflows/approve then pass approval_token"},
 	"ghost_session":        {"validation", 404, false, "create the session first; ids are never auto-vivified"},
 	"not_found":            {"validation", 404, false, "the named object does not exist: list first, check the id"},
 	"unknown_rail":         {"validation", 400, false, "use a documented rail name (see message)"},

@@ -356,14 +356,14 @@ func NewServer(
 		signerPubKey:          pub,
 		signerPrivKey:         priv,
 		reviewerKeyConfigured: configured,
-		signLimiter:           newRateLimiter(rateFromEnv("KUBONA_RATE_SIGN", 2, 5)),
-		verifyLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_VERIFY", 20, 50)),
-		tenantLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_TENANT", 5, 15)),
-		grantLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_GRANT", 5, 15)),
-		ledgerLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_LEDGER", 5, 15)),
-		abortLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_ABORT", 5, 15)),
-		authLimiter:           newRateLimiter(rateFromEnv("KUBONA_RATE_AUTH", 5, 15)),
-		codesignLimiter:       newRateLimiter(rateFromEnv("KUBONA_RATE_CODESIGN", 1, 3)),
+		signLimiter:           namedRateFromEnv("sign", "KUBONA_RATE_SIGN", 2, 5),
+		verifyLimiter:         namedRateFromEnv("verify", "KUBONA_RATE_VERIFY", 20, 50),
+		tenantLimiter:         namedRateFromEnv("tenant", "KUBONA_RATE_TENANT", 5, 15),
+		grantLimiter:          namedRateFromEnv("grant", "KUBONA_RATE_GRANT", 5, 15),
+		ledgerLimiter:         namedRateFromEnv("ledger", "KUBONA_RATE_LEDGER", 5, 15),
+		abortLimiter:          namedRateFromEnv("abort", "KUBONA_RATE_ABORT", 5, 15),
+		authLimiter:           namedRateFromEnv("auth", "KUBONA_RATE_AUTH", 5, 15),
+		codesignLimiter:       namedRateFromEnv("codesign", "KUBONA_RATE_CODESIGN", 1, 3),
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}
@@ -657,6 +657,7 @@ func (s *Server) registerRoutes() {
 	// running executes MCP steps and requires dispatch autonomy.
 	s.route("/api/workflows/plan", s.requireBearer(s.handleWorkflowPlan))
 	s.route("/api/workflows/run", s.requireBearer(s.handleWorkflowRun))
+	s.route("/api/workflows/approve", s.requireBearer(s.handleWorkflowApprove))
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.route("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
@@ -4887,18 +4888,21 @@ func (s *Server) handleAutoresearchHarnesses(w http.ResponseWriter, r *http.Requ
 			"mutable_artifact": h.MutableArtifact(),
 		})
 	}
-	available := s.sandboxRunner.IsDockerAvailable()
-	reason := ""
-	if !available {
-		reason = "Docker daemon/image not available: autoresearch execution is fail-closed by default; mount the opt-in sandbox socket profile only on a trusted local host"
+	available, reason := s.sandboxRunner.Availability()
+	if !available && reason == "" {
+		reason = "sandbox execution unavailable: autoresearch is fail-closed"
+	}
+	mode := "container"
+	if s.sandboxRunner.Config().SidecarSocket != "" {
+		mode = "sandboxd"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"harnesses": out,
 		"docker_runner": map[string]any{
 			"image":     s.sandboxRunner.Config().Image,
 			"available": available,
-			"security":  "NemoClaw-OpenClaw-Hardened (read-only, cap-drop=ALL, net=none)",
-			"mode":      "container",
+			"security":  "sandboxd/gVisor runsc (read-only, cap-drop=ALL, net=none, seccomp)",
+			"mode":      mode,
 			"reason":    reason,
 		},
 	})
