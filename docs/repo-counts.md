@@ -7,7 +7,7 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 |---|---:|---|
 | HTTP routes (Go API) | 138 | s.route registrations in `platform/core/pkg/api/server.go` |
 | Go packages | 36 | directories under `platform/core` containing `.go` files |
-| Go test functions | 842 | top-level `func Test...` in `*_test.go` |
+| Go test functions | 844 | top-level `func Test...` in `*_test.go` |
 | Python test files | 182 | `test_*.py` under `platform/tests` |
 | Console test files | 118 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
 | Console test cases | 598 | `it(` / `test(` declarations in console test files |
