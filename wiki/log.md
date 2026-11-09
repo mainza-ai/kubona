@@ -5117,3 +5117,20 @@ skipped is the exact failure this incident is about:
 - Remaining: live QPU spin-chain acceptance, general-molecule
   excited/reaction workflows, conjecture novelty boundary, and hardware launch
   UI.
+
+## [2026-11-09] verification | live spin-chain hardware acceptance
+
+- Source `spin_chain` job `dd945888-7e09-4393-8e20-1c6d10e02e2e`: TFIM n=3,
+  1024 shots, `-2.614453125` vs exact `-3.0090221198`, not claimable.
+- Governed parent `spin_chain_hardware` job
+  `1ad0e5fb-9bab-4c9e-86df-4ec92b2aceb6` on `ibm_fez`, vendor
+  `dbp4io44148s739tu8mg`, 128 shots: `-2.278125` vs exact `-3.00902212`,
+  uncertainty `0.14599`, `claimable:false`, usage `0.0`, actual `$0.00`,
+  signed receipt present.
+- Exact-state hardware is refused by design: its QASM contains `reset` inside
+  a gate body, which QASM2 cannot carry.
+- Conjecture results now carry a known-law registry match and an explicit
+  `unclassified` status for everything else; no external novelty claim.
+- UI: contract inventory is `139 modeled / 14 client-only / 0 unmodeled`;
+  VQE/QAOA/spin hardware launch, discovery protocol, typed experiment table,
+  and an Experiments-tab a11y sweep are present.

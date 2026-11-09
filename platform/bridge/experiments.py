@@ -1534,8 +1534,10 @@ def run_excited_state(
     """
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing excited-state VQE"}
-    if str(molecule or "").upper() != "H2":
-        return {"success": False, "error": "excited-state VQE currently supports H2 only; refusing " + str(molecule)}
+    mol = str(molecule or "").upper()
+    if mol != "H2":
+        return run_nature_excited_state(mol, float(bond_distance), shots=shots, seed=seed,
+                                        max_iterations=max_iterations, penalty=penalty)
     r = float(bond_distance)
     if not (0.3 <= r <= 10.0):
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
@@ -1647,6 +1649,66 @@ def run_excited_state(
     }
 
 
+def _oxygen_atom_fci() -> float:
+    from pyscf import gto, scf, fci
+    mol = gto.M(atom="O 0 0 0", basis="sto-3g", charge=0, spin=2, verbose=0)
+    mf = scf.ROHF(mol).run()
+    e, _ = fci.FCI(mf).kernel()
+    return float(e)
+
+
+def _run_water_reaction(reactant_distance: float, shots: int, seed: int,
+                        max_iterations: int) -> dict[str, Any]:
+    """H2O -> H2 + O with a measured H2O/H2 VQE pair and exact atom anchors."""
+    r = float(reactant_distance)
+    if not (0.3 <= r <= 10.0):
+        return {"success": False, "error": f"bond_distance {reactant_distance!r} outside [0.3,10.0]"}
+    spec = _NATURE_ACTIVE["H2O"]
+    atom = _molecule_atom(spec, r)
+    e_h2o, _cas = _full_fci_and_casci(atom, 4, 4)
+    _, e_h2, _ = h2_hamiltonian(0.7414)
+    e_o = _oxygen_atom_fci()
+    water = run_vqe("H2O", r, 2, shots, seed, max_iterations)
+    hydrogen = run_vqe("H2", 0.7414, 2, shots, seed + 1, max_iterations)
+    if not water.get("success") or not hydrogen.get("success"):
+        return {"success": False, "error": "one water-reaction endpoint failed",
+                "water_error": water.get("error"), "hydrogen_error": hydrogen.get("error")}
+    measured = float(water["energy"] + hydrogen["energy"] - e_o)
+    exact = float(e_h2o - (e_h2 + e_o))
+    uncertainty = float(math.sqrt(float(water["uncertainty"]) ** 2 + float(hydrogen["uncertainty"]) ** 2))
+    return {
+        "success": True,
+        "kind": "reaction",
+        "result_version": "experiment-result-v1",
+        "molecule": "H2O",
+        "reactant_distance": r,
+        "product_distance": 0.0,
+        "reaction": "H2O -> H2 + O",
+        "basis": "sto-3g",
+        "method": "H2O active-space VQE + H2 VQE against exact atom/FCI anchors",
+        "reactant_energy": float(water["energy"]),
+        "product_energy": float(hydrogen["energy"] + e_o),
+        "reaction_energy": measured,
+        "reactant_energy_exact": float(e_h2o),
+        "product_energy_exact": float(e_h2 + e_o),
+        "reaction_energy_exact": exact,
+        "uncertainty": uncertainty,
+        "delta": abs(measured - exact),
+        "claimable": False,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "shots": int(shots),
+        "seed": int(seed),
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "limitations": "H2O/H2 VQE endpoints plus exact O-atom FCI; active-space water model, so the measured reaction is not a full-molecule claim.",
+        "error_message": "",
+    }
+
+
 def run_reaction_energy(
     molecule: str = "H2",
     reactant_distance: float = 0.7414,
@@ -1664,8 +1726,11 @@ def run_reaction_energy(
     """
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing reaction energy"}
-    if str(molecule or "").upper() != "H2":
-        return {"success": False, "error": "reaction energy currently supports H2 only; refusing " + str(molecule)}
+    mol = str(molecule or "").upper()
+    if mol not in ("H2", "H2O"):
+        return {"success": False, "error": "reaction energy supports H2 and H2O; refusing " + str(molecule)}
+    if mol == "H2O":
+        return _run_water_reaction(reactant_distance, shots, seed, max_iterations)
     r0, r1 = float(reactant_distance), float(product_distance)
     if not (0.3 <= r0 < r1 <= 10.0):
         return {"success": False, "error": "require 0.3 <= reactant_distance < product_distance <= 10.0"}
@@ -1714,5 +1779,133 @@ def run_reaction_energy(
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
         "limitations": "H2/STO-3G endpoint difference only; no geometry relaxation beyond the two stated points.",
+        "error_message": "",
+    }
+
+
+def run_nature_excited_state(
+    molecule: str,
+    bond_distance: float = 1.5957,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+    penalty: float = 10.0,
+) -> dict[str, Any]:
+    """Active-space deflation VQE excited state for LiH/BeH2/H2O.
+
+    Exact active-space eigenvalues are the anchor. Full-molecule FCI and
+    CASCI are reported separately; the excited-state claim is explicitly
+    active-space-only.
+    """
+    if not HAS_NATURE or not HAS_QISKIT:
+        return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing molecular excited state"}
+    mol = (molecule or "").upper()
+    spec = _NATURE_ACTIVE.get(mol)
+    if spec is None or mol == "H2":
+        return {"success": False, "error": f"molecular excited state supports {sorted(k for k in _NATURE_ACTIVE if k != 'H2')}"}
+    if not (0.3 <= float(bond_distance) <= 10.0):
+        return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
+    if shots < 128 or shots > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if max_iterations < 1 or max_iterations > 1000:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    if not math.isfinite(float(penalty)) or float(penalty) <= 0:
+        return {"success": False, "error": "penalty must be finite and positive"}
+    t0 = time.perf_counter()
+    atom = _molecule_atom(spec, float(bond_distance))
+    problem = PySCFDriver(atom=atom, basis="sto-3g", charge=0, spin=0).run()
+    ncas = int(spec["ncas"])
+    nelecas = int(spec["nelecas"])
+    e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas)
+    reduced = ActiveSpaceTransformer(num_electrons=nelecas, num_spatial_orbitals=ncas).transform(problem)
+    mapper = JordanWignerMapper()
+    qop = mapper.map(reduced.hamiltonian.second_q_op())
+    constants = float(sum(reduced.hamiltonian.constants.values()))
+    h_active = np.asarray(qop.to_matrix(), dtype=complex) + constants * np.eye(2 ** qop.num_qubits)
+    spectrum = [float(x) for x in np.linalg.eigvalsh(h_active)]
+    if len(spectrum) < 2:
+        return {"success": False, "error": "active-space spectrum has no excited state"}
+    hf = HartreeFock(reduced.num_spatial_orbitals, reduced.num_particles, mapper)
+    ansatz = UCCSD(reduced.num_spatial_orbitals, reduced.num_particles, mapper, initial_state=hf)
+    rng = np.random.default_rng(int(seed))
+
+    def exact_energy(x: np.ndarray) -> float:
+        sv = Statevector.from_instruction(ansatz.assign_parameters(x))
+        return float(np.real(sv.expectation_value(qop)) + constants)
+
+    from scipy.optimize import minimize
+    ground_opt = minimize(exact_energy, rng.uniform(-0.15, 0.15, size=ansatz.num_parameters),
+                          method="COBYLA", options={"maxiter": int(max_iterations), "rhobeg": 0.3, "tol": 1e-8})
+    ground_theta = np.asarray(ground_opt.x, dtype=float)
+    ground_psi = Statevector.from_instruction(ansatz.assign_parameters(ground_theta)).data
+
+    def excited_objective(x: np.ndarray) -> float:
+        sv = Statevector.from_instruction(ansatz.assign_parameters(x)).data
+        energy = float(np.real(np.vdot(sv, h_active @ sv)))
+        overlap = float(abs(np.vdot(ground_psi, sv)) ** 2)
+        return energy + float(penalty) * overlap
+
+    excited_opt = minimize(excited_objective, rng.uniform(-0.15, 0.15, size=ansatz.num_parameters),
+                           method="COBYLA", options={"maxiter": int(max_iterations), "rhobeg": 0.3, "tol": 1e-8})
+    excited_theta = np.asarray(excited_opt.x, dtype=float)
+    excited_psi = Statevector.from_instruction(ansatz.assign_parameters(excited_theta)).data
+    overlap = float(abs(np.vdot(ground_psi, excited_psi)) ** 2)
+    ground_measured = _pauli_measurement_energy(ansatz, ground_theta, qop, int(shots), int(seed))
+    excited_measured = _pauli_measurement_energy(ansatz, excited_theta, qop, int(shots), int(seed) + 1)
+    ground_energy = float(ground_measured["energy"] + constants)
+    excited_energy = float(excited_measured["energy"] + constants)
+    gap = float(excited_energy - ground_energy)
+    gap_exact = float(spectrum[1] - spectrum[0])
+    uncertainty = float(math.sqrt(float(ground_measured["uncertainty"]) ** 2 + float(excited_measured["uncertainty"]) ** 2))
+    claimable = bool(
+        abs(excited_energy - spectrum[1]) <= 1.6e-3
+        and abs(ground_energy - spectrum[0]) <= 1.6e-3
+        and uncertainty <= 1.6e-3
+        and gap > 0
+    )
+    return {
+        "success": True,
+        "kind": "excited_state",
+        "result_version": "experiment-result-v1",
+        "molecule": spec["name"],
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "Active-space deflation VQE (UCCSD), COBYLA",
+        "ansatz": f"UCCSD active-space {ncas} orbitals",
+        "qubit_count": int(qop.num_qubits),
+        "active_space": {"ncas": ncas, "nelecas": nelecas, "full_space": False},
+        "shots": int(shots),
+        "seed": int(seed),
+        "penalty": float(penalty),
+        "ground_energy": ground_energy,
+        "ground_energy_exact": float(spectrum[0]),
+        "excited_energy": excited_energy,
+        "excited_energy_exact": float(spectrum[1]),
+        "gap": gap,
+        "gap_exact": gap_exact,
+        "uncertainty": uncertainty,
+        "ci95_mha": _ci95_mha(uncertainty),
+        "overlap_squared": overlap,
+        "spectrum": spectrum,
+        "measurements": {"ground": ground_measured["terms"], "excited": excited_measured["terms"]},
+        "fci_exact_energy": float(e_full),
+        "active_space_fci_energy": float(e_casci),
+        "claimable": claimable,
+        "active_space_claimable": claimable,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "optimizer": {
+            "ground": {"name": "COBYLA", "success": bool(ground_opt.success),
+                       "evaluations": int(ground_opt.nfev), "message": str(ground_opt.message)},
+            "excited": {"name": "COBYLA", "success": bool(excited_opt.success),
+                        "evaluations": int(excited_opt.nfev), "message": str(excited_opt.message)},
+        },
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "limitations": "Active-space excited-state model; full-molecule FCI is reported separately and may not equal the active-space spectrum.",
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }

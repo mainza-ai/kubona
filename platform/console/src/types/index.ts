@@ -284,6 +284,31 @@ export interface MeasurementSummary {
   evidence_refs?: string[];
 }
 
+export interface CampaignExperiment {
+  job_id: string;
+  kind: string;
+  model?: string;
+  molecule?: string;
+  n_sites?: number;
+  energy?: number;
+  energy_exact?: number;
+  ground_energy?: number;
+  excited_energy?: number;
+  gap?: number;
+  reaction_energy?: number;
+  reaction_energy_exact?: number;
+  uncertainty?: number;
+  delta?: number;
+  claimable: boolean;
+  measured: boolean;
+  hardware: boolean;
+  backend?: string;
+  hardware_job_id?: string;
+  candidate_count?: number;
+  novelty_status?: string;
+  status?: string;
+}
+
 export interface PesPoint {
   bond_distance: number;
   energy: number;
@@ -347,6 +372,7 @@ export interface CampaignState {
   trajectory: TrajectoryStep[];
   measurement?: MeasurementSummary;
   pes_points?: PesPoint[];
+  experiments?: CampaignExperiment[];
   branches: Array<{ id: string; name: string; step: number; status: string; delta: string }>;
   epistemics: EpistemicState | null;
   admet?: Record<string, unknown>;

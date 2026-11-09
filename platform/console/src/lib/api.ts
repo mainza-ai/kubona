@@ -320,7 +320,7 @@ export async function runExperiment(
     if (!res.ok) {
       return { ok: false, error: (await res.text()).trim() || `experiment refused (HTTP ${res.status})` };
     }
-    const data = (await res.json()) as { job?: Job };
+    const data = contract('experiment.submit', (await res.json()) as Record<string, unknown>) as { job?: Job };
     return { ok: Boolean(data.job), job: data.job };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -361,7 +361,7 @@ export async function planDiscovery(goal: string): Promise<DiscoveryPlan> {
     body: JSON.stringify({ goal }),
   });
   if (!res.ok) throw new Error((await res.text()).trim() || `plan refused (HTTP ${res.status})`);
-  return (await res.json()) as DiscoveryPlan;
+  return contract('discovery.plan', (await res.json()) as Record<string, unknown>) as unknown as DiscoveryPlan;
 }
 
 export async function runDiscoveryProtocol(
@@ -376,7 +376,123 @@ export async function runDiscoveryProtocol(
     body: JSON.stringify({ session_id: sessionId, goal, request_id: requestId, step_timeout_s: 120 }),
   });
   if (!res.ok) throw new Error((await res.text()).trim() || `protocol refused (HTTP ${res.status})`);
-  return (await res.json()) as DiscoveryProtocolResult;
+  return contract('discovery.run', (await res.json()) as Record<string, unknown>) as unknown as DiscoveryProtocolResult;
+}
+
+export interface HardwarePrepareResult {
+  binding: string;
+  spec: Record<string, unknown>;
+}
+
+export async function prepareSpinChainHardware(
+  sessionId: string,
+  sourceJobId: string,
+  backend: string,
+  shots: number,
+): Promise<HardwarePrepareResult> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/spin-chain/hardware/prepare`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, source_job_id: sourceJobId, backend, shots }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
+  const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+}
+
+export async function launchSpinChainHardware(
+  sessionId: string,
+  sourceJobId: string,
+  mandateRef: string,
+  backend: string,
+  shots: number,
+  budgetUsd: number,
+  requestId: string,
+  jurisdiction: string,
+): Promise<Job | null> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/spin-chain/hardware`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, mandate_ref: mandateRef,
+      backend, shots, budget_usd: budgetUsd, request_id: requestId,
+      caller_jurisdictions: [jurisdiction], caller_export_class: 'public', export_reviewed: true,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `hardware launch refused (HTTP ${res.status})`).slice(0, 280));
+  return ((contract('hardware.launch', body) as { job?: Job }).job) || null;
+}
+
+export async function prepareVQEHardware(
+  sessionId: string,
+  sourceJobId: string,
+  backend: string,
+  shots: number,
+  loop: boolean,
+): Promise<HardwarePrepareResult> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/vqe/hardware/prepare`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, source_job_id: sourceJobId, backend, shots, loop, max_iterations: 8 }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `VQE hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
+  const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+}
+
+export async function launchVQEHardware(
+  sessionId: string, sourceJobId: string, mandateRef: string, backend: string,
+  shots: number, budgetUsd: number, requestId: string, jurisdiction: string, loop: boolean,
+): Promise<Job | null> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/vqe/hardware`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, mandate_ref: mandateRef,
+      backend, shots, budget_usd: budgetUsd, request_id: requestId, loop, max_iterations: 8,
+      caller_jurisdictions: [jurisdiction], caller_export_class: 'public', export_reviewed: true,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `VQE hardware launch refused (HTTP ${res.status})`).slice(0, 280));
+  return ((contract('hardware.launch', body) as { job?: Job }).job) || null;
+}
+
+export async function prepareQAOAHardware(
+  sessionId: string, sourceJobId: string, backend: string, shots: number, loop: boolean,
+): Promise<HardwarePrepareResult> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/qaoa/hardware/prepare`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, source_job_id: sourceJobId, backend, shots, loop, max_iterations: 8 }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `QAOA hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
+  const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+}
+
+export async function launchQAOAHardware(
+  sessionId: string, sourceJobId: string, mandateRef: string, backend: string,
+  shots: number, budgetUsd: number, requestId: string, jurisdiction: string, loop: boolean,
+): Promise<Job | null> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/qaoa/hardware`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, mandate_ref: mandateRef,
+      backend, shots, budget_usd: budgetUsd, request_id: requestId, loop, max_iterations: 8,
+      caller_jurisdictions: [jurisdiction], caller_export_class: 'public', export_reviewed: true,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `QAOA hardware launch refused (HTTP ${res.status})`).slice(0, 280));
+  return ((contract('hardware.launch', body) as { job?: Job }).job) || null;
 }
 
 export async function fetchAccess(): Promise<AccessState | null> {
@@ -944,8 +1060,9 @@ export async function refreshCalibration(backend: string): Promise<{ ok: boolean
       body: JSON.stringify({ backend }),
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) return { ok: false, error: String(body.message || body.error || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true, queue: (body.queue as Record<string, unknown>) || undefined };
+    const checked = contract('fleet.calibration', body);
+    if (!res.ok) return { ok: false, error: String(checked.message || checked.error || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, queue: (checked.queue as Record<string, unknown>) || undefined };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
@@ -1616,6 +1733,7 @@ export interface SpendMandateSignResponse {
 export interface SpendMandateVerifyResponse {
   valid: boolean;
   mandate?: import('./mandates').SpendMandate;
+  receipt?: string;
   error?: string;
   verified_at?: string;
 }
@@ -1819,7 +1937,7 @@ export async function fetchClaimReviews(sessionId: string, claimId: string): Pro
       { cache: 'no-store', headers: authHeaders() },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { reviews?: ClaimReview[] };
+    const data = contract('claims.reviews', (await res.json()) as Record<string, unknown>) as { reviews?: ClaimReview[] };
     return Array.isArray(data.reviews) ? data.reviews : [];
   } catch (err) {
     console.error('Failed to fetch claim reviews:', err);
@@ -1845,7 +1963,7 @@ export async function reviewClaim(
       },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { review?: ClaimReview };
+    const data = contract('claims.review', (await res.json()) as Record<string, unknown>) as { review?: ClaimReview };
     return data.review ?? null;
   } catch (err) {
     console.error('Failed to review claim:', err);
@@ -1876,7 +1994,7 @@ export async function fetchClaimsPage(
       { cache: 'no-store', headers: authHeaders() },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as {
+    const data = contract('claims.page', (await res.json()) as Record<string, unknown>) as {
       claims?: ClaimRecord[];
       offset?: number;
       limit?: number;

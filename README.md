@@ -16,7 +16,7 @@
   <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
   <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-2000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-155%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-156%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
   <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Resolved)-brightgreen" alt="Open Decisions" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
@@ -32,7 +32,7 @@
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
 
 > [!IMPORTANT]
-> **Current supported status: local-private production.** The local-first stack is verified for a single operator on their own host: preflight, login, local simulator, SSE replay, backup/restore, bridge-restart persistence, measured QPU settlement, response contracts, and WCAG A/AA automated checks. Public SaaS, HA, and multi-host operation are out of scope. Re-run the gate on the exact commit you ship; software is Apache-2.0, docs CC-BY-4.0, and neither is a warranty. Optional hardening is tracked in [`wiki/concepts/optional-enhancement-plan-2026-11-01.md`](wiki/concepts/optional-enhancement-plan-2026-11-01.md).
+> **Current supported status: local-private production.** The local-first stack is verified for a single operator on their own host: preflight, login, local simulator, measured chemistry/physics/math experiments, measured discovery protocols, governed QPU settlement, SSE replay, backup/restore, bridge-restart persistence, response contracts, and WCAG A/AA automated checks. Public SaaS, HA, and multi-host operation are out of scope. Re-run the gate on the exact commit you ship; software is Apache-2.0, docs CC-BY-4.0, and neither is a warranty. Optional hardening is tracked in [`wiki/concepts/optional-enhancement-plan-2026-11-01.md`](wiki/concepts/optional-enhancement-plan-2026-11-01.md).
 
 ---
 
@@ -104,6 +104,37 @@ Design blueprint and full audit trail: [`wiki/concepts/observatory-spatial-repre
 
 ---
 
+### Scientific capability quickstart
+
+Kubona runs measured scientific experiments through the governed Go job rail, not through client-side simulation:
+
+| Capability | Kind | What is measured | Classical anchor |
+|---|---|---|---|
+| Molecular VQE | `vqe` | Shot-sampled Pauli energy | Live PySCF RHF/FCI/CASCI |
+| Potential-energy scan | `pes` | Per-point shot energy | Live RHF/FCI per geometry |
+| Excited state (H2/LiH/BeH2/H2O) | `excited_state` | Ground and deflated excited energy | Exact spectrum / active-space anchor |
+| Reaction energy (H2 -> 2H, H2O -> H2 + O) | `reaction` | Endpoint energy difference | Exact FCI endpoints |
+| Spin chain | `spin_chain` | Shot energy, magnetization, gap | Exact diagonalization |
+| Math law discovery | `conjecture` | Exact holdout verification | Finite-scope certificate, not a theorem |
+| Discovery protocol | n/a | Sequential real jobs + measured summary | Deterministic bounded planner |
+
+Submit one experiment through the API (session required):
+
+```bash
+curl -fsS -X POST http://127.0.0.1:8080/api/experiments -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","spec":{"kind":"spin_chain","model":"tfim","n_sites":4,"coupling":1.0,"field":0.8,"periodic":true,"layers":3,"shots":16384},"budget_usd":1}'
+```
+
+Plan or execute a bounded measured-discovery protocol:
+
+```bash
+curl -fsS -X POST http://127.0.0.1:8080/api/discovery/plan -H "Content-Type: application/json" -d '{"goal":"transverse-field Ising spin chain"}'
+curl -fsS -X POST http://127.0.0.1:8080/api/discovery/run -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","goal":"transverse-field Ising spin chain","step_timeout_s":120}'
+```
+
+Governed hardware spin-chain runs use the same parent rail as hardware VQE/QAOA: prepare the binding, sign it with the browser key, then launch. The UI path is **Settings -> Experiments -> Run VQE/QAOA/spin chain -> Governed QPU launch**. A live QPU run requires an operator mandate and configured IBM credentials; the rail refuses absent/expired mandates rather than dispatching.
+
+Evidence and limitations: [`docs/core-scientific-capabilities-2026-11-09.md`](docs/core-scientific-capabilities-2026-11-09.md). Current scope: active-space excited states for H2/LiH/BeH2/H2O and reaction energies for H2/H2O; exact finite-scope conjectures with an explicit known-law/unclassified registry (not novel-theorem claims); and a live hardware spin-chain VQE execution with a negative accuracy result (`-2.278 Ha` vs exact `-3.009 Ha`, not claimable). Exact-state hardware is refused because its QASM contains reset gates.
+
 ## 🧱 Design Principles
 
 Kubona runs on three rules. They apply to the code, the agents, and this README.
@@ -128,7 +159,7 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (155 pages; all production-readiness decisions resolved 2026-10-27, implementation residuals tracked in the audit) cataloging entities, concepts, source audits, and settled invariants. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (156 pages; all production-readiness decisions resolved 2026-10-27, implementation residuals tracked in the audit) cataloging entities, concepts, source audits, and settled invariants. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
@@ -157,10 +188,9 @@ curl -fsS http://127.0.0.1:8080/api/health
 
 Console response contracts are generated from
 [`platform/contracts/console-contract-inventory.json`](platform/contracts/console-contract-inventory.json):
-**89 modeled / 40 client-only / 0 unmodeled**, with 85 schemas and 84 OpenAPI
+**139 modeled / 14 client-only / 0 unmodeled**, with 120 schemas and 127 OpenAPI
 paths in [`platform/contracts/console-openapi.json`](platform/contracts/console-openapi.json).
 
-Prove the host is not publicly exposed:
 Prove the host is not publicly exposed:
 
 ```bash
@@ -223,7 +253,7 @@ cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansa
 # Next.js sovereign console Vitest suite (counts: docs/repo-counts.md)
 cd platform/console && pnpm test
 
-# Strict blueprint structural linting (155 pages; open decisions in questions §F)
+# Strict blueprint structural linting (156 pages; open decisions in questions §F)
 python3 scripts/wiki-lint.py --strict
 ```
 

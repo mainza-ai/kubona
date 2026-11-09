@@ -17,7 +17,7 @@ import {
   
   
 } from 'lucide-react';
-import { CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
+import { CampaignExperiment, CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
@@ -120,6 +120,55 @@ function PesTable({ points }: { points: PesPoint[] }) {
                 <td className="px-2 py-1 text-right">{(point.claimable ?? point.chemical_accuracy) ? 'PASS' : 'outside'}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }) {
+  return (
+    <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+        <span className="text-[12px] font-semibold text-white">Measured experiments</span>
+        <span className="text-[11px] text-[var(--color-muted)]">spin, excited, reaction, and conjecture records folded from jobs</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead className="text-[var(--color-muted)]">
+            <tr className="border-b border-white/10">
+              <th className="px-2 py-1 text-left">Kind</th>
+              <th className="px-2 py-1 text-left">System</th>
+              <th className="px-2 py-1 text-right">Measured</th>
+              <th className="px-2 py-1 text-right">Anchor</th>
+              <th className="px-2 py-1 text-right">Gap / ΔE</th>
+              <th className="px-2 py-1 text-right">σ</th>
+              <th className="px-2 py-1 text-right">Status</th>
+              <th className="px-2 py-1 text-left">Job</th>
+            </tr>
+          </thead>
+          <tbody>
+            {experiments.map((exp) => {
+              const primary = exp.energy ?? exp.ground_energy ?? exp.reaction_energy;
+              const secondary = exp.energy_exact ?? exp.reaction_energy_exact;
+              const gap = exp.gap ?? exp.reaction_energy;
+              return (
+                <tr key={exp.job_id} className="border-b border-white/[0.06] last:border-0">
+                  <td className="px-2 py-1 font-code">{exp.kind}</td>
+                  <td className="px-2 py-1 font-code">{exp.molecule || exp.model || (exp.n_sites ? `${exp.n_sites} sites` : '—')}</td>
+                  <td className="px-2 py-1 text-right font-code">{typeof primary === 'number' ? primary.toFixed(6) : '—'}</td>
+                  <td className="px-2 py-1 text-right font-code">{typeof secondary === 'number' ? secondary.toFixed(6) : '—'}</td>
+                  <td className="px-2 py-1 text-right font-code">{typeof gap === 'number' ? gap.toFixed(6) : '—'}</td>
+                  <td className="px-2 py-1 text-right font-code">{typeof exp.uncertainty === 'number' ? exp.uncertainty.toFixed(6) : '—'}</td>
+                  <td className="px-2 py-1 text-right">
+                    {exp.kind === 'conjecture_run' ? (exp.novelty_status || 'unclassified') : exp.claimable ? 'claimable' : 'not claimable'}
+                    {exp.hardware ? ' · hardware' : ''}
+                  </td>
+                  <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -630,6 +679,9 @@ ${bibtex}
               <MeasuredOutputs sessionId={sessionId ?? null} />
               {(campaign?.pes_points?.length ?? 0) > 0 && (
                 <PesTable points={campaign!.pes_points!} />
+              )}
+              {(campaign?.experiments?.length ?? 0) > 0 && (
+                <ExperimentsTable experiments={campaign!.experiments!} />
               )}
               {/* Paper Title & Metadata */}
               <div

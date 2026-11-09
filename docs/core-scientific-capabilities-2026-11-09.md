@@ -230,21 +230,28 @@ Implemented and locally tested:
   a ground-state accuracy claim.
 - **Math evidence:** Fibonacci `[1,1,2,3,5,8,13,21,34]` yields the exact
   recurrence `a(n)=a(n-1)+a(n-2)` with predictions `55,89`; squares yield
-  `a(n)=n^2`; an unpredictable sequence yields zero candidates. All are
-  finite-scope conjectures, not proofs.
+  `a(n)=n^2`; an unpredictable sequence yields zero candidates. Results carry
+  `novelty_status:"known"` for an explicit known-law registry or
+  `"unclassified"` otherwise; external novelty is never claimed.
 
 ### S4/S5 execution status (continued)
 
-- **S5b hardware spin-chain:** implemented `spin_chain_hardware` in the bridge
-  (one governed QPU batch, per-Pauli measurement, Z-basis magnetization,
-  vendor/usage/layout receipt) and the Go `prepare`/`launch` parent rail with
-  mandate, fidelity, settlement, and result-version gates. CI E2E covers
-  prepare plus mandate refusal; no live QPU run has been made.
+- **S5b hardware spin-chain:** implemented and live-validated. Source spin
+  job `dd945888-7e09-4393-8e20-1c6d10e02e2e` measured `-2.614453125` vs exact
+  `-3.0090221198` (not claimable); prepared binding
+  `91ab033ab0ccecfc9662941435b6ebb91ea134774b600747386fa571cc0956b3`; parent
+  hardware job `1ad0e5fb-9bab-4c9e-86df-4ec92b2aceb6` completed on `ibm_fez`
+  with vendor `dbp4io44148s739tu8mg`: `-2.278125` vs exact `-3.00902212`,
+  uncertainty `0.14599`, `claimable:false`, usage `0.0`, actual `$0.00`,
+  signed receipt present. The exact-state source is simulator-only: its QASM
+  contains `reset` inside a gate body and the API refuses it for hardware
+  rather than dispatching an invalid program.
 - **S5c excited-state/reaction chemistry:** implemented H2 deflation VQE
-  (`ground_energy`, `excited_energy`, `gap`, overlap, exact 4x4 spectrum) and
-  H2 → 2H endpoint reaction energy against FCI anchors. Both are measured
-  simulator results; both refuse unsupported molecules rather than borrowing
-  H2 numbers.
+  (`ground_energy`, `excited_energy`, `gap`, overlap, exact 4x4 spectrum),
+  active-space deflation for LiH/BeH2/H2O with full-FCI/CASCI references, and
+  reaction energy for H2 → 2H and H2O → H2 + O. All are measured simulator
+  results; unsupported molecules refuse rather than borrowing another system's
+  numbers.
 - **S4 measured discovery protocol:** `POST /api/discovery/plan` is a
   deterministic goal-to-experiment planner (excited / spin-chain / PES / H2O /
   H2 VQE; refuses unbounded conjecture). `POST /api/discovery/run` executes
@@ -258,7 +265,9 @@ Implemented and locally tested:
 
 Still queued:
 
-- live hardware spin-chain acceptance (operator mandate/QPU);
-- general-molecule excited-state/reaction workflows beyond H2;
+- no live hardware spin-chain *accuracy* claim: the live VQE run was executed
+  but missed the exact anchor, and exact-state hardware is refused by design;
+- broader reaction families beyond H2/H2O and accuracy claims for the
+  active-space excited/reaction paths;
 - literature/catalog novelty boundary for discovered laws (SC-09);
 - full browser launch UI for governed hardware spin-chain and protocol runs.

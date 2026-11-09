@@ -308,8 +308,8 @@ def run_spin_chain_hardware(
     if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
         return {"success": False, "error": "target_error must be finite in (0,1]"}
     mode = str(state_mode or "vqe").strip().lower()
-    if mode not in ("vqe", "exact"):
-        return {"success": False, "error": f"state_mode {state_mode!r} must be vqe|exact"}
+    if mode != "vqe":
+        return {"success": False, "error": "spin-chain hardware accepts state_mode='vqe' only; exact-state QASM contains reset, which QASM2 cannot carry"}
 
     try:
         from experiments import _hardware_batch, _measurement_qasm, _hardware_counts_to_energy

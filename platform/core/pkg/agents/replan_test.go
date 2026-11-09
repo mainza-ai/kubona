@@ -658,6 +658,9 @@ func TestReplanSpinChainFoldsMeasuredEnergyWithoutChemicalClaim(t *testing.T) {
 	if after.Notebook == nil || !strings.Contains(after.Notebook.Sections[len(after.Notebook.Sections)-1], "spin_chain") {
 		t.Error("spin-chain result must be recorded in the notebook")
 	}
+	if len(after.Experiments) != 1 || after.Experiments[0].Kind != "spin_chain" || after.Experiments[0].Model != "tfim" {
+		t.Errorf("spin-chain typed projection wrong: %+v", after.Experiments)
+	}
 	for _, step := range after.Trajectory {
 		if step.Watchdog == "measured_spin_chain" {
 			t.Error("spin-chain energy must not be projected as a molecular VQE trajectory")
@@ -679,6 +682,9 @@ func TestReplanConjectureRecordsCandidatesWithoutClaim(t *testing.T) {
 	}
 	if after.Epistemics != nil && after.Epistemics.Status == "COLLAPSED_VERIFIED" {
 		t.Error("a finite conjecture must never collapse to verified")
+	}
+	if len(after.Experiments) != 1 || after.Experiments[0].CandidateCount != 1 {
+		t.Errorf("conjecture typed projection wrong: %+v", after.Experiments)
 	}
 }
 

@@ -339,3 +339,17 @@ def test_h2_reaction_energy_uses_two_endpoint_anchors():
     assert res["reactant_energy_exact"] < res["reactant_energy"]
     assert res["claimable"] is False
     assert res["measured"] is True
+
+
+def test_lih_active_space_excited_state_reports_full_and_active_anchors():
+    from experiments import run_excited_state
+
+    res = run_excited_state("LiH", 1.5957, shots=512, max_iterations=8, penalty=10)
+    assert res["success"] is True, res
+    assert res["kind"] == "excited_state"
+    assert res["molecule"] == "LiH"
+    assert res["active_space"]["ncas"] == 2
+    assert res["active_space"]["nelecas"] == 2
+    assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
+    assert len(res["spectrum"]) >= 2
+    assert res["measured"] is True

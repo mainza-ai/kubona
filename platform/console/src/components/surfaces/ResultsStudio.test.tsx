@@ -119,6 +119,23 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(text).toContain('0.946');
   });
 
+  it('renders the typed measured-experiment table for spin and excited records', async () => {
+    const measured = {
+      ...campaign('COLLAPSED_VERIFIED'),
+      experiments: [
+        { job_id: 'job-spin-1', kind: 'spin_chain', model: 'tfim', n_sites: 4, energy: -3.19, energy_exact: -3.21, gap: 0.8, uncertainty: 0.004, claimable: false, measured: true, hardware: false },
+        { job_id: 'job-exc-1', kind: 'excited_state', molecule: 'H2', ground_energy: -1.1346, excited_energy: -0.5312, gap: 0.6034, uncertainty: 0.005, claimable: false, measured: true, hardware: false },
+      ],
+    } as unknown as CampaignState;
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ResultsStudio campaign={measured} sessionId={null} />); });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Measured experiments');
+    expect(text).toContain('spin_chain');
+    expect(text).toContain('excited_state');
+    expect(text).toContain('not claimable');
+  });
+
   it('offers a measured CSV export only when a result exists', async () => {
     const createObjectURL = vi.fn(() => 'blob:measured');
     const revokeObjectURL = vi.fn();

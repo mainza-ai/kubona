@@ -922,6 +922,74 @@
         }
       }
     },
+    "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/reviews": {
+      "get": {
+        "operationId": "fetchClaimReviews",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: claims.reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/claims.reviews"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/${encodeURIComponent}(sessionId)/claims": {
+      "get": {
+        "operationId": "fetchClaimsPage",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: claims.page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/claims.page"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/codesign/packs": {
       "get": {
         "operationId": "fetchCodesignPacks",
@@ -1704,6 +1772,66 @@
         }
       }
     },
+    "/api/experiments/qaoa/hardware": {
+      "post": {
+        "operationId": "launchQAOAHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.launch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/spin-chain/hardware": {
+      "post": {
+        "operationId": "launchSpinChainHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.launch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/vqe/hardware": {
+      "post": {
+        "operationId": "launchVQEHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.launch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hf/downloads": {
       "get": {
         "operationId": "listHFDownloads",
@@ -1792,6 +1920,26 @@
         }
       }
     },
+    "/api/discovery/plan": {
+      "post": {
+        "operationId": "planDiscovery",
+        "tags": [
+          "discovery"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: discovery.plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/discovery.plan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/plan": {
       "post": {
         "operationId": "planWorkflow",
@@ -1805,6 +1953,86 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/workflow.plan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/qaoa/hardware/prepare": {
+      "post": {
+        "operationId": "prepareQAOAHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.prepare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.prepare"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/spin-chain/hardware/prepare": {
+      "post": {
+        "operationId": "prepareSpinChainHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.prepare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.prepare"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/vqe/hardware/prepare": {
+      "post": {
+        "operationId": "prepareVQEHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.prepare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.prepare"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fleet/calibration/refresh": {
+      "post": {
+        "operationId": "refreshCalibration",
+        "tags": [
+          "fleet"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: fleet.calibration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fleet.calibration"
                 }
               }
             }
@@ -2042,6 +2270,44 @@
         }
       }
     },
+    "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/review": {
+      "post": {
+        "operationId": "reviewClaim",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: claims.review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/claims.review"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/revoke": {
       "post": {
         "operationId": "revokeTenantAutonomy",
@@ -2135,6 +2401,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/mesh.route"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/run": {
+      "post": {
+        "operationId": "runDiscoveryProtocol",
+        "tags": [
+          "discovery"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: discovery.run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/discovery.run"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments": {
+      "post": {
+        "operationId": "runExperiment",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: experiment.submit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/experiment.submit"
                 }
               }
             }
@@ -4693,6 +4999,197 @@
           }
         }
       },
+      "experiment.submit": {
+        "type": "object",
+        "required": [
+          "job"
+        ],
+        "properties": {
+          "job": {}
+        }
+      },
+      "discovery.plan": {
+        "type": "object",
+        "required": [
+          "ok",
+          "goal",
+          "planned_by",
+          "steps"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "planned_by": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "spec"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "spec": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "discovery.run": {
+        "type": "object",
+        "required": [
+          "ok",
+          "protocol_id",
+          "goal",
+          "planned_by",
+          "steps_requested",
+          "steps_completed",
+          "steps_failed",
+          "measured_results",
+          "claimable_results",
+          "stopped_on_failure",
+          "results"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "protocol_id": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "planned_by": {
+            "type": "string"
+          },
+          "steps_requested": {
+            "type": "number"
+          },
+          "steps_completed": {
+            "type": "number"
+          },
+          "steps_failed": {
+            "type": "number"
+          },
+          "measured_results": {
+            "type": "number"
+          },
+          "claimable_results": {
+            "type": "number"
+          },
+          "stopped_on_failure": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "fleet.calibration": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "queue": {},
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "hardware.prepare": {
+        "type": "object",
+        "required": [
+          "binding",
+          "spec"
+        ],
+        "properties": {
+          "binding": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          }
+        }
+      },
+      "hardware.launch": {
+        "type": "object",
+        "required": [
+          "job"
+        ],
+        "properties": {
+          "job": {}
+        }
+      },
+      "claims.page": {
+        "type": "object",
+        "required": [
+          "claims",
+          "offset",
+          "limit",
+          "next_offset",
+          "has_more"
+        ],
+        "properties": {
+          "claims": {
+            "type": "array",
+            "items": {}
+          },
+          "offset": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "next_offset": {
+            "type": "number"
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "claims.reviews": {
+        "type": "object",
+        "required": [
+          "reviews"
+        ],
+        "properties": {
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "claims.review": {
+        "type": "object",
+        "required": [
+          "review"
+        ],
+        "properties": {
+          "review": {}
+        }
+      },
       "quantum.backends": {
         "type": "object",
         "required": [
@@ -4741,15 +5238,7 @@
       }
     }
   },
-  "x-kubona-unmodeled-functions": [
-    "fetchClaimReviews",
-    "fetchClaimsPage",
-    "planDiscovery",
-    "refreshCalibration",
-    "reviewClaim",
-    "runDiscoveryProtocol",
-    "runExperiment"
-  ],
+  "x-kubona-unmodeled-functions": [],
   "x-kubona-client-only-functions": [
     "apiFetch",
     "configureApiBase",

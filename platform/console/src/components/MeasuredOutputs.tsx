@@ -89,7 +89,7 @@ function summarize(job: Job): string | null {
       const candidates = Array.isArray(r.candidates) ? r.candidates : [];
       const first = asRecord(candidates[0]);
       const law = str(first.law);
-      return `math conjecture ${count} candidate(s)${law ? ` · ${law}` : ''} · finite-scope, not a theorem · job ${short}`;
+      return `math conjecture ${count} candidate(s)${law ? ` · ${law}` : ''} · ${str(r.novelty_status) || 'unclassified'} · finite-scope, not a theorem · job ${short}`;
     }
     case 'qaoa_run': {
       const ratio = num(r.approximation_ratio);

@@ -25,6 +25,10 @@ test('WCAG 2 A/AA automated audit on core surfaces', async ({ page }) => {
   await expect(page.getByText('Sovereign Intelligence Configuration')).toBeVisible();
   await audit(page, 'settings');
 
+  await page.getByRole('button', { name: 'Experiments' }).click();
+  await expect(page.getByText('Real experiment launcher')).toBeVisible();
+  await audit(page, 'settings-experiments');
+
   await page.getByTestId('dock-proofs').click();
   await page.getByRole('button', { name: 'Circuit Codesign' }).click();
   await expect(page.getByText('Verified RS decoder', { exact: false })).toBeVisible();

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, Iterable
 
@@ -23,6 +23,18 @@ from typing import Any, Iterable
 MAX_SEQUENCE_TERMS = 200
 MAX_ORDER = 6
 MAX_DEGREE = 6
+
+#: Small, explicit registry of textbook laws. A match means "known in this
+#: registry", never "novel" for everything else. External novelty requires a
+#: literature/database search and a proof; neither is claimed here.
+KNOWN_LAWS: dict[str, str] = {
+    "a(n) = 1*a(n-1) + 1*a(n-2)": "Fibonacci recurrence",
+    "a(n) = 1*n^2": "square numbers",
+    "a(n) = 1/2*n^2 + 1/2*n": "triangular numbers",
+    "a(n) = 1*a(n-1) + 2": "odd numbers / arithmetic progression (step 2)",
+    "a(n) = 1*a(n-1) + 1": "natural numbers / arithmetic progression (step 1)",
+    "a(n) = 2*a(n-1)": "geometric progression (ratio 2)",
+}
 
 
 def _fraction(value: Any) -> Fraction:
@@ -166,6 +178,9 @@ class ConjectureCandidate:
     holdout_verified: bool
     predictions: list[str]
     status: str
+    novelty_status: str = "unclassified"
+    known_as: str = ""
+    catalog_matches: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -178,6 +193,13 @@ class ConjectureCandidate:
             "holdout_verified": self.holdout_verified,
             "predictions": self.predictions,
             "status": self.status,
+            "novelty_status": self.novelty_status,
+            "known_as": self.known_as,
+            "catalog_matches": self.catalog_matches,
+            "novelty_note": (
+                "Known-law registry match." if self.novelty_status == "known"
+                else "Unclassified by the local known-law registry; external novelty is not established."
+            ),
             "proof_status": "not-a-proof",
             "falsifier": (
                 "Any next term that differs from the first prediction refutes "
@@ -194,6 +216,29 @@ class ConjectureCandidate:
                 "and does not establish novelty."
             ),
         }
+
+
+def _catalog_matches(law: str) -> list[str]:
+    try:
+        from kubona.science.math_catalog import MathCatalog
+        catalog = MathCatalog()
+        terms = ["recurrence", "sequence", "polynomial", "Fibonacci"]
+        if "n^2" in law:
+            terms.append("quadratic")
+        matches: list[str] = []
+        for term in terms:
+            for family in catalog.search(term)[:3]:
+                label = f"{family.family_id}: {family.title}"
+                if label not in matches:
+                    matches.append(label)
+        return matches[:6]
+    except Exception:
+        return []
+
+
+def _novelty(law: str) -> tuple[str, str, list[str]]:
+    known = KNOWN_LAWS.get(law, "")
+    return ("known" if known else "unclassified", known, _catalog_matches(law))
 
 
 def discover_sequence_laws(
@@ -235,12 +280,15 @@ def discover_sequence_laws(
             continue
         predictions = [_format_fraction(_poly_eval(coeffs, len(seq) + i)) for i in range(5)]
         law = f"a(n) = {_format_polynomial(coeffs)}"
+        novelty_status, known_as, catalog_matches = _novelty(law)
         candidates.append(ConjectureCandidate(
             candidate_id=_candidate_id("polynomial", law, seq),
             kind="polynomial", law=law,
             coefficients=[_format_fraction(c) for c in coeffs],
             train_terms=len(train), holdout_terms=len(test),
             holdout_verified=True, predictions=predictions, status="conjecture",
+            novelty_status=novelty_status, known_as=known_as,
+            catalog_matches=catalog_matches,
         ))
 
     for order in range(1, order_cap + 1):
@@ -261,12 +309,15 @@ def discover_sequence_laws(
             continue
         predictions = [_format_fraction(eval_rec(len(seq) + i)) for i in range(5)]
         law = f"a(n) = {_format_recurrence(coeffs, order)}"
+        novelty_status, known_as, catalog_matches = _novelty(law)
         candidates.append(ConjectureCandidate(
             candidate_id=_candidate_id("linear_recurrence", law, seq),
             kind="linear_recurrence", law=law,
             coefficients=[_format_fraction(c) for c in coeffs],
             train_terms=len(train), holdout_terms=len(test),
             holdout_verified=True, predictions=predictions, status="conjecture",
+            novelty_status=novelty_status, known_as=known_as,
+            catalog_matches=catalog_matches,
         ))
 
     unique: list[ConjectureCandidate] = []
@@ -292,6 +343,14 @@ def discover_sequence_laws(
         "candidates": [c.to_dict() for c in candidates],
         "candidate_count": len(candidates),
         "status": "conjecture" if candidates else "no_law_verified",
+        "novelty_status": (
+            "known" if candidates and all(c.novelty_status == "known" for c in candidates)
+            else "unclassified"
+        ),
+        "novelty_note": (
+            "Registry matches are recorded; all other candidates are explicitly "
+            "unclassified. No external novelty claim is made."
+        ),
         "measured": False,
         "hardware": False,
         "claimable": False,

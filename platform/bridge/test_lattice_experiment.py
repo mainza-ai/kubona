@@ -139,3 +139,17 @@ def test_spin_chain_hardware_uses_one_governed_batch(monkeypatch):
     assert calls and calls[0]["n"] == 4
     assert res["energy"] == pytest.approx(2.5)
     assert res["claimable"] is True
+
+
+def test_spin_chain_hardware_refuses_exact_state_qasm():
+    from lattice_experiment import run_spin_chain_hardware
+
+    res = run_spin_chain_hardware(
+        qasm="OPENQASM 2.0; qreg q[2];",
+        pauli_coefficients={"ZZ": 1.0},
+        n_sites=2,
+        energy_exact=1.0,
+        state_mode="exact",
+    )
+    assert res["success"] is False
+    assert "state_mode" in res["error"]
