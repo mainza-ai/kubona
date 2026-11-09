@@ -2,7 +2,7 @@
 
 **Scope:** fully functional local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant product, not a demo.
-**Audited head:** `0820b85` (2026-11-09 slices through `746ddca`, then
+**Audited head:** `36cb7fd` (2026-11-09 slices through `746ddca`, then
 CEO/hardware-loop/mitigation/claimable/sandbox/result-gate work).
 **Method:** re-read the current Go/Python/console code and tests, not the prior
 status prose. The earlier completion report contained stale entries; this page
@@ -196,4 +196,5 @@ Implemented after the audit:
   (claimable PES + live gVisor proof), `956deab` (claimable/measured campaign
   and claim guard), `5872c6c` (live calibration refresh), `4d8830d` (signed
   ledger result receipts), `526674a` (receipt publication ordering).
-  CI/E2E green at `526674a`.
+  CI/E2E green at `526674a`; live QPU evidence at `2fa72b3`/`4c11683`;
+  scheduled calibration refresh and LiH active hardware fix followed.
