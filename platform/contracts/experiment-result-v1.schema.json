@@ -10,7 +10,7 @@
     "success": { "type": "boolean" },
     "kind": {
       "type": "string",
-      "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop", "spin_chain", "conjecture"]
+      "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop", "excited_state", "reaction", "spin_chain", "spin_chain_hardware", "conjecture"]
     },
     "molecule": { "type": ["string", "null"] },
     "model": { "type": "string" },

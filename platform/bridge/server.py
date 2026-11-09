@@ -938,6 +938,28 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 80)),
                     graph_seed=int(spec.get("graph_seed", 3)),
                 )
+            elif kind == "excited_state":
+                from experiments import run_excited_state
+                result = run_excited_state(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    bond_distance=float(spec.get("bond_distance", 0.7414)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 16384)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                    penalty=float(spec.get("penalty", 10.0)),
+                )
+            elif kind == "reaction":
+                from experiments import run_reaction_energy
+                result = run_reaction_energy(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    reactant_distance=float(spec.get("reactant_distance", 0.7414)),
+                    product_distance=float(spec.get("product_distance", 10.0)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 8192)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                )
             elif kind == "spin_chain":
                 from lattice_experiment import run_spin_chain
                 result = run_spin_chain(
@@ -953,6 +975,26 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 160)),
                     target_error=float(spec.get("target_error", 1e-3)),
                     state_mode=str(spec.get("state_mode") or "vqe"),
+                )
+            elif kind == "spin_chain_hardware":
+                from lattice_experiment import run_spin_chain_hardware
+                result = run_spin_chain_hardware(
+                    qasm=str(spec.get("qasm") or ""),
+                    pauli_coefficients=spec.get("pauli_coefficients") or {},
+                    n_sites=int(spec.get("n_sites", 0)),
+                    energy_exact=float(spec.get("energy_exact", 0.0)),
+                    model=str(spec.get("model") or "tfim"),
+                    coupling=float(spec.get("coupling", 1.0)),
+                    field=float(spec.get("field", 0.0)),
+                    anisotropy=float(spec.get("anisotropy", 1.0)),
+                    periodic=bool(spec.get("periodic", True)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 4096)),
+                    seed=int(spec.get("seed", 7)),
+                    target_error=float(spec.get("target_error", 1e-3)),
+                    backend=spec.get("requested_backend"),
+                    state_mode=str(spec.get("state_mode") or "vqe"),
+                    source_job_id=str(spec.get("source_job_id") or ""),
                 )
             elif kind == "conjecture":
                 from kubona.science.conjecture import discover_sequence_laws
@@ -1027,7 +1069,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, spin_chain, conjecture, vqe_hardware, or qaoa_hardware",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, excited_state, reaction, spin_chain, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

@@ -186,7 +186,7 @@ export interface OptimizerPoint {
 export interface ExperimentResult {
   result_version: 'experiment-result-v1';
   success: boolean;
-  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'spin_chain' | 'conjecture';
+  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'spin_chain_hardware' | 'conjecture';
   molecule?: string | null;
   bond_distance?: number | null;
   model?: string;

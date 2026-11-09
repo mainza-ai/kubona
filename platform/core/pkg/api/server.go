@@ -587,6 +587,8 @@ func (s *Server) registerRoutes() {
 	s.route("/api/experiments/qaoa/hardware", s.handleQAOAHardware)
 	s.route("/api/experiments/vqe/hardware/prepare", s.handlePrepareHardwareVQE)
 	s.route("/api/experiments/vqe/hardware", s.handleHardwareVQE)
+	s.route("/api/experiments/spin-chain/hardware/prepare", s.handlePrepareSpinChainHardware)
+	s.route("/api/experiments/spin-chain/hardware", s.handleSpinChainHardware)
 	s.route("/api/loops", s.requireBearer(s.handleLoops))
 	s.route("/api/loops/", s.requireBearer(s.handleLoopActions))
 	s.route("/api/events", s.handleEvents)
@@ -702,6 +704,8 @@ func (s *Server) registerRoutes() {
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
 	s.route("/api/chemistry/admet", s.handleChemistryADMET)
 	s.route("/api/discovery/pipeline", s.handleDiscoveryPipeline)
+	s.route("/api/discovery/plan", s.handleDiscoveryPlan)
+	s.route("/api/discovery/run", s.handleDiscoveryRun)
 
 	// Post-Quantum Cryptography Spend Mandates (ML-KEM-768 + AES-256-GCM)
 	s.route("/api/mandates/pqc-key", s.handlePQCPublicKey)

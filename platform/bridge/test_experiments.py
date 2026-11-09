@@ -310,3 +310,32 @@ def test_h2o_active_space_vqe_reports_casci_and_full_fci():
     assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
     assert res["measured"] is True
     assert res["claimable"] is False
+
+
+def test_h2_excited_state_deflation_reports_gap_and_overlap():
+    from experiments import run_excited_state
+
+    res = run_excited_state("H2", bond_distance=0.7414, layers=2, shots=8192,
+                            max_iterations=60, seed=7)
+    assert res["success"] is True, res
+    assert res["kind"] == "excited_state"
+    assert res["result_version"] == "experiment-result-v1"
+    assert res["measured"] is True
+    assert len(res["spectrum"]) >= 2
+    assert res["excited_energy"] > res["ground_energy"]
+    assert res["gap"] > 0
+    assert res["overlap_squared"] < 1e-2
+    assert res["claimable"] is False
+
+
+def test_h2_reaction_energy_uses_two_endpoint_anchors():
+    from experiments import run_reaction_energy
+
+    res = run_reaction_energy("H2", 0.7414, 10.0, shots=2048, max_iterations=20)
+    assert res["success"] is True, res
+    assert res["kind"] == "reaction"
+    assert res["result_version"] == "experiment-result-v1"
+    assert res["reaction_energy_exact"] > 0
+    assert res["reactant_energy_exact"] < res["reactant_energy"]
+    assert res["claimable"] is False
+    assert res["measured"] is True

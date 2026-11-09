@@ -181,14 +181,15 @@ ledger receipt, a cited anchor), never to an assertion.
   resolve to a live URL + SHA + `path:line`. Own repos with no `LICENSE` are **not** on this list:
   insight mining needs no grant, and the only check is at release time.
 > ⚑ Science-capability audit (2026-11-09): the executable science spine is
-> chemistry/QAOA (H2/LiH/BeH2 VQE, PES, QAOA, PySCF anchors, Aer shots,
-> governed QPU runs). Physics is **not** implemented: the materials pack
-> references a missing `kubona.science.lattice`; mathematical discovery is a
-> static corpus catalog plus a Lean/Comparator utility, not a live discovery
-> engine. The ranked gaps and implementation order are in
-> [[core-scientific-capability-gaps]] and
-> `docs/core-scientific-capabilities-2026-11-09.md`. This is a correction to
-> any reading of the design pages below as current capability.
+> now chemistry/QAOA/physics (H2/LiH/BeH2/H2O VQE, PES, QAOA, H2 deflation
+> excited states, H2 reaction energy, spin-chain VQE/exact readout, PySCF
+> anchors, Aer shots, and governed QPU parent rails). `kubona.science.lattice`
+> resolves, exact finite-scope law discovery is live as `conjecture_run`, and
+> `/api/discovery/plan|run` sequences bounded real experiment jobs. Remaining
+> gaps are breadth and external validation: live hardware spin-chain
+> acceptance, general-molecule excited/reaction workflows, conjecture novelty
+> boundaries, and launch UI. See [[core-scientific-capability-gaps]] and
+> `docs/core-scientific-capabilities-2026-11-09.md`.
 
 ## Where the blueprint is unsettled
 

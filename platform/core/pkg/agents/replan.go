@@ -638,6 +638,58 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			len(points), minPoint.Energy, minPoint.BondDistance, best.BondDistance, best.DeltaMHa, citeSuffix(cite))
 		return marshalReplan(&state, true, "VQE PES folded into trajectory")
 
+	case "reaction":
+		if !successTrue() {
+			return nil, false, "reaction energy reported success=false"
+		}
+		var measured, exact, uncertainty float64
+		var claimable bool
+		for key, dst := range map[string]*float64{
+			"reaction_energy": &measured, "reaction_energy_exact": &exact,
+			"uncertainty": &uncertainty,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("claimable"); ok {
+			_ = json.Unmarshal(raw, &claimable)
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (reaction): measured ΔE=%.6f Ha vs exact %.6f Ha (uncertainty %.3g, claimable=%v).",
+			shortID, measured, exact, uncertainty, claimable))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "reaction energy folded")
+
+	case "excited_state":
+		if !successTrue() {
+			return nil, false, "excited-state experiment reported success=false"
+		}
+		var ground, groundExact, excited, excitedExact, gap, gapExact, uncertainty float64
+		var claimable bool
+		for key, dst := range map[string]*float64{
+			"ground_energy": &ground, "ground_energy_exact": &groundExact,
+			"excited_energy": &excited, "excited_energy_exact": &excitedExact,
+			"gap": &gap, "gap_exact": &gapExact, "uncertainty": &uncertainty,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("claimable"); ok {
+			_ = json.Unmarshal(raw, &claimable)
+		}
+		if ground == 0 || excited == 0 {
+			return nil, false, "excited-state energies absent"
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (excited_state): ground %.6f (exact %.6f), excited %.6f (exact %.6f), gap %.6f (exact %.6f), uncertainty %.3g, claimable=%v.",
+			shortID, ground, groundExact, excited, excitedExact, gap, gapExact, uncertainty, claimable))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "excited-state energies folded")
+
 	case "spin_chain":
 		if !successTrue() {
 			return nil, false, "spin-chain experiment reported success=false"
@@ -680,6 +732,44 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			shortID, model, nSites, energy, exact, gap, uncertainty, claimable, backend))
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain measurement folded")
+
+	case "spin_chain_hardware":
+		if !successTrue() {
+			return nil, false, "spin-chain hardware reported success=false"
+		}
+		var energy, exact, uncertainty, delta float64
+		var model, backend, jobRef string
+		var claimable, measured bool
+		for key, dst := range map[string]*float64{
+			"energy": &energy, "energy_exact": &exact,
+			"uncertainty": &uncertainty, "delta": &delta,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*string{
+			"model": &model, "backend": &backend, "hardware_job_id": &jobRef,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("claimable"); ok {
+			_ = json.Unmarshal(raw, &claimable)
+		}
+		if raw, ok := present("measured"); ok {
+			_ = json.Unmarshal(raw, &measured)
+		}
+		if energy == 0 || exact == 0 {
+			return nil, false, "spin-chain hardware energy/anchor absent"
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (spin_chain_hardware): %s measured E=%.6f vs exact %.6f (delta %.3g, uncertainty %.3g, claimable=%v, measured=%v, backend=%s, vendor=%s).",
+			shortID, model, energy, exact, delta, uncertainty, claimable, measured, backend, jobRef))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "spin-chain hardware measurement folded")
 
 	case "conjecture_run":
 		if !successTrue() {

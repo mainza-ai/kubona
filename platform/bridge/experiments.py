@@ -1515,3 +1515,204 @@ def run_pes(
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }
+
+
+def run_excited_state(
+    molecule: str = "H2",
+    bond_distance: float = 0.7414,
+    layers: int = 2,
+    shots: int = 16384,
+    seed: int = 7,
+    max_iterations: int = 80,
+    penalty: float = 10.0,
+) -> dict[str, Any]:
+    """Deflation-based VQE for the first excited state of H2/STO-3G.
+
+    The ground state is optimized first; the excited objective adds a
+    positive overlap penalty against that state. Both reported energies are
+    shot-measured Pauli expectations; the exact 4x4 spectrum is the anchor.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit/aer unavailable: refusing excited-state VQE"}
+    if str(molecule or "").upper() != "H2":
+        return {"success": False, "error": "excited-state VQE currently supports H2 only; refusing " + str(molecule)}
+    r = float(bond_distance)
+    if not (0.3 <= r <= 10.0):
+        return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
+    if layers < 1 or layers > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    if shots < 128 or shots > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if max_iterations < 1 or max_iterations > 1000:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    if not math.isfinite(float(penalty)) or float(penalty) <= 0:
+        return {"success": False, "error": "penalty must be finite and positive"}
+    t0 = time.perf_counter()
+    h4, fci, rhf = h2_hamiltonian(r)
+    coeffs = pauli_coefficients(h4)
+    spectrum = [float(x) for x in np.linalg.eigvalsh(h4)]
+    if len(spectrum) < 2:
+        return {"success": False, "error": "H2 spectrum has no excited state"}
+    from scipy.optimize import minimize
+    rng = np.random.default_rng(int(seed))
+    x0 = rng.uniform(-0.2, 0.2, size=4 * int(layers))
+
+    def exact_energy(x: np.ndarray) -> float:
+        return _energy_exact(np.asarray(x, dtype=float), h4, int(layers))
+
+    ground_opt = minimize(
+        exact_energy, x0, method="COBYLA",
+        options={"maxiter": int(max_iterations), "rhobeg": 0.35, "tol": 1e-9},
+    )
+    ground_theta = np.asarray(ground_opt.x if ground_opt.x is not None else x0, dtype=float)
+    ground_psi = Statevector.from_instruction(_ansatz(ground_theta, int(layers))).data
+
+    def excited_objective(x: np.ndarray) -> float:
+        psi = Statevector.from_instruction(_ansatz(np.asarray(x, dtype=float), int(layers))).data
+        energy = float(np.real(np.vdot(psi, h4 @ psi)))
+        overlap = float(abs(np.vdot(ground_psi, psi)) ** 2)
+        return energy + float(penalty) * overlap
+
+    excited_opt = minimize(
+        excited_objective, rng.uniform(-0.2, 0.2, size=4 * int(layers)),
+        method="COBYLA",
+        options={"maxiter": int(max_iterations), "rhobeg": 0.35, "tol": 1e-9},
+    )
+    excited_theta = np.asarray(excited_opt.x if excited_opt.x is not None else x0, dtype=float)
+    excited_psi = Statevector.from_instruction(_ansatz(excited_theta, int(layers))).data
+    overlap = float(abs(np.vdot(ground_psi, excited_psi)) ** 2)
+    ground_exact_ansatz = float(np.real(np.vdot(ground_psi, h4 @ ground_psi)))
+    excited_exact_ansatz = float(np.real(np.vdot(excited_psi, h4 @ excited_psi)))
+    ground_measured = _shot_energy(ground_theta, coeffs, int(layers), int(shots), int(seed))
+    excited_measured = _shot_energy(excited_theta, coeffs, int(layers), int(shots), int(seed) + 1)
+    gap_measured = float(excited_measured["energy"] - ground_measured["energy"])
+    gap_exact = float(spectrum[1] - spectrum[0])
+    uncertainty = float(math.sqrt(
+        float(ground_measured["uncertainty"]) ** 2
+        + float(excited_measured["uncertainty"]) ** 2
+    ))
+    claimable = bool(
+        abs(excited_measured["energy"] - spectrum[1]) <= 1.6e-3
+        and abs(ground_measured["energy"] - spectrum[0]) <= 1.6e-3
+        and uncertainty <= 1.6e-3
+        and gap_measured > 0
+    )
+    return {
+        "success": True,
+        "kind": "excited_state",
+        "result_version": "experiment-result-v1",
+        "molecule": "H2",
+        "bond_distance": r,
+        "basis": "sto-3g",
+        "method": "Deflation VQE, hardware-efficient ansatz, COBYLA",
+        "ansatz": f"hardware-efficient layers={int(layers)}",
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "penalty": float(penalty),
+        "ground_theta": [float(v) for v in ground_theta],
+        "excited_theta": [float(v) for v in excited_theta],
+        "ground_energy": float(ground_measured["energy"]),
+        "ground_energy_exact": float(spectrum[0]),
+        "ground_energy_optimizer_exact": float(ground_exact_ansatz),
+        "excited_energy": float(excited_measured["energy"]),
+        "excited_energy_exact": float(spectrum[1]),
+        "excited_energy_optimizer_exact": float(excited_exact_ansatz),
+        "gap": float(gap_measured),
+        "gap_exact": gap_exact,
+        "uncertainty": uncertainty,
+        "ci95_mha": _ci95_mha(uncertainty),
+        "overlap_squared": overlap,
+        "spectrum": spectrum,
+        "measurements": {"ground": ground_measured["terms"], "excited": excited_measured["terms"]},
+        "fci_exact_energy": float(fci),
+        "rhf_mean_field_energy": float(rhf),
+        "claimable": claimable,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "optimizer": {
+            "ground": {"name": "COBYLA", "success": bool(ground_opt.success),
+                       "evaluations": int(ground_opt.nfev), "message": str(ground_opt.message)},
+            "excited": {"name": "COBYLA", "success": bool(excited_opt.success),
+                        "evaluations": int(excited_opt.nfev), "message": str(excited_opt.message)},
+        },
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "limitations": "H2/STO-3G first excited state; deflation overlap penalty; no hardware run.",
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
+def run_reaction_energy(
+    molecule: str = "H2",
+    reactant_distance: float = 0.7414,
+    product_distance: float = 10.0,
+    layers: int = 2,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+) -> dict[str, Any]:
+    """H2 dissociation energy: H2 -> 2 H at a stretched endpoint.
+
+    Exact FCI energies at both geometries are the anchor. The measured
+    reaction energy is the difference of two shot-measured VQE energies;
+    it is explicitly non-claimable when either endpoint misses its anchor.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit/aer unavailable: refusing reaction energy"}
+    if str(molecule or "").upper() != "H2":
+        return {"success": False, "error": "reaction energy currently supports H2 only; refusing " + str(molecule)}
+    r0, r1 = float(reactant_distance), float(product_distance)
+    if not (0.3 <= r0 < r1 <= 10.0):
+        return {"success": False, "error": "require 0.3 <= reactant_distance < product_distance <= 10.0"}
+    _, fci0, _ = h2_hamiltonian(r0)
+    _, fci1, _ = h2_hamiltonian(r1)
+    left = run_vqe("H2", r0, layers, shots, seed, max_iterations)
+    right = run_vqe("H2", r1, layers, shots, seed + 1, max_iterations)
+    if not left.get("success") or not right.get("success"):
+        return {"success": False, "error": "one reaction endpoint failed",
+                "reactant_error": left.get("error"), "product_error": right.get("error")}
+    measured = float(right["energy"] - left["energy"])
+    exact = float(fci1 - fci0)
+    uncertainty = float(math.sqrt(float(left["uncertainty"]) ** 2 + float(right["uncertainty"]) ** 2))
+    claimable = bool(
+        left.get("claimable", False)
+        and right.get("claimable", False)
+        and abs(measured - exact) <= 1.6e-3
+        and uncertainty <= 1.6e-3
+    )
+    return {
+        "success": True,
+        "kind": "reaction",
+        "result_version": "experiment-result-v1",
+        "molecule": "H2",
+        "reactant_distance": r0,
+        "product_distance": r1,
+        "reaction": "H2 -> 2 H",
+        "basis": "sto-3g",
+        "method": "Two-endpoint VQE difference against FCI endpoints",
+        "reactant_energy": float(left["energy"]),
+        "product_energy": float(right["energy"]),
+        "reaction_energy": measured,
+        "reactant_energy_exact": float(fci0),
+        "product_energy_exact": float(fci1),
+        "reaction_energy_exact": exact,
+        "uncertainty": uncertainty,
+        "delta": abs(measured - exact),
+        "claimable": claimable,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "shots": int(shots),
+        "seed": int(seed),
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "limitations": "H2/STO-3G endpoint difference only; no geometry relaxation beyond the two stated points.",
+        "error_message": "",
+    }

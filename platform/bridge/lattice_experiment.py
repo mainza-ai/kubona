@@ -237,6 +237,7 @@ def run_spin_chain(
         "entanglement_entropy_half": observables.entanglement_entropy_half,
         "measurements": measured["terms"],
         "pauli_term_count": len(terms),
+        "pauli_coefficients": {label: float(coeff) for label, coeff in terms},
         "optimizer": ({
             "name": "none", "success": True, "evaluations": 0,
             "message": "exact state preparation", "max_iterations": 0,
@@ -260,5 +261,152 @@ def run_spin_chain(
             "shot-sampled. No thermodynamic-limit or quantum-advantage claim."
         ),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
+def run_spin_chain_hardware(
+    qasm: str,
+    pauli_coefficients: dict[str, float],
+    n_sites: int,
+    energy_exact: float,
+    model: str = "tfim",
+    coupling: float = 1.0,
+    field: float = 0.0,
+    anisotropy: float = 1.0,
+    periodic: bool = True,
+    layers: int = 2,
+    shots: int = 4096,
+    seed: int = 7,
+    target_error: float = 1e-3,
+    backend: str | None = None,
+    state_mode: str = "vqe",
+    source_job_id: str = "",
+) -> dict[str, Any]:
+    """Execute a locally optimized spin-chain ansatz on a governed QPU batch.
+
+    Every Pauli term is measured from hardware counts. The optimizer remains
+    local; `simulated_optimizer:true` and `measured:true` are both explicit.
+    One provider batch is one vendor job, one usage reading, and one settlement.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing spin-chain hardware"}
+    if not str(qasm or "").strip():
+        return {"success": False, "error": "spin-chain hardware requires ansatz qasm"}
+    coeffs = {str(label): float(coeff) for label, coeff in (pauli_coefficients or {}).items()}
+    if not coeffs:
+        return {"success": False, "error": "spin-chain hardware requires pauli_coefficients"}
+    n = int(n_sites)
+    if n < 2 or n > 14:
+        return {"success": False, "error": f"n_sites {n_sites!r} outside [2,14]"}
+    if any(len(label) != n or set(label) - set("IXYZ") for label in coeffs):
+        return {"success": False, "error": "every Pauli label must be a length-n string over IXYZ"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if not math.isfinite(float(energy_exact)):
+        return {"success": False, "error": "energy_exact must be finite"}
+    if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
+        return {"success": False, "error": "target_error must be finite in (0,1]"}
+    mode = str(state_mode or "vqe").strip().lower()
+    if mode not in ("vqe", "exact"):
+        return {"success": False, "error": f"state_mode {state_mode!r} must be vqe|exact"}
+
+    try:
+        from experiments import _hardware_batch, _measurement_qasm, _hardware_counts_to_energy
+        from qiskit import qasm2
+        qc = qasm2.loads(str(qasm))
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"ansatz qasm is not executable: {exc}"}
+    if qc.num_qubits != n:
+        return {"success": False, "error": f"ansatz has {qc.num_qubits} qubits; n_sites is {n}"}
+    if getattr(qc, "num_clbits", 0) > 0 or any(
+        getattr(inst.operation, "name", "") == "measure" for inst in qc.data
+    ):
+        return {"success": False, "error": "spin-chain hardware requires a unitary ansatz without measurement"}
+
+    qasms: list[str] = []
+    labels: list[str] = []
+    for label in sorted(coeffs):
+        qasms.append(_measurement_qasm(qc, label))
+        labels.append(label)
+    # One extra Z-basis circuit for the measured magnetization vector.
+    z_circuit = qc.copy()
+    z_circuit.measure_all()
+    qasms.append(qasm2.dumps(z_circuit))
+    try:
+        batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"hardware batch refused: {exc}"}
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
+        return {"success": False, "error": "hardware batch returned no per-term counts"}
+    measured = _hardware_counts_to_energy(counts_list[:-1], coeffs)
+    z_counts = counts_list[-1]
+    z_total = sum(int(v) for v in z_counts.values())
+    if z_total <= 0:
+        return {"success": False, "error": "hardware Z-basis measurement returned zero counts"}
+    magnetization = []
+    for q in range(n):
+        acc = 0
+        for bitstring, count in z_counts.items():
+            bits = str(bitstring).replace(" ", "")[::-1]
+            if len(bits) < n:
+                return {"success": False, "error": f"counts bitstring {bitstring!r} is shorter than {n}"}
+            acc += int(count) * (1 if bits[q] == "0" else -1)
+        magnetization.append(float(acc) / float(z_total))
+    energy = float(measured["energy"])
+    uncertainty = float(measured["uncertainty"])
+    delta = abs(energy - float(energy_exact))
+    below_exact = bool(energy < float(energy_exact) - 3.0 * uncertainty)
+    claimable = bool(
+        delta <= float(target_error)
+        and uncertainty <= float(target_error)
+        and not below_exact
+    )
+    return {
+        "success": True,
+        "kind": "spin_chain_hardware",
+        "result_version": "experiment-result-v1",
+        "model": str(model),
+        "n_sites": n,
+        "coupling": float(coupling),
+        "field": float(field),
+        "anisotropy": float(anisotropy),
+        "periodic": bool(periodic),
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "target_error": float(target_error),
+        "state_mode": mode,
+        "source_job_id": str(source_job_id),
+        "theta": [],
+        "pauli_coefficients": coeffs,
+        "energy": energy,
+        "energy_exact": float(energy_exact),
+        "energy_measured": energy,
+        "energy_measured_source": "QPU measurement-basis batch",
+        "uncertainty": uncertainty,
+        "delta": delta,
+        "below_exact": below_exact,
+        "measured_magnetization_z": magnetization,
+        "claimable": claimable,
+        "ground_state_reached": bool(claimable or mode == "exact"),
+        "hardware": True,
+        "measured": True,
+        "simulated_optimizer": True,
+        "optimizer_backend": "local-source-job",
+        "measurement_backend": "ibm-qiskit",
+        "provider": "ibm-qiskit",
+        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "layout": batch.get("layout"),
+        "calibration": batch.get("calibration"),
+        "usage_seconds": batch.get("usage_seconds"),
+        "actual_usd": batch.get("actual_usd"),
+        "execution_time_ms": 0.0,
+        "limitations": (
+            "Finite-size exact anchor; ansatz optimized locally; every reported "
+            "term is from QPU counts. No thermodynamic-limit or advantage claim."
+        ),
         "error_message": "",
     }

@@ -18,30 +18,33 @@ status: tracked
 
 ## The finding (2026-11-09)
 
-Kubona has a real **chemistry/QAOA experiment spine**: H2, active-space
-LiH/BeH2, full-space CEO/UCCSD ADAPT, PES, QAOA MaxCut, PySCF anchors, Qiskit
-Aer shot measurement, governed QPU runs, signed result receipts, and campaign
-folding. That is production-shaped for the narrow portfolio it covers.
+Kubona has a real **measured science spine**: H2/LiH/BeH2/H2O chemistry,
+PES, QAOA MaxCut, H2 excited-state deflation, H2 reaction energy, spin-chain
+physics, exact finite-scope law discovery, PySCF/Qiskit anchors and shots,
+governed QPU hardware rails, signed receipts, and campaign folding.
 
-It is **not yet a general quantum science discovery platform**:
+The first capability gap is closed; the remaining gaps are breadth and
+external validation:
 
-- **Physics is declared, not implemented.** The materials pack names
-  `kubona.science.lattice.HubbardModel`, but that module does not exist; the
-  pack loader test currently pins the unresolved generator. There is no
-  spin-chain, lattice, gap, magnetization, correlation, or time-evolution
-  experiment.
-- **Mathematical discovery is a catalog plus a verifier.** `MathCatalog` is a
-  static index/search over the `openai/math` corpus; `comparator_eval` can
-  check axioms or invoke Lean when available. There is no conjecture
-  generation, law discovery, counterexample search, or ledger-bound math
-  experiment.
-- **Chemistry is three curated molecules.** VQE supports H2/LiH/BeH2 only.
-  Broader molecules exist only as classical anchors. Excited states, reaction
-  energies, geometry optimization, and property suites are absent.
-- **The discovery loop is not closed over the real rail.** The old
-  `DiscoveryCampaign` runs a toy ansatz search, not the VQE/PES/QAOA job rail.
-  Measured jobs fold into campaigns, but the platform cannot yet choose,
-  sequence, and report an autonomous campaign.
+- **Physics is executable.** `kubona.science.lattice` provides exact
+  1D TFIM/Heisenberg/XXZ anchors, observables, Pauli export, and a real
+  Fermi-Hubbard anchor; `spin_chain` runs as a measured simulator job and
+  `spin_chain_hardware` has a governed QPU parent rail. The critical 6-site
+  VQE is not yet ground-state accurate; exact-state readout is a separate,
+  labeled mode.
+- **Mathematical discovery is an engine, not only a catalog.** Exact rational
+  polynomial/recurrence discovery with a train/holdout split and falsifier is
+  live as `conjecture_run`; it is explicitly not a theorem prover and does not
+  solve open corpus problems.
+- **Chemistry is broader but still H2-only for excited/reaction work.**
+  H2/LiH/BeH2/H2O VQE, H2O CASCI/full-FCI, H2 deflation excited states, and
+  H2→2H reaction energy exist. General-molecule excited/reaction workflows and
+  geometry optimization are still missing.
+- **The discovery loop is bounded.** `/api/discovery/plan` deterministically
+  selects a bounded experiment from a goal; `/api/discovery/run` sequences
+  1–5 real jobs through the normal rail and returns stored results plus a
+  measured/claimable summary. The old simulator-era `DiscoveryCampaign` is
+  still legacy and must not be used as measured science.
 
 ## Why it matters
 
@@ -55,20 +58,20 @@ result → falsifiable claim → report.
 
 | ID | Gap | Closure |
 |---|---|---|
-| SC-01 | `kubona.science.lattice` missing; materials pack unresolved | Implement exact 1D TFIM/Heisenberg, observables, tests; resolve pack generator. |
-| SC-02 | No physics experiment rail | Add `spin_chain` bridge/Go/API/UI result with exact anchor and shot measurement. |
-| SC-03 | No math discovery engine | Exact rational law discovery with train/holdout verification and counterexample/falsifier; ledger-bound `conjecture` experiment. |
-| SC-04 | Chemistry portfolio too narrow | Add H2O active-space VQE with CASCI/full-FCI anchors and explicit limits. |
-| SC-05 | Discovery campaign not over the real rail | Typed protocol: select → run real job → fold → claim/negative result → report. |
-| SC-06 | No excited-state/reaction experiment | Deflation/QKSD or reaction protocol with exact anchors. |
-| SC-07 | No physics hardware rail | Governed final-state spin-chain measurement. |
-| SC-08 | No finite-domain certificate format | Signed scope/exhaustive-domain/falsifier record; never call finite verification a theorem. |
+| SC-01 | `kubona.science.lattice` missing; materials pack unresolved | Implemented exact 1D TFIM/Heisenberg/XXZ, observables, Hubbard anchor; pack resolves. |
+| SC-02 | No physics experiment rail | Implemented `spin_chain` bridge/Go/API/UI, exact anchor, shot measurement, exact-state mode. |
+| SC-03 | No math discovery engine | Implemented exact rational law discovery, holdout/falsifier, ledger-bound `conjecture` job (not a theorem). |
+| SC-04 | Chemistry portfolio too narrow | H2O active-space VQE/CASCI/full-FCI added; general molecules/excited/reaction still limited to H2 for the new paths. |
+| SC-05 | Discovery campaign not over the real rail | Implemented: `plan`/`run` protocol executes real jobs sequentially, records ledger events, and returns measured summaries. |
+| SC-06 | No excited-state/reaction experiment | H2 deflation VQE and H2→2H reaction energy implemented; general molecules remain. |
+| SC-07 | No physics hardware rail | Implemented `spin_chain_hardware`; live QPU acceptance pending. |
+| SC-08 | No finite-domain certificate format | Implemented finite-scope certificate/falsifier; never called a theorem. |
 | SC-09 | No novelty boundary | Catalog/literature comparison before any "known/unknown" statement. |
-| SC-10 | No physics/math UI | Extend `ExperimentPanel`/`MeasuredOutputs`; browser tests. |
+| SC-10 | No physics/math UI | `ExperimentPanel`/`MeasuredOutputs` cover the new kinds; hardware/protocol launch UI remains. |
 
 ## Implementation status (2026-11-09)
 
-S1 and S2 are implemented in the tree; S3 is partially implemented:
+S1–S4 and the S5b/S5c first slices are implemented in the tree:
 
 - `platform/kubona/science/lattice.py` now provides exact TFIM/Heisenberg/XXZ
   anchors, observables, Pauli export, and a real `HubbardModel`; the materials
@@ -87,9 +90,19 @@ S1 and S2 are implemented in the tree; S3 is partially implemented:
   claim or theorem.
 - H2O active-space VQE is available with full-FCI/CASCI references; full-space
   H2O refuses above the 12-qubit CPU cap.
-- Still open: S4 closed campaign over the real rail, S5 result projections and
-  browser E2E, hardware spin-chain execution, and excited-state/reaction
-  experiments.
+- S4 is now a real measured protocol: `POST /api/discovery/plan` selects a
+  bounded experiment from a goal (and refuses unbounded conjecture), while
+  `POST /api/discovery/run` submits 1–5 real jobs sequentially through the
+  normal admission/settlement rail and returns stored results plus a
+  measured/claimable summary.
+- S5b adds a governed `spin_chain_hardware` parent rail (bridge batch, Go
+  prepare/launch, mandate/fidelity/settlement); E2E covers preparation and
+  mandate refusal.
+- S5c adds H2 deflation excited-state VQE and H2→2H reaction energy against
+  exact FCI endpoints; both are measured simulator results.
+- Still open: live hardware spin-chain acceptance, general-molecule
+  excited/reaction workflows, novelty/catalog boundary for conjectures, and a
+  browser launch UI for hardware/protocol runs.
 
 ## Implementation order (acceptance criteria)
 

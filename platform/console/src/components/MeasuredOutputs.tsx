@@ -61,6 +61,28 @@ function summarize(job: Job): string | null {
       const gap = num(r.gap);
       return `spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''}${gap !== null ? ` · gap ${gap.toFixed(4)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'}${r.state_mode === 'exact' ? ' · exact-state readout' : r.ground_state_reached === false ? ' · VQE state not ground' : ''} · job ${short}`;
     }
+    case 'reaction': {
+      const e = num(r.reaction_energy);
+      const exact = num(r.reaction_energy_exact);
+      if (e === null || exact === null) return null;
+      const unc = num(r.uncertainty);
+      return `reaction ${str(r.reaction) || 'H2 -> 2 H'} ΔE ${e.toFixed(6)} Ha vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+    }
+    case 'excited_state': {
+      const g = num(r.ground_energy);
+      const e = num(r.excited_energy);
+      const gap = num(r.gap);
+      if (g === null || e === null) return null;
+      const gapExact = num(r.gap_exact);
+      return `excited state ground ${g.toFixed(6)} · excited ${e.toFixed(6)}${gap !== null ? ` · gap ${gap.toFixed(5)}` : ''}${gapExact !== null ? ` vs exact ${gapExact.toFixed(5)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+    }
+    case 'spin_chain_hardware': {
+      const e = num(r.energy);
+      const exact = num(r.energy_exact);
+      if (e === null || exact === null) return null;
+      const unc = num(r.uncertainty);
+      return `hardware spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · ${str(r.backend) || 'hardware'} · job ${short}`;
+    }
     case 'conjecture_run': {
       const count = num(r.candidate_count);
       if (count === null) return null;

@@ -10,6 +10,29 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 )
 
+// experimentJobType is the single kind -> job-type mapping shared by the
+// direct experiment route and the discovery protocol.
+func experimentJobType(kind string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "vqe":
+		return "vqe_run", true
+	case "pes":
+		return "vqe_pes", true
+	case "qaoa":
+		return "qaoa_run", true
+	case "excited_state":
+		return "excited_state", true
+	case "reaction":
+		return "reaction", true
+	case "spin_chain":
+		return "spin_chain", true
+	case "conjecture":
+		return "conjecture_run", true
+	default:
+		return "", false
+	}
+}
+
 // POST /api/experiments — submit a real variational experiment (VQE or PES).
 //
 // The body carries a versioned spec; the Go worker submits a ledger-bound job
@@ -54,20 +77,9 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 		kind = req.Kind
 	}
 	kind = strings.ToLower(strings.TrimSpace(kind))
-	var jobType string
-	switch kind {
-	case "vqe":
-		jobType = "vqe_run"
-	case "pes":
-		jobType = "vqe_pes"
-	case "qaoa":
-		jobType = "qaoa_run"
-	case "spin_chain":
-		jobType = "spin_chain"
-	case "conjecture":
-		jobType = "conjecture_run"
-	default:
-		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, qaoa, spin_chain, or conjecture", nil)
+	jobType, ok := experimentJobType(kind)
+	if !ok {
+		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, qaoa, excited_state, reaction, spin_chain, or conjecture", nil)
 		return
 	}
 	spec["kind"] = kind
@@ -426,6 +438,187 @@ func (s *Server) handleHardwareVQE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	job, err := s.jobRunner.SubmitJob(sid, "hardware_experiment", p)
+	if err != nil {
+		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+}
+
+// spinChainHardwareIntent is shared by prepare and launch.
+type spinChainHardwareIntent struct {
+	SessionID           string   `json:"session_id"`
+	SourceJobID         string   `json:"source_job_id"`
+	Shots               int      `json:"shots"`
+	Seed                int      `json:"seed"`
+	BudgetUSD           float64  `json:"budget_usd"`
+	Backend             string   `json:"backend"`
+	MandateRef          string   `json:"mandate_ref"`
+	TargetError         float64  `json:"target_error"`
+	CallerJurisdictions []string `json:"caller_jurisdictions"`
+	CallerExportClass   string   `json:"caller_export_class"`
+	ExportReviewed      bool     `json:"export_reviewed"`
+	RequestID           string   `json:"request_id"`
+}
+
+func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) (jobs.HardwareExperimentParams, error) {
+	var p jobs.HardwareExperimentParams
+	source, err := s.jobRunner.GetJob(req.SourceJobID)
+	if err != nil || source == nil || source.SessionID != req.SessionID {
+		return p, fmt.Errorf("source spin-chain job not found in this session")
+	}
+	var res struct {
+		Kind              string             `json:"kind"`
+		Success           bool               `json:"success"`
+		Hardware          bool               `json:"hardware"`
+		Model             string             `json:"model"`
+		NSites            int                `json:"n_sites"`
+		Coupling          float64            `json:"coupling"`
+		Field             float64            `json:"field"`
+		Anisotropy        float64            `json:"anisotropy"`
+		Periodic          bool               `json:"periodic"`
+		Layers            int                `json:"layers"`
+		TargetError       float64            `json:"target_error"`
+		StateMode         string             `json:"state_mode"`
+		EnergyExact       float64            `json:"energy_exact"`
+		AnsatzQASM        string             `json:"ansatz_qasm"`
+		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
+	}
+	if err := json.Unmarshal(source.ResultJSON, &res); err != nil ||
+		source.JobType != "spin_chain" || !res.Success || res.Kind != "spin_chain" || res.Hardware ||
+		res.NSites < 2 || res.NSites > 14 ||
+		len(res.PauliCoefficients) == 0 || strings.TrimSpace(res.AnsatzQASM) == "" {
+		return p, fmt.Errorf("source job carries no local spin-chain ansatz and Pauli coefficients")
+	}
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+	if req.Seed <= 0 {
+		req.Seed = 7
+	}
+	if req.BudgetUSD <= 0 {
+		req.BudgetUSD = 1.0
+	}
+	targetError := req.TargetError
+	if targetError == 0 {
+		targetError = res.TargetError
+	}
+	if targetError <= 0 || targetError > 1 {
+		targetError = 1e-3
+	}
+	backend := strings.TrimSpace(req.Backend)
+	if backend == "" {
+		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
+	}
+	if backend == "" {
+		return p, fmt.Errorf("backend is required (or set KUBONA_IBM_QISKIT_BACKEND)")
+	}
+	p = jobs.HardwareExperimentParams{
+		Kind: "spin_chain_hardware", Model: res.Model, NSites: res.NSites,
+		TargetError: targetError, StateMode: res.StateMode, SourceJobID: req.SourceJobID,
+		Layers: res.Layers, Shots: req.Shots, Seed: req.Seed,
+		QASM: res.AnsatzQASM, FidelityQASM: res.AnsatzQASM,
+		PauliCoefficients: res.PauliCoefficients, EnergyExact: res.EnergyExact,
+		Provider: "ibm-qiskit", RequestedBackend: backend,
+		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef,
+		CallerJurisdictions: req.CallerJurisdictions,
+		CallerExportClass:   req.CallerExportClass, ExportReviewed: req.ExportReviewed,
+	}
+	return p, nil
+}
+
+// POST /api/experiments/spin-chain/hardware/prepare — return the canonical
+// parent mandate binding for a local spin-chain source.
+func (s *Server) handlePrepareSpinChainHardware(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to prepare spin-chain hardware", nil)
+		return
+	}
+	var req spinChainHardwareIntent
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid spin-chain hardware request: %v", err), nil)
+		return
+	}
+	sid, err := s.requireSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", err.Error(), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	req.SessionID = sid
+	p, err := s.spinChainHardwareParamsFromSource(req)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"binding": jobs.CanonicalHardwareJobBinding("spin_chain_hardware", sid, p),
+		"spec": map[string]any{
+			"model": p.Model, "n_sites": p.NSites, "provider": p.Provider,
+			"requested_backend": p.RequestedBackend, "shots": p.Shots, "seed": p.Seed,
+			"max_cost_usd": p.MaxCostUSD, "mandate_required": true,
+		},
+	})
+}
+
+// POST /api/experiments/spin-chain/hardware — run the locally optimized
+// spin-chain ansatz on a governed QPU batch. The source job supplies the
+// exact anchor, ansatz, and Pauli coefficients; the parent owns mandate,
+// fidelity, reservation, batch, usage, and settlement.
+func (s *Server) handleSpinChainHardware(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to launch spin-chain hardware", nil)
+		return
+	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
+	var req spinChainHardwareIntent
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid spin-chain hardware request: %v", err), nil)
+		return
+	}
+	sid, err := s.requireSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", err.Error(), nil)
+		return
+	}
+	if err := s.requireDispatchAutonomy(sid); err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	req.SessionID = sid
+	p, err := s.spinChainHardwareParamsFromSource(req)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	if p.MandateRef == "" {
+		WriteAPIError(w, "bad_request", "mandate_ref is required: prepare the parent binding, sign it, then launch", map[string]any{
+			"binding": jobs.CanonicalHardwareJobBinding("spin_chain_hardware", sid, p),
+		})
+		return
+	}
+	idem, iref := s.idemBegin(sid, req.RequestID, map[string]any{
+		"session_id": sid, "source_job_id": req.SourceJobID, "backend": p.RequestedBackend,
+		"shots": p.Shots, "seed": p.Seed, "budget_usd": p.MaxCostUSD,
+		"mandate_ref": p.MandateRef, "target_error": p.TargetError,
+		"jurisdictions": req.CallerJurisdictions,
+	}, idemRailJob)
+	if iref != nil {
+		iref.write(w)
+		return
+	}
+	if idem.replay {
+		s.idemReplay(w, idem)
+		return
+	}
+	job, err := s.jobRunner.SubmitJob(sid, "spin_chain_hardware", p)
 	if err != nil {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
