@@ -17,7 +17,8 @@ This plan is being executed incrementally. Landed after the report:
   `seed` (defaults are explicit); the console helper forwards both.
 - **Direct compute routes:** Krylov and mitigation now create a ledger-bound
   job and wait for the terminal result; anonymous/unattributed calls refuse.
-- **Go-owned job-only workflows:** workflows whose steps are all
+- **Go-owned workflows:** normal mixed workflows now run step-by-step in Go
+  (job steps on the Go jobs rail; non-job steps through `RunWorkflowStep`).
   `execution/submit_job` execute on the Go jobs rail and never create a
   Python ghost; mixed workflows retain the Python path/adoption bridge.
 - **Claim review:** append-only `claim_reviews` with
@@ -79,7 +80,8 @@ silent omissions.
 > the first `hardware_experiment` parent rail (H2, one Runtime batch, mock
 > lane), and the durable workflow run/step journal with boot repair. Live
 > hardware evidence still requires an operator mandate and run; mixed workflow
-> steps are visible but not yet Go-owned.
+> normal mixed steps are Go-owned; approval/agent-created workflows still use
+> the Python compatibility engine pending approval migration.
 
 ## 1. Executive verdict
 
@@ -173,7 +175,7 @@ It does not upgrade the missing portfolio features.
 
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
-| PC-01 | **Workflow lifecycle is not fully atomic.** The durable run/step journal now makes interruption visible and job-only steps Go-owned; mixed non-job steps still execute in Python. | A crash is surfaced as `repair_required` instead of a silent ghost, but mixed steps are not yet Go-owned. | `platform/core/pkg/ledger/workflow_journal.go`; `platform/core/pkg/api/workflows.go`; `workflows_jobs.go` |
+| PC-01 | **Workflow lifecycle is not fully atomic for approval/agent workflows.** Normal mixed workflows are Go-owned step-by-step with a durable journal; approval-required and agent-created workflows still use the Python compatibility engine. | A crash is surfaced as `repair_required`; normal mixed spend is Go-owned. Approval migration and typed job-compensation inverses remain. | `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go`; `platform/bridge/server.py:RunWorkflowStep` |
 | PC-02 | **Hardware VQE/QAOA was absent; now governed but contested.** H2 VQE and QAOA parent runs completed through one mandate/batch/claim rail; no chemical-accuracy or advantage claim. | The product now has a real hardware path; the remaining gap is scientific accuracy/QAOA prepare symmetry, not dispatch. | Live jobs above; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/bridge/experiments.py` hardware runners. |
 | PC-03 | **Full-space VQE is not scientifically usable.** `full_space:true` uses `EfficientSU2`; the LiH smoke result is far from full FCI. | It cannot support "full molecule" chemical-accuracy claims and must not be presented as a completed feature. | `platform/bridge/experiments.py:259-350`; live LiH smoke: `-5.1880 Ha` vs FCI `-7.8823 Ha` (2694 mHa). |
 | PC-04 | **Launch reproducibility is broken.** `handleChatLaunch` hardcodes `shots:1024` and does not accept/record a seed. | The canonical proposal-launch path cannot reproduce a result from its spec. | `platform/core/pkg/api/server.go:2909-2919` |
