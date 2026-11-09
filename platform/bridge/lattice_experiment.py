@@ -120,6 +120,7 @@ def run_spin_chain(
     seed: int = 7,
     max_iterations: int = 160,
     target_error: float = 1e-3,
+    state_mode: str = "vqe",
 ) -> dict[str, Any]:
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing spin-chain experiment"}
@@ -129,6 +130,9 @@ def run_spin_chain(
         return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
     if int(max_iterations) < 1 or int(max_iterations) > 1000:
         return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    mode = str(state_mode or "vqe").strip().lower()
+    if mode not in ("vqe", "exact"):
+        return {"success": False, "error": f"state_mode {state_mode!r} must be vqe|exact"}
     if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
         return {"success": False, "error": "target_error must be finite in (0,1]"}
     try:
@@ -144,24 +148,35 @@ def run_spin_chain(
     exact_energy, exact_vec, eigenvalues = lattice.ground_state()
     observables = lattice.observables(exact_vec)
     terms = lattice.pauli_terms()
-    rng = np.random.default_rng(int(seed))
-    x0 = rng.uniform(-0.5, 0.5, size=2 * lattice.n_sites * int(layers))
+    if mode == "exact":
+        # A circuit-level state-preparation benchmark: initialize the exact
+        # finite-size ground state and measure it. This is not VQE and makes
+        # no variational-discovery claim; it is useful for shot-level
+        # observable readout against a known anchor.
+        qc = QuantumCircuit(lattice.n_sites)
+        qc.initialize(exact_vec, list(range(lattice.n_sites)))
+        theta = np.zeros(0, dtype=float)
+        exact_opt = float(exact_energy)
+        opt = None
+    else:
+        rng = np.random.default_rng(int(seed))
+        x0 = rng.uniform(-0.5, 0.5, size=2 * lattice.n_sites * int(layers))
 
-    def objective(x: np.ndarray) -> float:
-        state = Statevector.from_instruction(_ansatz(lattice.n_sites, int(layers), np.asarray(x))).data
-        return float(np.real(np.vdot(state, h.dot(state))))
+        def objective(x: np.ndarray) -> float:
+            state = Statevector.from_instruction(_ansatz(lattice.n_sites, int(layers), np.asarray(x))).data
+            return float(np.real(np.vdot(state, h.dot(state))))
 
-    from scipy.optimize import minimize
-    opt = minimize(
-        objective, x0, method="COBYLA",
-        options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8},
-    )
-    theta = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
-    qc = _ansatz(lattice.n_sites, int(layers), theta)
-    exact_opt = float(np.real(np.vdot(
-        Statevector.from_instruction(qc).data,
-        h.dot(Statevector.from_instruction(qc).data),
-    )))
+        from scipy.optimize import minimize
+        opt = minimize(
+            objective, x0, method="COBYLA",
+            options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8},
+        )
+        theta = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+        qc = _ansatz(lattice.n_sites, int(layers), theta)
+        exact_opt = float(np.real(np.vdot(
+            Statevector.from_instruction(qc).data,
+            h.dot(Statevector.from_instruction(qc).data),
+        )))
     measured = _measured_terms(qc, terms, int(shots), int(seed))
     measured_mag = _measured_magnetization(qc, lattice.n_sites, int(shots), int(seed) + 1)
     energy = float(measured["energy"])
@@ -172,6 +187,7 @@ def run_spin_chain(
         delta <= float(target_error)
         and uncertainty <= float(target_error)
         and not below_exact
+        and mode == "vqe"
     )
     return {
         "success": True,
@@ -188,7 +204,11 @@ def run_spin_chain(
         "shots": int(shots),
         "seed": int(seed),
         "target_error": float(target_error),
-        "ansatz": "hardware-efficient RY/RZ + ring CX",
+        "method": ("exact finite-size state preparation + shot readout"
+                   if mode == "exact" else "VQE hardware-efficient ansatz"),
+        "state_mode": mode,
+        "ansatz": ("exact ground-state preparation"
+                   if mode == "exact" else "hardware-efficient RY/RZ + ring CX"),
         "theta": [float(v) for v in theta],
         "ansatz_qasm": qasm2.dumps(qc),
         "energy": energy,
@@ -203,8 +223,10 @@ def run_spin_chain(
         "claimable": claimable,
         "gap": observables.gap,
         "eigenvalues": eigenvalues,
-        "ground_state_reached": claimable,
+        "ground_state_reached": True if mode == "exact" else claimable,
         "observable_state": (
+            "exact ground state prepared on the circuit and shot-measured"
+            if mode == "exact" else
             "optimized VQE ansatz state; exact_* fields are the finite-size "
             "ground-state anchor, measured_* fields are not ground-state "
             "observables unless ground_state_reached is true"
@@ -215,23 +237,27 @@ def run_spin_chain(
         "entanglement_entropy_half": observables.entanglement_entropy_half,
         "measurements": measured["terms"],
         "pauli_term_count": len(terms),
-        "optimizer": {
+        "optimizer": ({
+            "name": "none", "success": True, "evaluations": 0,
+            "message": "exact state preparation", "max_iterations": 0,
+        } if mode == "exact" else {
             "name": "COBYLA", "success": bool(opt.success),
             "evaluations": int(opt.nfev), "message": str(opt.message),
             "max_iterations": int(max_iterations),
-        },
-        "converged": bool(opt.success),
+        }),
+        "converged": True if mode == "exact" else bool(opt.success),
         "backend": "qiskit-aer-simulator",
         "provider": "qiskit-aer-simulator",
         "hardware": False,
         "measured": True,
-        "simulated_optimizer": True,
-        "optimizer_backend": "qiskit-aer-simulator",
+        "simulated_optimizer": False if mode == "exact" else True,
+        "optimizer_backend": ("exact-diagonalization" if mode == "exact" else "qiskit-aer-simulator"),
         "measurement_backend": "qiskit-aer-simulator",
         "limitations": (
-            "Finite-size exact diagonalization anchor; VQE optimizer is local "
-            "statevector optimization; reported energy is shot-sampled. No "
-            "thermodynamic-limit or quantum-advantage claim."
+            "Finite-size exact diagonalization anchor; the exact-state mode "
+            "prepares that anchor on the circuit and measures it, while the "
+            "vqe mode is local statevector optimization. Reported energy is "
+            "shot-sampled. No thermodynamic-limit or quantum-advantage claim."
         ),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",

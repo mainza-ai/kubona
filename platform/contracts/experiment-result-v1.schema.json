@@ -21,6 +21,7 @@
     "gap": { "type": ["number", "null"] },
     "below_exact": { "type": "boolean" },
     "ground_state_reached": { "type": "boolean" },
+    "state_mode": { "type": "string", "enum": ["vqe", "exact"] },
     "observable_state": { "type": "string" },
     "candidates": { "type": "array", "items": { "type": "object" } },
     "candidate_count": { "type": "integer" },

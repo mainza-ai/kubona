@@ -78,7 +78,9 @@ S1 and S2 are implemented in the tree; S3 is partially implemented:
   and no advantage claim. The live 6-site TFIM check is honest but not
   ground-state accurate: exact `-7.7274066`, measured `-5.9992`,
   `ground_state_reached:false`; the measured magnetization is explicitly
-  labeled as the VQE state's, not the ground state's.
+  labeled as the VQE state's, not the ground state's. The same runner supports
+  `state_mode:"exact"` for exact finite-size state preparation plus shot
+  readout, which is labeled as such and is not a variational claim.
 - `platform/kubona/science/conjecture.py` discovers exact polynomial/linear-
   recurrence laws on a training prefix, validates a holdout, and emits a
   falsifier. The `conjecture_run` job is recorded as a conjecture, never a

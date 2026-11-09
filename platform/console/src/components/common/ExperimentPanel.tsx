@@ -36,6 +36,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
   const [field, setField] = useState('0.8');
   const [periodic, setPeriodic] = useState(true);
   const [targetError, setTargetError] = useState('0.001');
+  const [stateMode, setStateMode] = useState<'vqe' | 'exact'>('vqe');
   const [conjValues, setConjValues] = useState('1, 1, 2, 3, 5, 8, 13, 21, 34');
   const [holdout, setHoldout] = useState('2');
   const [busy, setBusy] = useState(false);
@@ -60,6 +61,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
       spec.target_error = Number(targetError);
+      spec.state_mode = stateMode;
     } else if (kind === 'conjecture') {
       spec.values = conjValues.split(/[,\s]+/).filter(Boolean);
       spec.holdout = Number(holdout);
@@ -145,6 +147,12 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
             <label className="space-y-1">Target error
               <input aria-label="Spin target error" value={targetError} onChange={(e) => setTargetError(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
             </label>
+            <label className="space-y-1">State mode
+              <select aria-label="Spin state mode" value={stateMode} onChange={(e) => setStateMode(e.target.value as 'vqe' | 'exact')} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
+                <option value="vqe">VQE (variational, may not reach ground)</option>
+                <option value="exact">Exact state preparation + shot readout</option>
+              </select>
+            </label>
           </>
         ) : kind === 'conjecture' ? (
           <>
@@ -207,7 +215,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
           {job.status === 'completed' && kind === 'spin_chain' && energy != null && exact != null && (
-            <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
+            <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.state_mode === 'exact' ? ' · exact-state readout' : result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
           )}
           {job.status === 'completed' && kind === 'conjecture' && candidateCount != null && (
             <div>

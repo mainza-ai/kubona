@@ -215,7 +215,13 @@ Implemented and locally tested:
 - **Evidence:** `platform/tests/test_lattice.py` (7), `test_conjecture.py` (5),
   `test_domain_packs.py` (7), bridge `test_lattice_experiment.py` (5), and the
   H2O bridge test pass locally; full Go suite passes.
-- **Honest physics accuracy:** a live local 6-site critical TFIM run returned
+- **Physics accuracy options:** the `spin_chain` result supports `state_mode:"vqe"`
+  (a real variational attempt that may miss the ground state) and
+  `state_mode:"exact"` (prepare the exact finite-size ground state on the
+  circuit and shot-measure it; no variational claim). A 4-site TFIM exact-state
+  run returned `-5.2188` vs exact `-5.22625` with uncertainty `0.0152`; the
+  result is labeled as exact-state readout and `claimable:false`. A live local
+  6-site critical TFIM VQE run returned
   exact `-7.7274066103` and shot-measured `-5.9992` (delta `1.728`, uncertainty
   `0.0173`, `claimable:false`, `ground_state_reached:false`). The measured
   magnetization belongs to the optimized VQE state, not the exact ground state;

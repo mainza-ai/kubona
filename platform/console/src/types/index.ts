@@ -197,6 +197,7 @@ export interface ExperimentResult {
   gap?: number | null;
   below_exact?: boolean;
   ground_state_reached?: boolean;
+  state_mode?: 'vqe' | 'exact';
   observable_state?: string;
   candidates?: Record<string, unknown>[];
   candidate_count?: number;
