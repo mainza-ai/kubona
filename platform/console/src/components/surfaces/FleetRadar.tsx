@@ -17,6 +17,7 @@ import type { CampaignState } from '@/types';
 import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 import { useFleetProjection } from '@/domain/useFleetProjection';
+import { refreshCalibration } from '@/lib/api';
 import { useCostProjection } from '@/domain/useCostProjection';
 
 
@@ -29,6 +30,9 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
   const { fleet, status, error, intervalMs, refresh } = useFleetProjection();
   const { data: spend } = useCostProjection();
+  const [calibrationBackend, setCalibrationBackend] = useState('');
+  const [calibrationNote, setCalibrationNote] = useState<string | null>(null);
+  const [calibrationBusy, setCalibrationBusy] = useState(false);
   const backends = fleet.backends;
   const radarEndpoints = fleet.radarEndpoints;
   const refused = fleet.refused ?? (status === 'refused' ? error : null);
@@ -40,6 +44,25 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
     : backends;
   // EAR99 banner only when a backend flag actually carries it — never static.
   const showEar99 = backends.some((b) => ((b.itar_ear || '') as string).toUpperCase().includes('EAR99'));
+  const canRefreshCalibration = backends.some((b) => (b.provider || '').toLowerCase() === 'ibm-qiskit');
+  async function onRefreshCalibration() {
+    const backend = calibrationBackend.trim();
+    if (!backend) {
+      setCalibrationNote('Enter the IBM backend name (for example ibm_fez).');
+      return;
+    }
+    setCalibrationBusy(true);
+    setCalibrationNote(null);
+    const result = await refreshCalibration(backend);
+    setCalibrationBusy(false);
+    if (!result.ok) {
+      setCalibrationNote(result.error || 'Calibration refresh refused.');
+      return;
+    }
+    const pending = result.queue?.pending_jobs;
+    setCalibrationNote(`Calibration installed${typeof pending === 'number' ? `; vendor pending ${pending}` : ''}.`);
+    refresh();
+  }
   const queued = backends.filter((b) => typeof b.queue_depth === 'number' && Number.isFinite(b.queue_depth));
   const queueSpec: ChartSpec | undefined =
     queued.length > 0
@@ -200,6 +223,28 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         </div>
       )}
 
+      {canRefreshCalibration && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.06] bg-black/30 p-3 text-xs">
+          <span className="text-slate-300">IBM calibration refresh</span>
+          <input
+            aria-label="IBM backend for calibration refresh"
+            value={calibrationBackend}
+            onChange={(event) => setCalibrationBackend(event.target.value)}
+            placeholder="ibm_fez"
+            className="w-36 rounded border border-white/10 bg-black/60 px-2 py-1 font-mono text-slate-200"
+          />
+          <button
+            type="button"
+            onClick={onRefreshCalibration}
+            disabled={calibrationBusy}
+            className="rounded border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 font-semibold text-cyan-200 disabled:opacity-50"
+          >
+            {calibrationBusy ? 'Refreshing…' : 'Refresh calibration'}
+          </button>
+          {calibrationNote && <span role="status" className="text-slate-400">{calibrationNote}</span>}
+        </div>
+      )}
+
       {backends.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-black/30 p-4">
           <table className="w-full text-left text-[12px]">
@@ -221,7 +266,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <tr key={backend.name} className="border-t border-white/[0.06]">
                   <th scope="row" className="py-1.5 pr-3 font-sans font-medium text-slate-200">{backend.name}</th>
                   <td className="py-1.5 pr-3">{typeof backend.qubits === 'number' ? backend.qubits : '—'}</td>
-                  <td className="py-1.5 pr-3">{typeof backend.queue_depth === 'number' ? backend.queue_depth : '—'}</td>
+                  <td className="py-1.5 pr-3">
+                    {typeof backend.queue_depth === 'number'
+                      ? `${backend.queue_depth}${typeof backend.queue_eta_s === 'number' ? ` · ~${Math.round(backend.queue_eta_s)}s ETA` : backend.queue_eta_reason ? ' · ETA unknown' : ''}`
+                      : '—'}
+                  </td>
                   <td className="py-1.5 pr-3" title={backend.fidelity_source || undefined}>
                     {typeof backend.calibration_age_hours === 'number'
                       ? `${backend.calibration_age_hours.toFixed(1)}h${backend.calibration_fresh === false ? ' · STALE' : ''}`

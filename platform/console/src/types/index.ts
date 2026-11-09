@@ -798,6 +798,10 @@ export interface BackendInfo {
   queue_depth?: number | null;
   local_queue_depth?: number | null;
   queue_scope?: string | null;
+  queue_eta_s?: number | null;
+  queue_eta_reason?: string | null;
+  queue_source?: string | null;
+  queue_fetched_at?: string | null;
   calibration_at?: string | null;
   calibration_age_hours?: number | null;
   calibration_fresh?: boolean | null;

@@ -764,6 +764,32 @@ class QiskitProvider(Provider):
         except Exception:
             return None
 
+    def queue_snapshot(self) -> dict[str, Any] | None:
+        """Live vendor queue depth, or None when unmeasurable.
+
+        IBM exposes ``pending_jobs`` but no public job ETA; the bridge returns
+        the measured queue depth and an explicit unknown/reason for ETA. It
+        never invents seconds from a pending count.
+        """
+        try:
+            token = self._credential()
+            if not token:
+                return None
+            service = self._service(token)
+            backend = self._resolve_backend(service)
+            status = backend.status()
+            return {
+                "backend": str(backend.name),
+                "pending_jobs": int(status.pending_jobs),
+                "operational": bool(status.operational),
+                "status": str(getattr(status, "status_msg", "") or ""),
+                "eta_seconds": None,
+                "eta_reason": "vendor does not expose a public job ETA",
+                "source": "live-backend-status",
+            }
+        except Exception:
+            return None
+
     def calibration_snapshot(self) -> dict[str, Any] | None:
         """Live backend calibration medians (Q-14), or None when unmeasurable.
 
