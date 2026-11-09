@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `c5428cb` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `b4b3a3e` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.

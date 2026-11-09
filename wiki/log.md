@@ -5134,3 +5134,18 @@ skipped is the exact failure this incident is about:
 - UI: contract inventory is `139 modeled / 14 client-only / 0 unmodeled`;
   VQE/QAOA/spin hardware launch, discovery protocol, typed experiment table,
   and an Experiments-tab a11y sweep are present.
+
+## [2026-11-09] implementation | science UI and chemistry breadth closure
+
+- Live governed spin-chain hardware executed on `ibm_fez`; the VQE result was
+  not accurate (`-2.278125` vs exact `-3.00902212`) and is recorded as
+  non-claimable, not hidden.
+- Excited-state deflation now covers H2, LiH, BeH2, and H2O active spaces;
+  reaction energy covers H2→2H and H2O→H2+O.
+- Conjecture results now carry a known-law registry match and explicit
+  `unclassified` status; no external novelty claim.
+- Console: VQE/QAOA/spin hardware launch UI, discovery protocol panel, typed
+  experiment table, Experiments-tab a11y sweep, and zero unmodeled response
+  contracts (`139 modeled / 14 client-only / 0 unmodeled`).
+- CI + Console E2E green at `b4b3a3e`; Go coverage 64.5%; bridge 25 passed;
+  console 602 passed; build/lint/wiki/contracts clean.
