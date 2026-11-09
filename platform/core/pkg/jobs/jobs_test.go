@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"strings"
@@ -1443,5 +1444,22 @@ func TestExperimentResultVersionGate(t *testing.T) {
 	}
 	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
 		t.Fatalf("versioned VQE result must pass: %v", err)
+	}
+}
+
+func TestLoadResultSigningKeyPrefersConfiguredKey(t *testing.T) {
+	_, key, _ := ed25519.GenerateKey(nil)
+	t.Setenv("KUBONA_RESULT_SIGNING_KEY_HEX", hex.EncodeToString(key))
+	t.Setenv("KUBONA_REVIEWER_PRIVKEY_HEX", "")
+	got, ok := LoadResultSigningKey()
+	if !ok || len(got) != ed25519.PrivateKeySize {
+		t.Fatal("configured result signing key was not loaded")
+	}
+	if string(got.Public().(ed25519.PublicKey)) != string(key.Public().(ed25519.PublicKey)) {
+		t.Fatal("loaded signing key does not match configured key")
+	}
+	t.Setenv("KUBONA_RESULT_SIGNING_KEY_HEX", "not-hex")
+	if _, ok := LoadResultSigningKey(); ok {
+		t.Fatal("invalid signing key must refuse")
 	}
 }
