@@ -61,8 +61,9 @@ on every molecule.
 ## BeH2 boundary
 
 BeH2 (14 qubits) is supported as a full-space job, but it is not claimed:
-16 operators reached about `4.16 mHa` exact error and 40 operators about
-`3.04 mHa`, still above the 1.6 mHa gate. A shot result that happens to land
+16 operators reached about `4.16 mHa` exact error, 40 operators about
+`3.04 mHa`, and 60 operators about `3.23 mHa` (optimizer/shot boundary),
+still above the 1.6 mHa gate. A shot result that happens to land
 inside the gate is rejected unless the exact diagnostic also passes. The
 honest status is `resource_exhausted`/`contested`, with the operator count and
 pool recorded in the result.
