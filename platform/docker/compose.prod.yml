@@ -182,6 +182,9 @@ services:
       # mandates (ephemeral signers are dev-only). Generate with:
       #   kubonad keygen
       KUBONA_REVIEWER_PRIVKEY_HEX: ${KUBONA_REVIEWER_PRIVKEY_HEX:-}
+      # Test/dev only; empty in production. Workflow approvals and
+      # mandate signing must use a commissioned reviewer key in production.
+      KUBONA_ALLOW_EPHEMERAL_SIGNER: ${KUBONA_ALLOW_EPHEMERAL_SIGNER:-}
       KUBONA_OPERATOR_PRIVKEY_HEX: ${KUBONA_OPERATOR_PRIVKEY_HEX:-}
       # Cloud LLM is opt-in, and the provider key is the operator's own
       # (BYOK): the provider bills that key; Kubona only records an estimate

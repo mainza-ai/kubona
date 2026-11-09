@@ -109,6 +109,7 @@
     "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
+    "workflow.approval",
     "workflow.plan",
     "workflow.run"
   ],
@@ -221,6 +222,7 @@
     "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
+    "workflow.approval",
     "workflow.plan",
     "workflow.run"
   ],
@@ -242,6 +244,12 @@
       "path": "/api/metasearch/approve",
       "method": "POST",
       "contract": "metasearch.change"
+    },
+    {
+      "function": "approveWorkflow",
+      "path": "/api/workflows/approve",
+      "method": "POST",
+      "contract": "workflow.approval"
     },
     {
       "function": "assertPrediction",
