@@ -83,8 +83,10 @@ The full gap register, phased plan, and definition of done are in
       `KUBONA_STRICT_CONTRACTS=1`.
 - [x] P1: schemas for the former unmodeled backlog (0 network responses
       unmodeled; client-only helpers explicit).
-- [ ] P1: disk/rate-specific external alert routing beyond preflight/backup.
-- [ ] P1: contrast/other-modal/screen-reader audit.
+- [x] P1: disk/rate-specific external alert routing beyond preflight/backup
+      (disk_guard, settlement_skipped, cooldown-limited rate_limit).
+- [ ] P1: contrast/other-modal/screen-reader audit (automated axe/keyboard
+      remains green; manual VoiceOver/NVDA still human-only).
 
 ## Production blockers
 

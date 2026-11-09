@@ -110,6 +110,20 @@ It is unhealthy when no backup exists or the newest is older than the age
 budget. The backup directory is the `kubona-backups` volume; copy its
 encrypted artifacts off-host as part of the retention policy.
 
+For the quarterly encrypted off-host proof, use a genuinely separate mount
+and the age identity:
+
+```bash
+kubonad offhost-drill --db /abs/kubona.db --offhost-dir /mnt/offhost \
+  --age-recipient age1... --age-identity /secure/kubona-backup.key
+```
+
+It verifies the live backup chain, encrypts into the off-host mount, decrypts
+the off-host artifact, restores to scratch, compares
+`sessions/jobs/ledger_events/claim_records`, and prints the encrypted artifact
+sha256. The command refuses an unverified/faulted backup; it never copies an
+unverified database.
+
 ## Manual recovery fallback
 
 If the CLI is unavailable, the previous shell procedure is still documented
