@@ -27,9 +27,6 @@ jobs:
       KUBONA_API_TOKEN: e2e-token
       KUBONA_SINGLE_LAB: "1"
       KUBONA_ENV: production
-      # Disposable E2E stack only: the test exercises the approval UI without a
-      # commissioned reviewer key. Production leaves this unset.
-      KUBONA_ALLOW_EPHEMERAL_SIGNER: "1"
       E2E_OPERATOR_TOKEN: e2e-token
       PLAYWRIGHT_CHANNEL: chrome
       KUBONA_CONSOLE_URL: http://localhost:3000
@@ -52,6 +49,12 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chrome
+
+      - name: Generate disposable reviewer key for this E2E run
+        # Production refuses the dev-only ephemeral signer. This key is
+        # generated fresh for the disposable stack and never committed.
+        run: |
+          echo "KUBONA_REVIEWER_PRIVKEY_HEX=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
       - name: Boot production stack
         run: |
