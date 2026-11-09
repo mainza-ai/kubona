@@ -17,7 +17,7 @@ import {
   
   
 } from 'lucide-react';
-import { CampaignState, SystematicNotebook, Job } from '@/types';
+import { CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
@@ -86,6 +86,45 @@ function downloadText(name: string, content: string, mime: string): void {
 function csvCell(value: unknown): string {
   const text = value == null ? '' : String(value);
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function PesTable({ points }: { points: PesPoint[] }) {
+  return (
+    <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+        <span className="text-[12px] font-semibold text-white">PES points</span>
+        <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead className="text-[var(--color-muted)]">
+            <tr className="border-b border-white/10">
+              <th className="px-2 py-1 text-left">R (Å)</th>
+              <th className="px-2 py-1 text-right">E (Ha)</th>
+              <th className="px-2 py-1 text-right">FCI (Ha)</th>
+              <th className="px-2 py-1 text-right">Δ (mHa)</th>
+              <th className="px-2 py-1 text-right">σ (mHa)</th>
+              <th className="px-2 py-1 text-right">95% (mHa)</th>
+              <th className="px-2 py-1 text-right">Chem. acc.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((point) => (
+              <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
+                <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
+                <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
+                <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
+                <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
+                <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
+                <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
+                <td className="px-2 py-1 text-right">{point.chemical_accuracy ? 'PASS' : 'outside'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
@@ -468,6 +507,9 @@ ${bibtex}
           </div>
         </div>
         <MeasuredOutputs sessionId={sessionId ?? null} />
+        {(campaign?.pes_points?.length ?? 0) > 0 && (
+          <PesTable points={campaign!.pes_points!} />
+        )}
         <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-6 text-center space-y-2">
           <p className="text-sm font-medium text-white">No manuscript, citation, or proof receipt yet.</p>
           <p className="text-[13px] leading-relaxed text-slate-400">
@@ -587,40 +629,7 @@ ${bibtex}
               {/* Measured job outputs: what ran, bound to job ids */}
               <MeasuredOutputs sessionId={sessionId ?? null} />
               {(campaign?.pes_points?.length ?? 0) > 0 && (
-                <div className="rounded-xl border border-white/10 overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-                    <span className="text-[12px] font-semibold text-white">PES points</span>
-                    <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[12px]">
-                      <thead className="text-[var(--color-muted)]">
-                        <tr className="border-b border-white/10">
-                          <th className="px-2 py-1 text-left">R (Å)</th>
-                          <th className="px-2 py-1 text-right">E (Ha)</th>
-                          <th className="px-2 py-1 text-right">FCI (Ha)</th>
-                          <th className="px-2 py-1 text-right">Δ (mHa)</th>
-                          <th className="px-2 py-1 text-right">σ (mHa)</th>
-                          <th className="px-2 py-1 text-right">95% (mHa)</th>
-                          <th className="px-2 py-1 text-right">Chem. acc.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {campaign!.pes_points!.map((point) => (
-                          <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
-                            <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
-                            <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
-                            <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
-                            <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
-                            <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
-                            <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
-                            <td className="px-2 py-1 text-right">{point.chemical_accuracy ? 'PASS' : 'outside'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <PesTable points={campaign!.pes_points!} />
               )}
               {/* Paper Title & Metadata */}
               <div
