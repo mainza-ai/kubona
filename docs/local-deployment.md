@@ -79,27 +79,45 @@ two services after a refresh if a long-running process has already cached it.
 A failed or unmeasurable refresh refuses; it never stamps a fresh timestamp
 without live data.
 
-### Autoresearch sandbox (opt-in)
+### Autoresearch sandbox (opt-in, gVisor)
 
 The default compose stack intentionally has **no Docker socket**: autoresearch
 harnesses refuse (`docker_runner.available:false`) rather than executing code
-on the host. To enable the hardened sandbox on a trusted local host, build the
-runner image and use the sandbox override:
+on the host. The supported production path is the narrow `sandboxd` sidecar:
+kubonad reaches a private UDS; only the sidecar reaches the Docker socket; the
+sidecar launches the fixed runner image through **gVisor `runsc`** with
+`--network none`, read-only rootfs, cap-drop ALL, no-new-privileges, seccomp,
+non-root, and memory/PID/CPU caps. Its API has only `/health` and `/v1/run`;
+there is no image, command, bind, runtime, or network override.
+
+Prerequisites on the Linux host:
 
 ```bash
+# Install gVisor and register its runtime in /etc/docker/daemon.json, then
+# restart Docker. Verify:
+docker info --format '{{json .Runtimes}}' | grep runsc
 docker build -f platform/docker/Dockerfile.quantum-runner \
   -t kubona-quantum-runner:1.1.0 platform
-mkdir -p /tmp/kubona-sandbox && chmod 777 /tmp/kubona-sandbox
+sudo install -d -m 0700 /var/lib/kubona/sandbox
+```
+
+Run the opt-in profile with a host-visible scratch path (the Docker daemon
+resolves bind-mount sources on the host, so a container-private path would
+mount empty directories):
+
+```bash
+export KUBONA_SANDBOX_SCRATCH=/var/lib/kubona/sandbox
 docker compose --env-file .env \
   -f platform/docker/compose.prod.yml \
   -f platform/docker/compose.sandbox.yml up -d --build
 ```
 
-`compose.sandbox.yml` mounts `/var/run/docker.sock` into kubonad and shares
-`/tmp/kubona-sandbox` so the daemon can read the generated seccomp profile and
-benchmark/workspace mounts. This is a **root-equivalent host boundary** — do
-not use it on an untrusted host or expose it to remote users. Without the
-override the runner remains fail-closed.
+If `runsc` is missing, `sandboxd` stays up but `/health` returns 503 and every
+run refuses; kubonad reports the reason and autoresearch stays unavailable.
+macOS Docker Desktop does not provide a gVisor boundary: use a dedicated
+Linux VM/host or keep autoresearch unavailable. The sidecar is still
+root-equivalent through the Docker socket; run it only on a trusted
+local-private host.
 
 ### Local reset and isolated E2E
 
@@ -262,8 +280,16 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
   counts.
 - Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
   retention: [`docs/backup-restore.md`](backup-restore.md). Run
-  `kubonad restore-drill --db /abs/kubona.db` before upgrades and against the
-  off-host copy during the quarterly drill.
+  `kubonad restore-drill --db /abs/kubona.db` before upgrades. For the
+  routine off-host encrypted drill, point a genuinely separate mount at
+  `--offhost-dir` and run:
+  ```bash
+  kubonad offhost-drill --db /abs/kubona.db --offhost-dir /mnt/offhost \
+    --age-recipient age1... --age-identity /secure/age-identity.txt
+  ```
+  It encrypts the verified backup, decrypts the off-host copy, restores it to
+  scratch, and compares row counts. The operator owns the off-host mount and
+  key custody.
 - Scheduled encrypted backups (optional profile):
   ```bash
   # add KUBONA_BACKUP_AGE_RECIPIENT=age1... to .env

@@ -63,9 +63,11 @@ This plan is being executed incrementally. Landed after the report:
 > `5.977 mHa`; QAOA ratio `0.7952`), not chemical-accuracy or advantage claims.
 > The per-term diagnostics below remain historical external evidence; they were
 > not retroactively upgraded.
-Still pending from this plan: full-space accuracy, full mixed-workflow
-ownership, safe sandbox default, ledger-at-rest custody, manual accessibility,
-off-host backup drills, and release hardening. The 2026-11-08
+Still pending from this plan: browser E2E breadth, manual accessibility,
+and release hardening. Full-space ADAPT-VQE, Go-owned approval workflows,
+the gVisor `sandboxd` topology, local provider-key sealing, disk/settlement/rate
+alerts, and the encrypted off-host drill are implemented with the limits
+recorded below. The 2026-11-08
 unblock slice added claim pagination, a production LLM-secret preflight/write
 refusal, and an explicit full-space status gate; those are no longer open as
 silent omissions.
@@ -158,7 +160,7 @@ feature limitations in the UI and contract.
 | H2 VQE/PES | measured shot energies, FCI anchor, claim, structured campaign fold |
 | QPU | governed H2 VQE + QAOA parent runs complete (contested; OpenAI Plan $0) |
 | LiH/BeH2 | active-space VQE measured; full-FCI gap contested (20.53 / 36.30 mHa) |
-| Full-space LiH smoke | 12 qubits, `EfficientSU2`, poor full-FCI result (contested) |
+| Full-space LiH ADAPT | 12 qubits, 16 UCCSD operators, 0.706 mHa measured (0.213 mHa exact) |
 | QAOA | 8-node 3-regular MaxCut simulator; optimized QASM returned |
 | Workflow | completed Python job adopted into Go jobs book; non-atomic |
 | Claims | history + `peer_review` request event; no decision/reopen state |
@@ -177,10 +179,10 @@ It does not upgrade the missing portfolio features.
 |---|---|---|---|
 | PC-01 | **Workflow lifecycle is not fully atomic for approval/agent workflows.** Normal mixed workflows are Go-owned step-by-step with a durable journal; approval-required and agent-created workflows still use the Python compatibility engine. | A crash is surfaced as `repair_required`; normal mixed spend is Go-owned. Approval migration and typed job-compensation inverses remain. | `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go`; `platform/bridge/server.py:RunWorkflowStep` |
 | PC-02 | **Hardware VQE/QAOA was absent; now governed but contested.** H2 VQE and QAOA parent runs completed through one mandate/batch/claim rail; no chemical-accuracy or advantage claim. | The product now has a real hardware path; the remaining gap is scientific accuracy/QAOA prepare symmetry, not dispatch. | Live jobs above; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/bridge/experiments.py` hardware runners. |
-| PC-03 | **Full-space VQE is not scientifically usable.** `full_space:true` uses `EfficientSU2`; the LiH smoke result is far from full FCI. | It cannot support "full molecule" chemical-accuracy claims and must not be presented as a completed feature. | `platform/bridge/experiments.py:259-350`; live LiH smoke: `-5.1880 Ha` vs FCI `-7.8823 Ha` (2694 mHa). |
+| PC-03 | **Full-space VQE is now implemented; BeH2 remains contested.** The old `EfficientSU2` smoke path was replaced by real ADAPT-VQE with explicit UCCSD/CEO pools. LiH reached 0.706 mHa measured / 0.213 mHa exact; BeH2 did not reach 1.6 mHa in the tested operator budget and stays resource-contested. | Full-molecule claims are gated by measured delta, shot uncertainty, and exact diagnostic; BeH2 must not be advertised as chemically accurate. | `platform/bridge/adapt.py`; `docs/full-space-chemistry-2026-11-08.md`. |
 | PC-04 | **Launch reproducibility is broken.** `handleChatLaunch` hardcodes `shots:1024` and does not accept/record a seed. | The canonical proposal-launch path cannot reproduce a result from its spec. | `platform/core/pkg/api/server.go:2909-2919` |
 | PC-05 | **Direct experiment routes bypass the job/claim ledger.** Krylov, mitigation, and QIR routes call the bridge directly and return a response. | Results from those routes cannot be cited, cost-settled, or folded into a claim by the same book. | `platform/core/pkg/api/server.go:5564-5742` |
-| PC-06 | **Autoresearch is unavailable in the shipped default.** The safe default has no Docker socket; the working profile is root-equivalent. | One of the platform's advertised autonomous capabilities is not functional on a stock local install without a security downgrade. | `platform/core/pkg/api/server.go:4790-4804`; `platform/docker/compose.prod.yml` (no socket); `platform/docker/compose.sandbox.yml` |
+| PC-06 | **Autoresearch requires an explicit gVisor host profile.** The default remains fail-closed; `compose.sandbox.yml` now runs a narrow `sandboxd` broker (no Docker socket in kubonad) with `runsc`. Without `runsc` the API reports unavailable. | macOS Docker Desktop and hosts without gVisor do not have a functional hostile-code sandbox; use a Linux VM/host or keep autoresearch off. | `platform/core/pkg/sandbox/sidecar.go`; `platform/docker/compose.sandbox.yml`; `docs/local-deployment.md`. |
 | PC-07 | **Claims cannot be formally reviewed/reopened.** `peer_review` is a request event; the claim record is immutable and has no decision state. | A researcher cannot accept, contest, or reopen a claim through the product; history is read-only. | `platform/console/src/components/common/ClaimHistory.tsx:37-58`; `claim_records` in `platform/core/pkg/ledger/ledger.go` |
 | PC-08 | **No versioned experiment-result contract.** Result truth is split among job JSON, campaign `measurement`/`pes_points`, notebook text, and UI prose. | Hardware metadata, counts, layout, calibration, usage, cost, per-point evidence, and CIs cannot be guaranteed across rails. | `platform/core/pkg/agents/campaign_synth.go:128-180`; bridge result shape; `ResultsStudio` projections |
 | PC-09 | **No PES/experiment path for LiH/BeH2, and no error-mitigation integration.** PES is H2-only; VQE/PES do not run ZNE/PEC. | The chemistry portfolio and "measured, mitigated result" story remain partial. | `platform/bridge/experiments.py:513+`; mitigation is a separate route. |
@@ -196,9 +198,9 @@ It does not upgrade the missing portfolio features.
 | PC-14 | Claim review is a request prompt, not a decision. | Add reviewer decision state (`accepted`, `contested`, `reopened`) as an append-only review record; never mutate the measurement. |
 | PC-15 | Non-executable providers are visible in the settings vocabulary. | Hide or clearly gate `planned`/`not integrated` providers; make `executable_now` the primary action state. |
 | PC-16 | `GenerativeUIStudio`, `WidgetStage`, legacy `SpatialCanvas`, and some illustrative widgets remain in the shipped console. | Decide and document: keep as explicit proposal-only tools, or remove from the production build; no demo surface may look measured. |
-| PC-17 | Manual VoiceOver/NVDA pass is still pending. | Execute the script in `docs/manual-accessibility-2026-11-01.md` on the shipped commit; record OS/AT/version per surface. |
-| PC-18 | Observability is local-only; external alert routing is limited to preflight/backup; no disk/rate-specific routing; no OTel/Sentry by default. | Add opt-in scrub/sampling exporters and local alert routing policy. |
-| PC-19 | Launch/workflow and result surfaces lack full browser E2E coverage for claim history, PES table/CSV, full-space, and workflow adoption. | Extend E2E and contract tests; keep hardware tests opt-in. |
+| PC-17 | Manual VoiceOver/NVDA pass is still pending (human-only; not producible by code). | Execute the script in `docs/manual-accessibility-2026-11-01.md` on the shipped commit; record OS/AT/version per surface, or sign a residual-risk waiver. |
+| PC-18 | Observability is local-only; OTel/Sentry is not enabled by default. Preflight/backup, disk guard, settlement-skipped, and cooldown-limited rate-limit alerts now route through the operator webhook. | Keep exporters opt-in and scrubbed; do not claim telemetry leaves the host. |
+| PC-19 | Browser E2E for claim paging/full-space/workflow adoption remains a release gate; unit/API coverage exists for paging, full-space status, and approval/workflow execution. | Extend the real-stack E2E fixtures or record a scoped residual-risk waiver; keep hardware tests opt-in. |
 | PC-20 | Role separation and first-run onboarding remain incomplete for multi-lab mode. | Document single-operator as the only complete mode, or finish researcher/admin split. |
 | PC-21 | Design-system raw-palette debt is still ~854 occurrences. | Migrate to shared primitives; keep the ratchet, do not lower the bar. |
 | PC-22 | A2A/x402, pgvector, GQE learned proposer, and provider breadth are dormant/partial. | Keep out of local-private scope until explicitly activated; never advertise as live. |
@@ -222,7 +224,7 @@ The current bridge can run:
 - H2 VQE with a hardware-efficient ansatz, exact FCI anchor, shot measurement;
 - H2 PES;
 - LiH/BeH2 active-space UCCSD VQE;
-- LiH/BeH2 full-space `EfficientSU2` (a smoke path, not an accuracy path);
+- LiH/BeH2 full-space ADAPT-VQE (LiH validated; BeH2 resource-contested, see `docs/full-space-chemistry-2026-11-08.md`);
 - QAOA MaxCut on a fixed 8-node graph, simulator only.
 
 What is missing:
@@ -234,8 +236,9 @@ What is missing:
 2. **Hardware QAOA**. `run_qaoa` returns `circuit_qasm` but always measures on
    Aer. A hardware QAOA needs a deliberate "optimise locally, execute final
    state on QPU" mode with explicit cost/approval and a counts-to-cut estimator.
-3. **Full-space chemical accuracy**. The full-space LiH smoke is 2694 mHa from
-   FCI; it is not a small tolerance issue. A production answer needs a
+3. **Full-space chemical accuracy**. LiH now reaches 0.706 mHa measured
+   (0.213 mHa exact) with the UCCSD ADAPT pool; BeH2 remains above target in
+   the tested budget; it is not a small tolerance issue. A production answer needs a
    tractable ansatz (ADAPT/qubit-ADAPT or a resource-bounded UCCSD) and a defined
    acceptance target. Until then, the UI must keep active-space and full-space
    claims separate and contested.
@@ -330,11 +333,14 @@ disk guard, API metrics, health/ready, deterministic local reset.
 Still incomplete:
 - `.env` is the secret store; Docker secrets/OpenBao is optional.
 - The ledger is plaintext SQLite; host/backup compromise exposes it.
-- External alerting is a single webhook for preflight/backup, not disk/rate/
-  settlement routing.
-- The restore path exists but is not a routine release drill.
-- The default sandbox boundary is root-equivalent if enabled.
-- Manual accessibility is not run.
+- External alerting is a single webhook, now covering preflight/backup, disk,
+  settlement-skipped, and cooldown-limited rate limits; it is not OTel/Sentry.
+- `kubonad offhost-drill` executes the encrypted off-host restore drill; the
+  operator must still supply the separate mount and age identity.
+- `compose.sandbox.yml` now uses a `sandboxd` sidecar with gVisor `runsc`;
+  kubonad has no Docker socket. Hosts without `runsc` (including macOS Docker
+  Desktop) report sandbox unavailable.
+- Manual accessibility is not run; automated evidence is green.
 - Non-executable providers are visible; the UI is honest but the vocabulary is
   broader than the functional product.
 

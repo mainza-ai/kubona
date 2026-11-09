@@ -78,12 +78,13 @@ be a release blocker for the rest of the product; presenting it as accurate is.
 BeH2 full-space should be declared unsupported until the same target is
 demonstrated; active-space BeH2 remains supported and labelled.
 
-**Unblock decision:** implement **CEO-ADAPT-VQE** (the 2025 resource-efficient
-variant) behind an opt-in `full_space:"adapt"` mode with an explicit
-wall-clock/parameter cap; retain the current `EfficientSU2` path only as a
-labelled smoke path. Vanilla UCCSD is not a v1 path at 12–14 qubits. Do not claim
-full-space chemical accuracy unless a measured result passes the target and
-uncertainty gate.
+**Unblock decision (implemented):** full-space uses real ADAPT-VQE with
+explicit operator pools and a wall-clock/operator cap. The CEO pool is
+implemented and selectable (`full_space_pool:"ceo"`) but measured to stall on
+the LiH benchmark; the validated default is the fermionic UCCSD ADAPT pool.
+`EfficientSU2` is removed from the full-space path. Claims require measured
+delta, shot uncertainty, and exact statevector delta all <= 1.6 mHa. BeH2 is
+supported as a job but remains contested until it reaches the target.
 
 ### 1.3 Mixed Python/Go workflow atomicity (blocked by split ownership)
 
@@ -131,8 +132,11 @@ gVisor or a microVM is the boundary. For Kubona:
 - **Supported production (Linux host):** `sandboxd` sidecar owns the daemon
   socket, launches the fixed harness image through **gVisor (`runsc`)** with
   `net:none`, read-only rootfs, writable scratch, non-root, seccomp, pids/memory/
-  time caps, and rejects binds/privileged/devices/cap-add/host namespaces.
-  kubonad gets only a private UDS, never the Docker socket.
+  time caps. Its only API routes are `/health` and `/v1/run`; image, command,
+  mounts, runtime, and network are fixed at boot, so bind/privileged/device/
+  cap-add/host-network/image/runtime overrides are not expressible. kubonad
+  gets only a private UDS, never the Docker socket. `compose.sandbox.yml`
+  implements this topology; absent `runsc`, `/health` is 503 and runs refuse.
 - **macOS local development:** Docker Desktop's Linux VM is the outer boundary,
   but a mounted socket can still reach shared host paths. Do not call this a
   hostile-code sandbox; either use a dedicated Linux VM with gVisor for
@@ -161,18 +165,24 @@ If the gVisor/Linux path is not available, the default must say
   stolen host. SQLCipher becomes a separate requirement only if schema/metadata
   confidentiality inside an already-unlocked volume is required, with the key
   in the OS keychain/TPM and a tested `PRAGMA rekey` migration.
-- **Backup/recovery:** verified backup, restore, retention, and `age` encryption
-  exist, but there is no routine off-host restore drill. Add a repeatable scratch
-  restore drill to release acceptance; a unit test is not a disaster-recovery
-  proof.
-- **Alerts:** preflight/backup webhook exists; disk/rate/settlement routing is
-  missing. Add a small alert policy with event type, severity, and cooldown.
-- **Claim pagination:** API/UI paging was missing; this slice adds
-  `offset`/`next_offset`/`has_more` and a "Load older claims" control.
-- **Manual VoiceOver/NVDA:** cannot be produced by code. Execute the script in
-  `docs/manual-accessibility-2026-11-01.md` on the shipped commit or record a
-  waiver with explicit residual risk. Automated axe/keyboard evidence is not a
-  substitute.
+- **Backup/recovery:** verified backup, restore, retention, and `age`
+  encryption exist. `kubonad offhost-drill` now performs the repeatable
+  encrypted drill: verified backup, `age` encrypt to an operator-supplied
+  off-host mount, decrypt that artifact, restore to scratch, compare
+  `sessions/jobs/ledger_events/claim_records`, and print the artifact hash.
+  The operator must supply the genuinely separate mount and identity file;
+  the command cannot manufacture physical separation. Local scratch drill:
+  `kubonad restore-drill`.
+- **Alerts:** preflight/backup plus disk guard, settlement-skipped, and named
+  rate-limit refusals route through `KUBONA_ALERT_WEBHOOK_URL`. Rate alerts
+  are cooldown-limited once per minute per limiter and never change the
+  admission decision.
+- **Claim pagination:** API/UI paging is implemented with
+  `offset`/`next_offset`/`has_more` and "Load older claims".
+- **Manual VoiceOver/NVDA:** cannot be produced by code. Automated
+  axe/keyboard/reduced-motion/forced-colors/200%-zoom evidence remains green;
+  the manual script in `docs/manual-accessibility-2026-11-01.md` still needs a
+  human run or an explicit residual-risk waiver.
 
 ### 1.6 Hardware diagnostics are not production results
 
@@ -226,10 +236,11 @@ truthful than N circuit jobs or N approvals.
   vanilla ADAPT is a silver bullet.
   `https://arxiv.org/html/2607.22468v1`
 
-**Kubona recommendation:** implement CEO-ADAPT/qubit-ADAPT behind an opt-in
-resource budget; do not use vanilla UCCSD/full-space `EfficientSU2` as an
+**Kubona implementation:** ADAPT-VQE with explicit UCCSD and CEO pools behind
+an operator/time budget; the UCCSD pool is the validated default, the CEO pool
+is selectable and experimental. Do not use full-space `EfficientSU2` as an
 accuracy claim. If the target is missed, keep full-space contested and
-active-space supported. BeH2 full-space remains unsupported until measured.
+active-space supported. BeH2 full-space is measured but remains contested.
 
 ### Sandboxing
 
@@ -383,14 +394,18 @@ honestly unavailable; no root socket in kubonad.
 Deliverables:
 
 1. Off-host encrypted backup destination + OS-level encrypted volume + documented
-   key rotation; `kubonad restore-drill --db ...` is the local scratch proof, and
-   the same command must be run against the off-host copy during acceptance.
-2. Alert routing for disk/settlement is wired through
-   `KUBONA_ALERT_WEBHOOK_URL` (preflight/backup plus disk_guard and
-   settlement_skipped events); rate-limit routing remains open.
-3. Manual VoiceOver/NVDA run on the shipped commit, recorded per surface.
+   key rotation. `kubonad offhost-drill` now executes the encrypted copy →
+   decrypt → restore → count-comparison path; the operator must supply the
+   separate mount and identity. `kubonad restore-drill` remains the local
+   scratch proof.
+2. Alert routing for disk/settlement/rate-limit is wired through
+   `KUBONA_ALERT_WEBHOOK_URL` (preflight/backup plus disk_guard,
+   settlement_skipped, and cooldown-limited rate_limit events).
+3. Manual VoiceOver/NVDA run on the shipped commit, recorded per surface
+   (human-only).
 4. Claim/results browser E2E (paging, review, PES table/CSV, full-space status,
-   workflow adoption).
+   workflow adoption). Paging and full-space have unit/API coverage; browser
+   coverage remains a release gate.
 5. Fresh-volume release acceptance and restore drill on the exact commit.
 
 Exit: install/backup/restore/upgrade/operate one-person runbook without hidden
@@ -402,8 +417,21 @@ shell steps; manual evidence or explicit waiver recorded.
   `fetchClaimsPage`, "Load older claims".
 - Secret posture: `llm.AuditSecretsAtRest`, production refusal of new plaintext
   provider-key writes, `kubonad preflight` audit.
-- Full-space honesty: `full_space_status`, `claimable`, uncertainty-gated
-  `chemical_accuracy`; `EfficientSU2` stays a labelled smoke path.
+- Full-space implementation: `platform/bridge/adapt.py` now runs real
+  ADAPT-VQE with explicit UCCSD and CEO pools, exact gradients, monotonic
+  optimization, operator/time caps, and shot-measured Pauli groups.
+  `chemical_accuracy`/`claimable` require measured delta, shot uncertainty,
+  and exact statevector delta all <= 1.6 mHa. LiH (12 qubits) reached
+  0.706 mHa measured / 0.213 mHa exact in the validated run; BeH2 remains
+  resource-contested and is not claimed. See
+  `docs/full-space-chemistry-2026-11-08.md`.
+- Approval/workflow: agent-created and approval-required workflows now use
+  a signed, single-use approval token (`POST /api/workflows/approve`) and the
+  Go mixed-workflow rail; the Python compatibility engine is no longer the
+  path for approvals.
+- Sandbox: `sandboxd` + gVisor `runsc` topology in `compose.sandbox.yml`;
+  kubonad has no Docker socket, and `/health` reports unavailable without
+  `runsc`.
 - Hardware VQE parent rail (H2 first):
   - `hardware_experiment` job type with a parent-only mandate binding
     (`CanonicalHardwareExperimentBinding`), positive hardware cost, jurisdictions,
