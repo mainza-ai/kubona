@@ -1272,7 +1272,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 	}
 	bridge := s.jobRunner.BridgeClient()
 	if bridge == nil {
-		WriteAPIError(w, "unavailable", "bridge unavailable: cannot refresh calibration", nil)
+		WriteAPIError(w, "not_ready", "bridge unavailable: cannot refresh calibration", nil)
 		return
 	}
 	spec, _ := json.Marshal(map[string]any{"kind": "calibration", "backend": backend})
@@ -1280,11 +1280,11 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		SpecJson: string(spec), SessionId: "operator-calibration-refresh",
 	})
 	if err != nil {
-		WriteAPIError(w, "upstream", fmt.Sprintf("calibration refresh failed: %v", err), nil)
+		WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("calibration refresh failed: %v", err), nil)
 		return
 	}
 	if !resp.Ok {
-		WriteAPIError(w, "upstream", "calibration refresh refused: "+resp.ErrorMessage, nil)
+		WriteAPIError(w, "bridge_unavailable", "calibration refresh refused: "+resp.ErrorMessage, nil)
 		return
 	}
 	var out struct {
@@ -1301,7 +1301,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		} `json:"snapshot"`
 	}
 	if err := json.Unmarshal([]byte(resp.ResultJson), &out); err != nil {
-		WriteAPIError(w, "upstream", "calibration snapshot is not decodable", nil)
+		WriteAPIError(w, "bridge_unavailable", "calibration snapshot is not decodable", nil)
 		return
 	}
 	device, err := fidelity.ResolveDeviceForBackend(backend)
@@ -1317,7 +1317,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		Version: out.Snapshot.Version, CalibratedAt: out.Snapshot.CalibratedAt,
 	}
 	if err := s.fidelityGate.UpdateProfile(profile); err != nil {
-		WriteAPIError(w, "upstream", "calibration snapshot refused: "+err.Error(), nil)
+		WriteAPIError(w, "bridge_unavailable", "calibration snapshot refused: "+err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

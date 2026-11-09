@@ -124,3 +124,21 @@ func TestUpdateProfileAcceptsValidatedLiveSnapshot(t *testing.T) {
 		t.Fatal("live profile without provenance must be refused")
 	}
 }
+
+func TestUpdateProfileInstallsAliases(t *testing.T) {
+	gate := NewFidelityGate()
+	profile := DeviceProfile{
+		Name: "ibm_heron", Qubits: 156, T1Us: 150, T2Us: 100,
+		SingleQubitErr: 0.0002, TwoQubitErr: 0.002, ReadoutErr: 0.01,
+		Source: "backend-properties:test", Version: "live-alias",
+		CalibratedAt: "2026-11-09T00:00:00+00:00",
+	}
+	if err := gate.UpdateProfile(profile); err != nil {
+		t.Fatalf("valid profile: %v", err)
+	}
+	for _, name := range []string{"ibm-heron", "ibm_heron"} {
+		if got, ok := gate.Profile(name); !ok || got.Version != "live-alias" {
+			t.Fatalf("alias %s not installed: %+v", name, got)
+		}
+	}
+}

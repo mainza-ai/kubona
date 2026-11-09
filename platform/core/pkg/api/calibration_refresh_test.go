@@ -53,3 +53,33 @@ func TestCalibrationRefreshInstallsLiveProfile(t *testing.T) {
 	}
 	_ = os.Remove(dir + "/cal.db")
 }
+
+func TestCalibrationRefreshRefusesMissingBackendAndDeadBridge(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "cal-token")
+	dir := t.TempDir()
+	l, err := ledger.OpenLedger(dir + "/cal2.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	sup := supervisor.NewSupervisor(l)
+	srv := api.NewServer(l, sm, jobs.NewRunner(l, nil, 1), sup, watchdog.NewTaskWatchdog(l, sup))
+	h := srv.Handler()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/fleet/calibration/refresh", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Bearer cal-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("missing backend must 400, got %d", w.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/fleet/calibration/refresh", strings.NewReader(`{"backend":"ibm_test"}`))
+	req.Header.Set("Authorization", "Bearer cal-token")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("nil bridge must 503, got %d: %s", w.Code, w.Body.String())
+	}
+}
