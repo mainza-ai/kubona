@@ -26,21 +26,7 @@ status: tracked
 > **Historical note (updated 2026-10-17):** The numbered findings below record the state of
 > the tree at the 2026-10-04 forensic baseline (see [[forensic-audit-2026]]) before Phases
 > 1–6, Waves 0–2, Cloudroom S1–S8, REA R0–R6, leanrea L1–L5, M0–M6, and A1–A4 landed. See
-> the `## Science-capability additions (2026-11-09)
-
-- 🔴 **Physics simulation missing.** The `materials_condensed_matter_v1`
-  domain pack declares `kubona.science.lattice.HubbardModel`, but the module
-  is absent; there is no spin-chain/lattice experiment. See
-  [[core-scientific-capability-gaps]] (SC-01/SC-02).
-- 🟠 **Mathematical discovery is catalog-only.** No conjecture generator,
-  law search, counterexample pipeline, or ledger-bound math experiment exists.
-- 🟠 **Chemistry portfolio is three molecules.** H2/LiH/BeH2 VQE is real;
-  general molecules, excited states, reaction paths, and geometry optimization
-  are absent.
-- 🟠 **Discovery campaign uses a toy harness.** It does not execute the
-  VQE/PES/QAOA job rail end-to-end.
-
-## Critical (structural)` table below for current verified status.
+> the `## Critical (structural)` table below for current verified status.
 
 A systematic audit on 2026-10-04 revealed that over 90% of what was documented in the blueprint across the
 89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was at that time either
@@ -75,17 +61,22 @@ unimplemented, stubbed, or disguised behind static UI facades:
 
 ## Science-capability additions (2026-11-09)
 
-- 🔴 **Physics simulation missing.** The `materials_condensed_matter_v1`
-  domain pack declares `kubona.science.lattice.HubbardModel`, but the module
-  is absent; there is no spin-chain/lattice experiment. See
+- 🟢 **Physics simulation engine exists.** `kubona.science.lattice` provides
+  exact 1D TFIM/Heisenberg/XXZ anchors, observables, Pauli export, and a real
+  Fermi-Hubbard anchor; the materials pack resolves. The `spin_chain` job is
+  shot-measured through bridge/Go/console. VQE is not yet ground-state
+  accurate on the critical 6-site TFIM (exact `-7.7274`, measured `-5.9992`);
+  the exact-state mode is labeled separately. See
   [[core-scientific-capability-gaps]] (SC-01/SC-02).
-- 🟠 **Mathematical discovery is catalog-only.** No conjecture generator,
-  law search, counterexample pipeline, or ledger-bound math experiment exists.
-- 🟠 **Chemistry portfolio is three molecules.** H2/LiH/BeH2 VQE is real;
-  general molecules, excited states, reaction paths, and geometry optimization
-  are absent.
-- 🟠 **Discovery campaign uses a toy harness.** It does not execute the
-  VQE/PES/QAOA job rail end-to-end.
+- 🟢 **A math discovery engine exists.** `science/conjecture.py` performs exact
+  rational polynomial/recurrence discovery with a holdout and falsifier; the
+  `conjecture_run` job is recorded as a conjecture, never a theorem or claim.
+  It does not solve open corpus problems.
+- 🟠 **Chemistry portfolio is still narrow.** H2/LiH/BeH2/H2O active-space VQE
+  is real; general molecules, excited states, reaction paths, and geometry
+  optimization remain absent.
+- 🟠 **Discovery campaign still uses a toy harness.** It does not choose and
+  sequence the real VQE/PES/spin-chain/conjecture jobs end-to-end.
 
 ## Critical (structural)
 

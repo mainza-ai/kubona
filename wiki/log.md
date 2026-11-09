@@ -5081,5 +5081,10 @@ skipped is the exact failure this incident is about:
   the optimized VQE state, not the ground state. Fibonacci law discovered with
   predictions `55,89`; squares discover `n^2`; unpredictable input yields no
   candidate.
-- Still open: S4 campaign over the real rail, S5 projections/browser E2E,
-  hardware spin-chain, excited-state/reaction chemistry.
+- Added `state_mode:"exact"` (exact finite-size state preparation + shot
+  readout) as a separate, non-variational physics mode; VQE mode remains
+  honestly non-claimable when it misses the ground state.
+- Added real-stack Console E2E coverage for `spin_chain` and `conjecture` jobs
+  through Go/bridge, plus UI projection tests. CI/E2E green at `27476a2`.
+- Still open: S4 campaign over the real rail, hardware spin-chain,
+  excited-state/reaction chemistry, and the remaining full result projection.
