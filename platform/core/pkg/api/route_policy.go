@@ -112,6 +112,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/fidelity", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "Pure local fidelity-floor estimate (probe_run:false); no measurement, no spend."},
 	{Pattern: "/api/epistemics", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "Session-keyed epistemic reads bind caller to session tenant."},
 	{Pattern: "/api/fleet", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "Measured liveness snapshot (TCP dials); read-only, no state change."},
+	{Pattern: "/api/fleet/calibration/refresh", Methods: "POST", Class: RouteAuthBearer, Rationale: "Authenticated vendor calibration read; updates the in-process fidelity profile, no spend and no job."},
 	{Pattern: "/api/radar", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "Local port/service probe snapshot; read-only, no state change."},
 	{Pattern: "/api/ledger/verify", Methods: "GET", Class: RouteAuthBearer},
 	{Pattern: "/api/mandates/sign", Methods: "POST", Class: RouteAuthBearer},

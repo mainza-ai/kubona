@@ -891,6 +891,26 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     full_space=bool(spec.get("full_space", False)),
                     full_space_pool=str(spec.get("full_space_pool") or "ceo"),
                 )
+            elif kind == "calibration":
+                from kubona.providers.qiskit_provider import QiskitProvider
+                from kubona.schema import load_provider
+                backend = str(spec.get("backend") or "").strip()
+                if not backend:
+                    return kubona_pb2.ExperimentResponse(
+                        ok=False, error_message="calibration refresh requires a backend", result_json="")
+                provider = QiskitProvider(load_provider("ibm-qiskit"), backend_name=backend)
+                snapshot = provider.calibration_snapshot()
+                if snapshot is None:
+                    return kubona_pb2.ExperimentResponse(
+                        ok=False, error_message="provider returned no calibration snapshot", result_json="")
+                result = {
+                    "success": True,
+                    "kind": "calibration",
+                    "result_version": "experiment-result-v1",
+                    "backend": backend,
+                    "provider": "ibm-qiskit",
+                    "snapshot": snapshot,
+                }
             elif kind == "krylov":
                 from krylov import solve_quantum_krylov
                 result = solve_quantum_krylov(

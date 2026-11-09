@@ -44,11 +44,13 @@ def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] |
             and str(g.name).rstrip("0123456789") in ("sx", "x")]
     twoq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 2]
     snap: dict[str, Any] = {
-        "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
+        "qubits": int(n), "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
         "readout_error": float(ro), "source": f"backend-properties:{backend_name}"}
     measured = getattr(props, "last_update_date", None)
     if measured is not None:
         snap["calibrated_at"] = measured.isoformat() if hasattr(measured, "isoformat") else str(measured)
+        if snap["calibrated_at"]:
+            snap["version"] = "live-" + snap["calibrated_at"]
     if oneq:
         snap["single_qubit_error"] = float(statistics.median(oneq))
     if twoq:

@@ -48,9 +48,11 @@ surface. The remaining blockers are functional, not cosmetic:
    there instead of falling back to a weaker runtime.
 5. **Calibration/queue operations are partial.** `/api/fleet` exposes
    calibration age, local Go queue depth, and a boot/hourly stale/resumed
-   alert is sealed; there is still no automated provider refresh worker,
-   vendor queue position/ETA, or UI refresh action. QPU dispatch can still go
-   stale until the operator/provider refreshes.
+   alert is sealed. Authenticated `POST /api/fleet/calibration/refresh` reads
+   a live IBM backend snapshot and installs it into the in-process fidelity
+   gate. There is still no scheduled provider refresh worker, vendor queue
+   position/ETA, or UI refresh button; QPU dispatch can go stale until the
+   operator refreshes.
 6. **Result truth is split across contracts.** Job JSON, campaign `measurement`,
    PES `points`, notebook text, and UI projections are not one typed
    `ExperimentResult`. `result_version` exists on new results, but there is no
@@ -95,7 +97,7 @@ These corrections do not close the items in §3.
 | PG-03 | **Closed 2026-11-09.** BeH2 full-space reaches `0.3933 mHa` exact / `0.0146 mHa` measured at 40 CEO operators, 262144 shots. | Corrected spin-block pool; measured gate still requires exact delta. |
 | PG-04 | **Closed 2026-11-09.** CEO-ADAPT reaches LiH `0.0399 mHa` exact / `0.4499 mHa` measured at 20 operators. | Spin layout derived and asserted; CEO is the default full-space pool. |
 | PG-05 | **Sandbox live on Linux VM; macOS native remains unsupported.** | Lima Ubuntu arm64 + rootful Docker + gVisor: health available; benchmark UID 1000, network blocked, read-only, cap-drop=ALL. macOS Docker Desktop still has no `runsc`; API reports unavailable. | Keep the Linux-host requirement in the deployment runbook; no macOS fallback. |
-| PG-06 | **Calibration/queue operations are partial.** | Stale alert and local Go queue depth exist; provider refresh, vendor queue/ETA, and UI action remain absent. | Scheduled provider refresh, queue/ETA diagnostics, and dispatch UX that names exact age. |
+| PG-06 | **Calibration/queue operations are partial.** | Stale alert, local Go queue depth, and an authenticated live calibration-refresh endpoint exist; scheduled refresh, vendor queue/ETA, and UI action remain absent. | Scheduled provider refresh, queue/ETA diagnostics, and dispatch UX that names exact age. |
 | PG-07 | **Result contract is versioned but not one signed object.** | Shared schema + TS interface + Go version gate exist; campaign/PES/UI projections remain separate; no signed per-result receipt. | Move campaign/export/UI onto the shared type and add the ledger-backed result receipt. |
 | PG-08 | **Browser E2E is not complete.** | paging/full-space test intercepts `/api/**`; PES/mitigation/calibration/review have no full-stack browser flow. | Real-stack fixtures for PES table, claim review, full-space status, calibration/queue, and hardware opt-in. |
 | PG-09 | **Manual VoiceOver/NVDA not run.** | `docs/manual-accessibility-2026-11-01.md` says NOT RUN. | Human run per surface or signed residual-risk waiver. |
