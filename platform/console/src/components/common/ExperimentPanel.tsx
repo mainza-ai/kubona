@@ -84,7 +84,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
           </select>
         </label>
         <label className="space-y-1">Molecule
-          <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); }} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
+          <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); if (next === 'H2') { setRMin('0.6'); setRMax('0.9'); } else { setRMin('1.2'); setRMax('2.0'); } }} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
             <option value="H2">H2</option><option value="LiH">LiH</option><option value="BeH2">BeH2</option>
           </select>
         </label>

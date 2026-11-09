@@ -142,4 +142,26 @@ describe('MeasuredOutputs', () => {
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('No completed jobs yet');
   });
+
+  it('renders governed hardware VQE/QAOA with the local-optimizer label', async () => {
+    const hardwareJobs = [
+      {
+        id: 'job-hw-vqe', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'hardware_experiment',
+        params_json: {}, created_at: '', completed_at: '2026-11-08T12:00:00Z',
+        result_json: { success: true, energy: -1.1269, uncertainty: 0.0059, fci_exact_energy: -1.13727, delta_mha: 10.369, simulated_optimizer: true },
+      },
+      {
+        id: 'job-hw-qaoa', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'qaoa_hardware',
+        params_json: {}, created_at: '', completed_at: '2026-11-08T12:01:00Z',
+        result_json: { success: true, measured_cut: 7.95, approximation_ratio: 0.795, simulated_optimizer: true },
+      },
+    ];
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: hardwareJobs }) }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('hardware VQE');
+    expect(text).toContain('local optimizer');
+    expect(text).toContain('hardware QAOA');
+  });
 });

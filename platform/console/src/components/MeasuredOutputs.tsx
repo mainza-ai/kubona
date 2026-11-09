@@ -39,6 +39,20 @@ function summarize(job: Job): string | null {
         : '';
       return `counts on ${backend} · ${shots} shots · job ${short}${compiler}`;
     }
+    case 'hardware_experiment': {
+      const e = num(r.energy);
+      if (e === null) return null;
+      const unc = num(r.uncertainty);
+      const delta = num(r.delta_mha);
+      const fci = num(r.fci_exact_energy);
+      return `hardware VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)}` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · local optimizer · job ${short}`;
+    }
+    case 'qaoa_hardware': {
+      const cut = num(r.measured_cut) ?? num(r.energy);
+      if (cut === null) return null;
+      const ratio = num(r.approximation_ratio);
+      return `hardware QAOA cut ${cut.toFixed(4)}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · local optimizer · job ${short}`;
+    }
     case 'qaoa_run': {
       const ratio = num(r.approximation_ratio);
       const cut = num(r.energy);
