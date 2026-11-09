@@ -155,6 +155,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "restore-drill" {
 		os.Exit(runRestoreDrill(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "offhost-drill" {
+		os.Exit(runOffhostDrill(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "fk-audit" {
 		os.Exit(runFKAudit(os.Args[2:]))
 	}
@@ -178,6 +181,9 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "seal-secrets" {
 		os.Exit(runSealSecrets(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "sandboxd" {
+		os.Exit(runSandboxd(os.Args[2:]))
 	}
 
 	port := flag.Int("port", 8080, "HTTP API gateway port")
