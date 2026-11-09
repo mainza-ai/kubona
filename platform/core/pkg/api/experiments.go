@@ -183,6 +183,10 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0
 	}
+	layerCount := res.Layers
+	if layerCount < 1 || layerCount > 8 {
+		layerCount = 1
+	}
 	backend := strings.TrimSpace(req.Backend)
 	if backend == "" {
 		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
@@ -195,7 +199,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		Kind: "qaoa_hardware", Provider: "ibm-qiskit", RequestedBackend: backend,
 		QASM: res.CircuitQASM, FidelityQASM: res.CircuitQASM,
 		OptimalCut: res.OptimalCut, EnergyExact: res.EnergyExact,
-		Layers: res.Layers,
+		Layers: layerCount,
 		Nodes:  res.Graph.Nodes, Edges: res.Graph.Edges,
 		Loop: req.Loop, MaxIterations: req.MaxIterations,
 		Shots: req.Shots, Seed: req.Seed, MaxCostUSD: req.BudgetUSD,
@@ -300,6 +304,10 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0
 	}
+	layerCount := res.Layers
+	if layerCount < 1 || layerCount > 8 {
+		layerCount = 1
+	}
 	backend := strings.TrimSpace(req.Backend)
 	if backend == "" {
 		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
@@ -309,7 +317,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 	}
 	p = jobs.HardwareExperimentParams{
 		Kind: "vqe_hardware", Molecule: res.Molecule, BondDistance: res.BondDistance,
-		Layers: res.Layers, Shots: req.Shots, Seed: req.Seed,
+		Layers: layerCount, Shots: req.Shots, Seed: req.Seed,
 		Theta: res.Theta, PauliCoefficients: res.PauliCoefficients,
 		FCIExactEnergy: res.FCIExactEnergy, ConstantEnergy: res.ConstantEnergy,
 		Provider: "ibm-qiskit", QASM: res.AnsatzQASM,

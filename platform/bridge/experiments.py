@@ -287,16 +287,20 @@ def run_vqe_hardware(
         return {"success": False, "error": "hardware VQE requires the local optimizer theta or an ansatz QASM"}
     if not (0.3 <= float(bond_distance) <= 10.0):
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]: refusing"}
-    if layers < 1 or layers > 8:
-        return {"success": False, "error": f"layers {layers!r} outside [1,8]: refusing"}
     if shots < 128 or shots > 1_000_000:
         return {"success": False, "error": f"shots {shots!r} outside [128,1000000]: refusing"}
     theta_arr = np.asarray(theta, dtype=float) if theta is not None else np.zeros(0, dtype=float)
     if ansatz_qasm is None:
+        if layers < 1 or layers > 8:
+            return {"success": False, "error": f"layers {layers!r} outside [1,8]: refusing"}
         if theta_arr.size != 4 * int(layers):
             return {"success": False, "error": f"theta has {theta_arr.size} values; need {4 * int(layers)}"}
         qc = _ansatz(theta_arr, int(layers))
     else:
+        # An active-space ansatz QASM is fully bound; its parameter count is
+        # not the hardware-efficient 4*layers shape. Do not reject a valid
+        # molecular ansatz merely because the source did not report layers.
+        layers = max(1, min(8, int(layers or 1)))
         try:
             from qiskit import qasm2
             qc = qasm2.loads(ansatz_qasm)
@@ -1054,6 +1058,7 @@ def run_nature_vqe(
         "molecule": spec["name"],
         "bond_distance": float(bond_distance),
         "basis": "sto-3g",
+        "layers": int(layers),
         "method": "VQE UCCSD full-space, COBYLA" if requested_full else "VQE UCCSD active-space, COBYLA",
         "ansatz": (f"UCCSD full-space {reduced.num_spatial_orbitals} orbitals"
                    if requested_full else f"UCCSD active-space {reduced.num_spatial_orbitals} orbitals"),
