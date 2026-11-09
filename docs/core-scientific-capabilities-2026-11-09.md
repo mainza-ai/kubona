@@ -1,7 +1,7 @@
 # Core scientific capabilities — audit, gaps, and implementation plan
 
 **Date:** 2026-11-09  
-**Audited head:** `386f857`; **implementation head:** in progress after `27476a2` (hardware spin-chain, excited/reaction chemistry, discovery protocol; re-verify exact commit)  
+**Audited head:** `386f857`; **implementation head:** `c5428cb` (hardware spin-chain, excited/reaction chemistry, measured discovery protocol; CI/E2E green)  
 **Scope:** production local-private Kubona. One trusted host; no demo paths;
 no invented measurements, claims, or scientific results.
 
