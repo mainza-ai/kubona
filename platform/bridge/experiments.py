@@ -426,6 +426,8 @@ def run_vqe_hardware(
         "backend": str(batch.get("backend") or "ibm-qiskit"),
         "provider": "ibm-qiskit",
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "layout": batch.get("layout"),
+        "calibration": batch.get("calibration"),
         "usage_seconds": batch.get("usage_seconds"),
         "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,
@@ -512,8 +514,11 @@ def run_vqe_hardware_loop(
     hardware_job_ids: list[str] = []
     usage_values: list[float] = []
     actual_values: list[float] = []
+    last_layout: Any = None
+    last_calibration: Any = None
 
     def objective(x: np.ndarray) -> float:
+        nonlocal last_layout, last_calibration
         try:
             if template is None:
                 qc = _ansatz(np.asarray(x, dtype=float), int(layers))
@@ -523,6 +528,8 @@ def run_vqe_hardware_loop(
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(f"hardware evaluation failed: {e}") from e
         batch = m["batch"]
+        last_layout = batch.get("layout")
+        last_calibration = batch.get("calibration")
         job_id = str(batch.get("hardware_job_id") or batch.get("job_id") or "")
         if job_id:
             hardware_job_ids.append(job_id)
@@ -589,6 +596,8 @@ def run_vqe_hardware_loop(
         "iteration_batches": len(hardware_job_ids),
         "hardware_job_ids": hardware_job_ids,
         "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
+        "layout": last_layout,
+        "calibration": last_calibration,
         "usage_seconds": sum(usage_values) if usage_values else None,
         "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
         "backend": str(trajectory[-1].get("backend", "")) if trajectory and "backend" in trajectory[-1] else "ibm-qiskit",
@@ -1199,8 +1208,11 @@ def run_qaoa_hardware_loop(
     hardware_job_ids: list[str] = []
     usage_values: list[float] = []
     actual_values: list[float] = []
+    last_layout: Any = None
+    last_calibration: Any = None
 
     def objective(x: np.ndarray) -> float:
+        nonlocal last_layout, last_calibration
         try:
             batch = _hardware_batch([qasm2.dumps(circuit(x))], int(shots), int(seed), backend=backend)
         except Exception as e:  # noqa: BLE001
@@ -1268,6 +1280,8 @@ def run_qaoa_hardware_loop(
         "iteration_batches": len(hardware_job_ids),
         "hardware_job_ids": hardware_job_ids,
         "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
+        "layout": last_layout,
+        "calibration": last_calibration,
         "usage_seconds": sum(usage_values) if usage_values else None,
         "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
         "provider": "ibm-qiskit",
@@ -1340,6 +1354,8 @@ def run_qaoa_hardware(
         "provider": "ibm-qiskit",
         "backend": str(batch.get("backend") or "ibm-qiskit"),
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "layout": batch.get("layout"),
+        "calibration": batch.get("calibration"),
         "usage_seconds": batch.get("usage_seconds"),
         "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,
