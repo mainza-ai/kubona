@@ -1,11 +1,21 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
+
+func newResponseRecorder() *httptest.ResponseRecorder { return httptest.NewRecorder() }
+
+func httptestRequest(method, target string, body []byte) *http.Request {
+	return httptest.NewRequest(method, target, bytes.NewReader(body))
+}
 
 func TestPlanDiscoverySelectsMeasuredKinds(t *testing.T) {
 	cases := []struct {
@@ -57,5 +67,78 @@ func TestTerminalJobStatus(t *testing.T) {
 		if terminalJobStatus(status) {
 			t.Fatalf("%s must not be terminal", status)
 		}
+	}
+}
+
+func TestDiscoveryHandlersPlanAndFailurePath(t *testing.T) {
+	srv, _, cleanup := replanHookTestServer(t, "test_discovery_protocol.db")
+	defer cleanup()
+
+	planBody := []byte(`{"goal":"transverse-field Ising spin chain"}`)
+	planRec := newResponseRecorder()
+	srv.handleDiscoveryPlan(planRec, httptestRequest(http.MethodPost, "/api/discovery/plan", planBody))
+	if planRec.Code != http.StatusOK {
+		t.Fatalf("plan status %d: %s", planRec.Code, planRec.Body.String())
+	}
+	var plan map[string]any
+	if err := json.Unmarshal(planRec.Body.Bytes(), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan["ok"] != true || plan["steps"] == nil {
+		t.Fatalf("plan payload wrong: %v", plan)
+	}
+
+	sess, err := srv.sessionMgr.CreateSession("discovery drill", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"session_id": sess.ID,
+		"goal":       "run a measured experiment",
+		"steps": []map[string]any{{
+			"kind": "conjecture",
+			"spec": map[string]any{"values": []int{1, 1, 2, 3, 5}, "holdout": 1},
+		}},
+		"step_timeout_s": 5,
+	})
+	rec := newResponseRecorder()
+	srv.handleDiscoveryRun(rec, httptestRequest(http.MethodPost, "/api/discovery/run", body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("run status %d: %s", rec.Code, rec.Body.String())
+	}
+	var run map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &run); err != nil {
+		t.Fatal(err)
+	}
+	if run["ok"] != true || run["steps_failed"] != float64(1) {
+		t.Fatalf("bridge-less step must be recorded as failed, got %v", run)
+	}
+}
+
+func TestSpinChainHardwareParamsFromSource(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_spin_hardware_source.db")
+	defer cleanup()
+	sess, err := srv.sessionMgr.CreateSession("spin hardware source", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := `{"success":true,"kind":"spin_chain","hardware":false,"model":"tfim","n_sites":4,"coupling":1,"field":0.8,"periodic":true,"layers":2,"target_error":0.01,"state_mode":"vqe","energy_exact":-5.2,"ansatz_qasm":"OPENQASM 2.0; qreg q[4];","pauli_coefficients":{"ZZII":1.0}}`
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"job-spin-source", sess.ID, "JOB_STATUS_COMPLETED", "spin_chain", "{}", result); err != nil {
+		t.Fatal(err)
+	}
+	p, err := srv.spinChainHardwareParamsFromSource(spinChainHardwareIntent{
+		SessionID: sess.ID, SourceJobID: "job-spin-source", Backend: "ibm_fez", BudgetUSD: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Kind != "spin_chain_hardware" || p.Model != "tfim" || p.NSites != 4 || p.QASM == "" || len(p.PauliCoefficients) != 1 {
+		t.Fatalf("hardware params wrong: %+v", p)
+	}
+	if _, err := srv.spinChainHardwareParamsFromSource(spinChainHardwareIntent{
+		SessionID: sess.ID, SourceJobID: "missing", Backend: "ibm_fez",
+	}); err == nil {
+		t.Fatal("missing source must refuse")
 	}
 }
