@@ -270,15 +270,15 @@ test.describe('Kubona console against the real local stack', () => {
       return config.apiUrl || 'http://localhost:8080';
     });
     const submit = async (spec: Record<string, unknown>, requestId: string) => {
-      const out = await page.evaluate(async ({ base, sid, body }) => {
+      const out = await page.evaluate(async ({ base, sid, body, reqId }) => {
         const res = await fetch(`${base}/api/experiments`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sid, spec: body, budget_usd: 1, request_id: requestId }),
+          body: JSON.stringify({ session_id: sid, spec: body, budget_usd: 1, request_id: reqId }),
         });
         return { status: res.status, body: await res.json() };
-      }, { base: apiUrl, sid: sessionId, body: spec });
+      }, { base: apiUrl, sid: sessionId, body: spec, reqId: requestId });
       expect(out.status, JSON.stringify(out.body)).toBe(201);
       const id = out.body?.job?.id as string | undefined;
       expect(id).toBeTruthy();
