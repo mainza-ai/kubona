@@ -601,6 +601,7 @@ ${bibtex}
                           <th className="px-2 py-1 text-right">FCI (Ha)</th>
                           <th className="px-2 py-1 text-right">Δ (mHa)</th>
                           <th className="px-2 py-1 text-right">σ (mHa)</th>
+                          <th className="px-2 py-1 text-right">95% (mHa)</th>
                           <th className="px-2 py-1 text-right">Chem. acc.</th>
                         </tr>
                       </thead>
@@ -612,6 +613,7 @@ ${bibtex}
                             <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
                             <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
                             <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
                             <td className="px-2 py-1 text-right">{point.chemical_accuracy ? 'PASS' : 'outside'}</td>
                           </tr>
                         ))}

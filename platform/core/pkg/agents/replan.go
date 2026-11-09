@@ -515,6 +515,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			Fci          float64   `json:"fci_exact_energy"`
 			DeltaMHa     float64   `json:"delta_mha"`
 			Uncertainty  float64   `json:"uncertainty"`
+			CI95MHa      float64   `json:"ci95_mha"`
 			Theta        []float64 `json:"theta"`
 			Claimable    *bool     `json:"claimable,omitempty"`
 		}
@@ -537,7 +538,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			state.PesPoints = append(state.PesPoints, PesPoint{
 				BondDistance: p.BondDistance, Energy: p.Energy, EnergyExact: p.EnergyExact,
 				FCIEnergy: p.Fci, DeltaMHa: p.DeltaMHa, UncertaintyMHa: p.Uncertainty * 1000.0,
-				ChemicalAccuracy: chemicalAccuracy,
+				CI95MHa: p.CI95MHa, ChemicalAccuracy: chemicalAccuracy,
 			})
 			state.Trajectory = append(state.Trajectory, TrajectoryStep{
 				Step: len(state.Trajectory) + 1, Energy: p.Energy,

@@ -177,6 +177,7 @@ type PesPoint struct {
 	FCIEnergy        float64 `json:"fci_exact_energy"`
 	DeltaMHa         float64 `json:"delta_mha"`
 	UncertaintyMHa   float64 `json:"uncertainty_mha"`
+	CI95MHa          float64 `json:"ci95_mha"`
 	ChemicalAccuracy bool    `json:"chemical_accuracy"`
 }
 

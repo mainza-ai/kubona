@@ -51,6 +51,12 @@ _PAULI = {"I": _I, "X": _X, "Y": _Y, "Z": _Z}
 _TERMS = ("II", "IZ", "ZI", "ZZ", "XX", "YY")
 
 
+def _ci95_mha(uncertainty_ha: float) -> float:
+    """95% normal-approximation half-width, explicitly derived from the
+    shot standard error. It is a sampling interval, not a systematic budget."""
+    return float(1.96 * float(uncertainty_ha) * 1000.0)
+
+
 def _pauli_matrix(name: str) -> np.ndarray:
     if len(name) != 2 or any(ch not in _PAULI for ch in name):
         raise ValueError(f"invalid two-qubit Pauli label {name!r}")
@@ -288,6 +294,7 @@ def run_vqe_hardware(
         "energy_measured": float(energy),
         "energy_measured_source": "QPU measurement-basis batch",
         "uncertainty": float(measured["uncertainty"]),
+        "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
         "fci_exact_energy": float(fci_exact_energy),
         "delta_mha": float(delta * 1000.0),
@@ -395,6 +402,7 @@ def run_vqe(
         "energy_measured": float(energy),
         "energy_measured_source": "shot-sampled Pauli expectation",
         "uncertainty": float(measured["uncertainty"]),
+        "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
         "fci_exact_energy": float(fci),
         "rhf_mean_field_energy": float(rhf),
@@ -507,6 +515,7 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
         "energy_measured": float(res.energy_measured),
         "energy_measured_source": "shot-sampled Pauli expectation (qubit-wise commuting groups)",
         "uncertainty": float(res.uncertainty),
+        "ci95_mha": _ci95_mha(res.uncertainty),
         "measurements": res.measurements,
         "fci_exact_energy": float(e_full),
         "active_space_fci_energy": float(e_full),
@@ -701,6 +710,7 @@ def run_nature_vqe(
         "energy_measured": float(e),
         "energy_measured_source": "shot-sampled Pauli expectation",
         "uncertainty": float(measured["uncertainty"]),
+        "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
         "fci_exact_energy": e_full,
         "active_space_fci_energy": e_casci,
@@ -940,6 +950,7 @@ def run_pes(
             "energy": res["energy"],
             "energy_exact": res["energy_exact"],
             "uncertainty": res["uncertainty"],
+            "ci95_mha": res.get("ci95_mha", _ci95_mha(res["uncertainty"])),
             "fci_exact_energy": res["fci_exact_energy"],
             "active_space_fci_energy": res.get("active_space_fci_energy"),
             "rhf_mean_field_energy": res.get("rhf_mean_field_energy"),

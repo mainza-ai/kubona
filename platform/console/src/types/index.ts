@@ -226,6 +226,7 @@ export interface PesPoint {
   fci_exact_energy: number;
   delta_mha: number;
   uncertainty_mha: number;
+  ci95_mha?: number;
   chemical_accuracy: boolean;
 }
 
