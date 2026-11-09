@@ -193,5 +193,7 @@ Implemented after the audit:
   `calibration_resumed` events and alerts on transitions.
 - Bridge Aer label corrected from “noisy density matrix” to shot simulation.
 - Tests: LiH active-space PES; existing PES points; fleet/fidelity; console tsc.
-
-Uncommitted at report time; commit and full CI follow.
+- Commits: `3252180` (CEO/hardware loops/ZNE/result gate), `4c4ea51`
+  (claimable PES + live gVisor proof), `956deab` (claimable/measured campaign
+  and claim guard), `a3dbc89` (plan update). CI/E2E green at `4c4ea51`;
+  re-verify the later docs heads.
