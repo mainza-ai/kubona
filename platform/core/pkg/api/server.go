@@ -5844,8 +5844,8 @@ func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
 	if req.MaxCostUSD <= 0 {
 		req.MaxCostUSD = 1.0
 	}
-	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "krylov_solve", map[string]any{
-		"molecule": req.Molecule, "bond_distance": req.BondDistance,
+	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "krylov_json", map[string]any{
+		"kind": "krylov", "molecule": req.Molecule, "bond_distance": req.BondDistance,
 		"subspace_dimension": req.SubspaceDimension, "time_step": req.TimeStep,
 		"shots": req.Shots, "max_cost_usd": req.MaxCostUSD,
 	})
@@ -5897,9 +5897,10 @@ func (s *Server) handleMitigationApply(w http.ResponseWriter, r *http.Request) {
 	if req.MaxCostUSD <= 0 {
 		req.MaxCostUSD = 1.0
 	}
-	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "mitigate", map[string]any{
-		"qasm": req.QASM, "method": req.Method, "scale_factors": req.ScaleFactors,
-		"shots": req.Shots, "max_cost_usd": req.MaxCostUSD,
+	job, terminal := s.runDirectComputeJob(w, r, req.SessionID, "mitigate_json", map[string]any{
+		"kind": "mitigate", "qasm": req.QASM, "method": req.Method,
+		"scale_factors": req.ScaleFactors, "shots": req.Shots,
+		"max_cost_usd": req.MaxCostUSD,
 	})
 	if job == nil || !terminal {
 		return

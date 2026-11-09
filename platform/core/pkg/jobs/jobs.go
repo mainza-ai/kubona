@@ -35,7 +35,7 @@ const MaxStoredResultBytes = 1 * 1024 * 1024
 // them. The dispatch switch in executeJob covers exactly this set.
 var knownJobTypes = map[string]bool{
 	"circuit_run": true, "circuit_cut": true, "classical_anchor": true,
-	"claim_eval": true, "krylov_solve": true, "mitigate": true,
+	"claim_eval": true, "krylov_solve": true, "krylov_json": true, "mitigate": true, "mitigate_json": true,
 	"pes_sweep": true, "vqe_run": true, "vqe_pes": true, "qaoa_run": true,
 	"hardware_experiment": true, "qaoa_hardware": true,
 }
@@ -891,6 +891,47 @@ func (r *Runner) executeJob(j *Job) {
 				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
+			}
+
+		case "krylov_json":
+			resp, err := r.bridgeClient.RunExperiment(r.ctx, &pb.ExperimentRequest{
+				SpecJson: string(j.ParamsJSON), SessionId: j.SessionID,
+			})
+			if err != nil {
+				execErr = fmt.Errorf("RunExperiment RPC failed: %w", err)
+			} else if !resp.Ok {
+				execErr = fmt.Errorf("krylov refused: %s", resp.ErrorMessage)
+			} else {
+				resultData = []byte(resp.ResultJson)
+				var probe struct {
+					Success bool `json:"success"`
+				}
+				if err := json.Unmarshal(resultData, &probe); err != nil || !probe.Success {
+					execErr = fmt.Errorf("krylov returned no success result: %s", string(resultData))
+				}
+			}
+
+		case "mitigate_json":
+			// The direct mitigation route needs the full mitigation receipt
+			// (measured/inferred labels, fit diagnostics, error-bound method).
+			// The legacy typed RPC cannot carry those fields; RunExperiment
+			// returns the complete JSON object under the same job/settlement
+			// rail.
+			resp, err := r.bridgeClient.RunExperiment(r.ctx, &pb.ExperimentRequest{
+				SpecJson: string(j.ParamsJSON), SessionId: j.SessionID,
+			})
+			if err != nil {
+				execErr = fmt.Errorf("RunExperiment RPC failed: %w", err)
+			} else if !resp.Ok {
+				execErr = fmt.Errorf("mitigation refused: %s", resp.ErrorMessage)
+			} else {
+				resultData = []byte(resp.ResultJson)
+				var probe struct {
+					Success bool `json:"success"`
+				}
+				if err := json.Unmarshal(resultData, &probe); err != nil || !probe.Success {
+					execErr = fmt.Errorf("mitigation returned no success result: %s", string(resultData))
+				}
 			}
 
 		case "pes_sweep":

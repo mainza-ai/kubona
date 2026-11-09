@@ -27,7 +27,9 @@ surface. The remaining blockers are functional, not cosmetic:
    Pauli terms (not only H2); full-space has no single hardware QASM.
 2. **Error mitigation is not part of VQE/PES.** The separate mitigation route
    demonstrates one observable (Z0) on a circuit; it is not energy mitigation
-   for a molecular result, and the proto response drops some truth labels.
+   for a molecular result. The direct Krylov/mitigation routes now preserve the
+   complete JSON receipt (measured/inferred labels, fit diagnostics), so the
+   remaining gap is scientific integration, not label loss.
 3. **BeH2 full-space chemistry remains contested.** LiH full-space is validated;
    BeH2 stayed above 1.6 mHa through a 60-operator UCCSD test. CEO-ADAPT is
    implemented but stalls on LiH. It must not be advertised as chemically
