@@ -175,10 +175,15 @@ type PesPoint struct {
 	Energy           float64 `json:"energy"`
 	EnergyExact      float64 `json:"energy_exact,omitempty"`
 	FCIEnergy        float64 `json:"fci_exact_energy"`
+	ActiveSpaceFCI   float64 `json:"active_space_fci_energy,omitempty"`
 	DeltaMHa         float64 `json:"delta_mha"`
+	ExactDeltaMHa    float64 `json:"exact_delta_mha,omitempty"`
 	UncertaintyMHa   float64 `json:"uncertainty_mha"`
 	CI95MHa          float64 `json:"ci95_mha"`
 	ChemicalAccuracy bool    `json:"chemical_accuracy"`
+	Claimable        bool    `json:"claimable"`
+	FullSpaceStatus  string  `json:"full_space_status,omitempty"`
+	Method           string  `json:"method,omitempty"`
 }
 
 type CampaignState struct {

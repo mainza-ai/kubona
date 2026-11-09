@@ -513,21 +513,27 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			return nil, false, "PES reported success=false"
 		}
 		var points []struct {
-			BondDistance float64   `json:"bond_distance"`
-			Energy       float64   `json:"energy"`
-			EnergyExact  float64   `json:"energy_exact"`
-			Fci          float64   `json:"fci_exact_energy"`
-			DeltaMHa     float64   `json:"delta_mha"`
-			Uncertainty  float64   `json:"uncertainty"`
-			CI95MHa      float64   `json:"ci95_mha"`
-			Theta        []float64 `json:"theta"`
-			Claimable    *bool     `json:"claimable,omitempty"`
+			BondDistance    float64   `json:"bond_distance"`
+			Energy          float64   `json:"energy"`
+			EnergyExact     float64   `json:"energy_exact"`
+			Fci             float64   `json:"fci_exact_energy"`
+			ActiveSpaceFCI  float64   `json:"active_space_fci_energy"`
+			DeltaMHa        float64   `json:"delta_mha"`
+			ExactDeltaMHa   float64   `json:"exact_delta_mha"`
+			Uncertainty     float64   `json:"uncertainty"`
+			CI95MHa         float64   `json:"ci95_mha"`
+			Theta           []float64 `json:"theta"`
+			Claimable       *bool     `json:"claimable,omitempty"`
+			FullSpaceStatus string    `json:"full_space_status,omitempty"`
+			Method          string    `json:"method,omitempty"`
 		}
 		rawPoints, ok := present("points")
 		if !ok || json.Unmarshal(rawPoints, &points) != nil || len(points) == 0 {
 			return nil, false, "PES points absent"
 		}
 		best := points[0]
+		bestClaimable := false
+		bestClaimableDelta := math.Inf(1)
 		for _, p := range points {
 			if math.Abs(p.DeltaMHa) < math.Abs(best.DeltaMHa) {
 				best = p
@@ -538,11 +544,21 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				// delta inside 1.6 mHa while the exact diagnostic or shot
 				// uncertainty still refuses the claim. Never override that.
 				chemicalAccuracy = *p.Claimable
+				if chemicalAccuracy && math.Abs(p.DeltaMHa) < bestClaimableDelta {
+					bestClaimable = true
+					bestClaimableDelta = math.Abs(p.DeltaMHa)
+				}
+			} else if chemicalAccuracy && math.Abs(p.DeltaMHa) < bestClaimableDelta {
+				bestClaimable = true
+				bestClaimableDelta = math.Abs(p.DeltaMHa)
 			}
 			state.PesPoints = append(state.PesPoints, PesPoint{
 				BondDistance: p.BondDistance, Energy: p.Energy, EnergyExact: p.EnergyExact,
-				FCIEnergy: p.Fci, DeltaMHa: p.DeltaMHa, UncertaintyMHa: p.Uncertainty * 1000.0,
-				CI95MHa: p.CI95MHa, ChemicalAccuracy: chemicalAccuracy,
+				FCIEnergy: p.Fci, ActiveSpaceFCI: p.ActiveSpaceFCI,
+				DeltaMHa: p.DeltaMHa, ExactDeltaMHa: p.ExactDeltaMHa,
+				UncertaintyMHa: p.Uncertainty * 1000.0, CI95MHa: p.CI95MHa,
+				ChemicalAccuracy: chemicalAccuracy, Claimable: chemicalAccuracy,
+				FullSpaceStatus: p.FullSpaceStatus, Method: p.Method,
 			})
 			state.Trajectory = append(state.Trajectory, TrajectoryStep{
 				Step: len(state.Trajectory) + 1, Energy: p.Energy,
@@ -558,7 +574,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			best.DeltaMHa < state.ClassicalAnchor.DiscrepancyMHa {
 			state.ClassicalAnchor.VqeExpectationEnergy = best.Energy
 			state.ClassicalAnchor.DiscrepancyMHa = best.DeltaMHa
-			state.ClassicalAnchor.ChemicalAccuracyPassed = best.DeltaMHa <= 1.6
+			state.ClassicalAnchor.ChemicalAccuracyPassed = bestClaimable
 		}
 		if state.ClassicalAnchor.FciExactEnergy == 0 {
 			state.ClassicalAnchor.FciExactEnergy = best.Fci
@@ -571,7 +587,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			nb.QuantumEnergy = best.Energy
 			nb.ClassicalEnergy = best.Fci
 			nb.DeltaMHa = best.DeltaMHa
-			nb.ChemicalAccuracy = best.DeltaMHa <= 1.6
+			nb.ChemicalAccuracy = bestClaimable
 			if nb.ChemicalAccuracy {
 				nb.EpistemicVerdict = "VERIFIED"
 			} else {
