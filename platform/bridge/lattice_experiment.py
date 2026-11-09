@@ -203,6 +203,12 @@ def run_spin_chain(
         "claimable": claimable,
         "gap": observables.gap,
         "eigenvalues": eigenvalues,
+        "ground_state_reached": claimable,
+        "observable_state": (
+            "optimized VQE ansatz state; exact_* fields are the finite-size "
+            "ground-state anchor, measured_* fields are not ground-state "
+            "observables unless ground_state_reached is true"
+        ),
         "exact_magnetization_z": observables.magnetization_z,
         "measured_magnetization_z": measured_mag,
         "exact_correlation_zz": observables.correlation_zz,

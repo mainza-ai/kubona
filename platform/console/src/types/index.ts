@@ -196,6 +196,8 @@ export interface ExperimentResult {
   periodic?: boolean;
   gap?: number | null;
   below_exact?: boolean;
+  ground_state_reached?: boolean;
+  observable_state?: string;
   candidates?: Record<string, unknown>[];
   candidate_count?: number;
   method?: string;

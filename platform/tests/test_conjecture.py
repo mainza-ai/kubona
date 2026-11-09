@@ -20,6 +20,9 @@ def test_square_sequence_polynomial_is_discovered():
     poly = next(c for c in out["candidates"] if c["kind"] == "polynomial")
     assert poly["holdout_verified"] is True
     assert poly["predictions"][0] == "81"
+    assert out["candidate_count"] == len({
+        (c["kind"], c["law"]) for c in out["candidates"]
+    })
 
 
 def test_unpredictable_sequence_rejects_overfit():

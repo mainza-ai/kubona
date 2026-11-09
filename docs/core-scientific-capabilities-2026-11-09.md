@@ -215,6 +215,17 @@ Implemented and locally tested:
 - **Evidence:** `platform/tests/test_lattice.py` (7), `test_conjecture.py` (5),
   `test_domain_packs.py` (7), bridge `test_lattice_experiment.py` (5), and the
   H2O bridge test pass locally; full Go suite passes.
+- **Honest physics accuracy:** a live local 6-site critical TFIM run returned
+  exact `-7.7274066103` and shot-measured `-5.9992` (delta `1.728`, uncertainty
+  `0.0173`, `claimable:false`, `ground_state_reached:false`). The measured
+  magnetization belongs to the optimized VQE state, not the exact ground state;
+  the result carries `observable_state` and the notebook does not project it as
+  a molecular VQE trajectory. Higher-depth/adaptive ansätze are required before
+  a ground-state accuracy claim.
+- **Math evidence:** Fibonacci `[1,1,2,3,5,8,13,21,34]` yields the exact
+  recurrence `a(n)=a(n-1)+a(n-2)` with predictions `55,89`; squares yield
+  `a(n)=n^2`; an unpredictable sequence yields zero candidates. All are
+  finite-scope conjectures, not proofs.
 
 Still queued:
 
