@@ -41,8 +41,8 @@ var knownJobTypes = map[string]bool{
 	"circuit_run": true, "circuit_cut": true, "classical_anchor": true,
 	"claim_eval": true, "krylov_solve": true, "krylov_json": true, "mitigate": true, "mitigate_json": true,
 	"pes_sweep": true, "vqe_run": true, "vqe_pes": true, "qaoa_run": true,
-	"spin_chain": true, "conjecture_run": true,
-	"hardware_experiment": true, "qaoa_hardware": true,
+	"excited_state": true, "reaction": true, "spin_chain": true, "conjecture_run": true,
+	"hardware_experiment": true, "qaoa_hardware": true, "spin_chain_hardware": true,
 }
 
 // W0.1 — CAS-guard live set, bound once from the single source
@@ -988,7 +988,7 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			resultData, execErr = r.executePesSweep(&sp)
 
-		case "vqe_run", "vqe_pes", "qaoa_run", "spin_chain", "conjecture_run", "hardware_experiment", "qaoa_hardware":
+		case "vqe_run", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "conjecture_run", "hardware_experiment", "qaoa_hardware", "spin_chain_hardware":
 			// The bridge owns the PySCF/Qiskit experiment runner; the Go
 			// worker owns the ledger job, budget, and settlement. The params
 			// object is the versioned experiment spec.
@@ -1063,7 +1063,7 @@ func (r *Runner) executeJob(j *Job) {
 	// block; settle it through the same funnel so the reservation is released
 	// (the old path kept the envelope after a successful VQE).
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED &&
-		(j.JobType == "vqe_run" || j.JobType == "vqe_pes" || j.JobType == "qaoa_run" || j.JobType == "spin_chain" || j.JobType == "conjecture_run" || j.JobType == "hardware_experiment" || j.JobType == "qaoa_hardware") {
+		(j.JobType == "vqe_run" || j.JobType == "vqe_pes" || j.JobType == "qaoa_run" || j.JobType == "excited_state" || j.JobType == "reaction" || j.JobType == "spin_chain" || j.JobType == "conjecture_run" || j.JobType == "hardware_experiment" || j.JobType == "qaoa_hardware" || j.JobType == "spin_chain_hardware") {
 		r.settleTerminalFromResult(j, string(j.ResultJSON))
 	}
 	// Attach the receipt before publishing the terminal row: a poller that
@@ -1131,7 +1131,7 @@ func (r *Runner) attachResultReceipt(j *Job) bool {
 // version is refused rather than folded into a campaign as if typed.
 func validateExperimentResultVersion(jobType string, resultData []byte) error {
 	switch jobType {
-	case "vqe_run", "vqe_pes", "qaoa_run", "spin_chain", "conjecture_run", "hardware_experiment", "qaoa_hardware", "krylov_json", "mitigate_json":
+	case "vqe_run", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "conjecture_run", "hardware_experiment", "qaoa_hardware", "spin_chain_hardware", "krylov_json", "mitigate_json":
 	default:
 		return nil
 	}

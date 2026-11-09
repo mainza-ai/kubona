@@ -102,3 +102,40 @@ def test_bridge_run_experiment_dispatches_conjecture():
     assert result["kind"] == "conjecture"
     assert result["candidate_count"] >= 1
     assert result["measured"] is False
+
+
+def test_spin_chain_hardware_uses_one_governed_batch(monkeypatch):
+    import experiments
+    from lattice_experiment import run_spin_chain_hardware
+
+    calls = []
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        calls.append({"n": len(qasms), "shots": shots, "backend": backend})
+        return {
+            "counts": [{"000": shots} for _ in qasms],
+            "backend": backend or "fake-qpu",
+            "hardware_job_id": "vendor-spin-1",
+            "usage_seconds": 2.0,
+            "actual_usd": 0.0,
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = run_spin_chain_hardware(
+        qasm="OPENQASM 2.0; include \"qelib1.inc\"; qreg q[3];",
+        pauli_coefficients={"ZZI": 1.0, "IZZ": 1.0, "XXX": 0.5},
+        n_sites=3,
+        energy_exact=2.5,
+        model="tfim",
+        shots=1000,
+        backend="ibm_fez",
+        state_mode="vqe",
+    )
+    assert res["success"] is True, res
+    assert res["kind"] == "spin_chain_hardware"
+    assert res["hardware"] is True
+    assert res["measured"] is True
+    assert res["hardware_job_id"] == "vendor-spin-1"
+    assert calls and calls[0]["n"] == 4
+    assert res["energy"] == pytest.approx(2.5)
+    assert res["claimable"] is True

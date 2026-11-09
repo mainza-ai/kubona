@@ -1,7 +1,7 @@
 # Core scientific capabilities — audit, gaps, and implementation plan
 
 **Date:** 2026-11-09  
-**Audited head:** `386f857`; **implementation head:** `27476a2` (science slice, CI/E2E green)  
+**Audited head:** `386f857`; **implementation head:** in progress after `27476a2` (hardware spin-chain, excited/reaction chemistry, discovery protocol; re-verify exact commit)  
 **Scope:** production local-private Kubona. One trusted host; no demo paths;
 no invented measurements, claims, or scientific results.
 
@@ -233,10 +233,32 @@ Implemented and locally tested:
   `a(n)=n^2`; an unpredictable sequence yields zero candidates. All are
   finite-scope conjectures, not proofs.
 
+### S4/S5 execution status (continued)
+
+- **S5b hardware spin-chain:** implemented `spin_chain_hardware` in the bridge
+  (one governed QPU batch, per-Pauli measurement, Z-basis magnetization,
+  vendor/usage/layout receipt) and the Go `prepare`/`launch` parent rail with
+  mandate, fidelity, settlement, and result-version gates. CI E2E covers
+  prepare plus mandate refusal; no live QPU run has been made.
+- **S5c excited-state/reaction chemistry:** implemented H2 deflation VQE
+  (`ground_energy`, `excited_energy`, `gap`, overlap, exact 4x4 spectrum) and
+  H2 → 2H endpoint reaction energy against FCI anchors. Both are measured
+  simulator results; both refuse unsupported molecules rather than borrowing
+  H2 numbers.
+- **S4 measured discovery protocol:** `POST /api/discovery/plan` is a
+  deterministic goal-to-experiment planner (excited / spin-chain / PES / H2O /
+  H2 VQE; refuses unbounded conjecture). `POST /api/discovery/run` executes
+  1–5 real jobs sequentially through the normal admission/settlement rail,
+  bounds each step with a timeout, records `discovery_protocol_*` and
+  `discovery_step` ledger events, and returns the stored job results with a
+  measured/claimable summary. Real-stack E2E covers plan + run.
+- **Result projection:** the shared schema/types and `MeasuredOutputs` cover
+  `excited_state`, `reaction`, `spin_chain`, `spin_chain_hardware`, and
+  `conjecture`; console launcher controls cover the new simulator kinds.
+
 Still queued:
 
-- **S4:** close the discovery campaign over the real job rail (the old
-  `DiscoveryCampaign` remains a toy harness).
-- **S5:** physics/math result projections and browser E2E; hardware spin-chain
-  rail; excited states/reaction experiments. These are tracked in
-  [[core-scientific-capability-gaps]].
+- live hardware spin-chain acceptance (operator mandate/QPU);
+- general-molecule excited-state/reaction workflows beyond H2;
+- literature/catalog novelty boundary for discovered laws (SC-09);
+- full browser launch UI for governed hardware spin-chain and protocol runs.

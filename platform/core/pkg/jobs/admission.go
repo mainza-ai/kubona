@@ -119,7 +119,7 @@ func (r *Runner) planAdmission(sessionID, jobType string, paramsJSON []byte, dec
 		return "", 0, fmt.Errorf("tenant %q autonomy L0 (observe/suggest only): dispatch refused", t.ID)
 	}
 
-	if jobType == "hardware_experiment" || jobType == "qaoa_hardware" {
+	if jobType == "hardware_experiment" || jobType == "qaoa_hardware" || jobType == "spin_chain_hardware" {
 		return r.planHardwareExperiment(tenantID, sessionID, jobType, paramsJSON)
 	}
 	if jobType != "circuit_run" {

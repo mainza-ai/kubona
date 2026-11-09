@@ -47,6 +47,26 @@ const JOBS = [
     }, created_at: '', completed_at: '2026-10-11T02:33:00Z',
   },
   {
+    id: 'job-excited-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'excited_state',
+    params_json: {}, result_json: {
+      ground_energy: -1.1346, excited_energy: -0.5312, gap: 0.6034, gap_exact: 0.6048, claimable: false,
+    }, created_at: '', completed_at: '2026-10-11T02:36:00Z',
+  },
+  {
+    id: 'job-reaction-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'reaction',
+    params_json: {}, result_json: {
+      reaction: 'H2 -> 2 H', reaction_energy: 0.1971, reaction_energy_exact: 0.2041,
+      uncertainty: 0.0048, claimable: false,
+    }, created_at: '', completed_at: '2026-10-11T02:37:00Z',
+  },
+  {
+    id: 'job-spin-hw-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'spin_chain_hardware',
+    params_json: {}, result_json: {
+      model: 'tfim', n_sites: 4, energy: -3.15, energy_exact: -3.21, uncertainty: 0.02,
+      claimable: false, backend: 'ibm_fez',
+    }, created_at: '', completed_at: '2026-10-11T02:35:00Z',
+  },
+  {
     id: 'job-conj-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'conjecture_run',
     params_json: {}, result_json: {
       candidate_count: 1, candidates: [{ law: 'a(n) = a(n-1) + a(n-2)', status: 'conjecture' }],
@@ -105,6 +125,9 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('not claimable');
     expect(text).toContain('math conjecture 1 candidate(s)');
     expect(text).toContain('not a theorem');
+    expect(text).toContain('hardware spin chain tfim n=4');
+    expect(text).toContain('excited state ground -1.134600');
+    expect(text).toContain('reaction H2 -> 2 H');
     expect(text).toContain('job-kry'.slice(0, 8));
     // The running job must not appear as a measured row (R7 gate holds);
     // it renders in the live-progress section instead (S8b/c) — including

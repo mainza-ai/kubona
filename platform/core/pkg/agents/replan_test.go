@@ -681,3 +681,45 @@ func TestReplanConjectureRecordsCandidatesWithoutClaim(t *testing.T) {
 		t.Error("a finite conjecture must never collapse to verified")
 	}
 }
+
+func TestReplanSpinChainHardwareRecordsVendorReceipt(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-spin-hw-1", "spin_chain_hardware",
+		[]byte(`{"success":true,"kind":"spin_chain_hardware","model":"tfim","n_sites":4,"energy":-3.1,"energy_exact":-3.2,"uncertainty":0.02,"delta":0.1,"claimable":false,"measured":true,"backend":"ibm_fez","hardware_job_id":"vendor-1"}`), "")
+	if !changed {
+		t.Fatalf("hardware result must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "spin_chain_hardware") || !strings.Contains(last, "vendor-1") {
+		t.Errorf("hardware receipt not recorded: %q", last)
+	}
+}
+
+func TestReplanExcitedStateRecordsGapWithoutChemicalClaim(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-exc-1", "excited_state",
+		[]byte(`{"success":true,"kind":"excited_state","ground_energy":-1.1346,"ground_energy_exact":-1.13727,"excited_energy":-0.5312,"excited_energy_exact":-0.53248,"gap":0.6034,"gap_exact":0.60479,"uncertainty":0.0053,"claimable":false}`), "")
+	if !changed {
+		t.Fatalf("excited state must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "excited_state") || !strings.Contains(last, "gap") {
+		t.Errorf("excited-state note wrong: %q", last)
+	}
+}
+
+func TestReplanReactionEnergyRecordsDifference(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-rxn-1", "reaction",
+		[]byte(`{"success":true,"kind":"reaction","reaction_energy":0.1971,"reaction_energy_exact":0.2041,"uncertainty":0.0048,"claimable":false}`), "")
+	if !changed {
+		t.Fatalf("reaction must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "reaction") || !strings.Contains(last, "0.197100") {
+		t.Errorf("reaction note wrong: %q", last)
+	}
+}

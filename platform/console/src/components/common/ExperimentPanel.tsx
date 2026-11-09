@@ -5,7 +5,7 @@ import { Play } from 'lucide-react';
 import { fetchJob, runExperiment } from '@/lib/api';
 import type { Job } from '@/types';
 
-type Kind = 'vqe' | 'pes' | 'qaoa' | 'spin_chain' | 'conjecture';
+type Kind = 'vqe' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'conjecture';
 
 function num(r: Job | null, key: string): number | null {
   const result = r?.result_json as Record<string, unknown> | undefined;
@@ -37,6 +37,8 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
   const [periodic, setPeriodic] = useState(true);
   const [targetError, setTargetError] = useState('0.001');
   const [stateMode, setStateMode] = useState<'vqe' | 'exact'>('vqe');
+  const [penalty, setPenalty] = useState('10');
+  const [productDistance, setProductDistance] = useState('10');
   const [conjValues, setConjValues] = useState('1, 1, 2, 3, 5, 8, 13, 21, 34');
   const [holdout, setHoldout] = useState('2');
   const [busy, setBusy] = useState(false);
@@ -47,7 +49,21 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
     if (!sessionId) { setError('select a campaign first'); return; }
     setBusy(true); setError(null); setJob(null);
     const spec: Record<string, unknown> = { kind };
-    if (kind === 'qaoa') {
+    if (kind === 'reaction') {
+      spec.molecule = 'H2';
+      spec.reactant_distance = Number(bond);
+      spec.product_distance = Number(productDistance);
+      spec.layers = Number(layers);
+      spec.shots = Number(shots);
+      spec.max_iterations = Number(iterations);
+    } else if (kind === 'excited_state') {
+      spec.molecule = 'H2';
+      spec.bond_distance = Number(bond);
+      spec.layers = Number(layers);
+      spec.shots = Number(shots);
+      spec.max_iterations = Number(iterations);
+      spec.penalty = Number(penalty);
+    } else if (kind === 'qaoa') {
       spec.layers = Number(layers);
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
@@ -119,6 +135,8 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         <label className="space-y-1">Kind
           <select aria-label="Experiment kind" value={kind} onChange={(e) => setKind(e.target.value as Kind)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
             <option value="vqe">VQE</option><option value="pes">PES</option><option value="qaoa">QAOA MaxCut</option>
+            <option value="excited_state">Excited state (H2)</option>
+            <option value="reaction">Reaction energy (H2)</option>
             <option value="spin_chain">Spin chain</option><option value="conjecture">Math conjecture</option>
           </select>
         </label>
@@ -206,6 +224,16 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         <label className="space-y-1">Max iterations
           <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
+        {kind === 'excited_state' && (
+          <label className="space-y-1">Deflation penalty
+            <input aria-label="Deflation penalty" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+          </label>
+        )}
+        {kind === 'reaction' && (
+          <label className="space-y-1">Product distance (Å)
+            <input aria-label="Product distance" value={productDistance} onChange={(e) => setProductDistance(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+          </label>
+        )}
       </div>
       {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
@@ -214,6 +242,17 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       {job && (
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
+          {job.status === 'completed' && kind === 'reaction' && result?.reaction_energy != null && (() => {
+            const rxn = typeof result.reaction_energy === 'number' ? result.reaction_energy : null;
+            const exactRxn = typeof result.reaction_energy_exact === 'number' ? result.reaction_energy_exact : null;
+            return <div>reaction ΔE {rxn?.toFixed(6)} Ha vs exact {exactRxn?.toFixed(6)} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>;
+          })()}
+          {job.status === 'completed' && kind === 'excited_state' && result?.ground_energy != null && (() => {
+            const g = typeof result.ground_energy === 'number' ? result.ground_energy : null;
+            const e = typeof result.excited_energy === 'number' ? result.excited_energy : null;
+            const gap = typeof result.gap === 'number' ? result.gap : null;
+            return <div>excited state: ground {g?.toFixed(6)} · excited {e?.toFixed(6)}{gap != null ? ` · gap ${gap.toFixed(5)}` : ''} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>;
+          })()}
           {job.status === 'completed' && kind === 'spin_chain' && energy != null && exact != null && (
             <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.state_mode === 'exact' ? ' · exact-state readout' : result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
           )}
@@ -223,7 +262,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
               {candidates.slice(0, 2).map((c, i) => <div key={i}>{c.law}{c.status ? ` [${c.status}]` : ''}</div>)}
             </div>
           )}
-          {job.status === 'completed' && kind !== 'spin_chain' && kind !== 'conjecture' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
+          {job.status === 'completed' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
           {job.status === 'completed' && cut != null && <div>classical optimum {cut}</div>}
           {job.status === 'failed' && <div className="text-rose-300">failed — see job record</div>}
         </div>

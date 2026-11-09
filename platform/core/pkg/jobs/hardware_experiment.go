@@ -16,6 +16,11 @@ import (
 type HardwareExperimentParams struct {
 	Kind                string             `json:"kind"`
 	Molecule            string             `json:"molecule"`
+	Model               string             `json:"model"`
+	NSites              int                `json:"n_sites"`
+	TargetError         float64            `json:"target_error"`
+	StateMode           string             `json:"state_mode"`
+	SourceJobID         string             `json:"source_job_id"`
 	BondDistance        float64            `json:"bond_distance"`
 	Layers              int                `json:"layers"`
 	Shots               int                `json:"shots"`
@@ -55,6 +60,11 @@ func CanonicalHardwareExperimentBinding(sessionID string, p HardwareExperimentPa
 func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperimentParams) string {
 	spec := struct {
 		Molecule          string             `json:"molecule"`
+		Model             string             `json:"model"`
+		NSites            int                `json:"n_sites"`
+		TargetError       float64            `json:"target_error"`
+		StateMode         string             `json:"state_mode"`
+		SourceJobID       string             `json:"source_job_id"`
 		BondDistance      float64            `json:"bond_distance"`
 		Layers            int                `json:"layers"`
 		Shots             int                `json:"shots"`
@@ -76,8 +86,10 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Nodes             int                `json:"nodes"`
 		Edges             [][2]int           `json:"edges"`
 	}{
-		Molecule: p.Molecule, BondDistance: p.BondDistance,
-		Layers: p.Layers, Shots: p.Shots, Seed: p.Seed,
+		Molecule: p.Molecule, Model: p.Model, NSites: p.NSites,
+		TargetError: p.TargetError, StateMode: p.StateMode, SourceJobID: p.SourceJobID,
+		BondDistance: p.BondDistance,
+		Layers:       p.Layers, Shots: p.Shots, Seed: p.Seed,
 		Theta: p.Theta, PauliCoefficients: p.PauliCoefficients,
 		FCIExactEnergy: p.FCIExactEnergy, ConstantEnergy: p.ConstantEnergy, Provider: p.Provider,
 		RequestedBackend: p.RequestedBackend, QASM: p.QASM,
@@ -119,6 +131,30 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 			if p.Molecule != "H2" && strings.TrimSpace(p.AnsatzQPY) == "" {
 				return "", 0, fmt.Errorf("hardware loop for %s requires ansatz_qpy", p.Molecule)
 			}
+		}
+	case "spin_chain_hardware":
+		model := strings.ToLower(strings.TrimSpace(p.Model))
+		if model != "tfim" && model != "heisenberg" && model != "xxz" {
+			return "", 0, fmt.Errorf("spin_chain_hardware model must be tfim|heisenberg|xxz")
+		}
+		if p.NSites < 2 || p.NSites > 14 {
+			return "", 0, fmt.Errorf("spin_chain_hardware n_sites must be in [2,14]")
+		}
+		if strings.TrimSpace(p.QASM) == "" {
+			return "", 0, fmt.Errorf("spin_chain_hardware requires qasm")
+		}
+		if len(p.PauliCoefficients) == 0 {
+			return "", 0, fmt.Errorf("spin_chain_hardware requires pauli_coefficients")
+		}
+		if math.IsNaN(p.EnergyExact) || math.IsInf(p.EnergyExact, 0) {
+			return "", 0, fmt.Errorf("spin_chain_hardware requires a finite energy_exact")
+		}
+		if math.IsNaN(p.TargetError) || math.IsInf(p.TargetError, 0) || p.TargetError <= 0 || p.TargetError > 1 {
+			return "", 0, fmt.Errorf("spin_chain_hardware target_error must be in (0,1]")
+		}
+		mode := strings.ToLower(strings.TrimSpace(p.StateMode))
+		if mode != "vqe" && mode != "exact" {
+			return "", 0, fmt.Errorf("spin_chain_hardware state_mode must be vqe|exact")
 		}
 	case "qaoa_hardware":
 		if p.OptimalCut <= 0 || p.Nodes <= 0 || len(p.Edges) == 0 {

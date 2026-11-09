@@ -305,6 +305,29 @@ test.describe('Kubona console against the real local stack', () => {
     expect(spin.measured).toBe(true);
     expect(spin.result_receipt).toBeTruthy();
 
+    const prepared = await page.evaluate(async ({ base, sid, source }) => {
+      const res = await fetch(`${base}/api/experiments/spin-chain/hardware/prepare`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid, source_job_id: source, shots: 128, backend: 'ibm_fez' }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { base: apiUrl, sid: sessionId, source: spinId });
+    expect(prepared.status, JSON.stringify(prepared.body)).toBe(200);
+    expect(prepared.body.binding).toBeTruthy();
+    const unmandated = await page.evaluate(async ({ base, sid, source }) => {
+      const res = await fetch(`${base}/api/experiments/spin-chain/hardware`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid, source_job_id: source, shots: 128, backend: 'ibm_fez' }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { base: apiUrl, sid: sessionId, source: spinId });
+    expect(unmandated.status).toBe(400);
+    expect(JSON.stringify(unmandated.body)).toContain('mandate_ref');
+
     const conjId = await submit({
       kind: 'conjecture', values: [1, 1, 2, 3, 5, 8, 13, 21, 34], holdout: 2,
     }, `e2e-conj-${Date.now()}`);
@@ -318,6 +341,64 @@ test.describe('Kubona console against the real local stack', () => {
     expect(conj.measured).toBe(false);
     expect(conj.claimable).toBe(false);
     expect(conj.result_receipt).toBeTruthy();
+
+    const excitedId = await submit({
+      kind: 'excited_state', molecule: 'H2', bond_distance: 0.7414,
+      layers: 2, shots: 2048, max_iterations: 20, penalty: 10,
+    }, `e2e-excited-${Date.now()}`);
+    const excited = await page.evaluate(async ({ base, sid, id }) => {
+      const res = await fetch(`${base}/api/jobs/${id}?session_id=${sid}`, { credentials: 'include' });
+      return (await res.json()).job?.result_json as Record<string, unknown>;
+    }, { base: apiUrl, sid: sessionId, id: excitedId });
+    expect(excited.kind).toBe('excited_state');
+    expect(excited.result_version).toBe('experiment-result-v1');
+    expect(typeof excited.ground_energy).toBe('number');
+    expect(typeof excited.excited_energy).toBe('number');
+    expect(typeof excited.gap).toBe('number');
+    expect(excited.measured).toBe(true);
+
+    const reactionId = await submit({
+      kind: 'reaction', molecule: 'H2', reactant_distance: 0.7414,
+      product_distance: 10.0, layers: 2, shots: 1024, max_iterations: 10,
+    }, `e2e-reaction-${Date.now()}`);
+    const reaction = await page.evaluate(async ({ base, sid, id }) => {
+      const res = await fetch(`${base}/api/jobs/${id}?session_id=${sid}`, { credentials: 'include' });
+      return (await res.json()).job?.result_json as Record<string, unknown>;
+    }, { base: apiUrl, sid: sessionId, id: reactionId });
+    expect(reaction.kind).toBe('reaction');
+    expect(reaction.result_version).toBe('experiment-result-v1');
+    expect(typeof reaction.reaction_energy).toBe('number');
+    expect(typeof reaction.reaction_energy_exact).toBe('number');
+    expect(reaction.measured).toBe(true);
+    expect(reaction.result_receipt).toBeTruthy();
+
+    const planned = await page.evaluate(async ({ base, goal }) => {
+      const res = await fetch(`${base}/api/discovery/plan`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { base: apiUrl, goal: 'transverse-field Ising spin chain' });
+    expect(planned.status, JSON.stringify(planned.body)).toBe(200);
+    expect(planned.body.steps?.[0]?.kind).toBe('spin_chain');
+
+    const protocol = await page.evaluate(async ({ base, sid }) => {
+      const res = await fetch(`${base}/api/discovery/run`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sid, goal: 'transverse-field Ising spin chain', step_timeout_s: 30,
+        }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, { base: apiUrl, sid: sessionId });
+    expect(protocol.status, JSON.stringify(protocol.body)).toBe(200);
+    expect(protocol.body.steps_completed).toBe(1);
+    expect(protocol.body.measured_results).toBe(1);
+    expect(protocol.body.results?.[0]?.kind).toBe('spin_chain');
   });
 
   test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {

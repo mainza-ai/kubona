@@ -5086,5 +5086,13 @@ skipped is the exact failure this incident is about:
   honestly non-claimable when it misses the ground state.
 - Added real-stack Console E2E coverage for `spin_chain` and `conjecture` jobs
   through Go/bridge, plus UI projection tests. CI/E2E green at `27476a2`.
-- Still open: S4 campaign over the real rail, hardware spin-chain,
-  excited-state/reaction chemistry, and the remaining full result projection.
+- Added `spin_chain_hardware` (bridge per-Pauli QPU batch + Go prepare/launch
+  parent rail with mandate/fidelity/settlement), H2 deflation excited-state
+  VQE, H2→2H reaction energy, and the measured discovery protocol
+  (`/api/discovery/plan`, `/api/discovery/run`) with real sequential jobs and
+  ledger events.
+- Extended the shared result schema/types/MeasuredOutputs and real-stack E2E
+  for excited, reaction, hardware prepare/refusal, and protocol plan/run.
+- Still open: live QPU spin-chain acceptance, general-molecule
+  excited/reaction workflows, conjecture novelty boundary, and hardware/
+  protocol launch UI.
