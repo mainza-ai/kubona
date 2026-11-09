@@ -1425,3 +1425,16 @@ func TestAugmentQAOAResultComputesMeasuredCut(t *testing.T) {
 		t.Fatalf("unexpected QAOA augmentation: %v", parsed)
 	}
 }
+
+func TestExperimentResultVersionGate(t *testing.T) {
+	if err := validateExperimentResultVersion("circuit_run", []byte(`{"success":true}`)); err != nil {
+		t.Fatalf("non-experiment jobs must not require a result version: %v", err)
+	}
+	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true}`)); err == nil ||
+		!strings.Contains(err.Error(), "result_version") {
+		t.Fatalf("untyped VQE result must be refused, got: %v", err)
+	}
+	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
+		t.Fatalf("versioned VQE result must pass: %v", err)
+	}
+}

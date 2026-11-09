@@ -80,13 +80,22 @@ the pool and selected operators are reported with the result.
 
 ## BeH2 boundary
 
-BeH2 (14 qubits) is supported as a full-space job, but it is not claimed:
-16 operators reached about `4.16 mHa` exact error, 40 operators about
-`3.04 mHa`, and 60 operators about `3.23 mHa` (optimizer/shot boundary),
-still above the 1.6 mHa gate. A shot result that happens to land
-inside the gate is rejected unless the exact diagnostic also passes. The
-honest status is `resource_exhausted`/`contested`, with the operator count and
-pool recorded in the result.
+BeH2 (14 qubits, 7 spatial orbitals) is supported as a full-space job. After
+the 2026-11-09 spin-block fix, the CEO pool selected 40 operators and reached:
+
+| quantity | value |
+|---|---|
+| exact delta | `0.3933 mHa` |
+| measured delta | `0.0146 mHa` |
+| shot uncertainty | `0.7924 mHa` |
+| shots | `262144` |
+| status | `within_target` |
+| wall time | ~299 s |
+
+The earlier `3.23 mHa` BeH2 result came from the wrong spin layout and is
+superseded. A shot result that happens to land inside the gate is still
+rejected unless the exact diagnostic also passes; the operator count and pool
+are recorded with every result.
 
 ## Limits
 
@@ -95,5 +104,6 @@ pool recorded in the result.
 - `KUBONA_ADAPT_MAX_OPS` and `KUBONA_ADAPT_MIN_SHOTS` are operator controls;
   the default operator cap is 40 (capped at 64) and the default measurement
   floor is 262144 shots.
-- BeH2 chemical accuracy needs a better pool/optimizer schedule, not a label
-  change. Until then the result is a measured, contested full-space run.
+- BeH2 chemical accuracy is measured on the corrected CEO pool at 40
+  operators. Resource/time budgets remain enforced; a run that misses the gate
+  stays contested.
