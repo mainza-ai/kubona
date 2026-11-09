@@ -2,7 +2,7 @@
 
 **Scope:** fully functional local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant product, not a demo.
-**Audited head:** `a4469c1` (2026-11-09 slices through `746ddca`, then
+**Audited head:** `c111f3c` (2026-11-09 slices through `746ddca`, then
 CEO/hardware-loop/mitigation/claimable/sandbox/result-gate work).
 **Method:** re-read the current Go/Python/console code and tests, not the prior
 status prose. The earlier completion report contained stale entries; this page
