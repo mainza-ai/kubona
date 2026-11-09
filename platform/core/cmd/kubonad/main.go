@@ -345,6 +345,9 @@ func main() {
 	// 3. Initialize Core Subsystems
 	sessionMgr := session.NewManager(l)
 	jobRunner := jobs.NewRunner(l, bridgeClient, 4)
+	if key, ok := jobs.LoadResultSigningKey(); ok {
+		jobRunner.SetResultSigner(key)
+	}
 	// 2b. Reconcile terminal Python workflow jobs into the Go book. A crash
 	// between a Python completion and the Go adoption loop must not leave a
 	// permanent ghost; queued/running Python rows stay with the live bridge.
