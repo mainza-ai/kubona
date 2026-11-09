@@ -1170,8 +1170,8 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 }
 
 // CancelSessionJobs aborts every unsettled job for a session (Ring-0 reflex
-// intercept). It marks the rows failed with the given reason, registers the
-// IDs so in-flight workers settle failed rather than completed, and seals a
+// intercept). It marks the rows cancelled with the given reason, registers the
+// IDs so in-flight workers settle cancelled rather than completed, and seals a
 // supervisor_abort receipt in the ledger. It returns the aborted count.
 func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 	rows, err := r.ledger.DB().Query(
@@ -1241,7 +1241,7 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 	errRes, _ := json.Marshal(map[string]string{"error": reason, "cancelled": "true"})
 	res, err := r.ledger.DB().Exec(
 		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
-		append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
+		append([]any{pb.JobStatus_JOB_STATUS_CANCELLED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 	)
 	if err != nil {
 		return false, err
