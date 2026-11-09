@@ -83,3 +83,42 @@ func TestCalibrationRefreshRefusesMissingBackendAndDeadBridge(t *testing.T) {
 		t.Fatalf("nil bridge must 503, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+type badCalibrationBridge struct {
+	pb.QuantumBridgeServiceClient
+	ok     bool
+	result string
+}
+
+func (b *badCalibrationBridge) RunExperiment(context.Context, *pb.ExperimentRequest, ...grpc.CallOption) (*pb.ExperimentResponse, error) {
+	return &pb.ExperimentResponse{Ok: b.ok, ResultJson: b.result, ErrorMessage: "vendor refused"}, nil
+}
+
+func TestCalibrationRefreshRefusesUpstreamAndInvalidSnapshot(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "cal-token")
+	dir := t.TempDir()
+	l, err := ledger.OpenLedger(dir + "/cal3.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	sup := supervisor.NewSupervisor(l)
+
+	for name, bridge := range map[string]*badCalibrationBridge{
+		"not-ok":     {ok: false},
+		"not-json":   {ok: true, result: "not-json"},
+		"unphysical": {ok: true, result: `{"success":true,"snapshot":{"qubits":156,"t1_us":100,"t2_us":300,"readout_error":0.01,"source":"x","version":"v","calibrated_at":"2026-11-09T00:00:00Z"}}`},
+	} {
+		srv := api.NewServer(l, sm, jobs.NewRunner(l, bridge, 1), sup, watchdog.NewTaskWatchdog(l, sup))
+		req := httptest.NewRequest(http.MethodPost, "/api/fleet/calibration/refresh", strings.NewReader(`{"backend":"ibm_test"}`))
+		req.Header.Set("Authorization", "Bearer cal-token")
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if name == "not-ok" || name == "not-json" || name == "unphysical" {
+			if w.Code != http.StatusBadGateway {
+				t.Fatalf("%s must 502, got %d: %s", name, w.Code, w.Body.String())
+			}
+		}
+	}
+}
