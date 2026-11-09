@@ -241,6 +241,7 @@ export interface MeasurementSummary {
   shots?: number;
   seed?: number;
   chemical_accuracy: boolean;
+  claimable?: boolean;
   active_space_chemical_accuracy?: boolean;
   full_space_status?: string;
   claimable?: boolean;

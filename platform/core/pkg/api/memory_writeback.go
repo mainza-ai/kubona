@@ -191,6 +191,8 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			Backend       string  `json:"backend"`
 			Hardware      bool    `json:"hardware"`
 			HardwareJobID string  `json:"hardware_job_id"`
+			Claimable     *bool   `json:"claimable,omitempty"`
+			Measured      *bool   `json:"measured,omitempty"`
 		}
 		if json.Unmarshal(j.ResultJSON, &res) == nil && res.Success && res.Energy != 0 && res.FCI != 0 {
 			delta := res.DeltaMHa
@@ -202,7 +204,16 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			// its own uncertainty is inside the limit too. The hardware
 			// parent returns both fields; zero/unknown uncertainty cannot
 			// manufacture a verified verdict.
-			if delta <= 1.6 && res.Uncertainty > 0 && res.Uncertainty <= 1.6e-3 {
+			claimable := delta <= 1.6 && res.Uncertainty > 0 && res.Uncertainty <= 1.6e-3
+			if res.Measured != nil && !*res.Measured {
+				claimable = false
+			}
+			if res.Claimable != nil {
+				// The runner's gate includes the exact diagnostic where it
+				// exists. Never upgrade a runner-refused claim from delta alone.
+				claimable = *res.Claimable && res.Uncertainty > 0 && res.Uncertainty <= 1.6e-3
+			}
+			if claimable {
 				verdict = "verified"
 			}
 			evBytes, _ := json.Marshal(map[string]any{

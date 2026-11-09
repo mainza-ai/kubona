@@ -148,6 +148,7 @@ type MeasurementSummary struct {
 	Shots                  int              `json:"shots,omitempty"`
 	Seed                   int              `json:"seed,omitempty"`
 	ChemicalAccuracy       bool             `json:"chemical_accuracy"`
+	Claimable              bool             `json:"claimable"`
 	ActiveSpaceChemicalAcc bool             `json:"active_space_chemical_accuracy,omitempty"`
 	Converged              bool             `json:"converged"`
 	Measured               bool             `json:"measured"`

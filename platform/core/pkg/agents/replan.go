@@ -343,6 +343,10 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		var method, ansatz, backend, resultVersion, provider, optimizerBackend, measurementBackend string
 		var hardware bool
 		measuredFlag := true
+		claimableFlag := false
+		claimablePresent := false
+		activeClaimable := false
+		activeClaimablePresent := false
 		var ci95, usageSeconds float64
 		var actualUSD *float64
 		var layout, calibration map[string]any
@@ -396,6 +400,20 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if raw, ok := present("measured"); ok {
 			_ = json.Unmarshal(raw, &measuredFlag)
 		}
+		if raw, ok := present("claimable"); ok {
+			if json.Unmarshal(raw, &claimableFlag) == nil {
+				claimablePresent = true
+			}
+		}
+		if raw, ok := present("active_space_claimable"); ok {
+			if json.Unmarshal(raw, &activeClaimable) == nil {
+				activeClaimablePresent = true
+			}
+		} else if raw, ok := present("active_space_chemical_accuracy"); ok {
+			if json.Unmarshal(raw, &activeClaimable) == nil {
+				activeClaimablePresent = true
+			}
+		}
 		if raw, ok := present("ci95_mha"); ok {
 			_ = json.Unmarshal(raw, &ci95)
 		}
@@ -429,9 +447,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			state.ClassicalAnchor.AnchorSource = "vqe-run"
 			state.ClassicalAnchor.Method = "PySCF STO-3G Full Configuration Interaction"
 		}
+		chemicalAccuracy := delta <= 1.6
+		if claimablePresent {
+			chemicalAccuracy = claimableFlag
+		}
 		state.ClassicalAnchor.VqeExpectationEnergy = energy
 		state.ClassicalAnchor.DiscrepancyMHa = delta
-		state.ClassicalAnchor.ChemicalAccuracyPassed = delta <= 1.6
+		state.ClassicalAnchor.ChemicalAccuracyPassed = chemicalAccuracy
 		state.Trajectory = append(state.Trajectory, TrajectoryStep{
 			Step: len(state.Trajectory) + 1, Energy: energy, Loss: math.Abs(energy - fci),
 			Theta: theta, GradNorm: 0, Watchdog: "measured_vqe",
@@ -447,7 +469,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.QuantumEnergy = energy
 		nb.ClassicalEnergy = fci
 		nb.DeltaMHa = delta
-		nb.ChemicalAccuracy = delta <= 1.6
+		nb.ChemicalAccuracy = chemicalAccuracy
 		if nb.ChemicalAccuracy {
 			nb.EpistemicVerdict = "VERIFIED"
 		} else {
@@ -493,7 +515,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			FCIEnergy: fci, ActiveSpaceFCIEnergy: activeFci,
 			UncertaintyMHa: unc * 1000.0, DeltaMHa: delta,
 			ActiveSpaceDeltaMHa: activeDelta, Shots: shots, Seed: seed,
-			ChemicalAccuracy: delta <= 1.6, ActiveSpaceChemicalAcc: activeDelta > 0 && activeDelta <= 1.6,
+			ChemicalAccuracy: chemicalAccuracy, Claimable: chemicalAccuracy,
+			ActiveSpaceChemicalAcc: func() bool {
+				if activeClaimablePresent {
+					return activeClaimable
+				}
+				return activeDelta > 0 && activeDelta <= 1.6
+			}(),
 			Converged: false, Measured: measuredFlag, BelowFCI: energy < fci,
 			Source: "shot-sampled Pauli expectation", OptimizerHistory: optimizerHistory,
 			ResultVersion: resultVersion, Provider: provider, Hardware: hardware,
