@@ -66,6 +66,26 @@
         }
       }
     },
+    "/api/workflows/approve": {
+      "post": {
+        "operationId": "approveWorkflow",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workflow.approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workflow.approval"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vault/predictions/assert": {
       "post": {
         "operationId": "assertPrediction",
@@ -4508,6 +4528,29 @@
           "compensations_planned": {
             "type": "array",
             "items": {}
+          }
+        }
+      },
+      "workflow.approval": {
+        "type": "object",
+        "required": [
+          "ok",
+          "approval_token",
+          "workflow_sha256",
+          "expires_at"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "approval_token": {
+            "type": "string"
+          },
+          "workflow_sha256": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
           }
         }
       },

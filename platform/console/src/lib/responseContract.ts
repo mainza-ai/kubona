@@ -413,6 +413,12 @@ export const RESPONSE_SCHEMAS = {
     unresolved_references: arr(any),
     compensations_planned: arr(any),
   }),
+  'workflow.approval': obj({
+    ok: bool,
+    approval_token: str,
+    workflow_sha256: str,
+    expires_at: str,
+  }),
   'workflow.run': obj({
     ok: bool,
     workflow_id: str,

@@ -17,10 +17,11 @@ def test_codes_match_contract():
     rows = list(csv.DictReader(CONTRACT.read_text().splitlines()))
     # P6 (observatory lens error mapping) added three codes in 6297093:
     # credits_unavailable + spend_limit_exceeded (402) + task_not_entitled
-    # (404). The global request-body cap added request_too_large (413).
+    # (404). The global request-body cap added request_too_large (413);
+    # workflow approvals added approval_required (400).
     # The count pins the contract size so silent catalog drift fails
     # loudly; the named set pins *which* codes the lens rail depends on.
-    assert len(rows) == 26, f"catalog grew/shrank: {len(rows)} rows"
+    assert len(rows) == 27, f"catalog grew/shrank: {len(rows)} rows"
     assert {"credits_unavailable", "spend_limit_exceeded", "task_not_entitled"} <= {r["code"] for r in rows}
     assert set(ERROR_CATALOG) == {r["code"] for r in rows}
     for code in ERROR_CATALOG:

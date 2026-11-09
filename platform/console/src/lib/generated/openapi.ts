@@ -594,6 +594,13 @@ export type WorkflowPlan = {
   "compensations_planned": unknown[];
 };
 
+export type WorkflowApproval = {
+  "ok": boolean;
+  "approval_token": string;
+  "workflow_sha256": string;
+  "expires_at": string;
+};
+
 export type WorkflowRun = {
   "ok": boolean;
   "workflow_id": string;
@@ -650,6 +657,7 @@ export type ApiOperationResponse = {
   appendLedgerEvent: LedgerAppend;
   applyMetasearchProposal: MetasearchChange;
   approveMetasearchProposal: MetasearchChange;
+  approveWorkflow: WorkflowApproval;
   assertPrediction: PredictionAssert;
   authChallenge: AuthChallenge;
   authLogin: AuthLogin;
@@ -778,6 +786,7 @@ export const API_OPERATIONS = {
   appendLedgerEvent: { method: "post", path: "/api/ledger/append", response: "ledger.append" },
   applyMetasearchProposal: { method: "post", path: "/api/metasearch/apply", response: "metasearch.change" },
   approveMetasearchProposal: { method: "post", path: "/api/metasearch/approve", response: "metasearch.change" },
+  approveWorkflow: { method: "post", path: "/api/workflows/approve", response: "workflow.approval" },
   assertPrediction: { method: "post", path: "/api/vault/predictions/assert", response: "prediction.assert" },
   authChallenge: { method: "post", path: "/api/auth/challenge", response: "auth.challenge" },
   authLogin: { method: "post", path: "/api/auth/login", response: "auth.login" },

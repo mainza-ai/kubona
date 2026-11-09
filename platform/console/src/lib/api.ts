@@ -1524,18 +1524,9 @@ export async function approveWorkflow(payload: {
   workflow: import('@/types').WorkflowDefinition;
   ttl_seconds?: number;
 }): Promise<{ ok: boolean; approval_token: string; workflow_sha256: string; expires_at: string }> {
-  const res = await apiFetch(`${API_BASE}/api/workflows/approve`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    let detail = '';
-    try { detail = await res.text(); } catch { /* no body */ }
-    throw new Error(`workflow approval refused (HTTP ${res.status}): ${detail.slice(0, 200)}`);
-  }
-  return (await res.json()) as { ok: boolean; approval_token: string; workflow_sha256: string; expires_at: string };
+  return (await requestOperation('approveWorkflow', { body: payload })) as unknown as {
+    ok: boolean; approval_token: string; workflow_sha256: string; expires_at: string;
+  };
 }
 
 // ==========================================

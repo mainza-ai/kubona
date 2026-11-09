@@ -132,3 +132,75 @@ func mustRequest(method, path string) *http.Request {
 func contains(s, sub string) bool {
 	return strings.Contains(s, sub)
 }
+
+func TestSidecarClientHealth(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "kubona-sidecar-health-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "s.sock")
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"available": true, "runtime": "runsc", "image": "runner:test",
+		})
+	})}
+	go func() { _ = srv.Serve(ln) }()
+	defer srv.Close()
+	ok, reason := NewSidecarClient(socket).Health(context.Background())
+	if !ok || reason != "" {
+		t.Fatalf("health = %v %q", ok, reason)
+	}
+}
+
+func TestSidecarRunOneUsesFixedArgsAndCapturesOutput(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "kubona-sidecar-run-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	bin := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(bin, 0755); err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(bin, "docker")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >&2\necho sandbox-ok\n"
+	if err := os.WriteFile(fake, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &SidecarServer{Image: "runner:test", Runtime: "runsc", ScratchRoot: filepath.Join(dir, "scratch")}
+	res := s.runOne(context.Background(), SidecarRequest{
+		Benchmark: "print(1)", ArtifactName: "a.txt", Artifact: "x",
+		TimeoutSeconds: 5,
+	}, 5*time.Second)
+	if res.ExitCode != 0 || res.Stdout != "sandbox-ok\n" || !res.Sandboxed {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	if !contains(res.Stderr, "--runtime") || !contains(res.Stderr, "runsc") {
+		t.Fatalf("fixed runtime not passed: %s", res.Stderr)
+	}
+	if !contains(res.Stderr, "--network") || !contains(res.Stderr, "none") {
+		t.Fatalf("fixed network not passed: %s", res.Stderr)
+	}
+}
+
+func TestSidecarSlotsAreBounded(t *testing.T) {
+	s := &SidecarServer{MaxConcurrent: 1}
+	if !s.acquireSlot() {
+		t.Fatal("first slot must acquire")
+	}
+	if s.acquireSlot() {
+		t.Fatal("second slot must refuse")
+	}
+	s.releaseSlot()
+	if !s.acquireSlot() {
+		t.Fatal("released slot must acquire")
+	}
+	s.releaseSlot()
+}

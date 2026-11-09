@@ -27,6 +27,9 @@ jobs:
       KUBONA_API_TOKEN: e2e-token
       KUBONA_SINGLE_LAB: "1"
       KUBONA_ENV: production
+      # Disposable E2E stack only: the test exercises the approval UI without a
+      # commissioned reviewer key. Production leaves this unset.
+      KUBONA_ALLOW_EPHEMERAL_SIGNER: "1"
       E2E_OPERATOR_TOKEN: e2e-token
       PLAYWRIGHT_CHANNEL: chrome
       KUBONA_CONSOLE_URL: http://localhost:3000
