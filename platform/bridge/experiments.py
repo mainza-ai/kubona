@@ -781,6 +781,11 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
     mapper = JordanWignerMapper()
     qop = mapper.map(problem.hamiltonian.second_q_op())
     constants = float(sum(problem.hamiltonian.constants.values()))
+    if int(qop.num_qubits) > 12:
+        return {
+            "success": False,
+            "error": f"full-space VQE needs {qop.num_qubits} qubits; the local CPU cap is 12. Use active_space instead.",
+        }
 
     pool = str(spec.get("full_space_pool") or os.getenv("KUBONA_ADAPT_POOL") or "ceo").strip().lower()
     if pool not in ("uccsd", "ceo"):
@@ -884,7 +889,26 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
 _NATURE_ACTIVE = {
     "LIH": {"name": "LiH", "atom": "Li 0 0 0; H 0 0 {r}", "ncas": 2, "nelecas": 2},
     "BEH2": {"name": "BeH2", "atom": "Be 0 0 0; H 0 0 {r}; H 0 0 -{r}", "ncas": 3, "nelecas": 4},
+    "H2O": {"name": "H2O", "geometry": "water", "ncas": 4, "nelecas": 4},
 }
+
+
+def _molecule_atom(spec: dict[str, Any], bond_distance: float) -> str:
+    """Build the explicit geometry for a supported molecular family.
+
+    H2O uses a fixed 104.5-degree H-O-H angle and the requested O-H length;
+    the other families use their linear template with the same length.
+    """
+    if spec.get("geometry") == "water":
+        r = float(bond_distance)
+        theta = math.radians(104.5 / 2.0)
+        x = r * math.sin(theta)
+        y = r * math.cos(theta)
+        return f"O 0 0 0; H {x:.8f} {y:.8f} 0; H {-x:.8f} {y:.8f} 0"
+    atom = spec.get("atom")
+    if not atom:
+        raise ValueError(f"no geometry builder for {spec.get('name')!r}")
+    return str(atom).format(r=float(bond_distance))
 
 
 def _full_fci_and_casci(atom: str, ncas: int, nelecas: int) -> tuple[float, float]:
@@ -1003,7 +1027,7 @@ def run_nature_vqe(
     if not (0.3 <= float(bond_distance) <= 10.0):
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
     t0 = time.perf_counter()
-    atom = spec["atom"].format(r=float(bond_distance))
+    atom = _molecule_atom(spec, float(bond_distance))
     problem = PySCFDriver(atom=atom, basis="sto-3g", charge=0, spin=0).run()
     ncas = int(problem.num_spatial_orbitals)
     particles = problem.num_particles
@@ -1435,8 +1459,8 @@ def run_pes(
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing PES"}
     mol = (molecule or "").upper()
-    if mol not in ("H2", "LIH", "BEH2"):
-        return {"success": False, "error": f"PES supports H2, LiH, BeH2; refusing {molecule!r}"}
+    if mol not in ("H2", "LIH", "BEH2", "H2O"):
+        return {"success": False, "error": f"PES supports H2, LiH, BeH2, H2O; refusing {molecule!r}"}
     try:
         rmin, rmax, n = float(r_min), float(r_max), int(steps)
     except (TypeError, ValueError):

@@ -10,9 +10,18 @@
     "success": { "type": "boolean" },
     "kind": {
       "type": "string",
-      "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop"]
+      "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop", "spin_chain", "conjecture"]
     },
     "molecule": { "type": ["string", "null"] },
+    "model": { "type": "string" },
+    "n_sites": { "type": "integer", "minimum": 2, "maximum": 14 },
+    "coupling": { "type": "number" },
+    "field": { "type": "number" },
+    "periodic": { "type": "boolean" },
+    "gap": { "type": ["number", "null"] },
+    "below_exact": { "type": "boolean" },
+    "candidates": { "type": "array", "items": { "type": "object" } },
+    "candidate_count": { "type": "integer" },
     "bond_distance": { "type": ["number", "null"] },
     "method": { "type": "string" },
     "ansatz": { "type": "string" },

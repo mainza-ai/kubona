@@ -62,8 +62,12 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 		jobType = "vqe_pes"
 	case "qaoa":
 		jobType = "qaoa_run"
+	case "spin_chain":
+		jobType = "spin_chain"
+	case "conjecture":
+		jobType = "conjecture_run"
 	default:
-		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, or qaoa", nil)
+		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, qaoa, spin_chain, or conjecture", nil)
 		return
 	}
 	spec["kind"] = kind
@@ -290,7 +294,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 	if err := json.Unmarshal(source.ResultJSON, &res); err != nil ||
 		!res.Success || res.Kind != "vqe" || res.Hardware ||
 		(res.ActiveSpace.FullSpace) ||
-		(strings.ToUpper(res.Molecule) != "H2" && strings.ToUpper(res.Molecule) != "LIH" && strings.ToUpper(res.Molecule) != "BEH2") ||
+		(strings.ToUpper(res.Molecule) != "H2" && strings.ToUpper(res.Molecule) != "LIH" && strings.ToUpper(res.Molecule) != "BEH2" && strings.ToUpper(res.Molecule) != "H2O") ||
 		len(res.Theta) == 0 || len(res.PauliCoefficients) == 0 ||
 		strings.TrimSpace(res.AnsatzQASM) == "" {
 		return p, fmt.Errorf("source job carries no local VQE optimizer state and ansatz_qasm")

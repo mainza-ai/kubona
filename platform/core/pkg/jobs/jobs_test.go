@@ -1445,6 +1445,14 @@ func TestExperimentResultVersionGate(t *testing.T) {
 	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
 		t.Fatalf("versioned VQE result must pass: %v", err)
 	}
+	for _, jobType := range []string{"spin_chain", "conjecture_run"} {
+		if err := validateExperimentResultVersion(jobType, []byte(`{"success":true}`)); err == nil {
+			t.Fatalf("untyped %s result must be refused", jobType)
+		}
+		if err := validateExperimentResultVersion(jobType, []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
+			t.Fatalf("versioned %s result must pass: %v", jobType, err)
+		}
+	}
 }
 
 func TestLoadResultSigningKeyPrefersConfiguredKey(t *testing.T) {

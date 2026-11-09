@@ -186,9 +186,18 @@ export interface OptimizerPoint {
 export interface ExperimentResult {
   result_version: 'experiment-result-v1';
   success: boolean;
-  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop';
+  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'spin_chain' | 'conjecture';
   molecule?: string | null;
   bond_distance?: number | null;
+  model?: string;
+  n_sites?: number;
+  coupling?: number;
+  field?: number;
+  periodic?: boolean;
+  gap?: number | null;
+  below_exact?: boolean;
+  candidates?: Record<string, unknown>[];
+  candidate_count?: number;
   method?: string;
   ansatz?: string;
   backend?: string;

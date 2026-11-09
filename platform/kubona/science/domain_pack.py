@@ -152,7 +152,7 @@ class DomainPackLoader:
             "benchmark_systems": ["Hubbard_1D_4site", "Hubbard_2D_4site"],
             "hamiltonian_generator": "kubona.science.lattice.HubbardModel",
             "min_qubit_support": 4,
-            "capabilities": ["hubbard-lattice", "anchor-mps"],
+            "capabilities": ["hubbard-lattice", "anchor-exact-diagonalization", "spin-chain-vqe"],
             "evidence_requirements": {"min_shots": 1024, "collapse_mode": "corroborated",
                                        "fidelity_floor": 0.8},
             "entry_points": {},

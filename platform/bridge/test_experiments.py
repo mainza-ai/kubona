@@ -295,3 +295,18 @@ def test_nature_vqe_exposes_hardware_ansatz_and_terms():
     assert res["pauli_coefficients"]
     assert res["constant_energy"] != 0
     assert res["active_space"]["full_space"] is False
+
+
+def test_h2o_active_space_vqe_reports_casci_and_full_fci():
+    from experiments import run_vqe
+
+    res = run_vqe(molecule="H2O", bond_distance=0.96, shots=1024,
+                  max_iterations=6, layers=2)
+    assert res["success"] is True, res
+    assert res["molecule"] == "H2O"
+    assert res["qubit_count"] == 8
+    assert res["active_space"]["ncas"] == 4
+    assert res["active_space"]["nelecas"] == 4
+    assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
+    assert res["measured"] is True
+    assert res["claimable"] is False

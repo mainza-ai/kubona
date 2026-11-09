@@ -5036,3 +5036,44 @@ skipped is the exact failure this incident is about:
   poor full-FCI gap, labelled contested); QAOA returns optimized QASM for a
   hardware rail but remains simulator-measured; autoresearch surfaces the
   fail-closed sandbox reason.
+
+## [2026-11-09] verification | core scientific capability audit
+
+- Read the science code, bridge/Go experiment rail, domain packs, console
+  launcher, production audits, and wiki design pages. Finding: chemistry/QAOA
+  execution is real; physics simulation is declared but absent
+  (`kubona.science.lattice` missing); math discovery is a static catalog plus
+  a verifier; chemistry VQE is limited to H2/LiH/BeH2; the discovery campaign
+  still uses a toy harness rather than the real experiment rail.
+- Filed `docs/core-scientific-capabilities-2026-11-09.md` with a capability
+  matrix, SC-01..SC-11 gap register, S1–S5 implementation plan, and acceptance
+  criteria. Filed [[core-scientific-capability-gaps]].
+- Updated [[overview]], [[roadmap]] (P6 not complete), [[science-discovery]],
+  [[autonomous-mathematical-discovery]], [[mathematical-physics-anchors]], and
+  [[implementation-gaps]] with the correction.
+- Next: S1 physics engine (`spin_chain`) and S2 exact mathematical law
+  discovery, then chemistry breadth and the closed campaign.
+
+## [2026-11-09] implementation | spin-chain, exact conjectures, H2O
+
+- Added `platform/kubona/science/lattice.py`: exact 1D TFIM/Heisenberg/XXZ
+  Hamiltonians, gap/magnetization/correlation/entropy observables, Pauli export,
+  and a real 1D Fermi-Hubbard exact anchor. The materials pack generator now
+  resolves; the phantom test uses a genuinely missing module.
+- Added the bridge `spin_chain` runner: exact finite-size anchor, local VQE,
+  shot-sampled Pauli energy and magnetization on Aer, uncertainty, gap, and
+  honest claimability. Wired Go `spin_chain`, `/api/experiments`, settlement,
+  result-version gate, campaign fold, console launcher, and MeasuredOutputs.
+- Added `platform/kubona/science/conjecture.py`: exact rational polynomial and
+  affine-recurrence discovery with a train/holdout split, predictions,
+  falsifier, and finite-scope certificate. Wired `conjecture_run` through the
+  same Go/bridge job rail; it records a conjecture, never a theorem or claim.
+- Added H2O active-space VQE (ncas=4, nelecas=4) with live full-FCI and CASCI
+  references; H2O is accepted by PES and the console. Full-space H2O refuses
+  above the 12-qubit CPU cap.
+- Corrected domain-pack claims: chemistry no longer claims DMRG; materials no
+  longer claims MPS.
+- Tests: lattice 7, conjecture 5, domain packs 7, bridge spin/conjecture 5,
+  H2O bridge test, full Go suite; console tsc/eslint/tests.
+- Still open: S4 campaign over the real rail, S5 projections/browser E2E,
+  hardware spin-chain, excited-state/reaction chemistry.

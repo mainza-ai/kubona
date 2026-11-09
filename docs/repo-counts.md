@@ -7,14 +7,14 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 |---|---:|---|
 | HTTP routes (Go API) | 134 | s.route registrations in `platform/core/pkg/api/server.go` |
 | Go packages | 36 | directories under `platform/core` containing `.go` files |
-| Go test functions | 834 | top-level `func Test...` in `*_test.go` |
-| Python test files | 180 | `test_*.py` under `platform/tests` |
-| Console test files | 117 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
-| Console test cases | 596 | `it(` / `test(` declarations in console test files |
+| Go test functions | 836 | top-level `func Test...` in `*_test.go` |
+| Python test files | 182 | `test_*.py` under `platform/tests` |
+| Console test files | 118 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
+| Console test cases | 598 | `it(` / `test(` declarations in console test files |
 | Rust tests | 32 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |
-| Wiki pages | 155 | markdown files under `wiki/` |
+| Wiki pages | 156 | markdown files under `wiki/` |
 
 The console case count is a source-level count. Vitest is the runtime authority;
 when it differs, regenerate this file and note the runtime count in the change.

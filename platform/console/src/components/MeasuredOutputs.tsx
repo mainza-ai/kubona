@@ -53,6 +53,22 @@ function summarize(job: Job): string | null {
       const ratio = num(r.approximation_ratio);
       return `hardware QAOA cut ${cut.toFixed(4)}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · ${r.simulated_optimizer === false ? 'hardware-in-the-loop optimizer' : 'local optimizer'} · job ${short}`;
     }
+    case 'spin_chain': {
+      const e = num(r.energy);
+      const exact = num(r.energy_exact);
+      if (e === null || exact === null) return null;
+      const unc = num(r.uncertainty);
+      const gap = num(r.gap);
+      return `spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''}${gap !== null ? ` · gap ${gap.toFixed(4)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+    }
+    case 'conjecture_run': {
+      const count = num(r.candidate_count);
+      if (count === null) return null;
+      const candidates = Array.isArray(r.candidates) ? r.candidates : [];
+      const first = asRecord(candidates[0]);
+      const law = str(first.law);
+      return `math conjecture ${count} candidate(s)${law ? ` · ${law}` : ''} · finite-scope, not a theorem · job ${short}`;
+    }
     case 'qaoa_run': {
       const ratio = num(r.approximation_ratio);
       const cut = num(r.energy);

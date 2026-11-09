@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-29
+updated: 2026-11-09
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (155 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (156 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -72,7 +72,7 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (155 pages = 48 entities · 92 concepts · 10 sources · 5 meta), 2026-11-01:**
+**Census (156 pages = 48 entities · 93 concepts · 10 sources · 5 meta), 2026-11-09:**
 `settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 47 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
@@ -237,6 +237,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[epistemic-continuum-and-ontology]] | Synthesis of formal deduction (ρ=1.0) and empirical sampling (ρ<1.0), hypothesis tuples, stopping rules, negative certs |
 | [[early-fault-tolerant-quantum-and-subspace-methods]] | Post-NISQ quantum Krylov subspace diagonalization, classical shadows, neutral atoms, and bivariate bicycle qLDPC gross codes |
 | [[quantum-triage-engine]] | Mathematical triage routing via Family 278 Kohn-Sham representability failure and Family 275 continuum Coulomb QMA-hardness |
+| [[core-scientific-capability-gaps]] | 2026-11-09 code audit: chemistry/QAOA spine works; physics simulation, live math discovery, broader chemistry, and closed discovery campaign are missing |
 | [[autonomous-manuscript-synthesis-and-peer-review]] | Bilingual formal Lean 4 AST to modular arXiv LaTeX preprint synthesis and automated 5-dimensional adversarial peer review |
 | [[scientific-agentic-experience-triad]] | The AX triad: User ↔ Agent, Agent ↔ Agent tribunal protocol, Agent ↔ Interface (A2UI), and 9 cognitive observatory surfaces |
 | [[evaluator-guided-circuit-codesign]] | Evaluator-guided LLM circuit search: TaskSpec + KickmixEvaluator + TQScorer, families, MAP-Elites (`adopted`) |

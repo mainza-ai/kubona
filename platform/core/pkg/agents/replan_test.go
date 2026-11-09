@@ -646,3 +646,37 @@ func TestReplanPesHonorsExplicitUnclaimablePoint(t *testing.T) {
 		t.Fatal("claimable:false must not become chemical accuracy from delta alone")
 	}
 }
+
+func TestReplanSpinChainFoldsMeasuredEnergyWithoutChemicalClaim(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-spin-1", "spin_chain",
+		[]byte(`{"success":true,"kind":"spin_chain","model":"tfim","n_sites":4,"energy":-3.2,"energy_exact":-3.21,"uncertainty":0.004,"gap":0.8,"claimable":false,"backend":"qiskit-aer-simulator"}`), "")
+	if !changed {
+		t.Fatalf("spin-chain measurement must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Trajectory[len(after.Trajectory)-1]
+	if last.Watchdog != "measured_spin_chain" || last.Energy != -3.2 {
+		t.Errorf("spin-chain trajectory wrong: %+v", last)
+	}
+	if after.Notebook == nil || !strings.Contains(after.Notebook.Sections[len(after.Notebook.Sections)-1], "spin_chain") {
+		t.Error("spin-chain result must be recorded in the notebook")
+	}
+}
+
+func TestReplanConjectureRecordsCandidatesWithoutClaim(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-conj-1", "conjecture_run",
+		[]byte(`{"success":true,"kind":"conjecture","candidate_count":1,"status":"conjecture","candidates":[{"law":"a(n) = a(n-1) + a(n-2)","status":"conjecture"}]}`), "")
+	if !changed {
+		t.Fatalf("conjecture must be recorded: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "conjecture") || !strings.Contains(last, "not a theorem") {
+		t.Errorf("conjecture note must keep its epistemic limit: %q", last)
+	}
+	if after.Epistemics != nil && after.Epistemics.Status == "COLLAPSED_VERIFIED" {
+		t.Error("a finite conjecture must never collapse to verified")
+	}
+}

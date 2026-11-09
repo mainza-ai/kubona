@@ -638,6 +638,83 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			len(points), minPoint.Energy, minPoint.BondDistance, best.BondDistance, best.DeltaMHa, citeSuffix(cite))
 		return marshalReplan(&state, true, "VQE PES folded into trajectory")
 
+	case "spin_chain":
+		if !successTrue() {
+			return nil, false, "spin-chain experiment reported success=false"
+		}
+		var energy, exact, uncertainty, delta, gap float64
+		var nSites int
+		var model, backend, resultVersion string
+		var claimable bool
+		for key, dst := range map[string]*float64{
+			"energy": &energy, "energy_exact": &exact, "uncertainty": &uncertainty,
+			"delta": &delta, "gap": &gap,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*string{
+			"model": &model, "backend": &backend, "result_version": &resultVersion,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("n_sites"); ok {
+			_ = json.Unmarshal(raw, &nSites)
+		}
+		if raw, ok := present("claimable"); ok {
+			_ = json.Unmarshal(raw, &claimable)
+		}
+		if energy == 0 || exact == 0 {
+			return nil, false, "spin-chain energy/anchor absent"
+		}
+		state.Trajectory = append(state.Trajectory, TrajectoryStep{
+			Step: len(state.Trajectory) + 1, Energy: energy,
+			Loss: math.Abs(energy - exact), GradNorm: 0,
+			Watchdog: "measured_spin_chain", Source: "measured",
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		})
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (spin_chain): %s n=%d measured E=%.6f vs exact %.6f (%.3g gap, uncertainty %.3g, claimable=%v, backend=%s).",
+			shortID, model, nSites, energy, exact, gap, uncertainty, claimable, backend))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "spin-chain measurement folded")
+
+	case "conjecture_run":
+		if !successTrue() {
+			return nil, false, "conjecture experiment reported success=false"
+		}
+		var count int
+		if raw, ok := present("candidate_count"); ok {
+			_ = json.Unmarshal(raw, &count)
+		}
+		rawCandidates, ok := present("candidates")
+		var laws []string
+		if ok {
+			var candidates []struct {
+				Law    string `json:"law"`
+				Status string `json:"status"`
+			}
+			if json.Unmarshal(rawCandidates, &candidates) == nil {
+				for _, c := range candidates {
+					if c.Law != "" {
+						laws = append(laws, c.Law+" ["+c.Status+"]")
+					}
+				}
+			}
+		}
+		nb := ensureNotebook(&state)
+		line := fmt.Sprintf("Job %s (conjecture): %d exact finite-scope candidate(s) verified on holdout; not a theorem and not a claim.", shortID, count)
+		if len(laws) > 0 {
+			line += " " + strings.Join(laws, "; ")
+		}
+		nb.Sections = append(nb.Sections, line)
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "conjecture candidates recorded")
+
 	case "qaoa_run", "qaoa_hardware":
 		if !successTrue() {
 			return nil, false, "QAOA reported success=false"

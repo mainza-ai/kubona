@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-30
+updated: 2026-11-09
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -180,6 +180,16 @@ ledger receipt, a cited anchor), never to an assertion.
   to be a clone of Kubona's own repository ([[source-frontier-repo-audit-2026]]). The clone folder is scratch and gets deleted; claims must
   resolve to a live URL + SHA + `path:line`. Own repos with no `LICENSE` are **not** on this list:
   insight mining needs no grant, and the only check is at release time.
+> ⚑ Science-capability audit (2026-11-09): the executable science spine is
+> chemistry/QAOA (H2/LiH/BeH2 VQE, PES, QAOA, PySCF anchors, Aer shots,
+> governed QPU runs). Physics is **not** implemented: the materials pack
+> references a missing `kubona.science.lattice`; mathematical discovery is a
+> static corpus catalog plus a Lean/Comparator utility, not a live discovery
+> engine. The ranked gaps and implementation order are in
+> [[core-scientific-capability-gaps]] and
+> `docs/core-scientific-capabilities-2026-11-09.md`. This is a correction to
+> any reading of the design pages below as current capability.
+
 ## Where the blueprint is unsettled
 
 The full ledger of undecided and under-understood items is [[questions]] — all
