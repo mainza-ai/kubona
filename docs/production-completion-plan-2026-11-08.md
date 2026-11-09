@@ -237,8 +237,8 @@ What is missing:
    Aer. A hardware QAOA needs a deliberate "optimise locally, execute final
    state on QPU" mode with explicit cost/approval and a counts-to-cut estimator.
 3. **Full-space chemical accuracy**. LiH now reaches 0.706 mHa measured
-   (0.213 mHa exact) with the UCCSD ADAPT pool; BeH2 remains above target in
-   the tested budget; it is not a small tolerance issue. A production answer needs a
+   (0.213 mHa exact) with the UCCSD ADAPT pool; BeH2 remains above target through a 60-operator test; it is not a small
+   tolerance issue. A production answer needs a
    tractable ansatz (ADAPT/qubit-ADAPT or a resource-bounded UCCSD) and a defined
    acceptance target. Until then, the UI must keep active-space and full-space
    claims separate and contested.
