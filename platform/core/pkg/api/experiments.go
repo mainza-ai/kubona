@@ -250,7 +250,7 @@ type hardwareVQEIntent struct {
 }
 
 // hardwareVQEParamsFromSource builds the one canonical parent spec from a
-// completed local H2 VQE job. It never executes anything.
+// completed local VQE job (H2, active-space LiH/BeH2). It never executes anything.
 func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.HardwareExperimentParams, error) {
 	var p jobs.HardwareExperimentParams
 	source, err := s.jobRunner.GetJob(req.SourceJobID)
@@ -279,7 +279,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		(strings.ToUpper(res.Molecule) != "H2" && strings.ToUpper(res.Molecule) != "LIH" && strings.ToUpper(res.Molecule) != "BEH2") ||
 		len(res.Theta) == 0 || len(res.PauliCoefficients) == 0 ||
 		strings.TrimSpace(res.AnsatzQASM) == "" {
-		return p, fmt.Errorf("source job carries no local H2 VQE optimizer state and ansatz_qasm")
+		return p, fmt.Errorf("source job carries no local VQE optimizer state and ansatz_qasm")
 	}
 	if req.Shots <= 0 {
 		req.Shots = 1024
@@ -312,7 +312,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 }
 
 // POST /api/experiments/vqe/hardware/prepare — return the canonical parent
-// mandate binding for a local H2 VQE source. No spend, no job, no dispatch.
+// mandate binding for a local active-space/H2 VQE source. No spend, no job, no dispatch.
 func (s *Server) handlePrepareHardwareVQE(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		WriteAPIError(w, "method_not_allowed", "POST required to prepare hardware VQE", nil)
@@ -347,7 +347,7 @@ func (s *Server) handlePrepareHardwareVQE(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// POST /api/experiments/vqe/hardware — execute a locally optimized H2 VQE
+// POST /api/experiments/vqe/hardware — execute a locally optimized active-space/H2 VQE
 // ansatz on a real QPU as one parent batch. The source local job supplies the
 // optimizer state and ansatz QASM; the Go parent owns the experiment mandate,
 // reservation, vendor batch, settlement, and claim evidence.
