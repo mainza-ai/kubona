@@ -239,9 +239,9 @@ The current bridge can run:
 What is missing:
 1. **Hardware VQE**. A correct hardware loop needs per-iteration circuits,
    observable grouping, shots, layout/calibration, budget admission, vendor
-   status polling, cancellation, and settlement. The current `run_vqe` never
-   selects a provider. The QPU rail can run arbitrary QASM jobs, but there is no
-   optimiser that submits the sequence and folds the measured energy.
+   status polling, cancellation, and settlement. The current path optimizes
+   locally and measures the final active-space/H2 ansatz on one QPU batch; it is
+   explicitly `simulated_optimizer` and is not an iterative hardware loop.
 2. **Hardware QAOA**. `run_qaoa` returns `circuit_qasm` but always measures on
    Aer. A hardware QAOA needs a deliberate "optimise locally, execute final
    state on QPU" mode with explicit cost/approval and a counts-to-cut estimator.

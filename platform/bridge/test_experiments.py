@@ -144,3 +144,40 @@ def test_pes_supports_active_space_lih_and_reports_each_point():
         assert point["uncertainty"] > 0
         assert point["fci_exact_energy"] != 0
         assert point["method"].startswith("VQE UCCSD")
+
+
+def test_hardware_vqe_can_measure_a_nature_ansatz_qasm(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"00": 512} for _ in qasm_list], "backend": "ibm-test",
+                "hardware_job_id": "hw-nature", "usage_seconds": 2.0, "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];"
+    res = experiments.run_vqe_hardware(
+        theta=[], pauli_coefficients={"II": -1.0, "ZZ": 0.25},
+        molecule="LiH", ansatz_qasm=qasm, constant_energy=-7.0,
+        shots=512, seed=7, bond_distance=1.5, fci_exact_energy=-7.0,
+        backend="ibm-test",
+    )
+    assert res["success"] is True
+    assert res["molecule"] == "LiH"
+    assert res["constant_energy"] == -7.0
+    assert res["energy"] == pytest.approx(-7.0 + (-1.0 + 0.25))
+    assert len(calls) == 1
+
+
+def test_nature_vqe_exposes_hardware_ansatz_and_terms():
+    from experiments import run_vqe
+
+    res = run_vqe(molecule="LiH", bond_distance=1.5, layers=1, shots=128,
+                  seed=7, max_iterations=1, full_space=False)
+    assert res["success"] is True
+    assert res["ansatz_qasm"].startswith("OPENQASM")
+    assert res["pauli_coefficients"]
+    assert res["constant_energy"] != 0
+    assert res["active_space"]["full_space"] is False
