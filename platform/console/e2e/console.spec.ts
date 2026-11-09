@@ -216,7 +216,7 @@ test.describe('Kubona console against the real local stack', () => {
     await page.getByRole('button', { name: 'Approve current workflow' }).click();
     await expect(page.getByLabel('Workflow approval token')).toHaveValue(/.+/);
     await page.getByRole('button', { name: 'Run workflow…' }).click();
-    const dialog = page.getByRole('dialog');
+    const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();
     await dialog.getByRole('textbox').fill(workflow.name);
     await dialog.getByRole('button', { name: 'Run workflow' }).click();

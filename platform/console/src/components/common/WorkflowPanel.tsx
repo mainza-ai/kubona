@@ -98,8 +98,8 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
         <p className="text-[12px] text-slate-500">Plan validates against the tool registry. Running executes tools and reserves the declared budget — confirm with the workflow name.</p>
       </div>
       <textarea aria-label="Workflow JSON" value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} spellCheck={false} className="w-full rounded-lg bg-black/60 border border-white/10 px-2 py-1 text-[12px] font-mono text-slate-200" />
-      <label className="block text-[12px] text-slate-400">Approval token (agent-created / approval-required workflows)
-        <input aria-label="Workflow approval token" type="password" value={approvalToken} onChange={(e) => setApprovalToken(e.target.value)} className="mt-1 w-full rounded-lg bg-black/60 border border-white/10 px-2 py-1 text-[12px] font-mono text-slate-200" />
+      <label className="block text-[12px] text-[var(--color-muted)]">Approval token (agent-created / approval-required workflows)
+        <input aria-label="Workflow approval token" type="password" value={approvalToken} onChange={(e) => setApprovalToken(e.target.value)} className="mt-1 w-full rounded-lg bg-[var(--color-page)] border border-[var(--color-border)] px-2 py-1 text-[12px] font-mono text-[var(--color-text)]" />
       </label>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" onClick={() => void onPlan()} disabled={busy !== null} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">
