@@ -201,6 +201,28 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByText(/dry_run true · steps 1/)).toBeVisible();
   });
 
+  test('agent workflow requires approval and runs through the Go rail', async ({ page }) => {
+    await ensureOperatorLoggedIn(page);
+    await page.getByTestId('dock-mesh').click();
+    await page.getByRole('button', { name: 'Guardrails' }).click();
+    await expect(page.getByText('Workflow planner / runner')).toBeVisible();
+    const workflow = {
+      name: 'e2e-agent-workflow',
+      created_by_agent: true,
+      budget_ceiling_usd: 0,
+      steps: [{ id: 's1', tool: 'execution/list_provider_registry', args: {} }],
+    };
+    await page.getByLabel('Workflow JSON').fill(JSON.stringify(workflow, null, 2));
+    await page.getByRole('button', { name: 'Approve current workflow' }).click();
+    await expect(page.getByLabel('Workflow approval token')).toHaveValue(/.+/);
+    await page.getByRole('button', { name: 'Run workflow…' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('textbox').fill(workflow.name);
+    await dialog.getByRole('button', { name: 'Run workflow' }).click();
+    await expect(page.getByText(/workflow .* completed 1/)).toBeVisible();
+  });
+
   test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');

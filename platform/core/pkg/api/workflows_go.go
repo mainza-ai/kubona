@@ -34,13 +34,15 @@ func (s *Server) runGoMixedWorkflow(w http.ResponseWriter, r *http.Request,
 			Args map[string]any `json:"args"`
 		} `json:"on_failure"`
 	}
-	if err := json.Unmarshal(req.Workflow, &wf); err != nil || len(wf.Steps) == 0 || wf.CreatedByAgent {
+	if err := json.Unmarshal(req.Workflow, &wf); err != nil || len(wf.Steps) == 0 {
 		return false
 	}
+	needsApproval := wf.CreatedByAgent
 	for _, step := range wf.Steps {
-		if step.RequiresApproval {
+		if step.ID == "" || step.Tool == "" {
 			return false
 		}
+		needsApproval = needsApproval || step.RequiresApproval
 	}
 	for _, step := range wf.OnFailure {
 		if step.ID == "" || step.Tool == "" {
@@ -63,6 +65,35 @@ func (s *Server) runGoMixedWorkflow(w http.ResponseWriter, r *http.Request,
 		_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, "session disappeared")
 		WriteAPIError(w, "not_found", "session disappeared before workflow execution", nil)
 		return true
+	}
+	workflowHash := workflowSHA256(req.Workflow)
+	if needsApproval {
+		payload, aerr := s.verifyWorkflowApproval(req.ApprovalToken, sessID, workflowHash)
+		if aerr != nil {
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, aerr.Error())
+			WriteAPIError(w, "approval_required", aerr.Error(), map[string]any{
+				"workflow_sha256": workflowHash,
+				"remediation":     "POST /api/workflows/approve with the exact workflow, then pass approval_token to /api/workflows/run",
+			})
+			return true
+		}
+		used, uerr := s.ledger.ConsumeWorkflowApproval(
+			workflowSHA256([]byte(req.ApprovalToken)), sessID, workflowHash, time.Now().UTC())
+		if uerr != nil || !used {
+			msg := "workflow approval could not be consumed"
+			if uerr != nil {
+				msg += ": " + uerr.Error()
+			} else {
+				msg += ": token is unknown, expired, already used, or bound to another workflow"
+			}
+			_ = s.ledger.FinishWorkflowRun(workflowID, "failed", 0, msg)
+			WriteAPIError(w, "approval_required", msg, nil)
+			return true
+		}
+		s.ledger.AppendEvent(sessID, "workflow_approval_consumed", map[string]any{
+			"workflow_id": workflowID, "workflow_sha256": workflowHash,
+			"approved_by": payload.ApprovedBy, "approval_hash": workflowSHA256([]byte(req.ApprovalToken)),
+		})
 	}
 	ctxValues := map[string]any{"session_id": sessID, "input": req.Inputs, "prev": map[string]any{}}
 	results := map[string]any{}

@@ -450,3 +450,52 @@ func TestWorkflowCrossTenantAuthorization(t *testing.T) {
 		t.Fatalf("expected 403 on cross-tenant run, got %d (%s)", rec2.Code, rec2.Body.String())
 	}
 }
+
+func TestAgentWorkflowRequiresSingleUseApprovalAndRunsInGo(t *testing.T) {
+	fb := &fakeWorkflowBridge{}
+	srv, sm, _, cleanup := setupWorkflowServer(t, fb)
+	defer cleanup()
+	h := srv.Handler()
+	sess, err := sm.CreateSession("Approval workflow", 5.0, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := map[string]any{
+		"name": "agent-created", "created_by_agent": true,
+		"steps": []any{map[string]any{
+			"id": "s1", "tool": "compiler/transpile_circuit",
+			"args": map[string]any{"qasm": "OPENQASM 2.0;"},
+		}},
+	}
+	status, resp := postWorkflow(t, h, "/api/workflows/run", true, map[string]any{
+		"session_id": sess.ID, "workflow": workflow,
+	})
+	if status != http.StatusBadRequest {
+		t.Fatalf("unapproved agent workflow must refuse: %d %v", status, resp)
+	}
+
+	status, approved := postWorkflow(t, h, "/api/workflows/approve", true, map[string]any{
+		"session_id": sess.ID, "workflow": workflow, "ttl_seconds": 300,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("approve: %d %v", status, approved)
+	}
+	token, _ := approved["approval_token"].(string)
+	if token == "" {
+		t.Fatal("approval token missing")
+	}
+
+	status, resp = postWorkflow(t, h, "/api/workflows/run", true, map[string]any{
+		"session_id": sess.ID, "workflow": workflow, "approval_token": token,
+	})
+	if status != http.StatusOK || resp["engine"] != "go-mixed" {
+		t.Fatalf("approved agent workflow: %d %v", status, resp)
+	}
+	// Replaying the same approval must not authorize a second spend.
+	status, resp = postWorkflow(t, h, "/api/workflows/run", true, map[string]any{
+		"session_id": sess.ID, "workflow": workflow, "approval_token": token,
+	})
+	if status != http.StatusBadRequest || resp["code"] != "approval_required" {
+		t.Fatalf("approval replay must refuse: %d %v", status, resp)
+	}
+}

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/alerts"
 )
 
 // Edge auth (B0-2): the trust boundary in front of spend-authority
@@ -164,10 +168,13 @@ func rateFromEnv(key string, defRate float64, defBurst int) (float64, int) {
 }
 
 type rateLimiter struct {
-	mu      sync.Mutex
-	rate    float64 // tokens per second
-	burst   int
-	buckets map[string]*tokenBucket
+	mu        sync.Mutex
+	rate      float64 // tokens per second
+	burst     int
+	name      string
+	buckets   map[string]*tokenBucket
+	alertMu   sync.Mutex
+	lastAlert time.Time
 }
 
 // maxRateBuckets caps per-limiter memory.
@@ -182,8 +189,44 @@ func newRateLimiter(rate float64, burst int) *rateLimiter {
 	return &rateLimiter{rate: rate, burst: burst, buckets: map[string]*tokenBucket{}}
 }
 
-// allow reports whether key may proceed, consuming one token.
+func newNamedRateLimiter(name string, rate float64, burst int) *rateLimiter {
+	l := newRateLimiter(rate, burst)
+	l.name = name
+	return l
+}
+
+func namedRateFromEnv(name, key string, defRate float64, defBurst int) *rateLimiter {
+	rate, burst := rateFromEnv(key, defRate, defBurst)
+	return newNamedRateLimiter(name, rate, burst)
+}
+
+// allow reports whether key may proceed, consuming one token. A refusal
+// emits one operator alert per minute per limiter; the alert is best-effort
+// and never changes the admission decision.
 func (l *rateLimiter) allow(key string) bool {
+	allowed := l.allowLocked(key)
+	if !allowed {
+		l.notifyLimit(key)
+	}
+	return allowed
+}
+
+func (l *rateLimiter) notifyLimit(key string) {
+	l.alertMu.Lock()
+	if time.Since(l.lastAlert) < time.Minute {
+		l.alertMu.Unlock()
+		return
+	}
+	l.lastAlert = time.Now()
+	l.alertMu.Unlock()
+	name := l.name
+	if name == "" {
+		name = "edge"
+	}
+	go alerts.Notify(context.Background(), "rate_limit", "warning", fmt.Sprintf("limiter=%s key=%s", name, key))
+}
+
+func (l *rateLimiter) allowLocked(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

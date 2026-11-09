@@ -22,10 +22,11 @@ type WorkflowPlanPayload struct {
 
 // WorkflowRunPayload is the request payload for POST /api/workflows/run.
 type WorkflowRunPayload struct {
-	SessionID string                 `json:"session_id"`
-	Workflow  json.RawMessage        `json:"workflow"`
-	Inputs    map[string]interface{} `json:"inputs,omitempty"`
-	Force     bool                   `json:"force,omitempty"`
+	SessionID     string                 `json:"session_id"`
+	Workflow      json.RawMessage        `json:"workflow"`
+	Inputs        map[string]interface{} `json:"inputs,omitempty"`
+	Force         bool                   `json:"force,omitempty"`
+	ApprovalToken string                 `json:"approval_token,omitempty"`
 }
 
 // POST /api/workflows/plan — planning/dry-run validation without execution.

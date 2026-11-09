@@ -143,6 +143,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/quantum/canary", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "TTL-cached liveness probe; fails soft to catalog values; read-only."},
 	{Pattern: "/api/workflows/plan", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/workflows/run", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/workflows/approve", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/vault/leases", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/vault/leases/revoke", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/a2a/v1", Methods: "POST", Class: RouteAuthA2A, Rationale: "Inter-agent delegation + x402 authorization; operator token via Bearer or X-Kubona-A2A-Token (Authorization header carries payment proof)."},
