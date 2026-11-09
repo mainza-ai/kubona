@@ -910,6 +910,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     "backend": backend,
                     "provider": "ibm-qiskit",
                     "snapshot": snapshot,
+                    "queue": provider.queue_snapshot(),
                 }
             elif kind == "krylov":
                 from krylov import solve_quantum_krylov

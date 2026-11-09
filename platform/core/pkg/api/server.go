@@ -72,6 +72,8 @@ type Server struct {
 	llmClient          *llm.Client
 	quantumSettings    *QuantumSettings
 	quantumCanaryCache *canaryCache
+	providerQueueMu    sync.RWMutex
+	providerQueue      map[string]providerQueueSnapshot
 	toolRegistry       *tools.Registry
 	memoryStore        *memory.HindsightStore
 	metaSearchEngine   *metasearch.MetaSearchEngine
@@ -345,6 +347,7 @@ func NewServer(
 		llmClient:             llmCli,
 		quantumSettings:       mustLoadQuantumSettings(l.DB()),
 		quantumCanaryCache:    newCanaryCache(),
+		providerQueue:         make(map[string]providerQueueSnapshot),
 		metaSearchEngine:      metaEngine,
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
@@ -1197,6 +1200,10 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			"queue_depth":           nil,
 			"local_queue_depth":     s.jobRunner.ActiveJobCount(),
 			"queue_scope":           "local_go_book",
+			"queue_eta_s":           nil,
+			"queue_eta_reason":      nil,
+			"queue_source":          nil,
+			"queue_fetched_at":      nil,
 			"cost_per_shot":         nil,
 			"jurisdiction":          "",
 			"itar_ear":              "",
@@ -1207,6 +1214,13 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			"calibration_fresh":     nil,
 			"fidelity_source":       nil,
 			"fidelity_version":      nil,
+		}
+		if q, ok := s.providerQueueFor(qb.Provider); ok {
+			row["queue_depth"] = q.PendingJobs
+			row["queue_eta_s"] = q.ETASeconds
+			row["queue_eta_reason"] = q.ETAReason
+			row["queue_source"] = q.Source
+			row["queue_fetched_at"] = q.FetchedAt
 		}
 		// Calibration provenance is measured from the same contract the
 		// fidelity gate uses. It is only meaningful for a resolved device.
@@ -1299,10 +1313,16 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 			Version        string  `json:"version"`
 			CalibratedAt   string  `json:"calibrated_at"`
 		} `json:"snapshot"`
+		Queue *providerQueueSnapshot `json:"queue"`
 	}
 	if err := json.Unmarshal([]byte(resp.ResultJson), &out); err != nil {
 		WriteAPIError(w, "bridge_unavailable", "calibration snapshot is not decodable", nil)
 		return
+	}
+	if out.Queue != nil && out.Queue.Backend != "" {
+		q := *out.Queue
+		q.FetchedAt = time.Now().UTC()
+		s.setProviderQueue("ibm-qiskit", backend, q)
 	}
 	device, err := fidelity.ResolveDeviceForBackend(backend)
 	if err != nil {
@@ -1322,8 +1342,39 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"backend": backend, "device": device, "profile": profile,
-		"source": "live-backend-properties",
+		"queue": out.Queue, "source": "live-backend-properties",
 	})
+}
+
+type providerQueueSnapshot struct {
+	Backend     string    `json:"backend"`
+	PendingJobs int       `json:"pending_jobs"`
+	Operational bool      `json:"operational"`
+	Status      string    `json:"status"`
+	ETASeconds  *float64  `json:"eta_seconds"`
+	ETAReason   string    `json:"eta_reason"`
+	Source      string    `json:"source"`
+	FetchedAt   time.Time `json:"fetched_at"`
+}
+
+func (s *Server) setProviderQueue(provider, backend string, q providerQueueSnapshot) {
+	if s.providerQueue == nil {
+		return
+	}
+	s.providerQueueMu.Lock()
+	defer s.providerQueueMu.Unlock()
+	s.providerQueue[strings.ToLower(provider)] = q
+	s.providerQueue[strings.ToLower(backend)] = q
+}
+
+func (s *Server) providerQueueFor(provider string) (providerQueueSnapshot, bool) {
+	if s.providerQueue == nil {
+		return providerQueueSnapshot{}, false
+	}
+	s.providerQueueMu.RLock()
+	defer s.providerQueueMu.RUnlock()
+	q, ok := s.providerQueue[strings.ToLower(provider)]
+	return q, ok
 }
 
 // StartCalibrationRefresh runs an opt-in periodic live calibration read.
@@ -1380,9 +1431,15 @@ func (s *Server) refreshCalibrationProfile(ctx context.Context, backend string) 
 			Version        string  `json:"version"`
 			CalibratedAt   string  `json:"calibrated_at"`
 		} `json:"snapshot"`
+		Queue *providerQueueSnapshot `json:"queue"`
 	}
 	if err := json.Unmarshal([]byte(resp.ResultJson), &out); err != nil {
 		return fmt.Errorf("snapshot decode: %w", err)
+	}
+	if out.Queue != nil && out.Queue.Backend != "" {
+		q := *out.Queue
+		q.FetchedAt = time.Now().UTC()
+		s.setProviderQueue("ibm-qiskit", backend, q)
 	}
 	device, err := fidelity.ResolveDeviceForBackend(backend)
 	if err != nil {

@@ -884,6 +884,21 @@ export async function fetchFleet(): Promise<Record<string, unknown>> {
   }
 }
 
+export async function refreshCalibration(backend: string): Promise<{ ok: boolean; queue?: Record<string, unknown>; error?: string }> {
+  try {
+    const res = await apiFetch('/api/fleet/calibration/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend }),
+    });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, error: String(body.message || body.error || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, queue: (body.queue as Record<string, unknown>) || undefined };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
 export async function fetchRadar(): Promise<Record<string, unknown>> {
   try {
     return (await requestOperation('fetchRadar')) as Record<string, unknown>;
