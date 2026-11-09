@@ -327,6 +327,58 @@ export async function runExperiment(
   }
 }
 
+export interface DiscoveryPlanStep {
+  kind: string;
+  spec: Record<string, unknown>;
+}
+
+export interface DiscoveryPlan {
+  ok: boolean;
+  goal: string;
+  planned_by: string;
+  steps: DiscoveryPlanStep[];
+}
+
+export interface DiscoveryProtocolResult {
+  ok: boolean;
+  protocol_id: string;
+  goal: string;
+  planned_by: string;
+  steps_requested: number;
+  steps_completed: number;
+  steps_failed: number;
+  measured_results: number;
+  claimable_results: number;
+  stopped_on_failure: boolean;
+  results: Array<{ job_id?: string; kind: string; status: string; result?: Record<string, unknown>; error?: string }>;
+}
+
+export async function planDiscovery(goal: string): Promise<DiscoveryPlan> {
+  const res = await apiFetch(`${API_BASE}/api/discovery/plan`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ goal }),
+  });
+  if (!res.ok) throw new Error((await res.text()).trim() || `plan refused (HTTP ${res.status})`);
+  return (await res.json()) as DiscoveryPlan;
+}
+
+export async function runDiscoveryProtocol(
+  sessionId: string,
+  goal: string,
+  requestId: string,
+): Promise<DiscoveryProtocolResult> {
+  const res = await apiFetch(`${API_BASE}/api/discovery/run`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, goal, request_id: requestId, step_timeout_s: 120 }),
+  });
+  if (!res.ok) throw new Error((await res.text()).trim() || `protocol refused (HTTP ${res.status})`);
+  return (await res.json()) as DiscoveryProtocolResult;
+}
+
 export async function fetchAccess(): Promise<AccessState | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/access`, { cache: 'no-store', headers: authHeaders() });
