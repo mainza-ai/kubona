@@ -891,6 +891,23 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     full_space=bool(spec.get("full_space", False)),
                     full_space_pool=str(spec.get("full_space_pool") or "uccsd"),
                 )
+            elif kind == "krylov":
+                from krylov import solve_quantum_krylov
+                result = solve_quantum_krylov(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    bond_distance=float(spec.get("bond_distance", 0.7414)),
+                    subspace_dim=int(spec.get("subspace_dimension", 4)),
+                    time_step=float(spec.get("time_step", 0.2)),
+                    shots=int(spec.get("shots", 1024)),
+                )
+            elif kind == "mitigate":
+                from mitigation import mitigate_circuit
+                result = mitigate_circuit(
+                    qasm=str(spec.get("qasm") or ""),
+                    method=str(spec.get("method") or "ZNE"),
+                    scale_factors=spec.get("scale_factors") or [1.0, 1.5, 2.0],
+                    shots=int(spec.get("shots", 1024)),
+                )
             elif kind == "qaoa":
                 from experiments import run_qaoa
                 result = run_qaoa(
