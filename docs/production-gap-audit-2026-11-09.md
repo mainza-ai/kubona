@@ -50,9 +50,9 @@ surface. The remaining blockers are functional, not cosmetic:
    calibration age, local Go queue depth, and a boot/hourly stale/resumed
    alert is sealed. Authenticated `POST /api/fleet/calibration/refresh` reads
    a live IBM backend snapshot and installs it into the in-process fidelity
-   gate. There is still no scheduled provider refresh worker, vendor queue
-   position/ETA, or UI refresh button; QPU dispatch can go stale until the
-   operator refreshes.
+   gate (in-process only; a restart reloads the reviewed contract). There is
+   still no scheduled provider refresh worker, vendor queue position/ETA, or
+   UI refresh button; QPU dispatch can go stale until the operator refreshes.
 6. **Result truth is split across contracts.** Job JSON, campaign `measurement`,
    PES `points`, notebook text, and UI projections are not one typed
    `ExperimentResult`. `result_version` exists on new results, but there is no
