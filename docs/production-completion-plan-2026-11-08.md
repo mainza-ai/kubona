@@ -1,18 +1,22 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
-**Date:** 2026-11-08  
-**Current code head:** `f1b7f1f` (code `624564c` + test/build fixes)  
+**Date:** 2026-11-08 (execution continued 2026-11-09)  
+**Current code head:** `956deab` (2026-11-09 CEO/hardware-loop/mitigation/
+result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
 
 > **2026-11-09 correction and re-audit:** the verified gap register and updated
 > plan are in
 > [`production-gap-audit-2026-11-09.md`](production-gap-audit-2026-11-09.md).
-> Several rows below were stale: launch shots/seed, direct Krylov/mitigation
-> ledger binding, and claim review decisions are now implemented; PES now
-> covers active-space LiH/BeH2. The remaining P0s are hardware-loop science,
-> integrated mitigation, BeH2/CEO accuracy, gVisor host availability,
-> calibration/queue operations, typed result truth, and manual accessibility.
+> Several rows below are stale: launch shots/seed, direct Krylov/mitigation
+> ledger binding, and claim review decisions are now implemented; PES covers
+> active-space LiH/BeH2. CEO-ADAPT now reaches LiH/BeH2 targets after the
+> spin-block fix; hardware loops and molecular ZNE are implemented; gVisor
+> was proven on a Linux VM; result-version enforcement is in place. Remaining
+> P0s are live QPU loop/mitigation acceptance, calibration/vendor-queue
+> operations, full campaign/UI type adoption plus a signed receipt, browser
+> breadth, manual accessibility, and the forensic host ledger.
 
 ## 0. Execution log (2026-11-08)
 
@@ -158,6 +162,18 @@ feature limitations in the UI and contract.
 - The local open mode is anonymous *for local chat/campaign creation only*; it
   never authorizes cloud spend, QPU dispatch, settings, or mandates.
 
+## 2.1 Execution log (2026-11-09)
+
+- `3252180` — corrected CEO block-spin pool; LiH/BeH2 reach the 1.6 mHa gate;
+  added governed hardware VQE/QAOA loops and molecular ZNE; versioned result
+  gate/schema; local queue depth.
+- `4c4ea51` — claimable/CI95 PES evidence folded into campaign `PesPoint`;
+  live gVisor proof recorded (`docs/sandbox-live-2026-11-09.md`).
+- `956deab` — campaign/claim paths honor `claimable` and `measured`; mitigated
+  or exact-refused results cannot become "verified" from delta alone.
+- Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
+  CI/E2E green at `4c4ea51`; re-verify the later docs commit.
+
 ## 3. Evidence at the current revision
 
 | Evidence | Current state |
@@ -187,14 +203,14 @@ It does not upgrade the missing portfolio features.
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
 | PC-01 | **Approval workflows are Go-owned; job compensation remains partial.** Approval-required/agent-created workflows now require a signed single-use token and run through the Go mixed rail. No explicit inverse exists for job-step compensation. | A crash is surfaced as `repair_required`; job compensation is refused rather than faked. | `platform/core/pkg/api/workflow_approval.go`; `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go` |
-| PC-02 | **Hardware measurement is governed but not an iterative loop.** H2 and active-space LiH/BeH2 final ansatz QASM can be measured through one parent mandate/batch/settlement/claim; the optimizer is local and labeled `simulated_optimizer`. H2/QAOA hardware results are contested. | The product has a real governed hardware measurement path; the remaining gap is iterative hardware optimization and scientific accuracy, not dispatch. | `platform/core/pkg/jobs/hardware_experiment.go`; `platform/bridge/experiments.py` hardware runners; `platform/core/pkg/api/experiments.go`. |
-| PC-03 | **Full-space VQE is now implemented; BeH2 remains contested.** The old `EfficientSU2` smoke path was replaced by real ADAPT-VQE with explicit UCCSD/CEO pools. LiH reached 0.706 mHa measured / 0.213 mHa exact; BeH2 did not reach 1.6 mHa in the tested operator budget and stays resource-contested. | Full-molecule claims are gated by measured delta, shot uncertainty, and exact diagnostic; BeH2 must not be advertised as chemically accurate. | `platform/bridge/adapt.py`; `docs/full-space-chemistry-2026-11-08.md`. |
+| PC-02 | **Hardware iterative loops implemented; live acceptance pending.** H2/active-space LiH/BeH2 final QASM and QAOA remain governed; `loop:true` now makes every objective a QPU batch via bridge COBYLA loops, with parent aggregation and no `simulated_optimizer` label. Tests use a mock QPU batch; no live loop mandate has run. | The code path exists; the remaining gap is a live bounded loop run/settlement/claim. | `platform/bridge/experiments.py` `run_vqe_hardware_loop`/`run_qaoa_hardware_loop`; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/core/pkg/api/experiments.go`. |
+| PC-03 | **Full-space CEO now reaches LiH/BeH2 targets.** The old CEO measurement was invalid due to an interleaved-spin assumption; the corrected block-spin pool reaches LiH 0.0399 mHa exact / 0.4499 mHa measured and BeH2 0.3933 mHa exact / 0.0146 mHa measured at 262144 shots. CEO is the default; UCCSD remains selectable. | Full-molecule claims remain gated by measured delta, shot uncertainty, and exact diagnostic. | `platform/bridge/adapt.py`; `docs/full-space-chemistry-2026-11-08.md`. |
 | PC-04 | **Closed 2026-11-09 verification.** `handleChatLaunch` accepts and persists shots and seed, including proposal-driven launches. | A launch records its sampling spec. | `platform/core/pkg/api/server.go` launch block; `launch_test.go` |
 | PC-05 | **Closed for Krylov/mitigation, including labels.** `runDirectComputeJob` creates a ledger-bound JSON experiment job and waits for terminal state; QIR compile remains stateless analysis, not a measured experiment. | Direct compute results have a job id, spend/ledger attribution, and the complete solver/mitigation receipt. | `platform/core/pkg/api/server.go` direct compute jobs; `platform/core/pkg/jobs/jobs.go` JSON cases |
-| PC-06 | **Autoresearch requires an explicit gVisor host profile.** The default remains fail-closed; `compose.sandbox.yml` now runs a narrow `sandboxd` broker (no Docker socket in kubonad) with `runsc`. Without `runsc` the API reports unavailable. | macOS Docker Desktop and hosts without gVisor do not have a functional hostile-code sandbox; use a Linux VM/host or keep autoresearch off. | `platform/core/pkg/sandbox/sidecar.go`; `platform/docker/compose.sandbox.yml`; `docs/local-deployment.md`. |
+| PC-06 | **Sandbox live on Linux VM; macOS native remains closed.** `sandboxd` + gVisor was proven on a Lima Ubuntu arm64 VM: health available, benchmark UID 1000, network blocked, read-only, cap-drop=ALL. macOS Docker Desktop still has no `runsc`; the API reports unavailable. | Use a Linux VM/host or keep autoresearch off; do not add a weaker macOS fallback. | `platform/core/pkg/sandbox/sidecar.go`; `platform/docker/compose.sandbox.yml`; `docs/sandbox-live-2026-11-09.md`. |
 | PC-07 | **Closed.** Append-only `claim_reviews` stores accepted/contested/reopened decisions with reviewer, reason, and evidence; the claim measurement remains immutable and the API/UI expose the history. | A researcher can review without mutating the measurement. | `platform/core/pkg/ledger/ledger.go` claim review methods; `ClaimHistory.tsx` |
 | PC-08 | **No versioned experiment-result contract.** Result truth is split among job JSON, campaign `measurement`/`pes_points`, notebook text, and UI prose. | Hardware metadata, counts, layout, calibration, usage, cost, per-point evidence, and CIs cannot be guaranteed across rails. | `platform/core/pkg/agents/campaign_synth.go:128-180`; bridge result shape; `ResultsStudio` projections |
-| PC-09 | **PES now covers active-space LiH/BeH2; mitigation remains separate.** `run_pes` delegates to `run_vqe` and supports full-space; ZNE/PEC are still a separate single-observable circuit route, not molecular-energy mitigation. | PES is usable; "measured, mitigated molecular result" is still not a product claim. | `platform/bridge/experiments.py:run_pes`; `platform/bridge/mitigation.py` |
+| PC-09 | **Molecular hardware ZNE implemented; PES opt-in absent.** `run_vqe_hardware(..., mitigation="ZNE")` uses exact unitary folding, per-term QPU measurement, and total-energy extrapolation with measured/inferred labels. PES still does not request mitigation per point. | Mitigated molecular VQE is implementable and tested with a mock batch; live mitigated QPU acceptance and PES opt-in remain. | `platform/bridge/experiments.py` `run_vqe_hardware`; `platform/bridge/mitigation.py` |
 | PC-10 | **Secrets/at-rest posture is not end-to-end.** `.env` is the supported secret store; the ledger is plaintext; Docker secrets/OpenBao are optional. | A lost host or backup exposes ledger/API material; "production local-private" must state and test this boundary. | `docs/local-deployment.md:250-260`; `docs/production-readiness-plan-2026-10-31.md` P1-3 |
 | PC-11 | **Recovery is implemented but not operationally closed.** Off-host backup/restore drills and migration rollback are not proven as a routine release gate. | A local production host needs a repeatable disaster-recovery proof, not only unit tests. | Backup profile; restore docs; current CI has backup smoke, not a full restore drill. |
 
@@ -202,7 +218,7 @@ It does not upgrade the missing portfolio features.
 
 | ID | Gap | Improvement |
 |---|---|---|
-| PC-12 | Result schema lacks a stable `result_version`, CI95, counts, backend layout, calibration, usage, cost, per-point evidence, and signed per-result receipt. | Define one typed `ExperimentResult` shared by bridge, Go, campaign, API, export, and UI. |
+| PC-12 | **Versioned schema exists; campaign/UI adoption and signed receipt remain.** `platform/contracts/experiment-result-v1.schema.json`, a TS `ExperimentResult`, and a Go job-boundary version gate exist. Campaign `measurement`/`PesPoint` carry CI95/claimable/provenance, but are still separate structs and the result has no signed receipt. | Move campaign/export/UI onto the shared type and mint the ledger-backed receipt. |
 | PC-13 | Result UI still lacks PES error bars/FCI curve in the chart, a full optimizer trajectory view, repeat-run variance, and direct claim/job links in every card. | Comparison/diagnostic surface; chart + table + JSON/CSV. |
 | PC-14 | Claim review is a request prompt, not a decision. | Add reviewer decision state (`accepted`, `contested`, `reopened`) as an append-only review record; never mutate the measurement. |
 | PC-15 | Non-executable providers are visible in the settings vocabulary. | Hide or clearly gate `planned`/`not integrated` providers; make `executable_now` the primary action state. |
