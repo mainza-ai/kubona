@@ -670,12 +670,10 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if energy == 0 || exact == 0 {
 			return nil, false, "spin-chain energy/anchor absent"
 		}
-		state.Trajectory = append(state.Trajectory, TrajectoryStep{
-			Step: len(state.Trajectory) + 1, Energy: energy,
-			Loss: math.Abs(energy - exact), GradNorm: 0,
-			Watchdog: "measured_spin_chain", Source: "measured",
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
-		})
+		// Do not append this to the chemistry Trajectory: FlightRecorder and
+		// the workbench chart label trajectory energy as VQE, and a spin-chain
+		// energy in coupling units is not a molecular energy. The notebook
+		// record is the correct projection until ResultV1 variants reach the UI.
 		nb := ensureNotebook(&state)
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (spin_chain): %s n=%d measured E=%.6f vs exact %.6f (%.3g gap, uncertainty %.3g, claimable=%v, backend=%s).",

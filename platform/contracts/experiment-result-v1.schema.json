@@ -20,6 +20,8 @@
     "periodic": { "type": "boolean" },
     "gap": { "type": ["number", "null"] },
     "below_exact": { "type": "boolean" },
+    "ground_state_reached": { "type": "boolean" },
+    "observable_state": { "type": "string" },
     "candidates": { "type": "array", "items": { "type": "object" } },
     "candidate_count": { "type": "integer" },
     "bond_distance": { "type": ["number", "null"] },

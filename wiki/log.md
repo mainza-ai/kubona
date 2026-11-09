@@ -5075,5 +5075,11 @@ skipped is the exact failure this incident is about:
   longer claims MPS.
 - Tests: lattice 7, conjecture 5, domain packs 7, bridge spin/conjecture 5,
   H2O bridge test, full Go suite; console tsc/eslint/tests.
+- Live local check: 6-site critical TFIM exact `-7.7274066103`, shot-measured
+  `-5.9992` (delta `1.728`, uncertainty `0.0173`), `claimable:false`,
+  `ground_state_reached:false`; the result labels the measured magnetization as
+  the optimized VQE state, not the ground state. Fibonacci law discovered with
+  predictions `55,89`; squares discover `n^2`; unpredictable input yields no
+  candidate.
 - Still open: S4 campaign over the real rail, S5 projections/browser E2E,
   hardware spin-chain, excited-state/reaction chemistry.

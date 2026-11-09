@@ -75,7 +75,10 @@ S1 and S2 are implemented in the tree; S3 is partially implemented:
   pack resolves.
 - A shot-measured `spin_chain` bridge/Go/job/console path exists. It reports an
   exact finite-size anchor, measured energy, uncertainty, gap, magnetization,
-  and no advantage claim.
+  and no advantage claim. The live 6-site TFIM check is honest but not
+  ground-state accurate: exact `-7.7274066`, measured `-5.9992`,
+  `ground_state_reached:false`; the measured magnetization is explicitly
+  labeled as the VQE state's, not the ground state's.
 - `platform/kubona/science/conjecture.py` discovers exact polynomial/linear-
   recurrence laws on a training prefix, validates a holdout, and emits a
   falsifier. The `conjecture_run` job is recorded as a conjecture, never a

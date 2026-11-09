@@ -22,6 +22,8 @@ def test_tfim_experiment_is_shot_measured_and_anchored():
     assert len(res["measured_magnetization_z"]) == 3
     assert len(res["exact_correlation_zz"]) == 2
     assert res["gap"] > 0.0
+    assert "ground_state_reached" in res
+    assert "observable_state" in res
 
 
 def test_conjecture_requires_valid_domain():

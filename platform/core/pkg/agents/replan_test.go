@@ -655,12 +655,13 @@ func TestReplanSpinChainFoldsMeasuredEnergyWithoutChemicalClaim(t *testing.T) {
 		t.Fatalf("spin-chain measurement must fold: %s", note)
 	}
 	after := decodeReplan(t, updated)
-	last := after.Trajectory[len(after.Trajectory)-1]
-	if last.Watchdog != "measured_spin_chain" || last.Energy != -3.2 {
-		t.Errorf("spin-chain trajectory wrong: %+v", last)
-	}
 	if after.Notebook == nil || !strings.Contains(after.Notebook.Sections[len(after.Notebook.Sections)-1], "spin_chain") {
 		t.Error("spin-chain result must be recorded in the notebook")
+	}
+	for _, step := range after.Trajectory {
+		if step.Watchdog == "measured_spin_chain" {
+			t.Error("spin-chain energy must not be projected as a molecular VQE trajectory")
+		}
 	}
 }
 

@@ -59,7 +59,7 @@ function summarize(job: Job): string | null {
       if (e === null || exact === null) return null;
       const unc = num(r.uncertainty);
       const gap = num(r.gap);
-      return `spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''}${gap !== null ? ` · gap ${gap.toFixed(4)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+      return `spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''}${gap !== null ? ` · gap ${gap.toFixed(4)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'}${r.ground_state_reached === false ? ' · VQE state not ground' : ''} · job ${short}`;
     }
     case 'conjecture_run': {
       const count = num(r.candidate_count);

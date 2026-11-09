@@ -263,6 +263,63 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByText('1.4000', { exact: true })).toBeVisible();
   });
 
+  test('real spin-chain and conjecture jobs complete through the Go rail', async ({ page }) => {
+    const sessionId = await ensureOperatorLoggedIn(page);
+    const apiUrl = await page.evaluate(async () => {
+      const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
+      return config.apiUrl || 'http://localhost:8080';
+    });
+    const submit = async (spec: Record<string, unknown>, requestId: string) => {
+      const out = await page.evaluate(async ({ base, sid, body }) => {
+        const res = await fetch(`${base}/api/experiments`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, spec: body, budget_usd: 1, request_id: requestId }),
+        });
+        return { status: res.status, body: await res.json() };
+      }, { base: apiUrl, sid: sessionId, body: spec });
+      expect(out.status, JSON.stringify(out.body)).toBe(201);
+      const id = out.body?.job?.id as string | undefined;
+      expect(id).toBeTruthy();
+      await expect.poll(async () => page.evaluate(async ({ base, sid, jobId }) => {
+        const res = await fetch(`${base}/api/jobs/${jobId}?session_id=${sid}`, { credentials: 'include' });
+        const body = await res.json() as { job?: { status?: string, result_json?: Record<string, unknown> } };
+        return body.job?.status || '';
+      }, { base: apiUrl, sid: sessionId, jobId: id }), { timeout: 30_000 }).toBe('completed');
+      return id as string;
+    };
+
+    const spinId = await submit({
+      kind: 'spin_chain', model: 'tfim', n_sites: 3, coupling: 1, field: 0.7,
+      periodic: false, layers: 2, shots: 512, max_iterations: 20, seed: 5,
+    }, `e2e-spin-${Date.now()}`);
+    const spin = await page.evaluate(async ({ base, sid, id }) => {
+      const res = await fetch(`${base}/api/jobs/${id}?session_id=${sid}`, { credentials: 'include' });
+      return (await res.json()).job?.result_json as Record<string, unknown>;
+    }, { base: apiUrl, sid: sessionId, id: spinId });
+    expect(spin.kind).toBe('spin_chain');
+    expect(spin.result_version).toBe('experiment-result-v1');
+    expect(typeof spin.energy).toBe('number');
+    expect(typeof spin.energy_exact).toBe('number');
+    expect(spin.measured).toBe(true);
+    expect(spin.result_receipt).toBeTruthy();
+
+    const conjId = await submit({
+      kind: 'conjecture', values: [1, 1, 2, 3, 5, 8, 13, 21, 34], holdout: 2,
+    }, `e2e-conj-${Date.now()}`);
+    const conj = await page.evaluate(async ({ base, sid, id }) => {
+      const res = await fetch(`${base}/api/jobs/${id}?session_id=${sid}`, { credentials: 'include' });
+      return (await res.json()).job?.result_json as Record<string, unknown>;
+    }, { base: apiUrl, sid: sessionId, id: conjId });
+    expect(conj.kind).toBe('conjecture');
+    expect(conj.result_version).toBe('experiment-result-v1');
+    expect(conj.candidate_count).toBeGreaterThanOrEqual(1);
+    expect(conj.measured).toBe(false);
+    expect(conj.claimable).toBe(false);
+    expect(conj.result_receipt).toBeTruthy();
+  });
+
   test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');

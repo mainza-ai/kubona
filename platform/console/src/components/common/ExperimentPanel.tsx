@@ -207,7 +207,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
           {job.status === 'completed' && kind === 'spin_chain' && energy != null && exact != null && (
-            <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}</div>
+            <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
           )}
           {job.status === 'completed' && kind === 'conjecture' && candidateCount != null && (
             <div>

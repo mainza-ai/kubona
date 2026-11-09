@@ -269,11 +269,19 @@ def discover_sequence_laws(
             holdout_verified=True, predictions=predictions, status="conjecture",
         ))
 
-    candidates.sort(key=lambda c: (
+    unique: list[ConjectureCandidate] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate in sorted(candidates, key=lambda c: (
         0 if c.kind == "polynomial" else 1,
         len(c.coefficients),
         c.law,
-    ))
+    )):
+        key = (candidate.kind, candidate.law)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    candidates = unique
     return {
         "success": True,
         "kind": "conjecture",
