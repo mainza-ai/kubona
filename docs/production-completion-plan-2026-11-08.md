@@ -5,6 +5,15 @@
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
 
+> **2026-11-09 correction and re-audit:** the verified gap register and updated
+> plan are in
+> [`production-gap-audit-2026-11-09.md`](production-gap-audit-2026-11-09.md).
+> Several rows below were stale: launch shots/seed, direct Krylov/mitigation
+> ledger binding, and claim review decisions are now implemented; PES now
+> covers active-space LiH/BeH2. The remaining P0s are hardware-loop science,
+> integrated mitigation, BeH2/CEO accuracy, gVisor host availability,
+> calibration/queue operations, typed result truth, and manual accessibility.
+
 ## 0. Execution log (2026-11-08)
 
 This plan is being executed incrementally. Landed after the report:
@@ -177,15 +186,15 @@ It does not upgrade the missing portfolio features.
 
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
-| PC-01 | **Workflow lifecycle is not fully atomic for approval/agent workflows.** Normal mixed workflows are Go-owned step-by-step with a durable journal; approval-required and agent-created workflows still use the Python compatibility engine. | A crash is surfaced as `repair_required`; normal mixed spend is Go-owned. Approval migration and typed job-compensation inverses remain. | `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go`; `platform/bridge/server.py:RunWorkflowStep` |
+| PC-01 | **Approval workflows are Go-owned; job compensation remains partial.** Approval-required/agent-created workflows now require a signed single-use token and run through the Go mixed rail. No explicit inverse exists for job-step compensation. | A crash is surfaced as `repair_required`; job compensation is refused rather than faked. | `platform/core/pkg/api/workflow_approval.go`; `platform/core/pkg/api/workflows_go.go`; `platform/core/pkg/ledger/workflow_journal.go` |
 | PC-02 | **Hardware VQE/QAOA was absent; now governed but contested.** H2 VQE and QAOA parent runs completed through one mandate/batch/claim rail; no chemical-accuracy or advantage claim. | The product now has a real hardware path; the remaining gap is scientific accuracy/QAOA prepare symmetry, not dispatch. | Live jobs above; `platform/core/pkg/jobs/hardware_experiment.go`; `platform/bridge/experiments.py` hardware runners. |
 | PC-03 | **Full-space VQE is now implemented; BeH2 remains contested.** The old `EfficientSU2` smoke path was replaced by real ADAPT-VQE with explicit UCCSD/CEO pools. LiH reached 0.706 mHa measured / 0.213 mHa exact; BeH2 did not reach 1.6 mHa in the tested operator budget and stays resource-contested. | Full-molecule claims are gated by measured delta, shot uncertainty, and exact diagnostic; BeH2 must not be advertised as chemically accurate. | `platform/bridge/adapt.py`; `docs/full-space-chemistry-2026-11-08.md`. |
-| PC-04 | **Launch reproducibility is broken.** `handleChatLaunch` hardcodes `shots:1024` and does not accept/record a seed. | The canonical proposal-launch path cannot reproduce a result from its spec. | `platform/core/pkg/api/server.go:2909-2919` |
-| PC-05 | **Direct experiment routes bypass the job/claim ledger.** Krylov, mitigation, and QIR routes call the bridge directly and return a response. | Results from those routes cannot be cited, cost-settled, or folded into a claim by the same book. | `platform/core/pkg/api/server.go:5564-5742` |
+| PC-04 | **Closed 2026-11-09 verification.** `handleChatLaunch` accepts and persists shots and seed, including proposal-driven launches. | A launch records its sampling spec. | `platform/core/pkg/api/server.go` launch block; `launch_test.go` |
+| PC-05 | **Closed for Krylov/mitigation.** `runDirectComputeJob` creates a ledger-bound job and waits for terminal state; QIR compile remains stateless analysis, not a measured experiment. | Direct compute results now have a job id and spend/ledger attribution. | `platform/core/pkg/api/server.go:5730+` |
 | PC-06 | **Autoresearch requires an explicit gVisor host profile.** The default remains fail-closed; `compose.sandbox.yml` now runs a narrow `sandboxd` broker (no Docker socket in kubonad) with `runsc`. Without `runsc` the API reports unavailable. | macOS Docker Desktop and hosts without gVisor do not have a functional hostile-code sandbox; use a Linux VM/host or keep autoresearch off. | `platform/core/pkg/sandbox/sidecar.go`; `platform/docker/compose.sandbox.yml`; `docs/local-deployment.md`. |
-| PC-07 | **Claims cannot be formally reviewed/reopened.** `peer_review` is a request event; the claim record is immutable and has no decision state. | A researcher cannot accept, contest, or reopen a claim through the product; history is read-only. | `platform/console/src/components/common/ClaimHistory.tsx:37-58`; `claim_records` in `platform/core/pkg/ledger/ledger.go` |
+| PC-07 | **Closed.** Append-only `claim_reviews` stores accepted/contested/reopened decisions with reviewer, reason, and evidence; the claim measurement remains immutable and the API/UI expose the history. | A researcher can review without mutating the measurement. | `platform/core/pkg/ledger/ledger.go` claim review methods; `ClaimHistory.tsx` |
 | PC-08 | **No versioned experiment-result contract.** Result truth is split among job JSON, campaign `measurement`/`pes_points`, notebook text, and UI prose. | Hardware metadata, counts, layout, calibration, usage, cost, per-point evidence, and CIs cannot be guaranteed across rails. | `platform/core/pkg/agents/campaign_synth.go:128-180`; bridge result shape; `ResultsStudio` projections |
-| PC-09 | **No PES/experiment path for LiH/BeH2, and no error-mitigation integration.** PES is H2-only; VQE/PES do not run ZNE/PEC. | The chemistry portfolio and "measured, mitigated result" story remain partial. | `platform/bridge/experiments.py:513+`; mitigation is a separate route. |
+| PC-09 | **PES now covers active-space LiH/BeH2; mitigation remains separate.** `run_pes` delegates to `run_vqe` and supports full-space; ZNE/PEC are still a separate single-observable circuit route, not molecular-energy mitigation. | PES is usable; "measured, mitigated molecular result" is still not a product claim. | `platform/bridge/experiments.py:run_pes`; `platform/bridge/mitigation.py` |
 | PC-10 | **Secrets/at-rest posture is not end-to-end.** `.env` is the supported secret store; the ledger is plaintext; Docker secrets/OpenBao are optional. | A lost host or backup exposes ledger/API material; "production local-private" must state and test this boundary. | `docs/local-deployment.md:250-260`; `docs/production-readiness-plan-2026-10-31.md` P1-3 |
 | PC-11 | **Recovery is implemented but not operationally closed.** Off-host backup/restore drills and migration rollback are not proven as a routine release gate. | A local production host needs a repeatable disaster-recovery proof, not only unit tests. | Backup profile; restore docs; current CI has backup smoke, not a full restore drill. |
 

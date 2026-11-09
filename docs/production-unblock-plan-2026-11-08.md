@@ -6,7 +6,8 @@ slices. It is subordinate to
 [`production-completion-plan-2026-11-08.md`](production-completion-plan-2026-11-08.md):
 that page is the gap register, this page is the unblock plan.
 
-Current baseline: `222f1eb` (CI + Console E2E green on `develop` and `main`).
+Current baseline: `d016e41` + the 2026-11-09 PES/fleet slice (CI + Console E2E green on `develop` and `main`). See
+[`production-gap-audit-2026-11-09.md`](production-gap-audit-2026-11-09.md) for the verified re-audit; earlier rows that said launch shots/seed, direct Krylov/mitigation, or claim review were open are stale.
 The next slices are deliberately ordered so provenance and spend truth land before
 more experiment surface.
 

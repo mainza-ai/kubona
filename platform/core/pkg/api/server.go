@@ -1181,24 +1181,56 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			status = "UNAVAILABLE"
 		}
 		row := map[string]any{
-			"name":             name,
-			"provider":         qb.Provider,
-			"type":             qb.DisplayName,
-			"qubits":           nil,
-			"t1_us":            "unknown",
-			"avg_t1_us":        nil,
-			"avg_t2_us":        nil,
-			"status":           status,
-			"credential_state": qb.CredentialState,
-			"credential_env":   qb.CredentialEnv,
-			"telemetry":        qb.Telemetry,
-			"catalog_verified": nil,
-			"queue_depth":      nil,
-			"cost_per_shot":    nil,
-			"jurisdiction":     "",
-			"itar_ear":         "",
-			"executable_now":   qb.Executable,
-			"dispatch_ready":   qb.DispatchReady,
+			"name":                  name,
+			"provider":              qb.Provider,
+			"type":                  qb.DisplayName,
+			"qubits":                nil,
+			"t1_us":                 "unknown",
+			"avg_t1_us":             nil,
+			"avg_t2_us":             nil,
+			"status":                status,
+			"credential_state":      qb.CredentialState,
+			"credential_env":        qb.CredentialEnv,
+			"telemetry":             qb.Telemetry,
+			"catalog_verified":      nil,
+			"queue_depth":           nil,
+			"cost_per_shot":         nil,
+			"jurisdiction":          "",
+			"itar_ear":              "",
+			"executable_now":        qb.Executable,
+			"dispatch_ready":        qb.DispatchReady,
+			"calibration_at":        nil,
+			"calibration_age_hours": nil,
+			"calibration_fresh":     nil,
+			"fidelity_source":       nil,
+			"fidelity_version":      nil,
+		}
+		// Calibration provenance is measured from the same contract the
+		// fidelity gate uses. It is only meaningful for a resolved device.
+		if device, derr := fidelity.ResolveDeviceForBackend(qb.Provider); derr == nil {
+			if prof, ok := s.fidelityGate.Profile(device); ok {
+				row["calibration_at"] = prof.CalibratedAt
+				row["fidelity_source"] = prof.Source
+				row["fidelity_version"] = prof.Version
+				if at, terr := time.Parse(time.RFC3339, prof.CalibratedAt); terr == nil {
+					age := time.Since(at).Hours()
+					if age < 0 {
+						age = 0
+					}
+					row["calibration_age_hours"] = age
+					row["calibration_fresh"] = age <= fidelity.MaxCalibrationAgeHours()
+				} else if at, terr := time.Parse("2006-01-02", prof.CalibratedAt); terr == nil {
+					age := time.Since(at).Hours()
+					if age < 0 {
+						age = 0
+					}
+					row["calibration_age_hours"] = age
+					row["calibration_fresh"] = age <= fidelity.MaxCalibrationAgeHours()
+				}
+			}
+		}
+		if qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator" {
+			row["calibration_fresh"] = true
 		}
 		if qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator" {
 			row["jurisdiction"] = "LOCAL_SOVEREIGN"

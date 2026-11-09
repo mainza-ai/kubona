@@ -18,6 +18,8 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
   const [kind, setKind] = useState<Kind>('vqe');
   const [molecule, setMolecule] = useState('H2');
   const [bond, setBond] = useState('0.7414');
+  const [rMin, setRMin] = useState('0.6');
+  const [rMax, setRMax] = useState('0.9');
   const [shots, setShots] = useState('16384');
   const [layers, setLayers] = useState('2');
   const [iterations, setIterations] = useState('80');
@@ -44,7 +46,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       spec.full_space = fullSpace;
       if (fullSpace) spec.full_space_pool = fullSpacePool;
       if (kind === 'pes') {
-        spec.r_min = 0.6; spec.r_max = 0.9; spec.steps = 5;
+        spec.r_min = Number(rMin); spec.r_max = Number(rMax); spec.steps = 5;
       }
     }
     const out = await runExperiment(sessionId, spec, `ui-experiment-${Date.now()}`);
@@ -82,13 +84,23 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
           </select>
         </label>
         <label className="space-y-1">Molecule
-          <select aria-label="Experiment molecule" value={molecule} onChange={(e) => setMolecule(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
+          <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); }} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
             <option value="H2">H2</option><option value="LiH">LiH</option><option value="BeH2">BeH2</option>
           </select>
         </label>
         <label className="space-y-1">Bond distance (Å)
           <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
+        {kind === 'pes' && (
+          <>
+            <label className="space-y-1">PES r min (Å)
+              <input aria-label="PES r min" value={rMin} onChange={(e) => setRMin(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">PES r max (Å)
+              <input aria-label="PES r max" value={rMax} onChange={(e) => setRMax(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+          </>
+        )}
         <label className="space-y-1">Shots
           <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
         </label>
@@ -99,7 +111,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
           <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
         </label>
         <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
-          <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={kind === 'qaoa' || kind === 'pes' || molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
+          <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={kind === 'qaoa' || molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
           Full orbital space (LiH/BeH2; slower, reports full-FCI gap honestly)
         </label>
         {fullSpace && (

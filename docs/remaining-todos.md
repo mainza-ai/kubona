@@ -87,6 +87,11 @@ The full gap register, phased plan, and definition of done are in
       (disk_guard, settlement_skipped, cooldown-limited rate_limit).
 - [ ] P1: contrast/other-modal/screen-reader audit (automated axe/keyboard
       remains green; manual VoiceOver/NVDA still human-only).
+- [x] P1: LiH/BeH2 PES through the measured VQE rail (active-space; full-space
+      optional) and per-point uncertainty/FCI.
+- [x] P1: `/api/fleet` calibration age/provenance; console stale-age column.
+- [ ] P1: hardware-in-the-loop VQE/QAOA (current hardware path is local
+      optimizer + final-state measurement only).
 
 ## Production blockers
 
