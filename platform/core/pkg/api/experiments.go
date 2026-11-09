@@ -164,6 +164,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		CircuitQASM string  `json:"circuit_qasm"`
 		OptimalCut  int     `json:"optimal_cut"`
 		EnergyExact float64 `json:"energy_exact"`
+		Layers      int     `json:"layers"`
 		Graph       struct {
 			Nodes int      `json:"nodes"`
 			Edges [][2]int `json:"edges"`
@@ -194,7 +195,8 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		Kind: "qaoa_hardware", Provider: "ibm-qiskit", RequestedBackend: backend,
 		QASM: res.CircuitQASM, FidelityQASM: res.CircuitQASM,
 		OptimalCut: res.OptimalCut, EnergyExact: res.EnergyExact,
-		Nodes: res.Graph.Nodes, Edges: res.Graph.Edges,
+		Layers: res.Layers,
+		Nodes:  res.Graph.Nodes, Edges: res.Graph.Edges,
 		Loop: req.Loop, MaxIterations: req.MaxIterations,
 		Shots: req.Shots, Seed: req.Seed, MaxCostUSD: req.BudgetUSD,
 		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,

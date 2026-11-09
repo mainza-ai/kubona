@@ -19,21 +19,18 @@ are signed/single-use, and CI + Console E2E are green.
 It is **not yet the complete product** promised by the research/experiment
 surface. The remaining blockers are functional, not cosmetic:
 
-1. **Hardware loop code now exists; live QPU acceptance has not run.** The
-   bridge has a hardware-in-the-loop COBYLA VQE loop (H2 `_ansatz`, LiH/BeH2
-   unbound UCCSD via QPY) and a hardware QAOA loop; every objective evaluation
-   is a real QPU batch and `simulated_optimizer` is false. Go/API parent
-   admission and aggregation are wired. Tests use a mock QPU batch; no
-   operator mandate was signed for a live loop, so this is implemented code,
-   not a measured QPU result.
-2. **Molecular energy mitigation now exists; live validation is pending.**
-   `run_vqe_hardware(..., mitigation="ZNE")` folds the optimized ansatz with
-   exact unitary folding at odd scales, measures every Pauli term at every
-   scale, extrapolates the total energy, and labels the mitigated energy
-   `measured:false` / `mitigated_measured:false` with fit diagnostics. This is
-   integrated into molecular VQE hardware measurement, not the old single-Z0
-   route. Mock-batch tests pass; no live mitigated QPU run has been executed.
-   PES still does not request mitigation per point.
+1. **Hardware-in-the-loop VQE/QAOA is live-validated.** The bridge's SPSA
+   VQE loop and QAOA loop ran on `ibm_fez` through the governed parent rail.
+   VQE: 4 SPSA iterations / 9 batches, `-1.1253618969 Ha`, `11.908 mHa` delta,
+   `12.11 mHa` uncertainty, not claimable. QAOA: 4 batches, cut `5.953125`
+   vs optimum `10` (ratio `0.5953`), not an advantage claim. Both are
+   `simulated_optimizer:false` with signed receipts. Evidence:
+   `docs/live-qpu-2026-11-09.md`.
+2. **Molecular ZNE is live-validated.** A governed H2 run folded every
+   Hamiltonian term at scales `[1,3,5]`, extrapolated the total energy, and
+   completed as vendor `dbos2u44148s739th03g`: mitigated `-1.1441740297 Ha`,
+   `6.904 mHa` delta, `12.04 mHa` uncertainty, `measured:false` and
+   `claimable:false`. PES still does not request mitigation per point.
 3. **BeH2/CEO full-space chemistry is now validated.** The earlier CEO stall
    was a spin-layout bug: the pool assumed even/odd interleaving while the
    pinned Qiskit Nature layout is alpha-block then beta-block. With the
@@ -46,13 +43,12 @@ surface. The remaining blockers are functional, not cosmetic:
    read-only rootfs, and `cap-drop=ALL` (`docs/sandbox-live-2026-11-09.md`).
    macOS Docker Desktop still has no `runsc`; autoresearch stays unavailable
    there instead of falling back to a weaker runtime.
-5. **Calibration/queue operations are partial.** `/api/fleet` exposes
-   calibration age, local Go queue depth, and a boot/hourly stale/resumed
-   alert is sealed. Authenticated `POST /api/fleet/calibration/refresh` reads
-   a live IBM backend snapshot and installs it into the in-process fidelity
-   gate (in-process only; a restart reloads the reviewed contract). There is
-   still no scheduled provider refresh worker, vendor queue position/ETA, or
-   UI refresh button; QPU dispatch can go stale until the operator refreshes.
+5. **Calibration/queue operations are partially closed.** A live
+   `POST /api/fleet/calibration/refresh` succeeded against `ibm_marrakesh`
+   (in-process profile update), and `/api/fleet` exposes age plus local queue
+   depth. There is still no scheduled provider refresh worker, vendor queue
+   position/ETA, or UI refresh button; QPU dispatch can go stale until the
+   operator refreshes.
 6. **Result truth is split across contracts.** Job JSON, campaign `measurement`,
    PES `points`, notebook text, and UI projections are not one typed
    `ExperimentResult`. `result_version` exists on new results, but there is no
@@ -92,8 +88,8 @@ These corrections do not close the items in §3.
 
 | ID | Gap | Evidence | Required closure |
 |---|---|---|---|
-| PG-01 | **Hardware loop implemented; live acceptance pending.** | Bridge `run_vqe_hardware_loop` and `run_qaoa_hardware_loop` make every objective a real QPU batch; Go parent and API fields are wired. Mock-batch tests cover H2, QPY active-space, and QAOA. No live loop mandate has been executed. | Sign a bounded loop mandate and run one live H2/LiH + QAOA loop; then settle and verify the claim. |
-| PG-02 | **Molecular ZNE implemented; live validation pending.** | `run_vqe_hardware` performs exact unitary folding at odd scales, per-term QPU measurement, total-energy extrapolation, and measured-vs-inferred labels. PES has no mitigation option yet. | Run a live mitigated VQE batch under a mandate; add a PES mitigation opt-in if the scientific surface requires it. |
+| PG-01 | **Live-validated on IBM hardware.** | SPSA VQE loop `da0b1703...`: 9 batches, `-1.1253618969 Ha`, delta `11.908 mHa`, uncertainty `12.110 mHa`, not claimable. QAOA loop `7014cd0c...`: cut `5.953125`/`10`, ratio `0.5953`, not an advantage claim. Both signed, `simulated_optimizer:false`. | No code gap; continue only with higher-shot/optimizer tuning for an accuracy claim. |
+| PG-02 | **Live-validated on IBM hardware.** | ZNE job `5f0064eb...`: scales 1/3/5, mitigated `-1.1441740297 Ha`, delta `6.904 mHa`, uncertainty `12.036 mHa`, `measured:false`, not claimable. | Live mitigation works; PES opt-in remains a product choice, not a correctness gate. |
 | PG-03 | **Closed 2026-11-09.** BeH2 full-space reaches `0.3933 mHa` exact / `0.0146 mHa` measured at 40 CEO operators, 262144 shots. | Corrected spin-block pool; measured gate still requires exact delta. |
 | PG-04 | **Closed 2026-11-09.** CEO-ADAPT reaches LiH `0.0399 mHa` exact / `0.4499 mHa` measured at 20 operators. | Spin layout derived and asserted; CEO is the default full-space pool. |
 | PG-05 | **Sandbox live on Linux VM; macOS native remains unsupported.** | Lima Ubuntu arm64 + rootful Docker + gVisor: health available; benchmark UID 1000, network blocked, read-only, cap-drop=ALL. macOS Docker Desktop still has no `runsc`; API reports unavailable. | Keep the Linux-host requirement in the deployment runbook; no macOS fallback. |
@@ -194,6 +190,8 @@ Implemented after the audit:
   `calibration_resumed` events and alerts on transitions.
 - Bridge Aer label corrected from “noisy density matrix” to shot simulation.
 - Tests: LiH active-space PES; existing PES points; fleet/fidelity; console tsc.
+- Live QPU: governed SPSA VQE loop, QAOA loop, and ZNE documented in
+  `docs/live-qpu-2026-11-09.md`; all three completed with signed receipts.
 - Commits: `3252180` (CEO/hardware loops/ZNE/result gate), `4c4ea51`
   (claimable PES + live gVisor proof), `956deab` (claimable/measured campaign
   and claim guard), `5872c6c` (live calibration refresh), `4d8830d` (signed
