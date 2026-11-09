@@ -154,20 +154,33 @@ def _uccsd_pool(problem: Any, mapper: JordanWignerMapper) -> list[tuple[str, Spa
 def _ceo_pool(problem: Any, n: int) -> list[tuple[str, SparsePauliOp]]:
     """Build the generalized QE + OVP-CEO pool with explicit spin sectors.
 
-    Qiskit Nature's Jordan-Wigner layout interleaves alpha/beta spin orbitals:
-    even indices are alpha, odd indices are beta.  That invariant is asserted
-    through the particle numbers below instead of assumed silently.
+    Qiskit Nature's Jordan-Wigner layout used by the pinned bridge image is
+    block-ordered: the first ``nso`` spin orbitals are alpha and the next
+    ``nso`` are beta (LiH's HF determinant is q0,q1,q6,q7, for example).
+    The old even/odd assumption silently built a pool on the wrong spin
+    sectors, which is why CEO-ADAPT stalled.  Derive the layout from the
+    particle counts and assert the HF determinant's block occupations before
+    constructing any operator.
     """
-    alpha = list(range(0, n, 2))
-    beta = list(range(1, n, 2))
-    if len(alpha) + len(beta) != n:
-        raise AdaptError("spin-orbital layout is not interleaved")
-    # The HF occupation must be one per spatial orbital; this catches a
-    # changed mapper layout before a pool is built on the wrong spin sectors.
+    nso = int(problem.num_spatial_orbitals)
+    if n != 2 * nso:
+        raise AdaptError(f"spin-orbital count {n} is not 2 x spatial orbitals {nso}")
+    alpha = list(range(0, nso))
+    beta = list(range(nso, 2 * nso))
     n_alpha = int(problem.num_particles[0])
     n_beta = int(problem.num_particles[1])
-    if n_alpha + n_beta != int(problem.num_particles[0] + problem.num_particles[1]):
-        raise AdaptError("invalid particle numbers")
+    if n_alpha < 0 or n_beta < 0 or n_alpha > nso or n_beta > nso:
+        raise AdaptError("particle numbers do not fit the spin-orbital blocks")
+    hf = Statevector.from_instruction(HartreeFock(nso, problem.num_particles, JordanWignerMapper())).data
+    hf_index = int(np.argmax(np.abs(hf)))
+    if abs(float(np.linalg.norm(hf)) - 1.0) > 1e-8:
+        raise AdaptError("HF state is not normalized")
+    occupied = {q for q in range(n) if (hf_index >> q) & 1}
+    expected = set(range(n_alpha)) | set(range(nso, nso + n_beta))
+    if occupied != expected:
+        raise AdaptError(
+            f"unexpected HF spin-block occupation {sorted(occupied)}; expected {sorted(expected)}"
+        )
 
     pool: list[tuple[str, SparsePauliOp]] = []
     for spins in (alpha, beta):

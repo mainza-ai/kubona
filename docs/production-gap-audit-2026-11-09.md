@@ -2,8 +2,9 @@
 
 **Scope:** fully functional local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant product, not a demo.
-**Audited head:** `d016e41` plus the committed 2026-11-09 PES/fleet/CI95/
-calibration slice through `746ddca` (PES/fleet/CI95/hardware-active/calibration/JSON receipts).
+**Audited head:** `d016e41` plus the committed 2026-11-09 slices through
+`746ddca` (PES/fleet/CI95/hardware-active/calibration/JSON receipts) and the
+uncommitted CEO/hardware-loop/mitigation slice documented below.
 **Method:** re-read the current Go/Python/console code and tests, not the prior
 status prose. The earlier completion report contained stale entries; this page
 corrects them explicitly.
@@ -19,30 +20,36 @@ are signed/single-use, and CI + Console E2E are green.
 It is **not yet the complete product** promised by the research/experiment
 surface. The remaining blockers are functional, not cosmetic:
 
-1. **No iterative hardware VQE/QAOA experiment loop.** The hardware path
-   optimizes locally and measures the final fixed ansatz on one Runtime batch.
-   That is a real hybrid result, but it is not a hardware-in-the-loop VQE or a
-   native hardware QAOA optimizer. Results are labelled `simulated_optimizer`.
-   The final-state path now also accepts active-space LiH/BeH2 ansatz QASM and
-   Pauli terms (not only H2); full-space has no single hardware QASM.
-2. **Error mitigation is not part of VQE/PES.** The separate mitigation route
-   demonstrates one observable (Z0) on a circuit; it is not energy mitigation
-   for a molecular result. The direct Krylov/mitigation routes now preserve the
-   complete JSON receipt (measured/inferred labels, fit diagnostics), so the
-   remaining gap is scientific integration, not label loss.
-3. **BeH2 full-space chemistry remains contested.** LiH full-space is validated;
-   BeH2 stayed above 1.6 mHa through a 60-operator UCCSD test. CEO-ADAPT is
-   implemented but stalls on LiH. It must not be advertised as chemically
-   accurate.
+1. **Hardware loop code now exists; live QPU acceptance has not run.** The
+   bridge has a hardware-in-the-loop COBYLA VQE loop (H2 `_ansatz`, LiH/BeH2
+   unbound UCCSD via QPY) and a hardware QAOA loop; every objective evaluation
+   is a real QPU batch and `simulated_optimizer` is false. Go/API parent
+   admission and aggregation are wired. Tests use a mock QPU batch; no
+   operator mandate was signed for a live loop, so this is implemented code,
+   not a measured QPU result.
+2. **Molecular energy mitigation now exists; live validation is pending.**
+   `run_vqe_hardware(..., mitigation="ZNE")` folds the optimized ansatz with
+   exact unitary folding at odd scales, measures every Pauli term at every
+   scale, extrapolates the total energy, and labels the mitigated energy
+   `measured:false` / `mitigated_measured:false` with fit diagnostics. This is
+   integrated into molecular VQE hardware measurement, not the old single-Z0
+   route. Mock-batch tests pass; no live mitigated QPU run has been executed.
+   PES still does not request mitigation per point.
+3. **BeH2/CEO full-space chemistry is now validated.** The earlier CEO stall
+   was a spin-layout bug: the pool assumed even/odd interleaving while the
+   pinned Qiskit Nature layout is alpha-block then beta-block. With the
+   corrected pool, LiH reaches `0.0399 mHa` exact / `0.4499 mHa` measured and
+   BeH2 reaches `0.3933 mHa` exact / `0.0146 mHa` measured, both at 262144
+   shots. CEO is the default full-space pool; UCCSD remains selectable.
 4. **The production sandbox is not runnable on this host.** The `sandboxd`
    + gVisor `runsc` topology is implemented and fail-closed, but this macOS
    Docker Desktop host has no `runsc`; autoresearch stays unavailable. A Linux
    host/VM is required for a hostile-code boundary.
-5. **Calibration/queue operations are partial.** Live refresh exists through the
-   bridge image; `/api/fleet` exposes calibration age and a boot/hourly
-   stale/resumed alert is now sealed; there is still no automated refresh
-   worker, queue-position/ETA surface, or UI refresh action. QPU dispatch can
-   still go stale until the operator refreshes.
+5. **Calibration/queue operations are partial.** `/api/fleet` exposes
+   calibration age, local Go queue depth, and a boot/hourly stale/resumed
+   alert is sealed; there is still no automated provider refresh worker,
+   vendor queue position/ETA, or UI refresh action. QPU dispatch can still go
+   stale until the operator/provider refreshes.
 6. **Result truth is split across contracts.** Job JSON, campaign `measurement`,
    PES `points`, notebook text, and UI projections are not one typed
    `ExperimentResult`. `result_version` exists on new results, but there is no
@@ -82,13 +89,13 @@ These corrections do not close the items in §3.
 
 | ID | Gap | Evidence | Required closure |
 |---|---|---|---|
-| PG-01 | **No hardware-in-the-loop VQE/QAOA.** | `run_vqe_hardware` accepts fixed `theta`, one batch, `simulated_optimizer:true`; `run_qaoa_hardware` measures a fixed QASM. | A governed iterative hardware worker with per-iteration budget/admission, observable grouping, vendor polling, settlement, and a claim; or an explicit product decision that hardware is final-measurement only. |
-| PG-02 | **Mitigation is not part of molecular VQE/PES.** | `mitigate_circuit` returns one `<Z0>` value; `handleMitigationApply` is a separate circuit route. | Integrate per-term/energy mitigation with measured-vs-inferred labels, or remove it from the experiment promise. |
-| PG-03 | **BeH2 full-space is not target-accurate.** | 16 ops ≈4.16 mHa, 40 ≈3.04 mHa, 60 ≈3.23 mHa exact; LiH succeeds. | Improve pool/optimizer or declare BeH2 full-space unsupported. Do not claim accuracy. |
-| PG-04 | **CEO-ADAPT does not reach the LiH target.** | CEO pool 750 ops stalls ≈4.66 mHa; UCCSD default reaches 0.706 mHa measured. | Keep CEO experimental or improve pool/optimizer; never make it the default until measured. |
+| PG-01 | **Hardware loop implemented; live acceptance pending.** | Bridge `run_vqe_hardware_loop` and `run_qaoa_hardware_loop` make every objective a real QPU batch; Go parent and API fields are wired. Mock-batch tests cover H2, QPY active-space, and QAOA. No live loop mandate has been executed. | Sign a bounded loop mandate and run one live H2/LiH + QAOA loop; then settle and verify the claim. |
+| PG-02 | **Molecular ZNE implemented; live validation pending.** | `run_vqe_hardware` performs exact unitary folding at odd scales, per-term QPU measurement, total-energy extrapolation, and measured-vs-inferred labels. PES has no mitigation option yet. | Run a live mitigated VQE batch under a mandate; add a PES mitigation opt-in if the scientific surface requires it. |
+| PG-03 | **Closed 2026-11-09.** BeH2 full-space reaches `0.3933 mHa` exact / `0.0146 mHa` measured at 40 CEO operators, 262144 shots. | Corrected spin-block pool; measured gate still requires exact delta. |
+| PG-04 | **Closed 2026-11-09.** CEO-ADAPT reaches LiH `0.0399 mHa` exact / `0.4499 mHa` measured at 20 operators. | Spin layout derived and asserted; CEO is the default full-space pool. |
 | PG-05 | **Sandbox cannot run on this host.** | `compose.sandbox.yml` requires `runsc`; macOS Docker Desktop has none; API reports unavailable. | Linux host/VM with gVisor; prove live execution. macOS remains unavailable. |
-| PG-06 | **Calibration/queue operations are not closed.** | Refresh is a bridge CLI; no scheduler/alert; fleet queue is `UNKNOWN`; no calibration-age panel before this slice. | Scheduled refresh, stale alert, queue/plan diagnostics, and dispatch UX that names exact age. |
-| PG-07 | **Result contract is not single-source.** | `result_version` exists, but campaign/notebook/UI/job JSON are separate; no signed per-result receipt. | One typed ExperimentResult schema shared by bridge, Go, campaign, export, UI, with CI95/usage/layout/calibration/refs and a receipt. |
+| PG-06 | **Calibration/queue operations are partial.** | Stale alert and local Go queue depth exist; provider refresh, vendor queue/ETA, and UI action remain absent. | Scheduled provider refresh, queue/ETA diagnostics, and dispatch UX that names exact age. |
+| PG-07 | **Result contract is versioned but not one signed object.** | Shared schema + TS interface + Go version gate exist; campaign/PES/UI projections remain separate; no signed per-result receipt. | Move campaign/export/UI onto the shared type and add the ledger-backed result receipt. |
 | PG-08 | **Browser E2E is not complete.** | paging/full-space test intercepts `/api/**`; PES/mitigation/calibration/review have no full-stack browser flow. | Real-stack fixtures for PES table, claim review, full-space status, calibration/queue, and hardware opt-in. |
 | PG-09 | **Manual VoiceOver/NVDA not run.** | `docs/manual-accessibility-2026-11-01.md` says NOT RUN. | Human run per surface or signed residual-risk waiver. |
 | PG-10 | **Host ledger is forensic, not verified.** | `kubonad preflight` reports 606 pre-existing chain faults on `~/.kubona/kubona.db`; secrets now sealed. | Fresh-volume release source; do not rewrite/launder the forensic history. Off-host drill is implemented. |
@@ -132,23 +139,24 @@ These corrections do not close the items in §3.
 
 ### Phase 1 — experiment truth and hardware loop
 
-1. Define `ExperimentResult` v1 in one generated contract (Python/Go/TS).
+1. **ExperimentResult v1:** shared schema + TS interface + Go version gate are
+   implemented. Remaining: make campaign/export/UI consume it directly.
 2. Add `pes_sweep` job/campaign fold with typed spec and per-point evidence.
-3. Decide hardware scope:
-   - **Option A (recommended for local-private):** final-state hardware
-     measurement only, explicitly labeled; no hardware optimizer claim.
-   - **Option B:** governed iterative hardware worker (costly; needs
-     per-iteration admission/settlement).
-4. Add per-result receipt (backend, layout, calibration, usage, cost, counts,
-   seed, shots, method, CI).
+3. **Hardware loop:** implemented in code (Option B); live bounded QPU
+   acceptance remains.
+4. Add per-result signed receipt (backend, layout, calibration, usage, cost,
+   counts, seed, shots, method, CI).
 
 ### Phase 2 — mitigation and scientific completeness
 
-1. Add energy-level mitigation with measured/inferred labels; refuse when the
-   mitigation cannot be computed for the full observable.
+1. **Energy-level ZNE:** implemented for hardware molecular VQE with
+   measured/inferred labels and fit refusal. Remaining: live run and optional
+   PES opt-in.
 2. Preserve all mitigation/Krylov truth fields across proto and API.
-3. Improve full-space BeH2 or declare it unsupported in API/UI.
-4. Keep CEO experimental; require measured target before default.
+3. **Full-space BeH2:** CEO pool now reaches the target; UCCSD remains the
+   reference.
+4. **CEO:** corrected spin-block layout; CEO is the default and measured on
+   LiH/BeH2.
 
 ### Phase 3 — operations and accessibility
 
@@ -168,6 +176,10 @@ These corrections do not close the items in §3.
 
 Implemented after the audit:
 
+- Corrected CEO-ADAPT spin-block pool; LiH/BeH2 reach the 1.6 mHa gate.
+- Added hardware-in-the-loop VQE/QAOA loops and molecular hardware ZNE.
+- Added `result_version` enforcement, schema, and TS result interface.
+- Added local Go queue depth to `/api/fleet`.
 - `run_pes` supports H2, LiH, BeH2; active-space default; optional full-space;
   rejects H2 full-space; returns per-point measured energy, uncertainty, FCI,
   exact delta, method, and claimability.

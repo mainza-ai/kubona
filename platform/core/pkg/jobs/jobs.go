@@ -985,6 +985,10 @@ func (r *Runner) executeJob(j *Job) {
 		r.failJob(j, execErr.Error())
 		return
 	}
+	if err := validateExperimentResultVersion(j.JobType, resultData); err != nil {
+		r.failJob(j, err.Error())
+		return
+	}
 	// S6: bound persisted results. Bridge/sweep payloads are structured,
 	// so oversize blobs refuse (fail-closed, auditable) rather than
 	// truncate into unparseable JSON. Sandbox streams are bounded
@@ -1030,6 +1034,27 @@ func (r *Runner) executeJob(j *Job) {
 			hook(j)
 		}
 	}
+}
+
+// validateExperimentResultVersion enforces the one versioned experiment
+// result contract at the Go boundary. A bridge result without the shared
+// version is refused rather than folded into a campaign as if typed.
+func validateExperimentResultVersion(jobType string, resultData []byte) error {
+	switch jobType {
+	case "vqe_run", "vqe_pes", "qaoa_run", "hardware_experiment", "qaoa_hardware", "krylov_json", "mitigate_json":
+	default:
+		return nil
+	}
+	var head struct {
+		ResultVersion string `json:"result_version"`
+	}
+	if err := json.Unmarshal(resultData, &head); err != nil {
+		return fmt.Errorf("experiment result is not JSON: %w", err)
+	}
+	if head.ResultVersion != "experiment-result-v1" {
+		return fmt.Errorf("experiment result_version %q is not experiment-result-v1: refusing untyped result", head.ResultVersion)
+	}
+	return nil
 }
 
 // releaseReservation returns a job's bound spend to its lab. Idempotent:
@@ -1350,6 +1375,19 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		j.MandateRef = mandateRef.String
 	}
 	return &j, nil
+}
+
+// ActiveJobCount returns the local Go book's queued/running count. It is a
+// dispatch-queue measurement, not a vendor queue depth: hardware vendors do
+// not expose a provider-neutral queue number through this rail.
+func (r *Runner) ActiveJobCount() int {
+	var n int
+	err := r.ledger.DB().QueryRow(
+		`SELECT COUNT(*) FROM jobs WHERE status IN ('JOB_STATUS_QUEUED','JOB_STATUS_RUNNING')`).Scan(&n)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {

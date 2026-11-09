@@ -342,6 +342,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		var shots, seed int
 		var method, ansatz, backend, resultVersion, provider, optimizerBackend, measurementBackend string
 		var hardware bool
+		measuredFlag := true
 		var ci95, usageSeconds float64
 		var actualUSD *float64
 		var layout, calibration map[string]any
@@ -391,6 +392,9 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if raw, ok := present("hardware"); ok {
 			_ = json.Unmarshal(raw, &hardware)
+		}
+		if raw, ok := present("measured"); ok {
+			_ = json.Unmarshal(raw, &measuredFlag)
 		}
 		if raw, ok := present("ci95_mha"); ok {
 			_ = json.Unmarshal(raw, &ci95)
@@ -490,7 +494,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			UncertaintyMHa: unc * 1000.0, DeltaMHa: delta,
 			ActiveSpaceDeltaMHa: activeDelta, Shots: shots, Seed: seed,
 			ChemicalAccuracy: delta <= 1.6, ActiveSpaceChemicalAcc: activeDelta > 0 && activeDelta <= 1.6,
-			Converged: false, Measured: true, BelowFCI: energy < fci,
+			Converged: false, Measured: measuredFlag, BelowFCI: energy < fci,
 			Source: "shot-sampled Pauli expectation", OptimizerHistory: optimizerHistory,
 			ResultVersion: resultVersion, Provider: provider, Hardware: hardware,
 			OptimizerBackend: optimizerBackend, MeasurementBackend: measurementBackend,

@@ -12,6 +12,8 @@ refuse instead of borrowing H2 numbers.
 """
 from __future__ import annotations
 
+import base64
+import io
 import math
 import os
 import time
@@ -207,7 +209,11 @@ def _hardware_counts_to_energy(
             acc = 0
             for bitstring, n in counts.items():
                 bits = str(bitstring).replace(" ", "")[::-1]
-                parity = sum(1 for q, ch in enumerate(term) if ch != "I" and bits[q] == "1")
+                if len(bits) < len(term):
+                    raise RuntimeError(
+                        f"counts bitstring {bitstring!r} has {len(bits)} bits but term {term!r} needs {len(term)}"
+                    )
+                parity = sum(1 for q, ch in enumerate(term[::-1]) if ch != "I" and bits[q] == "1")
                 acc += int(n) * (1 if parity % 2 == 0 else -1)
             mean = acc / total
             std = math.sqrt(max(0.0, 1.0 - mean * mean) / total)
@@ -216,6 +222,41 @@ def _hardware_counts_to_energy(
         variance += (c * std) ** 2
     return {"energy": float(energy), "uncertainty": float(math.sqrt(max(0.0, variance))),
             "terms": by_term}
+
+
+def _fold_unitary(qc: Any, scale: int) -> Any:
+    """Exact unitary folding for an odd integer noise scale.
+
+    ``U U^dag U`` for scale 3, ``U U^dag U U^dag U`` for scale 5.  The base
+    circuit must be unitary (no measurements/classical bits); the caller
+    refuses otherwise.  This is true gate folding, not the gate-repetition
+    approximation used by the separate circuit mitigation route.
+    """
+    if isinstance(scale, bool) or not isinstance(scale, int) or scale < 1 or scale % 2 == 0:
+        raise ValueError(f"unitary folding scale must be a positive odd integer, got {scale!r}")
+    if scale == 1:
+        return qc.copy()
+    base = qc.copy()
+    inverse = base.inverse()
+    folded = base.copy()
+    for _ in range((scale - 1) // 2):
+        folded.compose(inverse, inplace=True)
+        folded.compose(base, inplace=True)
+    return folded
+
+
+def _measurement_qasm(qc: Any, term: str) -> str:
+    from qiskit import qasm2
+    measured = qc.copy()
+    # Qiskit Pauli labels are little-endian: term[-1] applies to qubit 0.
+    for q, ch in enumerate(term[::-1]):
+        if ch == "X":
+            measured.h(q)
+        elif ch == "Y":
+            measured.sdg(q)
+            measured.h(q)
+    measured.measure_all()
+    return qasm2.dumps(measured)
 
 
 def run_vqe_hardware(
@@ -231,6 +272,8 @@ def run_vqe_hardware(
     molecule: str = "H2",
     ansatz_qasm: str | None = None,
     constant_energy: float = 0.0,
+    mitigation: str | None = None,
+    mitigation_scales: list[int] | None = None,
 ) -> dict[str, Any]:
     """Execute a locally optimized H2 ansatz on a real QPU as one batch.
 
@@ -265,18 +308,32 @@ def run_vqe_hardware(
         coeffs = pauli_coefficients(h4)
     if fci_exact_energy is None:
         _, fci_exact_energy, _ = h2_hamiltonian(float(bond_distance))
+    method = (mitigation or "").strip().upper()
+    if method and method != "ZNE":
+        return {"success": False, "error": f"hardware energy mitigation {method!r} is unsupported; use ZNE"}
+    if method:
+        if mitigation_scales is None:
+            mitigation_scales = [1, 3, 5]
+        if len(set(int(s) for s in mitigation_scales)) < 2:
+            return {"success": False, "error": "ZNE mitigation requires at least two distinct odd scales"}
+        for scale in mitigation_scales:
+            if isinstance(scale, bool) or not isinstance(scale, int) or scale < 1 or scale % 2 == 0:
+                return {"success": False, "error": f"ZNE scale {scale!r} must be a positive odd integer"}
+        if int(qc.num_clbits) > 0 or any(
+            getattr(inst.operation, "name", "") == "measure" for inst in qc.data
+        ):
+            return {"success": False, "error": "ZNE folding requires a unitary ansatz without measurement"}
+
     qasms: list[str] = []
-    from qiskit import qasm2
-    for term in sorted(coeffs):
-        measured = qc.copy()
-        for q, ch in enumerate(term):
-            if ch == "X":
-                measured.h(q)
-            elif ch == "Y":
-                measured.sdg(q)
-                measured.h(q)
-        measured.measure_all()
-        qasms.append(qasm2.dumps(measured))
+    fold_keys: list[tuple[str, int]] = []
+    if method:
+        for term in sorted(coeffs):
+            for scale in mitigation_scales:
+                qasms.append(_measurement_qasm(_fold_unitary(qc, int(scale)), term))
+                fold_keys.append((term, int(scale)))
+    else:
+        for term in sorted(coeffs):
+            qasms.append(_measurement_qasm(qc, term))
     try:
         batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
     except Exception as e:  # noqa: BLE001 — provider refusal is data
@@ -284,10 +341,55 @@ def run_vqe_hardware(
     counts_list = batch.get("counts")
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
-    measured = _hardware_counts_to_energy(counts_list, coeffs)
-    energy = measured["energy"] + float(constant_energy)
-    delta = abs(energy - float(fci_exact_energy))
-    claimable = bool(delta <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3)
+
+    if method:
+        by_scale: dict[int, list[dict[str, int]]] = {int(s): [] for s in mitigation_scales}
+        for (term, scale), counts in zip(fold_keys, counts_list):
+            by_scale[scale].append((term, counts))
+        scale_energies: list[float] = []
+        scale_uncertainties: list[float] = []
+        for scale in mitigation_scales:
+            ordered = [dict(counts) for term, counts in by_scale[int(scale)]]
+            m = _hardware_counts_to_energy(ordered, coeffs)
+            scale_energies.append(float(m["energy"]))
+            scale_uncertainties.append(float(m["uncertainty"]))
+        xs = [int(s) for s in mitigation_scales]
+        deg = min(len(xs) - 1, 2)
+        try:
+            vander = np.vander(np.asarray(xs, dtype=float), deg + 1)
+            cond = float(np.linalg.cond(vander))
+        except Exception:
+            cond = float("inf")
+        if not math.isfinite(cond) or cond > 1e12:
+            return {"success": False, "error": f"ZNE fit ill-conditioned (cond={cond:.3g}); refusing"}
+        coeffs_fit = np.polyfit(np.asarray(xs, dtype=float), np.asarray(scale_energies, dtype=float), deg=deg)
+        mitigated = float(np.polyval(coeffs_fit, 0.0))
+        predicted = np.polyval(coeffs_fit, np.asarray(xs, dtype=float))
+        rmse = float(np.sqrt(np.mean((np.asarray(scale_energies) - predicted) ** 2)))
+        uncertainty = float(rmse + scale_uncertainties[0])
+        unmitigated = float(scale_energies[0])
+        measured = {"energy": mitigated, "uncertainty": uncertainty, "terms": {}}
+        energy = mitigated + float(constant_energy)
+        delta = abs(energy - float(fci_exact_energy))
+        claimable = bool(delta <= 1.6e-3 and uncertainty <= 1.6e-3)
+        mitigation_receipt = {
+            "method": "ZNE",
+            "scales": xs,
+            "scale_energies": scale_energies,
+            "scale_uncertainties": scale_uncertainties,
+            "fit_condition_number": cond,
+            "fit_rmse": rmse,
+            "unmitigated_energy": unmitigated,
+            "mitigated_energy": mitigated,
+            "mitigated_measured": False,
+            "measured": False,
+        }
+    else:
+        measured = _hardware_counts_to_energy(counts_list, coeffs)
+        energy = measured["energy"] + float(constant_energy)
+        delta = abs(energy - float(fci_exact_energy))
+        claimable = bool(delta <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3)
+        mitigation_receipt = None
     return {
         "success": True,
         "kind": "vqe_hardware",
@@ -306,7 +408,11 @@ def run_vqe_hardware(
         "constant_energy": float(constant_energy),
         "energy": float(energy),
         "energy_measured": float(energy),
-        "energy_measured_source": "QPU measurement-basis batch",
+        "energy_measured_source": ("ZNE-extrapolated from QPU term measurements"
+                                   if mitigation_receipt else "QPU measurement-basis batch"),
+        "measured": not bool(mitigation_receipt),
+        "mitigated": bool(mitigation_receipt),
+        "mitigation": mitigation_receipt,
         "uncertainty": float(measured["uncertainty"]),
         "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
@@ -327,6 +433,171 @@ def run_vqe_hardware(
     }
 
 
+def _hardware_energy_once(qc: Any, coeffs: dict[str, float], shots: int,
+                          seed: int, backend: str | None,
+                          constant_energy: float = 0.0) -> dict[str, Any]:
+    qasms = [_measurement_qasm(qc, term) for term in sorted(coeffs)]
+    batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
+        raise RuntimeError("hardware batch returned no per-term counts")
+    m = _hardware_counts_to_energy(counts_list, coeffs)
+    return {
+        "energy": float(m["energy"] + constant_energy),
+        "uncertainty": float(m["uncertainty"]),
+        "terms": m["terms"],
+        "batch": batch,
+    }
+
+
+def run_vqe_hardware_loop(
+    theta: list[float] | None = None,
+    pauli_coefficients: dict[str, float] | None = None,
+    layers: int = 2,
+    shots: int = 4096,
+    seed: int = 7,
+    bond_distance: float = 0.7414,
+    fci_exact_energy: float | None = None,
+    backend: str | None = None,
+    *,
+    molecule: str = "H2",
+    ansatz_qpy: str | None = None,
+    constant_energy: float = 0.0,
+    max_iterations: int = 8,
+) -> dict[str, Any]:
+    """Hardware-in-the-loop VQE: every objective evaluation is a QPU batch.
+
+    H2 uses the local hardware-efficient ansatz builder; LiH/BeH2 use the QPY
+    serialization of the unbound active-space UCCSD ansatz.  There is no local
+    statevector objective and no ``simulated_optimizer`` label: COBYLA sees
+    only shot-measured energies.  The parent Go job still owns the mandate,
+    reservation, settlement, and claim.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing hardware VQE loop"}
+    if int(max_iterations) < 1 or int(max_iterations) > 30:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,30]"}
+    coeffs = dict(pauli_coefficients or {})
+    if not coeffs:
+        return {"success": False, "error": "hardware VQE loop requires pauli_coefficients"}
+    if fci_exact_energy is None:
+        _, fci_exact_energy, _ = h2_hamiltonian(float(bond_distance))
+    mol = str(molecule or "H2")
+    template = None
+    if ansatz_qpy:
+        try:
+            from qiskit import qpy
+            template = qpy.load(io.BytesIO(base64.b64decode(ansatz_qpy)))[0]
+        except Exception as e:  # noqa: BLE001
+            return {"success": False, "error": f"ansatz QPY is not executable: {e}"}
+        if getattr(template, "num_clbits", 0) > 0 or any(
+            getattr(inst.operation, "name", "") == "measure" for inst in template.data
+        ):
+            return {"success": False, "error": "hardware loop requires a unitary ansatz without measurement"}
+        n_params = int(template.num_parameters)
+        x0 = np.asarray(theta if theta is not None else np.zeros(n_params), dtype=float)
+        if x0.size != n_params:
+            return {"success": False, "error": f"theta has {x0.size} values; ansatz needs {n_params}"}
+    elif mol.upper() == "H2":
+        if theta is None or layers < 1 or layers > 8:
+            return {"success": False, "error": "H2 hardware loop requires theta and layers in [1,8]"}
+        x0 = np.asarray(theta, dtype=float)
+        if x0.size != 4 * int(layers):
+            return {"success": False, "error": f"theta has {x0.size} values; need {4 * int(layers)}"}
+        n_params = x0.size
+    else:
+        return {"success": False, "error": "active-space hardware loop requires ansatz_qpy"}
+
+    trajectory: list[dict[str, Any]] = []
+    hardware_job_ids: list[str] = []
+    usage_values: list[float] = []
+    actual_values: list[float] = []
+
+    def objective(x: np.ndarray) -> float:
+        try:
+            if template is None:
+                qc = _ansatz(np.asarray(x, dtype=float), int(layers))
+            else:
+                qc = template.assign_parameters(np.asarray(x, dtype=float))
+            m = _hardware_energy_once(qc, coeffs, int(shots), int(seed), backend, float(constant_energy))
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError(f"hardware evaluation failed: {e}") from e
+        batch = m["batch"]
+        job_id = str(batch.get("hardware_job_id") or batch.get("job_id") or "")
+        if job_id:
+            hardware_job_ids.append(job_id)
+        if batch.get("usage_seconds") is not None:
+            usage_values.append(float(batch["usage_seconds"]))
+        if batch.get("actual_usd") is not None:
+            actual_values.append(float(batch["actual_usd"]))
+        trajectory.append({
+            "iteration": len(trajectory) + 1,
+            "energy": float(m["energy"]),
+            "uncertainty": float(m["uncertainty"]),
+            "theta": [float(v) for v in x],
+            "terms": m["terms"],
+        })
+        return float(m["energy"])
+
+    try:
+        from scipy.optimize import minimize
+        opt = minimize(objective, x0, method="COBYLA",
+                       options={"maxiter": int(max_iterations), "rhobeg": 0.15, "tol": 1e-6})
+        final_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+        final = objective(final_x)
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"hardware VQE loop refused: {e}"}
+    delta = abs(float(final) - float(fci_exact_energy))
+    # The final uncertainty is the last shot-measured evaluation's standard
+    # error; the fit/optimizer trajectory is not a substitute for it.
+    uncertainty = float(trajectory[-1]["uncertainty"]) if trajectory else 0.0
+    claimable = bool(delta <= 1.6e-3 and uncertainty <= 1.6e-3)
+    return {
+        "success": True,
+        "kind": "vqe_hardware_loop",
+        "result_version": "experiment-result-v1",
+        "molecule": mol,
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "VQE hardware-in-the-loop, COBYLA",
+        "ansatz": (f"active-space UCCSD ({template.num_qubits} qubits)" if template is not None
+                   else f"hardware-efficient layers={int(layers)}"),
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "theta": [float(v) for v in final_x],
+        "constant_energy": float(constant_energy),
+        "energy": float(final),
+        "energy_measured": float(final),
+        "energy_measured_source": "QPU measurement-basis batches (hardware-in-the-loop)",
+        "uncertainty": uncertainty,
+        "ci95_mha": _ci95_mha(uncertainty),
+        "measurements": trajectory[-1].get("terms", {}) if trajectory else {},
+        "fci_exact_energy": float(fci_exact_energy),
+        "delta_mha": float(delta * 1000.0),
+        "chemical_accuracy": claimable,
+        "chemical_accuracy_limit_mha": 1.6,
+        "claimable": claimable,
+        "hardware": True,
+        "simulated_optimizer": False,
+        "optimizer_backend": "ibm-qiskit",
+        "measurement_backend": "ibm-qiskit",
+        "optimizer": {"name": "COBYLA", "success": bool(opt.success),
+                      "evaluations": int(opt.nfev), "message": str(opt.message),
+                      "max_iterations": int(max_iterations)},
+        "trajectory": trajectory,
+        "iteration_batches": len(hardware_job_ids),
+        "hardware_job_ids": hardware_job_ids,
+        "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
+        "usage_seconds": sum(usage_values) if usage_values else None,
+        "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
+        "backend": str(trajectory[-1].get("backend", "")) if trajectory and "backend" in trajectory[-1] else "ibm-qiskit",
+        "provider": "ibm-qiskit",
+        "execution_time_ms": 0.0,
+        "error_message": "",
+    }
+
+
 def run_vqe(
     molecule: str = "H2",
     bond_distance: float = 0.7414,
@@ -335,7 +606,7 @@ def run_vqe(
     seed: int = 7,
     max_iterations: int = 80,
     full_space: bool = False,
-    full_space_pool: str = "uccsd",
+    full_space_pool: str = "ceo",
 ) -> dict[str, Any]:
     """Run a real H2 VQE with a live anchor and shot-measured final energy."""
     t0 = time.perf_counter()
@@ -346,7 +617,7 @@ def run_vqe(
         return run_nature_vqe(mol, float(bond_distance), shots=shots,
                               seed=seed, max_iterations=max_iterations,
                               full_space=bool(full_space), layers=int(layers),
-                              full_space_pool=str(full_space_pool or "uccsd"))
+                              full_space_pool=str(full_space_pool or "ceo"))
     if mol != "H2":
         return {
             "success": False,
@@ -461,7 +732,7 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
     qop = mapper.map(problem.hamiltonian.second_q_op())
     constants = float(sum(problem.hamiltonian.constants.values()))
 
-    pool = str(spec.get("full_space_pool") or os.getenv("KUBONA_ADAPT_POOL") or "uccsd").strip().lower()
+    pool = str(spec.get("full_space_pool") or os.getenv("KUBONA_ADAPT_POOL") or "ceo").strip().lower()
     if pool not in ("uccsd", "ceo"):
         return {"success": False, "error": f"full_space_pool {pool!r} must be uccsd|ceo"}
     # A full-space claim needs enough samples for its uncertainty not to
@@ -469,7 +740,7 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
     # asking for 8k shots still returns a result, but it cannot silently
     # borrow chemical accuracy from a lower-noise run.
     measurement_shots = max(int(shots), int(os.getenv("KUBONA_ADAPT_MIN_SHOTS", "262144")))
-    max_ops = max(8, min(40, int(layers) * 8))
+    max_ops = max(40, min(64, int(layers) * 8))
     if os.getenv("KUBONA_ADAPT_MAX_OPS"):
         try:
             max_ops = int(os.environ["KUBONA_ADAPT_MAX_OPS"])
@@ -641,6 +912,21 @@ def _nature_ansatz_qasm(ansatz: Any, theta: np.ndarray, seed: int) -> str:
         return ""
 
 
+def _ansatz_qpy(ansatz: Any) -> str:
+    """Serialize the unbound ansatz so a governed hardware loop can assign
+    arbitrary parameters.  QASM 2 cannot carry unbound parameters; QPY can.
+    This is a circuit representation, not a result or a claimed measurement."""
+    if not HAS_QISKIT:
+        return ""
+    try:
+        from qiskit import qpy
+        buffer = io.BytesIO()
+        qpy.dump(ansatz, buffer)
+        return base64.b64encode(buffer.getvalue()).decode("ascii")
+    except Exception:
+        return ""
+
+
 def run_nature_vqe(
     molecule: str,
     bond_distance: float,
@@ -649,7 +935,7 @@ def run_nature_vqe(
     max_iterations: int = 80,
     full_space: bool = False,
     layers: int = 2,
-    full_space_pool: str = "uccsd",
+    full_space_pool: str = "ceo",
 ) -> dict[str, Any]:
     """Active-space molecular VQE via Qiskit Nature + PySCF.
 
@@ -736,6 +1022,7 @@ def run_nature_vqe(
                       "message": str(opt.message)},
         "theta": [float(v) for v in theta],
         "ansatz_qasm": _nature_ansatz_qasm(ansatz, theta, seed),
+        "ansatz_qpy": _ansatz_qpy(ansatz),
         "pauli_coefficients": {
             str(p.to_label()): float(np.real(c))
             for p, c in zip(qop.paulis, qop.coeffs)
@@ -865,6 +1152,131 @@ def run_qaoa(
     }
 
 
+def run_qaoa_hardware_loop(
+    nodes: int,
+    edges: list[list[int]],
+    optimal_cut: int,
+    layers: int = 2,
+    shots: int = 4096,
+    seed: int = 7,
+    max_iterations: int = 8,
+    backend: str | None = None,
+) -> dict[str, Any]:
+    """Hardware-in-the-loop QAOA for a caller-stated graph.
+
+    The circuit is built locally, but every objective evaluation is a QPU
+    batch; the optimizer never sees a statevector value.  The exact optimum is
+    supplied only for the approximation-ratio denominator.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing hardware QAOA loop"}
+    if int(nodes) < 2 or int(nodes) > 20 or not edges:
+        return {"success": False, "error": "QAOA loop requires 2..20 nodes and edges"}
+    if int(optimal_cut) <= 0:
+        return {"success": False, "error": "QAOA loop requires a positive optimal_cut"}
+    if int(layers) < 1 or int(layers) > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    if int(max_iterations) < 1 or int(max_iterations) > 30:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,30]"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    from qiskit import QuantumCircuit, qasm2
+
+    def circuit(x: np.ndarray) -> QuantumCircuit:
+        qc = QuantumCircuit(int(nodes))
+        qc.h(range(int(nodes)))
+        for layer in range(int(layers)):
+            gamma, beta = float(x[2 * layer]), float(x[2 * layer + 1])
+            for a, b in edges:
+                qc.cx(int(a), int(b))
+                qc.rz(2.0 * gamma, int(b))
+                qc.cx(int(a), int(b))
+            qc.rx(2.0 * beta, range(int(nodes)))
+        qc.measure_all()
+        return qc
+
+    trajectory: list[dict[str, Any]] = []
+    hardware_job_ids: list[str] = []
+    usage_values: list[float] = []
+    actual_values: list[float] = []
+
+    def objective(x: np.ndarray) -> float:
+        try:
+            batch = _hardware_batch([qasm2.dumps(circuit(x))], int(shots), int(seed), backend=backend)
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError(f"hardware QAOA evaluation failed: {e}") from e
+        counts_list = batch.get("counts")
+        if not isinstance(counts_list, list) or len(counts_list) != 1:
+            raise RuntimeError("hardware QAOA batch returned no counts")
+        counts = counts_list[0]
+        total = sum(int(v) for v in counts.values())
+        if total <= 0:
+            raise RuntimeError("hardware QAOA returned zero counts")
+        cut_sum = 0
+        for bitstring, n in counts.items():
+            bits = str(bitstring).replace(" ", "")[::-1]
+            mask = 0
+            for i, b in enumerate(bits):
+                if b == "1":
+                    mask |= 1 << i
+            cut_sum += int(n) * sum(1 for a, b in edges if ((mask >> int(a)) & 1) != ((mask >> int(b)) & 1))
+        cut = float(cut_sum) / float(total)
+        job_id = str(batch.get("hardware_job_id") or batch.get("job_id") or "")
+        if job_id:
+            hardware_job_ids.append(job_id)
+        if batch.get("usage_seconds") is not None:
+            usage_values.append(float(batch["usage_seconds"]))
+        if batch.get("actual_usd") is not None:
+            actual_values.append(float(batch["actual_usd"]))
+        trajectory.append({"iteration": len(trajectory) + 1, "measured_cut": cut,
+                           "theta": [float(v) for v in x]})
+        return -cut
+
+    x0 = np.zeros(2 * int(layers), dtype=float)
+    x0[0::2] = 0.5
+    x0[1::2] = 0.5
+    try:
+        from scipy.optimize import minimize
+        opt = minimize(objective, x0, method="COBYLA",
+                       options={"maxiter": int(max_iterations), "rhobeg": 0.2, "tol": 1e-6})
+        final_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+        final_cut = -float(objective(final_x))
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"hardware QAOA loop refused: {e}"}
+    return {
+        "success": True,
+        "kind": "qaoa_hardware_loop",
+        "result_version": "experiment-result-v1",
+        "molecule": "MaxCut",
+        "graph": {"nodes": int(nodes), "edges": edges},
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "theta": [float(v) for v in final_x],
+        "energy": float(final_cut),
+        "measured_cut": float(final_cut),
+        "optimal_cut": int(optimal_cut),
+        "approximation_ratio": float(final_cut / float(optimal_cut)),
+        "hardware": True,
+        "simulated_optimizer": False,
+        "optimizer_backend": "ibm-qiskit",
+        "measurement_backend": "ibm-qiskit",
+        "optimizer": {"name": "COBYLA", "success": bool(opt.success),
+                      "evaluations": int(opt.nfev), "message": str(opt.message),
+                      "max_iterations": int(max_iterations)},
+        "trajectory": trajectory,
+        "iteration_batches": len(hardware_job_ids),
+        "hardware_job_ids": hardware_job_ids,
+        "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
+        "usage_seconds": sum(usage_values) if usage_values else None,
+        "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
+        "provider": "ibm-qiskit",
+        "backend": "ibm-qiskit",
+        "execution_time_ms": 0.0,
+        "error_message": "",
+    }
+
+
 def run_qaoa_hardware(
     qasm: str,
     optimal_cut: int,
@@ -945,7 +1357,7 @@ def run_pes(
     seed: int = 7,
     max_iterations: int = 60,
     full_space: bool = False,
-    full_space_pool: str = "uccsd",
+    full_space_pool: str = "ceo",
 ) -> dict[str, Any]:
     """Run a real VQE potential-energy scan over a caller-stated grid.
 

@@ -54,7 +54,7 @@ func (f *fakeBridge) MitigateCircuit(ctx context.Context, in *pb.MitigationReque
 func (f *fakeBridge) RunExperiment(ctx context.Context, in *pb.ExperimentRequest, opts ...grpc.CallOption) (*pb.ExperimentResponse, error) {
 	return &pb.ExperimentResponse{
 		Ok:         true,
-		ResultJson: `{"success":true,"kind":"vqe_hardware","hardware":true,"hardware_job_id":"hw-test","usage_seconds":2,"actual_usd":0}`,
+		ResultJson: `{"success":true,"kind":"vqe_hardware","result_version":"experiment-result-v1","hardware":true,"hardware_job_id":"hw-test","usage_seconds":2,"actual_usd":0}`,
 	}, nil
 }
 

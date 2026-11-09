@@ -1194,6 +1194,8 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			"telemetry":             qb.Telemetry,
 			"catalog_verified":      nil,
 			"queue_depth":           nil,
+			"local_queue_depth":     s.jobRunner.ActiveJobCount(),
+			"queue_scope":           "local_go_book",
 			"cost_per_shot":         nil,
 			"jurisdiction":          "",
 			"itar_ear":              "",
@@ -1231,6 +1233,9 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 		}
 		if qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator" {
 			row["calibration_fresh"] = true
+			// The local simulator dispatches inside this process, so its
+			// local Go queue is the actual queue that applies.
+			row["queue_depth"] = row["local_queue_depth"]
 		}
 		if qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator" {
 			row["jurisdiction"] = "LOCAL_SOVEREIGN"

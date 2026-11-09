@@ -76,16 +76,16 @@ unblock is a **resource-bounded ADAPT/qubit-ADAPT implementation with a declared
 budget**, plus a hard result gate: if the target is not met, the result is
 `full_space_status:"contested"` and `claimable:false`. Full-space accuracy must not
 be a release blocker for the rest of the product; presenting it as accurate is.
-BeH2 full-space should be declared unsupported until the same target is
-demonstrated; active-space BeH2 remains supported and labelled.
+BeH2 full-space is supported and was demonstrated within the gate on
+2026-11-09; active-space BeH2 remains supported and labelled.
 
 **Unblock decision (implemented):** full-space uses real ADAPT-VQE with
-explicit operator pools and a wall-clock/operator cap. The CEO pool is
-implemented and selectable (`full_space_pool:"ceo"`) but measured to stall on
-the LiH benchmark; the validated default is the fermionic UCCSD ADAPT pool.
+explicit operator pools and a wall-clock/operator cap. The 2026-11-08 CEO
+measurement was invalidated by an interleaved-spin assumption; the corrected
+block-spin pool reaches LiH and BeH2 targets and is the validated default.
+The fermionic UCCSD ADAPT pool remains selectable as the reference.
 `EfficientSU2` is removed from the full-space path. Claims require measured
-delta, shot uncertainty, and exact statevector delta all <= 1.6 mHa. BeH2 is
-supported as a job but remains contested until it reaches the target.
+delta, shot uncertainty, and exact statevector delta all <= 1.6 mHa.
 
 ### 1.3 Mixed Python/Go workflow atomicity (blocked by split ownership)
 
@@ -238,10 +238,10 @@ truthful than N circuit jobs or N approvals.
   `https://arxiv.org/html/2607.22468v1`
 
 **Kubona implementation:** ADAPT-VQE with explicit UCCSD and CEO pools behind
-an operator/time budget; the UCCSD pool is the validated default, the CEO pool
-is selectable and experimental. Do not use full-space `EfficientSU2` as an
-accuracy claim. If the target is missed, keep full-space contested and
-active-space supported. BeH2 full-space is measured but remains contested.
+an operator/time budget; CEO is the validated default after the spin-block fix,
+and UCCSD remains the reference. Do not use full-space `EfficientSU2` as an
+accuracy claim. BeH2 full-space is measured and within the gate at 40 CEO
+operators; any result that misses the gate stays contested.
 
 ### Sandboxing
 

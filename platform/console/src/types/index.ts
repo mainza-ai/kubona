@@ -181,6 +181,49 @@ export interface OptimizerPoint {
   energy: number;
 }
 
+// Shared experiment-result envelope (contracts/experiment-result-v1.schema.json).
+// Variant fields are additive; result_version, success and kind are required.
+export interface ExperimentResult {
+  result_version: 'experiment-result-v1';
+  success: boolean;
+  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop';
+  molecule?: string | null;
+  bond_distance?: number | null;
+  method?: string;
+  ansatz?: string;
+  backend?: string;
+  provider?: string;
+  hardware?: boolean;
+  measured?: boolean;
+  simulated_optimizer?: boolean;
+  energy?: number | null;
+  energy_measured?: number | null;
+  energy_exact?: number | null;
+  fci_exact_energy?: number | null;
+  active_space_fci_energy?: number | null;
+  uncertainty?: number | null;
+  ci95_mha?: number | null;
+  delta_mha?: number | null;
+  exact_delta_mha?: number | null;
+  shots?: number;
+  seed?: number;
+  theta?: number[];
+  constant_energy?: number;
+  claimable?: boolean;
+  chemical_accuracy?: boolean;
+  chemical_accuracy_limit_mha?: number;
+  hardware_job_id?: string;
+  hardware_job_ids?: string[];
+  usage_seconds?: number | null;
+  actual_usd?: number | null;
+  trajectory?: Record<string, unknown>[];
+  measurements?: Record<string, unknown>;
+  points?: Record<string, unknown>[];
+  mitigation?: Record<string, unknown> | null;
+  error_message?: string;
+  [key: string]: unknown;
+}
+
 export interface MeasurementSummary {
   result_version?: string;
   job_id?: string;
@@ -738,6 +781,8 @@ export interface BackendInfo {
   telemetry?: string;
   catalog_verified?: string | null;
   queue_depth?: number | null;
+  local_queue_depth?: number | null;
+  queue_scope?: string | null;
   calibration_at?: string | null;
   calibration_age_hours?: number | null;
   calibration_fresh?: boolean | null;

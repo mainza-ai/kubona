@@ -63,6 +63,31 @@ def test_full_space_vqe_reports_the_full_orbital_space():
     assert res["uncertainty"] > 0
 
 
+def test_qaoa_hardware_loop_measures_every_objective(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"01": 512}], "backend": "ibm-test",
+                "hardware_job_id": f"hw-qaoa-loop-{len(calls)}", "usage_seconds": 0.25,
+                "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = experiments.run_qaoa_hardware_loop(
+        nodes=2, edges=[[0, 1]], optimal_cut=1, layers=1, shots=512,
+        seed=7, max_iterations=1, backend="ibm-test",
+    )
+    assert res["success"] is True
+    assert res["kind"] == "qaoa_hardware_loop"
+    assert res["simulated_optimizer"] is False
+    assert res["measured_cut"] == 1.0
+    assert len(calls) >= 1
+    assert res["iteration_batches"] == len(calls)
+    assert res["hardware_job_ids"]
+
+
 def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
     import experiments
 
@@ -103,6 +128,93 @@ def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
     # All measured counts are |00>, so every non-II expectation is +1.
     assert res["energy"] == pytest.approx(-0.7)
     assert res["claimable"] is False
+
+
+def test_hardware_vqe_loop_makes_every_objective_a_batch(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"00": 512} for _ in qasm_list], "backend": "ibm-test",
+                "hardware_job_id": f"hw-loop-{len(calls)}", "usage_seconds": 0.5,
+                "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = experiments.run_vqe_hardware_loop(
+        theta=[0.1] * 8, pauli_coefficients={"II": -1.0, "ZZ": 0.25},
+        layers=2, shots=512, seed=7, bond_distance=0.7414,
+        fci_exact_energy=-0.75, backend="ibm-test", max_iterations=1,
+    )
+    assert res["success"] is True
+    assert res["kind"] == "vqe_hardware_loop"
+    assert res["simulated_optimizer"] is False
+    assert res["hardware"] is True
+    assert len(calls) >= 1
+    assert res["iteration_batches"] == len(calls)
+    assert len(res["hardware_job_ids"]) == len(calls)
+    assert all(len(call[0]) == 2 for call in calls)
+
+
+def test_hardware_vqe_loop_uses_qpy_for_active_space(monkeypatch):
+    import experiments
+
+    src = experiments.run_vqe(molecule="LiH", bond_distance=1.5, layers=1,
+                              shots=128, seed=7, max_iterations=1, full_space=False)
+    assert src["success"] and src["ansatz_qpy"]
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"0000": 512} for _ in qasm_list], "backend": "ibm-test",
+                "hardware_job_id": f"hw-active-{len(calls)}", "usage_seconds": 0.25,
+                "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = experiments.run_vqe_hardware_loop(
+        theta=src["theta"], pauli_coefficients=src["pauli_coefficients"],
+        ansatz_qpy=src["ansatz_qpy"], molecule="LiH", layers=1,
+        shots=512, seed=7, bond_distance=1.5,
+        fci_exact_energy=src["fci_exact_energy"], constant_energy=src["constant_energy"],
+        backend="ibm-test", max_iterations=1,
+    )
+    assert res["success"] is True
+    assert res["kind"] == "vqe_hardware_loop"
+    assert res["ansatz"].startswith("active-space UCCSD")
+    assert res["simulated_optimizer"] is False
+    assert len(calls) >= 1
+
+
+def test_hardware_vqe_zne_extrapolates_energy_from_measured_terms(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasm_list, shots, seed, backend=None):
+        calls.append((list(qasm_list), shots, seed, backend))
+        return {"counts": [{"00": 512} for _ in qasm_list], "backend": "ibm-test",
+                "hardware_job_id": "hw-zne", "usage_seconds": 3.0, "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = experiments.run_vqe_hardware(
+        theta=[0.1] * 8,
+        pauli_coefficients={"II": -1.0, "ZZ": 0.25},
+        layers=2, shots=512, seed=7, bond_distance=0.7414,
+        fci_exact_energy=-0.75, backend="ibm-test",
+        mitigation="ZNE", mitigation_scales=[1, 3, 5],
+    )
+    assert res["success"] is True
+    assert res["mitigated"] is True
+    assert res["measured"] is False
+    assert res["mitigation"]["method"] == "ZNE"
+    assert res["mitigation"]["scales"] == [1, 3, 5]
+    assert res["mitigation"]["mitigated_measured"] is False
+    assert res["energy"] == pytest.approx(-0.75)
+    assert len(calls) == 1
+    assert len(calls[0][0]) == 6
+    assert res["hardware_job_id"] == "hw-zne"
 
 
 def test_qaoa_hardware_computes_cut_from_one_batch(monkeypatch):

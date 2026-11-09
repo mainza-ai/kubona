@@ -29,6 +29,18 @@ def test_uccsd_pool_is_explicit_and_hermitian():
         assert max(abs(complex(c).imag) for c in op.coeffs) < 1e-9
 
 
+def test_ceo_pool_uses_alpha_beta_spin_blocks():
+    import adapt
+
+    problem, mapper, _ = _lih_problem()
+    pool = adapt.build_pool(problem, mapper, "ceo")
+    names = [name for name, _ in pool]
+    # The pinned Qiskit Nature layout is alpha block 0..nso-1, beta block
+    # nso..2*nso-1. The old even/odd pool omitted this excitation family and
+    # stalled at ~4.66 mHa; this assertion is the regression guard.
+    assert "ceo+[1,7,5,8]" in names
+
+
 def test_ceo_pool_contains_coupled_exchange_operators():
     import adapt
 
