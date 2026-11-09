@@ -466,6 +466,7 @@ def run_vqe_hardware_loop(
     ansatz_qpy: str | None = None,
     constant_energy: float = 0.0,
     max_iterations: int = 8,
+    optimizer: str = "spsa",
 ) -> dict[str, Any]:
     """Hardware-in-the-loop VQE: every objective evaluation is a QPU batch.
 
@@ -516,6 +517,9 @@ def run_vqe_hardware_loop(
     actual_values: list[float] = []
     last_layout: Any = None
     last_calibration: Any = None
+    opt_name = str(optimizer or "spsa").strip().lower()
+    if opt_name not in ("spsa", "cobyla"):
+        return {"success": False, "error": f"hardware loop optimizer {optimizer!r} must be spsa|cobyla"}
 
     def objective(x: np.ndarray) -> float:
         nonlocal last_layout, last_calibration
@@ -546,12 +550,44 @@ def run_vqe_hardware_loop(
         })
         return float(m["energy"])
 
+    opt_success = False
+    opt_evals = 0
+    opt_message = ""
     try:
-        from scipy.optimize import minimize
-        opt = minimize(objective, x0, method="COBYLA",
-                       options={"maxiter": int(max_iterations), "rhobeg": 0.15, "tol": 1e-6})
-        final_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
-        final = objective(final_x)
+        if opt_name == "spsa":
+            # SPSA is deliberately used on hardware: finite-difference
+            # COBYLA stalls when every objective is a noisy 256-shot QPU
+            # batch. Two evaluations per iteration estimate a stochastic
+            # gradient without pretending the noise is zero.
+            rng = np.random.default_rng(int(seed))
+            x = np.asarray(x0, dtype=float).copy()
+            a, c = 0.20, 0.10
+            alpha, gamma = 0.602, 0.101
+            for k in range(int(max_iterations)):
+                delta = rng.choice(np.array([-1.0, 1.0]), size=x.size)
+                ck = c / ((k + 1) ** gamma)
+                xp = x + ck * delta
+                xm = x - ck * delta
+                fp = objective(xp)
+                fm = objective(xm)
+                opt_evals += 2
+                grad = (fp - fm) / (2.0 * ck) * delta
+                ak = a / ((k + 1) ** alpha)
+                x = x - ak * grad
+            final_x = np.asarray(x, dtype=float)
+            final = objective(final_x)
+            opt_evals += 1
+            opt_success = True
+            opt_message = "SPSA completed"
+        else:
+            from scipy.optimize import minimize
+            opt = minimize(objective, x0, method="COBYLA",
+                           options={"maxiter": int(max_iterations), "rhobeg": 0.15, "tol": 1e-6})
+            final_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+            final = objective(final_x)
+            opt_success = bool(opt.success)
+            opt_evals = int(opt.nfev)
+            opt_message = str(opt.message)
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": f"hardware VQE loop refused: {e}"}
     delta = abs(float(final) - float(fci_exact_energy))
@@ -586,11 +622,12 @@ def run_vqe_hardware_loop(
         "chemical_accuracy_limit_mha": 1.6,
         "claimable": claimable,
         "hardware": True,
+        "measured": True,
         "simulated_optimizer": False,
         "optimizer_backend": "ibm-qiskit",
         "measurement_backend": "ibm-qiskit",
-        "optimizer": {"name": "COBYLA", "success": bool(opt.success),
-                      "evaluations": int(opt.nfev), "message": str(opt.message),
+        "optimizer": {"name": opt_name.upper(), "success": opt_success,
+                      "evaluations": opt_evals, "message": opt_message,
                       "max_iterations": int(max_iterations)},
         "trajectory": trajectory,
         "iteration_batches": len(hardware_job_ids),
@@ -1210,6 +1247,9 @@ def run_qaoa_hardware_loop(
     actual_values: list[float] = []
     last_layout: Any = None
     last_calibration: Any = None
+    opt_name = str(optimizer or "spsa").strip().lower()
+    if opt_name not in ("spsa", "cobyla"):
+        return {"success": False, "error": f"hardware loop optimizer {optimizer!r} must be spsa|cobyla"}
 
     def objective(x: np.ndarray) -> float:
         nonlocal last_layout, last_calibration
@@ -1270,6 +1310,11 @@ def run_qaoa_hardware_loop(
         "optimal_cut": int(optimal_cut),
         "approximation_ratio": float(final_cut / float(optimal_cut)),
         "hardware": True,
+        "measured": True,
+        "energy_measured": float(final_cut),
+        "energy_measured_source": "QPU cut expectation (hardware-in-the-loop)",
+        "uncertainty": None,
+        "claimable": False,
         "simulated_optimizer": False,
         "optimizer_backend": "ibm-qiskit",
         "measurement_backend": "ibm-qiskit",
@@ -1350,6 +1395,7 @@ def run_qaoa_hardware(
         "optimal_cut": int(optimal_cut),
         "approximation_ratio": float(ratio),
         "hardware": True,
+        "measured": True,
         "simulated_optimizer": True,
         "provider": "ibm-qiskit",
         "backend": str(batch.get("backend") or "ibm-qiskit"),
