@@ -50,6 +50,11 @@ def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] |
     if measured is not None:
         snap["calibrated_at"] = measured.isoformat() if hasattr(measured, "isoformat") else str(measured)
         if snap["calibrated_at"]:
+            # BackendProperties dates are sometimes naive; make the timezone
+            # explicit so Go's RFC3339 age parser does not silently lose the
+            # freshness classification.
+            if "T" in snap["calibrated_at"] and not snap["calibrated_at"].endswith(("Z", "+00:00")) and "+" not in snap["calibrated_at"][10:]:
+                snap["calibrated_at"] += "+00:00"
             snap["version"] = "live-" + snap["calibrated_at"]
     if oneq:
         snap["single_qubit_error"] = float(statistics.median(oneq))
