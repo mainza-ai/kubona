@@ -14,9 +14,10 @@ Not a public SaaS, not a multi-tenant hosted service, not a demo.
 > active-space LiH/BeH2. CEO-ADAPT now reaches LiH/BeH2 targets after the
 > spin-block fix; hardware loops and molecular ZNE are implemented; gVisor
 > was proven on a Linux VM; result-version enforcement is in place. Remaining
-> P0s are live QPU loop/mitigation acceptance, calibration/vendor-queue
-> operations, full campaign/UI type adoption plus a signed receipt, browser
-> breadth, manual accessibility, and the forensic host ledger.
+> P0s are live QPU loop/mitigation acceptance, scheduled calibration/vendor-
+> queue operations, full campaign/UI type adoption (the signed receipt is now
+> embedded by the job rail), browser breadth, manual accessibility, and the
+> forensic host ledger.
 
 ## 0. Execution log (2026-11-08)
 
@@ -221,7 +222,7 @@ It does not upgrade the missing portfolio features.
 
 | ID | Gap | Improvement |
 |---|---|---|
-| PC-12 | **Versioned schema exists; campaign/UI adoption and signed receipt remain.** `platform/contracts/experiment-result-v1.schema.json`, a TS `ExperimentResult`, and a Go job-boundary version gate exist. Campaign `measurement`/`PesPoint` carry CI95/claimable/provenance, but are still separate structs and the result has no signed receipt. | Move campaign/export/UI onto the shared type and mint the ledger-backed receipt. |
+| PC-12 | **Versioned schema and signed ledger receipt exist; campaign/UI adoption remains.** `platform/contracts/experiment-result-v1.schema.json`, a TS `ExperimentResult`, and a Go job-boundary version gate exist. Completed jobs embed `result_receipt` (Ed25519 when a result/reviewer key is configured; otherwise hash-chained `signed:false`). Campaign/UI still use separate structs. | Move campaign/export/UI onto the shared type and commission the signing key in production. |
 | PC-13 | Result UI still lacks PES error bars/FCI curve in the chart, a full optimizer trajectory view, repeat-run variance, and direct claim/job links in every card. | Comparison/diagnostic surface; chart + table + JSON/CSV. |
 | PC-14 | Claim review is a request prompt, not a decision. | Add reviewer decision state (`accepted`, `contested`, `reopened`) as an append-only review record; never mutate the measurement. |
 | PC-15 | Non-executable providers are visible in the settings vocabulary. | Hide or clearly gate `planned`/`not integrated` providers; make `executable_now` the primary action state. |
