@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `c1358e5` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `a4469c1` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
@@ -178,6 +178,8 @@ feature limitations in the UI and contract.
 - `2fa72b3` — live `ibm_fez` SPSA VQE loop, QAOA loop, and molecular ZNE
   completed through the governed parent rail with signed receipts; QAOA
   layer bug found and fixed. Evidence in `docs/live-qpu-2026-11-09.md`.
+- `e63220c`, `a4469c1` — live vendor queue depth in fleet/refresh, console
+  calibration action, and refreshed generated contracts. CI/E2E green.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 
