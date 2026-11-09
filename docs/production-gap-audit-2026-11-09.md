@@ -41,10 +41,12 @@ surface. The remaining blockers are functional, not cosmetic:
    corrected pool, LiH reaches `0.0399 mHa` exact / `0.4499 mHa` measured and
    BeH2 reaches `0.3933 mHa` exact / `0.0146 mHa` measured, both at 262144
    shots. CEO is the default full-space pool; UCCSD remains selectable.
-4. **The production sandbox is not runnable on this host.** The `sandboxd`
-   + gVisor `runsc` topology is implemented and fail-closed, but this macOS
-   Docker Desktop host has no `runsc`; autoresearch stays unavailable. A Linux
-   host/VM is required for a hostile-code boundary.
+4. **Sandbox is live on a Linux VM; macOS remains unsupported natively.**
+   `sandboxd` + gVisor `runsc` was proven on a Lima Ubuntu arm64 VM: health
+   returned available, and a hostile benchmark ran as UID 1000 with no network,
+   read-only rootfs, and `cap-drop=ALL` (`docs/sandbox-live-2026-11-09.md`).
+   macOS Docker Desktop still has no `runsc`; autoresearch stays unavailable
+   there instead of falling back to a weaker runtime.
 5. **Calibration/queue operations are partial.** `/api/fleet` exposes
    calibration age, local Go queue depth, and a boot/hourly stale/resumed
    alert is sealed; there is still no automated provider refresh worker,
@@ -93,7 +95,7 @@ These corrections do not close the items in §3.
 | PG-02 | **Molecular ZNE implemented; live validation pending.** | `run_vqe_hardware` performs exact unitary folding at odd scales, per-term QPU measurement, total-energy extrapolation, and measured-vs-inferred labels. PES has no mitigation option yet. | Run a live mitigated VQE batch under a mandate; add a PES mitigation opt-in if the scientific surface requires it. |
 | PG-03 | **Closed 2026-11-09.** BeH2 full-space reaches `0.3933 mHa` exact / `0.0146 mHa` measured at 40 CEO operators, 262144 shots. | Corrected spin-block pool; measured gate still requires exact delta. |
 | PG-04 | **Closed 2026-11-09.** CEO-ADAPT reaches LiH `0.0399 mHa` exact / `0.4499 mHa` measured at 20 operators. | Spin layout derived and asserted; CEO is the default full-space pool. |
-| PG-05 | **Sandbox cannot run on this host.** | `compose.sandbox.yml` requires `runsc`; macOS Docker Desktop has none; API reports unavailable. | Linux host/VM with gVisor; prove live execution. macOS remains unavailable. |
+| PG-05 | **Sandbox live on Linux VM; macOS native remains unsupported.** | Lima Ubuntu arm64 + rootful Docker + gVisor: health available; benchmark UID 1000, network blocked, read-only, cap-drop=ALL. macOS Docker Desktop still has no `runsc`; API reports unavailable. | Keep the Linux-host requirement in the deployment runbook; no macOS fallback. |
 | PG-06 | **Calibration/queue operations are partial.** | Stale alert and local Go queue depth exist; provider refresh, vendor queue/ETA, and UI action remain absent. | Scheduled provider refresh, queue/ETA diagnostics, and dispatch UX that names exact age. |
 | PG-07 | **Result contract is versioned but not one signed object.** | Shared schema + TS interface + Go version gate exist; campaign/PES/UI projections remain separate; no signed per-result receipt. | Move campaign/export/UI onto the shared type and add the ledger-backed result receipt. |
 | PG-08 | **Browser E2E is not complete.** | paging/full-space test intercepts `/api/**`; PES/mitigation/calibration/review have no full-stack browser flow. | Real-stack fixtures for PES table, claim review, full-space status, calibration/queue, and hardware opt-in. |

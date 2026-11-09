@@ -117,7 +117,7 @@ function PesTable({ points }: { points: PesPoint[] }) {
                 <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
                 <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
                 <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
-                <td className="px-2 py-1 text-right">{point.chemical_accuracy ? 'PASS' : 'outside'}</td>
+                <td className="px-2 py-1 text-right">{(point.claimable ?? point.chemical_accuracy) ? 'PASS' : 'outside'}</td>
               </tr>
             ))}
           </tbody>

@@ -267,10 +267,15 @@ export interface PesPoint {
   energy: number;
   energy_exact?: number;
   fci_exact_energy: number;
+  active_space_fci_energy?: number;
   delta_mha: number;
+  exact_delta_mha?: number;
   uncertainty_mha: number;
   ci95_mha?: number;
   chemical_accuracy: boolean;
+  claimable?: boolean;
+  full_space_status?: string;
+  method?: string;
 }
 
 export interface TrajectoryStep {
