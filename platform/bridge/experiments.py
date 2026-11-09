@@ -227,6 +227,10 @@ def run_vqe_hardware(
     bond_distance: float = 0.7414,
     fci_exact_energy: float | None = None,
     backend: str | None = None,
+    *,
+    molecule: str = "H2",
+    ansatz_qasm: str | None = None,
+    constant_energy: float = 0.0,
 ) -> dict[str, Any]:
     """Execute a locally optimized H2 ansatz on a real QPU as one batch.
 
@@ -236,24 +240,31 @@ def run_vqe_hardware(
     """
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit unavailable: refusing hardware VQE"}
-    if theta is None or not isinstance(theta, (list, tuple)):
-        return {"success": False, "error": "hardware VQE requires the local optimizer theta"}
+    if ansatz_qasm is None and (theta is None or not isinstance(theta, (list, tuple))):
+        return {"success": False, "error": "hardware VQE requires the local optimizer theta or an ansatz QASM"}
     if not (0.3 <= float(bond_distance) <= 10.0):
         return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]: refusing"}
     if layers < 1 or layers > 8:
         return {"success": False, "error": f"layers {layers!r} outside [1,8]: refusing"}
     if shots < 128 or shots > 1_000_000:
         return {"success": False, "error": f"shots {shots!r} outside [128,1000000]: refusing"}
-    theta_arr = np.asarray(theta, dtype=float)
-    if theta_arr.size != 4 * int(layers):
-        return {"success": False, "error": f"theta has {theta_arr.size} values; need {4 * int(layers)}"}
+    theta_arr = np.asarray(theta, dtype=float) if theta is not None else np.zeros(0, dtype=float)
+    if ansatz_qasm is None:
+        if theta_arr.size != 4 * int(layers):
+            return {"success": False, "error": f"theta has {theta_arr.size} values; need {4 * int(layers)}"}
+        qc = _ansatz(theta_arr, int(layers))
+    else:
+        try:
+            from qiskit import qasm2
+            qc = qasm2.loads(ansatz_qasm)
+        except Exception as e:  # noqa: BLE001
+            return {"success": False, "error": f"ansatz QASM is not executable: {e}"}
     coeffs = dict(pauli_coefficients or {})
     if not coeffs:
         h4, _, _ = h2_hamiltonian(float(bond_distance))
         coeffs = pauli_coefficients(h4)
     if fci_exact_energy is None:
         _, fci_exact_energy, _ = h2_hamiltonian(float(bond_distance))
-    qc = _ansatz(theta_arr, int(layers))
     qasms: list[str] = []
     from qiskit import qasm2
     for term in sorted(coeffs):
@@ -274,14 +285,14 @@ def run_vqe_hardware(
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
     measured = _hardware_counts_to_energy(counts_list, coeffs)
-    energy = measured["energy"]
+    energy = measured["energy"] + float(constant_energy)
     delta = abs(energy - float(fci_exact_energy))
     claimable = bool(delta <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3)
     return {
         "success": True,
         "kind": "vqe_hardware",
         "result_version": "experiment-result-v1",
-        "molecule": "H2",
+        "molecule": str(molecule or "H2"),
         "bond_distance": float(bond_distance),
         "basis": "sto-3g",
         "method": "VQE hardware-efficient H2, local COBYLA optimizer, hardware final state",
@@ -290,6 +301,7 @@ def run_vqe_hardware(
         "shots": int(shots),
         "seed": int(seed),
         "theta": [float(v) for v in theta_arr],
+        "constant_energy": float(constant_energy),
         "energy": float(energy),
         "energy_measured": float(energy),
         "energy_measured_source": "QPU measurement-basis batch",
@@ -611,6 +623,22 @@ def _pauli_measurement_energy(
             "terms": terms, "shots": shots, "seed": seed}
 
 
+def _nature_ansatz_qasm(ansatz: Any, theta: np.ndarray, seed: int) -> str:
+    """Concrete optimized UCCSD circuit without measurement, for hardware
+    admission and measurement-basis preparation. The numerical parameters are
+    already bound; no optimizer state is implied to be hardware-derived."""
+    if not HAS_QISKIT:
+        return ""
+    try:
+        from qiskit import qasm2, transpile
+        bound = ansatz.assign_parameters(theta)
+        isa = transpile(bound, basis_gates=["u1", "u2", "u3", "cx"],
+                        optimization_level=1, seed_transpiler=int(seed))
+        return qasm2.dumps(isa)
+    except Exception:
+        return ""
+
+
 def run_nature_vqe(
     molecule: str,
     bond_distance: float,
@@ -705,6 +733,13 @@ def run_nature_vqe(
                       "evaluations": int(opt.nfev), "success": bool(opt.success),
                       "message": str(opt.message)},
         "theta": [float(v) for v in theta],
+        "ansatz_qasm": _nature_ansatz_qasm(ansatz, theta, seed),
+        "pauli_coefficients": {
+            str(p.to_label()): float(np.real(c))
+            for p, c in zip(qop.paulis, qop.coeffs)
+            if abs(float(np.real(c))) > 1e-14
+        },
+        "constant_energy": float(constants),
         "energy": float(e),
         "energy_exact": exact,
         "energy_measured": float(e),

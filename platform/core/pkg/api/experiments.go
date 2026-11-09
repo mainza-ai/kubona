@@ -265,13 +265,18 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		BondDistance      float64            `json:"bond_distance"`
 		Layers            int                `json:"layers"`
 		FCIExactEnergy    float64            `json:"fci_exact_energy"`
+		ConstantEnergy    float64            `json:"constant_energy"`
 		Theta             []float64          `json:"theta"`
 		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
 		AnsatzQASM        string             `json:"ansatz_qasm"`
+		ActiveSpace       struct {
+			FullSpace bool `json:"full_space"`
+		} `json:"active_space"`
 	}
 	if err := json.Unmarshal(source.ResultJSON, &res); err != nil ||
 		!res.Success || res.Kind != "vqe" || res.Hardware ||
-		strings.ToUpper(res.Molecule) != "H2" ||
+		(res.ActiveSpace.FullSpace) ||
+		(strings.ToUpper(res.Molecule) != "H2" && strings.ToUpper(res.Molecule) != "LIH" && strings.ToUpper(res.Molecule) != "BEH2") ||
 		len(res.Theta) == 0 || len(res.PauliCoefficients) == 0 ||
 		strings.TrimSpace(res.AnsatzQASM) == "" {
 		return p, fmt.Errorf("source job carries no local H2 VQE optimizer state and ansatz_qasm")
@@ -296,7 +301,8 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		Kind: "vqe_hardware", Molecule: res.Molecule, BondDistance: res.BondDistance,
 		Layers: res.Layers, Shots: req.Shots, Seed: req.Seed,
 		Theta: res.Theta, PauliCoefficients: res.PauliCoefficients,
-		FCIExactEnergy: res.FCIExactEnergy, Provider: "ibm-qiskit",
+		FCIExactEnergy: res.FCIExactEnergy, ConstantEnergy: res.ConstantEnergy,
+		Provider: "ibm-qiskit", QASM: res.AnsatzQASM,
 		RequestedBackend: backend, FidelityQASM: res.AnsatzQASM,
 		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef,
 		CallerJurisdictions: req.CallerJurisdictions,

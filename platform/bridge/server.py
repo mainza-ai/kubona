@@ -911,6 +911,9 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     bond_distance=float(spec.get("bond_distance", 0.7414)),
                     fci_exact_energy=spec.get("fci_exact_energy"),
                     backend=spec.get("requested_backend"),
+                    molecule=str(spec.get("molecule") or "H2"),
+                    ansatz_qasm=spec.get("qasm") or spec.get("ansatz_qasm"),
+                    constant_energy=float(spec.get("constant_energy", 0.0)),
                 )
             elif kind == "qaoa_hardware":
                 from experiments import run_qaoa_hardware

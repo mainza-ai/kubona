@@ -23,6 +23,8 @@ surface. The remaining blockers are functional, not cosmetic:
    optimizes locally and measures the final fixed ansatz on one Runtime batch.
    That is a real hybrid result, but it is not a hardware-in-the-loop VQE or a
    native hardware QAOA optimizer. Results are labelled `simulated_optimizer`.
+   The final-state path now also accepts active-space LiH/BeH2 ansatz QASM and
+   Pauli terms (not only H2); full-space has no single hardware QASM.
 2. **Error mitigation is not part of VQE/PES.** The separate mitigation route
    demonstrates one observable (Z0) on a circuit; it is not energy mitigation
    for a molecular result, and the proto response drops some truth labels.

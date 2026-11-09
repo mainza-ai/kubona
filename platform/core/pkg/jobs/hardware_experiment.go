@@ -23,6 +23,7 @@ type HardwareExperimentParams struct {
 	Theta               []float64          `json:"theta"`
 	PauliCoefficients   map[string]float64 `json:"pauli_coefficients"`
 	FCIExactEnergy      float64            `json:"fci_exact_energy"`
+	ConstantEnergy      float64            `json:"constant_energy"`
 	Provider            string             `json:"provider"`
 	RequestedBackend    string             `json:"requested_backend"`
 	FidelityQASM        string             `json:"fidelity_qasm"`
@@ -56,6 +57,7 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Theta             []float64          `json:"theta"`
 		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
 		FCIExactEnergy    float64            `json:"fci_exact_energy"`
+		ConstantEnergy    float64            `json:"constant_energy"`
 		Provider          string             `json:"provider"`
 		RequestedBackend  string             `json:"requested_backend"`
 		QASM              string             `json:"qasm"`
@@ -67,7 +69,7 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Molecule: p.Molecule, BondDistance: p.BondDistance,
 		Layers: p.Layers, Shots: p.Shots, Seed: p.Seed,
 		Theta: p.Theta, PauliCoefficients: p.PauliCoefficients,
-		FCIExactEnergy: p.FCIExactEnergy, Provider: p.Provider,
+		FCIExactEnergy: p.FCIExactEnergy, ConstantEnergy: p.ConstantEnergy, Provider: p.Provider,
 		RequestedBackend: p.RequestedBackend, QASM: p.QASM,
 		OptimalCut: p.OptimalCut, EnergyExact: p.EnergyExact,
 		Nodes: p.Nodes, Edges: p.Edges,
@@ -92,8 +94,11 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	}
 	switch jobType {
 	case "hardware_experiment":
-		if p.Molecule != "H2" {
-			return "", 0, fmt.Errorf("hardware_experiment currently supports H2 only; refusing %q", p.Molecule)
+		if p.Molecule != "H2" && p.Molecule != "LiH" && p.Molecule != "BeH2" {
+			return "", 0, fmt.Errorf("hardware_experiment supports H2, LiH, BeH2; refusing %q", p.Molecule)
+		}
+		if p.Molecule != "H2" && strings.TrimSpace(p.QASM) == "" {
+			return "", 0, fmt.Errorf("hardware_experiment for %s requires the optimized active-space ansatz QASM", p.Molecule)
 		}
 	case "qaoa_hardware":
 		if strings.TrimSpace(p.QASM) == "" || p.OptimalCut <= 0 || p.Nodes <= 0 || len(p.Edges) == 0 {
