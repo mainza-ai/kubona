@@ -304,3 +304,115 @@ test.describe('Kubona console against the real local stack', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('result-surface browser contracts with deterministic fixtures', () => {
+  test('claim paging and full-space status render from server payloads', async ({ page }) => {
+    const claimsPageOne = {
+      claims: [
+        {
+          id: 'clm-page-1', session_id: 'sess-1', turn_kind: 'vqe_run',
+          statement: 'First measured claim.', alpha: -1, beta: -1, gamma: -1,
+          verdict: 'verified', evidence_json: '{"job_id":"job-1"}',
+          created_at: '2026-11-08T10:00:00Z',
+        },
+        {
+          id: 'clm-page-2', session_id: 'sess-1', turn_kind: 'vqe_run',
+          statement: 'Second measured claim.', alpha: -1, beta: -1, gamma: -1,
+          verdict: 'verified', evidence_json: '{"job_id":"job-1"}',
+          created_at: '2026-11-08T09:00:00Z',
+        },
+      ],
+      offset: 0, limit: 50, next_offset: 2, has_more: true,
+    };
+    const claimsPageTwo = {
+      claims: [{
+        id: 'clm-page-3', session_id: 'sess-1', turn_kind: 'vqe_run',
+        statement: 'Older claim from page two.', alpha: -1, beta: -1, gamma: -1,
+        verdict: 'verified', evidence_json: '{"job_id":"job-older"}',
+        created_at: '2026-11-07T09:00:00Z',
+      }],
+      offset: 2, limit: 50, next_offset: 3, has_more: false,
+    };
+    const campaign = {
+      session_id: 'sess-1',
+      research_goal: 'LiH full-space',
+      target_system: 'LiH',
+      quantum_factors: { target_molecule: 'LiH' },
+      classical_anchor: {
+        vqe_expectation_energy: -7.8816566228,
+        fci_exact_energy: -7.882362286798725,
+        discrepancy_mha: 0.7057,
+      },
+      trajectory: [],
+      branches: [],
+      epistemics: { status: 'COLLAPSED_VERIFIED' },
+      notebook: {
+        title: 'LiH full-space result',
+        quantum_energy: -7.8816566228,
+        classical_energy: -7.882362286798725,
+        delta_mha: 0.7057,
+        provenance_hash: 'abc123provenance',
+        sections: [],
+        chemical_accuracy: true,
+      },
+      measurement: { uncertainty_mha: 0.513, converged: true },
+      updated_at: new Date().toISOString(),
+    };
+    const job = {
+      id: 'job-full-space-1', session_id: 'sess-1', status: 'JOB_STATUS_COMPLETED',
+      job_type: 'vqe_run', params_json: {}, created_at: '', completed_at: new Date().toISOString(),
+      result_json: {
+        energy: -7.8816566228, fci_exact_energy: -7.882362286798725,
+        delta_mha: 0.7057, uncertainty: 0.000513, full_space_status: 'resource_exhausted',
+        backend: 'qiskit-aer-simulator',
+      },
+    };
+
+    await page.route('**/api/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      const fulfill = (body: unknown) => route.fulfill({
+        status: 200, contentType: 'application/json', body: JSON.stringify(body),
+      });
+      if (path === '/api/sessions') {
+        return fulfill({ sessions: [{
+          id: 'sess-1', title: 'Fixture session', status: 'active', tenant_id: 'default',
+          spend_limit_usd: 10, current_spend_usd: 0,
+          created_at: '2026-11-08T00:00:00Z', updated_at: '2026-11-08T00:00:00Z',
+        }] });
+      }
+      if (path === '/api/sessions/sess-1/campaign') return fulfill(campaign);
+      if (path === '/api/sessions/sess-1/claims') {
+        return fulfill(url.searchParams.get('offset') === '2' ? claimsPageTwo : claimsPageOne);
+      }
+      if (path.endsWith('/claims/clm-page-1/reviews') || path.endsWith('/claims/clm-page-2/reviews') || path.endsWith('/claims/clm-page-3/reviews')) {
+        return fulfill({ reviews: [] });
+      }
+      if (path === '/api/jobs') return fulfill({ jobs: [job] });
+      if (path === '/api/loops') return fulfill({ loops: [] });
+      if (path === '/api/events') return fulfill({ events: [] });
+      if (path === '/api/tasks') return fulfill({ tasks: [] });
+      if (path === '/api/obligations' || path === '/api/obligations/open') return fulfill({ obligations: [] });
+      if (path === '/api/cost/summary') return fulfill({ cap_usd: 10, spent_usd: 0, remaining_usd: 10, active_provider: 'local', currency: 'USD' });
+      if (path === '/api/notebooks' || path === '/api/results/notebooks' || path.endsWith('/notebooks')) return fulfill({ notebooks: [] });
+      if (path === '/api/access') {
+        return fulfill({
+          mode: 'single-lab', role: 'operator', single_lab: true, anonymous_chat: false,
+          llm_local: false, campaign_create: false, auth_required: false,
+        });
+      }
+      if (path === '/api/health') return fulfill({ status: 'ok' });
+      if (path === '/api/ready') return fulfill({ status: 'ready' });
+      if (path === '/api/auth/whoami') return fulfill({ authenticated: false });
+      if (path === '/api/config') return fulfill({ apiUrl: 'http://localhost:8080' });
+      return fulfill({});
+    });
+
+    await page.goto('/?surface=proofs&tab=manuscripts');
+    await expect(page.getByText('Citable Results Studio', { exact: false })).toBeVisible();
+    await expect(page.getByText('full-space resource exhausted', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Load older claims' })).toBeVisible();
+    await page.getByRole('button', { name: 'Load older claims' }).click();
+    await expect(page.getByText('Older claim from page two.')).toBeVisible();
+  });
+});
