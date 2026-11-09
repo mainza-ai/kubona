@@ -641,6 +641,65 @@ export type AuthWhoami = {
   "authenticated": boolean;
 };
 
+export type ExperimentSubmit = {
+  "job": unknown;
+};
+
+export type DiscoveryPlan = {
+  "ok": boolean;
+  "goal": string;
+  "planned_by": string;
+  "steps": {
+  "kind": string;
+  "spec": Record<string, unknown>;
+}[];
+};
+
+export type DiscoveryRun = {
+  "ok": boolean;
+  "protocol_id": string;
+  "goal": string;
+  "planned_by": string;
+  "steps_requested": number;
+  "steps_completed": number;
+  "steps_failed": number;
+  "measured_results": number;
+  "claimable_results": number;
+  "stopped_on_failure": boolean;
+  "results": unknown[];
+};
+
+export type FleetCalibration = {
+  "ok": boolean;
+  "queue"?: unknown;
+  "error"?: string;
+};
+
+export type HardwarePrepare = {
+  "binding": string;
+  "spec": Record<string, unknown>;
+};
+
+export type HardwareLaunch = {
+  "job": unknown;
+};
+
+export type ClaimsPage = {
+  "claims": unknown[];
+  "offset": number;
+  "limit": number;
+  "next_offset": number;
+  "has_more": boolean;
+};
+
+export type ClaimsReviews = {
+  "reviews": unknown[];
+};
+
+export type ClaimsReview = {
+  "review": unknown;
+};
+
 export type QuantumBackends = {
   "backends": {
   "provider": string;
@@ -689,6 +748,8 @@ export type ApiOperationResponse = {
   fetchCampaignResult: Campaign;
   fetchCanvasLayout: CanvasLayout;
   fetchCapabilities: Capabilities;
+  fetchClaimReviews: ClaimsReviews;
+  fetchClaimsPage: ClaimsPage;
   fetchCodesignPacks: CodesignPacks;
   fetchCodesignVerified: CodesignVerified;
   fetchCostSummary: CostSummary;
@@ -730,10 +791,18 @@ export type ApiOperationResponse = {
   issueTenantGrant: TenantGrant;
   issueVaultLease: VaultLease;
   launchProposal: ChatLaunch;
+  launchQAOAHardware: HardwareLaunch;
+  launchSpinChainHardware: HardwareLaunch;
+  launchVQEHardware: HardwareLaunch;
   listHFDownloads: HfDownloads;
   loopAction: LoopAction;
   pauseAutoresearchLoop: AutoresearchLoop;
+  planDiscovery: DiscoveryPlan;
   planWorkflow: WorkflowPlan;
+  prepareQAOAHardware: HardwarePrepare;
+  prepareSpinChainHardware: HardwarePrepare;
+  prepareVQEHardware: HardwarePrepare;
+  refreshCalibration: FleetCalibration;
   refundSessionSpend: SessionRefund;
   refundTenantSpend: TenantWrite;
   regenerateChat: ChatRegenerate;
@@ -746,11 +815,14 @@ export type ApiOperationResponse = {
   resumeAutoresearchLoop: AutoresearchLoop;
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
+  reviewClaim: ClaimsReview;
   revokeTenantAutonomy: TenantWrite;
   revokeTenantGrant: TenantGrantRevoke;
   revokeVaultLease: VaultLeaseRevoke;
   rewriteChat: ChatRewrite;
   routeMultimodalPayload: MeshRoute;
+  runDiscoveryProtocol: DiscoveryRun;
+  runExperiment: ExperimentSubmit;
   runFamilySearch: CodesignFamilies;
   runQuantumCanary: QuantumCanary;
   runTribunal: TribunalRun;
@@ -818,6 +890,8 @@ export const API_OPERATIONS = {
   fetchCampaignResult: { method: "get", path: "/api/sessions/{id}/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
+  fetchClaimReviews: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/reviews", response: "claims.reviews" },
+  fetchClaimsPage: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims", response: "claims.page" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },
   fetchCodesignVerified: { method: "get", path: "/api/codesign/verified", response: "codesign.verified" },
   fetchCostSummary: { method: "get", path: "/api/cost/summary", response: "cost.summary" },
@@ -859,10 +933,18 @@ export const API_OPERATIONS = {
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
+  launchQAOAHardware: { method: "post", path: "/api/experiments/qaoa/hardware", response: "hardware.launch" },
+  launchSpinChainHardware: { method: "post", path: "/api/experiments/spin-chain/hardware", response: "hardware.launch" },
+  launchVQEHardware: { method: "post", path: "/api/experiments/vqe/hardware", response: "hardware.launch" },
   listHFDownloads: { method: "get", path: "/api/hf/downloads", response: "hf.downloads" },
   loopAction: { method: "post", path: "/api/loops/{id}/{action}", response: "loop.action" },
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
+  planDiscovery: { method: "post", path: "/api/discovery/plan", response: "discovery.plan" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
+  prepareQAOAHardware: { method: "post", path: "/api/experiments/qaoa/hardware/prepare", response: "hardware.prepare" },
+  prepareSpinChainHardware: { method: "post", path: "/api/experiments/spin-chain/hardware/prepare", response: "hardware.prepare" },
+  prepareVQEHardware: { method: "post", path: "/api/experiments/vqe/hardware/prepare", response: "hardware.prepare" },
+  refreshCalibration: { method: "post", path: "/api/fleet/calibration/refresh", response: "fleet.calibration" },
   refundSessionSpend: { method: "post", path: "/api/sessions/refund", response: "session.refund" },
   refundTenantSpend: { method: "post", path: "/api/tenants/refund", response: "tenant.write" },
   regenerateChat: { method: "post", path: "/api/chat/regenerate", response: "chat.regenerate" },
@@ -875,11 +957,14 @@ export const API_OPERATIONS = {
   resumeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/resume", response: "autoresearch.loop" },
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
+  reviewClaim: { method: "post", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/review", response: "claims.review" },
   revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
   revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
   revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
   rewriteChat: { method: "post", path: "/api/chat/rewrite", response: "chat.rewrite" },
   routeMultimodalPayload: { method: "post", path: "/api/mesh/route", response: "mesh.route" },
+  runDiscoveryProtocol: { method: "post", path: "/api/discovery/run", response: "discovery.run" },
+  runExperiment: { method: "post", path: "/api/experiments", response: "experiment.submit" },
   runFamilySearch: { method: "post", path: "/api/codesign/families", response: "codesign.families" },
   runQuantumCanary: { method: "get", path: "/api/quantum/canary", response: "quantum.canary" },
   runTribunal: { method: "post", path: "/api/chat/tribunal", response: "tribunal.run" },

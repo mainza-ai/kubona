@@ -187,21 +187,50 @@ type PesPoint struct {
 	Method           string  `json:"method,omitempty"`
 }
 
+// CampaignExperiment is the typed projection of a measured science result
+// that is not the primary molecular VQE/PES point. Optional numeric fields
+// are pointers so "not measured" is distinct from a measured zero.
+type CampaignExperiment struct {
+	JobID               string   `json:"job_id"`
+	Kind                string   `json:"kind"`
+	Model               string   `json:"model,omitempty"`
+	Molecule            string   `json:"molecule,omitempty"`
+	NSites              int      `json:"n_sites,omitempty"`
+	Energy              *float64 `json:"energy,omitempty"`
+	EnergyExact         *float64 `json:"energy_exact,omitempty"`
+	GroundEnergy        *float64 `json:"ground_energy,omitempty"`
+	ExcitedEnergy       *float64 `json:"excited_energy,omitempty"`
+	Gap                 *float64 `json:"gap,omitempty"`
+	ReactionEnergy      *float64 `json:"reaction_energy,omitempty"`
+	ReactionEnergyExact *float64 `json:"reaction_energy_exact,omitempty"`
+	Uncertainty         *float64 `json:"uncertainty,omitempty"`
+	Delta               *float64 `json:"delta,omitempty"`
+	Claimable           bool     `json:"claimable"`
+	Measured            bool     `json:"measured"`
+	Hardware            bool     `json:"hardware"`
+	Backend             string   `json:"backend,omitempty"`
+	HardwareJobID       string   `json:"hardware_job_id,omitempty"`
+	CandidateCount      int      `json:"candidate_count,omitempty"`
+	NoveltyStatus       string   `json:"novelty_status,omitempty"`
+	Status              string   `json:"status,omitempty"`
+}
+
 type CampaignState struct {
-	SessionID       string              `json:"session_id"`
-	ResearchGoal    string              `json:"research_goal"`
-	TargetSystem    string              `json:"target_system"`
-	SMILES          string              `json:"smiles,omitempty"`
-	QuantumFactors  QuantumFactors      `json:"quantum_factors"`
-	ClassicalAnchor ClassicalAnchor     `json:"classical_anchor"`
-	Trajectory      []TrajectoryStep    `json:"trajectory"`
-	Measurement     *MeasurementSummary `json:"measurement,omitempty"`
-	PesPoints       []PesPoint          `json:"pes_points,omitempty"`
-	Branches        []any               `json:"branches"`
-	Epistemics      *EpistemicState     `json:"epistemics"`
-	ADMET           any                 `json:"admet,omitempty"`
-	Notebook        *SystematicNotebook `json:"notebook"`
-	UpdatedAt       time.Time           `json:"updated_at"`
+	SessionID       string               `json:"session_id"`
+	ResearchGoal    string               `json:"research_goal"`
+	TargetSystem    string               `json:"target_system"`
+	SMILES          string               `json:"smiles,omitempty"`
+	QuantumFactors  QuantumFactors       `json:"quantum_factors"`
+	ClassicalAnchor ClassicalAnchor      `json:"classical_anchor"`
+	Trajectory      []TrajectoryStep     `json:"trajectory"`
+	Measurement     *MeasurementSummary  `json:"measurement,omitempty"`
+	PesPoints       []PesPoint           `json:"pes_points,omitempty"`
+	Branches        []any                `json:"branches"`
+	Epistemics      *EpistemicState      `json:"epistemics"`
+	ADMET           any                  `json:"admet,omitempty"`
+	Notebook        *SystematicNotebook  `json:"notebook"`
+	Experiments     []CampaignExperiment `json:"experiments,omitempty"`
+	UpdatedAt       time.Time            `json:"updated_at"`
 }
 
 // BuildCampaignProposal constructs the truth-preserving campaign scaffold:

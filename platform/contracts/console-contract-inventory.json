@@ -27,6 +27,9 @@
     "chat.rewrite",
     "chat.send",
     "chat.stream.done",
+    "claims.page",
+    "claims.review",
+    "claims.reviews",
     "codesign.batch",
     "codesign.budget",
     "codesign.evaluate",
@@ -36,10 +39,16 @@
     "codesign.verified",
     "cost.summary",
     "discovery",
+    "discovery.plan",
+    "discovery.run",
     "epistemics",
     "events.list",
+    "experiment.submit",
     "fidelity",
     "fleet",
+    "fleet.calibration",
+    "hardware.launch",
+    "hardware.prepare",
     "hf.cancel",
     "hf.details",
     "hf.download",
@@ -140,6 +149,9 @@
     "chat.rewrite",
     "chat.send",
     "chat.stream.done",
+    "claims.page",
+    "claims.review",
+    "claims.reviews",
     "codesign.batch",
     "codesign.budget",
     "codesign.evaluate",
@@ -149,10 +161,16 @@
     "codesign.verified",
     "cost.summary",
     "discovery",
+    "discovery.plan",
+    "discovery.run",
     "epistemics",
     "events.list",
+    "experiment.submit",
     "fidelity",
     "fleet",
+    "fleet.calibration",
+    "hardware.launch",
+    "hardware.prepare",
     "hf.cancel",
     "hf.details",
     "hf.download",
@@ -438,6 +456,18 @@
       "contract": "capabilities"
     },
     {
+      "function": "fetchClaimReviews",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/reviews",
+      "method": "GET",
+      "contract": "claims.reviews"
+    },
+    {
+      "function": "fetchClaimsPage",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
+      "method": "GET",
+      "contract": "claims.page"
+    },
+    {
       "function": "fetchCodesignPacks",
       "path": "/api/codesign/packs",
       "method": "GET",
@@ -684,6 +714,24 @@
       "contract": "chat.launch"
     },
     {
+      "function": "launchQAOAHardware",
+      "path": "/api/experiments/qaoa/hardware",
+      "method": "POST",
+      "contract": "hardware.launch"
+    },
+    {
+      "function": "launchSpinChainHardware",
+      "path": "/api/experiments/spin-chain/hardware",
+      "method": "POST",
+      "contract": "hardware.launch"
+    },
+    {
+      "function": "launchVQEHardware",
+      "path": "/api/experiments/vqe/hardware",
+      "method": "POST",
+      "contract": "hardware.launch"
+    },
+    {
       "function": "listHFDownloads",
       "path": "/api/hf/downloads",
       "method": "GET",
@@ -702,10 +750,40 @@
       "contract": "autoresearch.loop"
     },
     {
+      "function": "planDiscovery",
+      "path": "/api/discovery/plan",
+      "method": "POST",
+      "contract": "discovery.plan"
+    },
+    {
       "function": "planWorkflow",
       "path": "/api/workflows/plan",
       "method": "POST",
       "contract": "workflow.plan"
+    },
+    {
+      "function": "prepareQAOAHardware",
+      "path": "/api/experiments/qaoa/hardware/prepare",
+      "method": "POST",
+      "contract": "hardware.prepare"
+    },
+    {
+      "function": "prepareSpinChainHardware",
+      "path": "/api/experiments/spin-chain/hardware/prepare",
+      "method": "POST",
+      "contract": "hardware.prepare"
+    },
+    {
+      "function": "prepareVQEHardware",
+      "path": "/api/experiments/vqe/hardware/prepare",
+      "method": "POST",
+      "contract": "hardware.prepare"
+    },
+    {
+      "function": "refreshCalibration",
+      "path": "/api/fleet/calibration/refresh",
+      "method": "POST",
+      "contract": "fleet.calibration"
     },
     {
       "function": "refundSessionSpend",
@@ -780,6 +858,12 @@
       "contract": "memory.retain"
     },
     {
+      "function": "reviewClaim",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
+      "method": "POST",
+      "contract": "claims.review"
+    },
+    {
       "function": "revokeTenantAutonomy",
       "path": "/api/tenants/revoke",
       "method": "POST",
@@ -808,6 +892,18 @@
       "path": "/api/mesh/route",
       "method": "POST",
       "contract": "mesh.route"
+    },
+    {
+      "function": "runDiscoveryProtocol",
+      "path": "/api/discovery/run",
+      "method": "POST",
+      "contract": "discovery.run"
+    },
+    {
+      "function": "runExperiment",
+      "path": "/api/experiments",
+      "method": "POST",
+      "contract": "experiment.submit"
     },
     {
       "function": "runFamilySearch",
@@ -1042,48 +1138,5 @@
       "reason": "auth timing helper"
     }
   ],
-  "unmodeled_functions": [
-    {
-      "function": "fetchClaimReviews",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/reviews",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "fetchClaimsPage",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "planDiscovery",
-      "path": "/api/discovery/plan",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "refreshCalibration",
-      "path": "/api/fleet/calibration/refresh",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "reviewClaim",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "runDiscoveryProtocol",
-      "path": "/api/discovery/run",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "runExperiment",
-      "path": "/api/experiments",
-      "method": "POST",
-      "contract": null
-    }
-  ]
+  "unmodeled_functions": []
 }

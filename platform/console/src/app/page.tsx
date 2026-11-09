@@ -1351,7 +1351,7 @@ export default function Home() {
                   {settingsSection === 'models' && <LLMSettings />}
                   {settingsSection === 'quantum' && <QuantumSettings />}
                   {settingsSection === 'dispatch' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
-                  {settingsSection === 'experiments' && (<div className="space-y-4"><ExperimentPanel sessionId={currentSessionId || null} /><DiscoveryProtocolPanel sessionId={currentSessionId || null} /></div>)}
+                  {settingsSection === 'experiments' && (<div className="space-y-4"><ExperimentPanel sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} /><DiscoveryProtocolPanel sessionId={currentSessionId || null} /></div>)}
                   {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
                   {settingsSection === 'readiness' && <SystemReadinessPanel />}
                 </div>

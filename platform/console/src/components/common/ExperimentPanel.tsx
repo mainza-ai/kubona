@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Play } from 'lucide-react';
 import { fetchJob, runExperiment } from '@/lib/api';
 import type { Job } from '@/types';
+import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
 type Kind = 'vqe' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'conjecture';
 
@@ -19,7 +20,7 @@ function resultRecord(job: Job | null): Record<string, unknown> | null {
 }
 
 /** Human submission surface for the real experiment rail. */
-export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
+export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | null; tenantId?: string | null }) {
   const [kind, setKind] = useState<Kind>('vqe');
   const [molecule, setMolecule] = useState('H2');
   const [bond, setBond] = useState('0.7414');
@@ -50,14 +51,14 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
     setBusy(true); setError(null); setJob(null);
     const spec: Record<string, unknown> = { kind };
     if (kind === 'reaction') {
-      spec.molecule = 'H2';
+      spec.molecule = molecule;
       spec.reactant_distance = Number(bond);
       spec.product_distance = Number(productDistance);
       spec.layers = Number(layers);
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
     } else if (kind === 'excited_state') {
-      spec.molecule = 'H2';
+      spec.molecule = molecule;
       spec.bond_distance = Number(bond);
       spec.layers = Number(layers);
       spec.shots = Number(shots);
@@ -201,10 +202,12 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
                 </label>
               </>
             )}
-            <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
-              <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={kind === 'qaoa' || molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
-              Full orbital space (LiH/BeH2/H2O; slower, refuses above the CPU qubit cap)
-            </label>
+            {(kind === 'vqe' || kind === 'pes') && (
+              <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+                <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
+                Full orbital space (LiH/BeH2/H2O; slower, refuses above the CPU qubit cap)
+              </label>
+            )}
             {fullSpace && (
               <label className="col-span-2 space-y-1">Full-space operator pool
                 <select aria-label="Full-space operator pool" value={fullSpacePool} onChange={(e) => setFullSpacePool(e.target.value as 'uccsd' | 'ceo')} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
@@ -229,7 +232,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
             <input aria-label="Deflation penalty" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
           </label>
         )}
-        {kind === 'reaction' && (
+        {kind === 'reaction' && molecule === 'H2' && (
           <label className="space-y-1">Product distance (Å)
             <input aria-label="Product distance" value={productDistance} onChange={(e) => setProductDistance(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
           </label>
@@ -239,6 +242,9 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
+      {job && job.status === 'JOB_STATUS_COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run'].includes(job.job_type) && (
+        <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={job} />
+      )}
       {job && (
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
@@ -258,7 +264,7 @@ export function ExperimentPanel({ sessionId }: { sessionId: string | null }) {
           )}
           {job.status === 'completed' && kind === 'conjecture' && candidateCount != null && (
             <div>
-              {candidateCount} candidate(s); not a theorem/claim.
+              {candidateCount} candidate(s) · {String(result?.novelty_status || 'unclassified')}; not a theorem/claim.
               {candidates.slice(0, 2).map((c, i) => <div key={i}>{c.law}{c.status ? ` [${c.status}]` : ''}</div>)}
             </div>
           )}

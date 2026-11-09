@@ -454,6 +454,53 @@ export const RESPONSE_SCHEMAS = {
   'auth.whoami': obj({
     authenticated: bool,
   }),
+  'experiment.submit': obj({
+    job: any,
+  }),
+  'discovery.plan': obj({
+    ok: bool,
+    goal: str,
+    planned_by: str,
+    steps: arr(obj({ kind: str, spec: obj() })),
+  }),
+  'discovery.run': obj({
+    ok: bool,
+    protocol_id: str,
+    goal: str,
+    planned_by: str,
+    steps_requested: num,
+    steps_completed: num,
+    steps_failed: num,
+    measured_results: num,
+    claimable_results: num,
+    stopped_on_failure: bool,
+    results: arr(any),
+  }),
+  'fleet.calibration': obj({
+    ok: bool,
+    queue: any,
+    error: str,
+  }, ['ok']),
+  'hardware.prepare': obj({
+    binding: str,
+    spec: obj(),
+  }),
+  'hardware.launch': obj({
+    job: any,
+  }),
+  'claims.page': obj({
+    claims: arr(any),
+    offset: num,
+    limit: num,
+    next_offset: num,
+    has_more: bool,
+  }),
+  'claims.reviews': obj({
+    reviews: arr(any),
+  }),
+  'claims.review': obj({
+    review: any,
+  }),
   'quantum.backends': obj({
     backends: arr(
       obj({

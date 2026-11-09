@@ -36,10 +36,10 @@ external validation:
   polynomial/recurrence discovery with a train/holdout split and falsifier is
   live as `conjecture_run`; it is explicitly not a theorem prover and does not
   solve open corpus problems.
-- **Chemistry is broader but still H2-only for excited/reaction work.**
-  H2/LiH/BeH2/H2O VQE, H2O CASCI/full-FCI, H2 deflation excited states, and
-  H2→2H reaction energy exist. General-molecule excited/reaction workflows and
-  geometry optimization are still missing.
+- **Chemistry is broader but still bounded.** H2/LiH/BeH2/H2O VQE,
+  H2O CASCI/full-FCI, H2 deflation, active-space excited states for
+  LiH/BeH2/H2O, and H2→2H / H2O→H2+O reaction energies exist. Broader reaction
+  families and geometry optimization are still missing.
 - **The discovery loop is bounded.** `/api/discovery/plan` deterministically
   selects a bounded experiment from a goal; `/api/discovery/run` sequences
   1–5 real jobs through the normal rail and returns stored results plus a
@@ -100,9 +100,10 @@ S1–S4 and the S5b/S5c first slices are implemented in the tree:
   mandate refusal.
 - S5c adds H2 deflation excited-state VQE and H2→2H reaction energy against
   exact FCI endpoints; both are measured simulator results.
-- Still open: live hardware spin-chain acceptance, general-molecule
-  excited/reaction workflows, novelty/catalog boundary for conjectures, and a
-  browser launch UI for hardware/protocol runs.
+- Still open: a live hardware spin-chain *accuracy* claim (execution completed
+  on `ibm_fez`, but the VQE state missed the exact anchor), broader reaction
+  families, and external novelty evidence beyond the local known-law registry.
+  The hardware/protocol launch UI now exists.
 
 ## Implementation order (acceptance criteria)
 

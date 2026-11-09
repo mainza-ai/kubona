@@ -123,6 +123,9 @@ services:
       KUBONA_ENV: "production"
       KUBONA_DB_PATH: /home/kubona/.kubona/kubona.db
       KUBONA_BACKUP_DIR: /backups
+      # Preflight opens sealed provider keys to prove KUBONA_SECRET_KEY works;
+      # omitting the key made a correctly sealed state fail preflight.
+      KUBONA_SECRET_KEY: ${KUBONA_SECRET_KEY:-}
       KUBONA_BACKUP_MAX_AGE: ${KUBONA_BACKUP_MAX_AGE:-26h}
       KUBONA_ALERT_WEBHOOK_URL: ${KUBONA_ALERT_WEBHOOK_URL:-}
       KUBONA_PREFLIGHT_REQUIRE_BACKUP: ${KUBONA_PREFLIGHT_REQUIRE_BACKUP:-0}

@@ -25,6 +25,8 @@
     "observable_state": { "type": "string" },
     "candidates": { "type": "array", "items": { "type": "object" } },
     "candidate_count": { "type": "integer" },
+    "novelty_status": { "type": "string" },
+    "novelty_note": { "type": "string" },
     "bond_distance": { "type": ["number", "null"] },
     "method": { "type": "string" },
     "ansatz": { "type": "string" },

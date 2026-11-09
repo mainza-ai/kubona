@@ -659,6 +659,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (reaction): measured ΔE=%.6f Ha vs exact %.6f Ha (uncertainty %.3g, claimable=%v).",
 			shortID, measured, exact, uncertainty, claimable))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, ReactionEnergy: floatPtr(measured),
+			ReactionEnergyExact: floatPtr(exact), Uncertainty: floatPtr(uncertainty),
+			Claimable: claimable, Measured: true,
+		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "reaction energy folded")
 
@@ -687,6 +692,12 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (excited_state): ground %.6f (exact %.6f), excited %.6f (exact %.6f), gap %.6f (exact %.6f), uncertainty %.3g, claimable=%v.",
 			shortID, ground, groundExact, excited, excitedExact, gap, gapExact, uncertainty, claimable))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, GroundEnergy: floatPtr(ground),
+			EnergyExact: floatPtr(groundExact), ExcitedEnergy: floatPtr(excited),
+			Gap: floatPtr(gap), Uncertainty: floatPtr(uncertainty),
+			Claimable: claimable, Measured: true,
+		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "excited-state energies folded")
 
@@ -730,6 +741,12 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (spin_chain): %s n=%d measured E=%.6f vs exact %.6f (%.3g gap, uncertainty %.3g, claimable=%v, backend=%s).",
 			shortID, model, nSites, energy, exact, gap, uncertainty, claimable, backend))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: model, NSites: nSites,
+			Energy: floatPtr(energy), EnergyExact: floatPtr(exact), Gap: floatPtr(gap),
+			Uncertainty: floatPtr(uncertainty), Claimable: claimable, Measured: true,
+			Backend: backend,
+		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain measurement folded")
 
@@ -768,6 +785,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (spin_chain_hardware): %s measured E=%.6f vs exact %.6f (delta %.3g, uncertainty %.3g, claimable=%v, measured=%v, backend=%s, vendor=%s).",
 			shortID, model, energy, exact, delta, uncertainty, claimable, measured, backend, jobRef))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: model,
+			Energy: floatPtr(energy), EnergyExact: floatPtr(exact),
+			Uncertainty: floatPtr(uncertainty), Delta: floatPtr(delta),
+			Claimable: claimable, Measured: measured, Hardware: true,
+			Backend: backend, HardwareJobID: jobRef,
+		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain hardware measurement folded")
 
@@ -795,11 +819,19 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			}
 		}
 		nb := ensureNotebook(&state)
+		var novelty string
+		if raw, ok := present("novelty_status"); ok {
+			_ = json.Unmarshal(raw, &novelty)
+		}
 		line := fmt.Sprintf("Job %s (conjecture): %d exact finite-scope candidate(s) verified on holdout; not a theorem and not a claim.", shortID, count)
 		if len(laws) > 0 {
 			line += " " + strings.Join(laws, "; ")
 		}
 		nb.Sections = append(nb.Sections, line)
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, CandidateCount: count,
+			NoveltyStatus: novelty, Status: "conjecture", Measured: false,
+		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "conjecture candidates recorded")
 
@@ -1072,6 +1104,20 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 
 	default:
 		return nil, false, "unknown job type " + jobType
+	}
+}
+
+func floatPtr(value float64) *float64 { return &value }
+
+func appendCampaignExperiment(state *CampaignState, experiment CampaignExperiment, jobID string) {
+	for _, existing := range state.Experiments {
+		if existing.JobID == jobID {
+			return
+		}
+	}
+	state.Experiments = append(state.Experiments, experiment)
+	if len(state.Experiments) > 50 {
+		state.Experiments = state.Experiments[len(state.Experiments)-50:]
 	}
 }
 

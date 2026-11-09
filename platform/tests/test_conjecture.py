@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from kubona.science.conjecture import discover_sequence_laws
@@ -13,6 +15,9 @@ def test_fibonacci_recurrence_is_discovered_and_holdout_verified():
     assert rec["holdout_verified"] is True
     assert rec["status"] == "conjecture"
     assert rec["predictions"][:2] == ["55", "89"]
+    assert rec["novelty_status"] == "known"
+    assert "Fibonacci" in rec["known_as"]
+    assert out["novelty_status"] == "known"
 
 
 def test_square_sequence_polynomial_is_discovered():
@@ -31,6 +36,9 @@ def test_unpredictable_sequence_rejects_overfit():
     assert out["candidate_count"] == 0
     assert out["status"] == "no_law_verified"
     assert out["claimable"] is False
+    assert out["novelty_status"] == "unclassified"
+    lowered = json.dumps(out).lower().replace("novelty", "")
+    assert "novel" not in lowered
 
 
 def test_exact_rational_inputs_and_holdout_required():

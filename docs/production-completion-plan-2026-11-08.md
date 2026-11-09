@@ -187,7 +187,10 @@ feature limitations in the UI and contract.
 - `6284ced`, `990fefe`, `a0f8fb1`, `34e6afb`, `07e43de`, `c5428cb` — hardware
   spin-chain parent rail, H2 excited/reaction chemistry, measured discovery
   protocol, protocol UI, and coverage/contract fixes. CI/E2E green at
-  `c5428cb`; live hardware spin-chain acceptance remains operator-gated.
+  `c5428cb`; governed live spin-chain execution completed on `ibm_fez` (vendor
+  `dbp4io44148s739tu8mg`, negative accuracy result, not claimable). Excited
+  states now cover H2/LiH/BeH2/H2O active spaces; reaction energy covers
+  H2→2H and H2O→H2+O.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 
