@@ -1,7 +1,7 @@
 # Core scientific capabilities — audit, gaps, and implementation plan
 
 **Date:** 2026-11-09  
-**Audited head:** `386f857` (code head before this program)  
+**Audited head:** `386f857`; **implementation head:** `27476a2` (science slice, CI/E2E green)  
 **Scope:** production local-private Kubona. One trusted host; no demo paths;
 no invented measurements, claims, or scientific results.
 

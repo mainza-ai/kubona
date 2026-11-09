@@ -1,7 +1,7 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `c111f3c` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `27476a2` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
@@ -180,6 +180,10 @@ feature limitations in the UI and contract.
   layer bug found and fixed. Evidence in `docs/live-qpu-2026-11-09.md`.
 - `e63220c`, `a4469c1` — live vendor queue depth in fleet/refresh, console
   calibration action, and refreshed generated contracts. CI/E2E green.
+- `1aceb61`, `be1d0d8`, `27476a2` — core science slice: exact spin-chain/lattice
+  engine, shot-measured `spin_chain` jobs, exact rational conjecture jobs,
+  H2O active-space VQE, exact-state readout mode, console controls, and real
+  E2E coverage. CI/E2E green at `27476a2`.
 - Tests: full Go suite, 596 console tests, bridge tests, console tsc/eslint.
   CI/E2E green at `4c4ea51`; re-verify the later docs commit.
 
