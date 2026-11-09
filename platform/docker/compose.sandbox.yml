@@ -1,22 +1,81 @@
-# Opt-in host-Docker sandbox profile for autoresearch harness execution.
+# Opt-in gVisor sandbox profile for autoresearch harness execution.
 #
-# This mounts the host daemon socket into kubonad, which is a real security
-# boundary: anything that can drive the daemon can control host containers.
-# Use only on a trusted local-private host, after reading the sandbox threat
-# notes in docs/local-deployment.md. Without this override the runner remains
-# fail-closed (`docker_runner.available:false`).
+# Topology:
+#   kubonad  --Unix socket-->  sandboxd  --Docker socket-->  runsc container
+#
+# kubonad never receives the Docker socket. sandboxd is a narrow broker with
+# two routes (/health, /v1/run); image, command, mounts, network, seccomp and
+# resource flags are fixed at boot. The sidecar still has the Docker socket,
+# which is root-equivalent: run it only on a trusted local-private host with
+# gVisor installed and registered as the `runsc` Docker runtime.
+#
+# The scratch directory MUST be a host-visible bind mount at the SAME path
+# inside sandboxd. Docker's daemon resolves bind-mount source paths on the
+# host, so a container-private /tmp path would silently mount empty dirs.
+#
+#   export KUBONA_SANDBOX_SCRATCH=/var/lib/kubona/sandbox
+#   sudo install -d -m 0700 "$KUBONA_SANDBOX_SCRATCH"
+#   docker compose --env-file .env \
+#     -f platform/docker/compose.prod.yml \
+#     -f platform/docker/compose.sandbox.yml up -d
+#
+# Without runsc, sandboxd stays up but /health returns 503 and every run
+# refuses. macOS Docker Desktop has no runsc boundary; use a Linux host/VM.
 services:
-  kubonad:
-    # The host socket is root:root 0660 under Docker Desktop; the nonroot
-    # kubonad user needs the socket group to call the daemon. This is the
-    # explicit cost of the sandbox profile, not a default.
-    group_add:
-      - "0"
+  sandboxd:
+    image: kubona/kubonad:prod
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.kubonad
+      args:
+        VERSION: ${KUBONA_VERSION:-dev}
+    entrypoint: ["/usr/local/bin/kubonad", "sandboxd"]
+    command:
+      - "--socket"
+      - "/run/kubona-sandbox/sandbox.sock"
+      - "--image"
+      - "${KUBONA_SANDBOX_IMAGE:-kubona-quantum-runner:1.1.0}"
+      - "--runtime"
+      - "runsc"
+      - "--scratch"
+      - "/tmp/kubona-sandboxd"
+      - "--max-concurrent"
+      - "${KUBONA_SANDBOX_CONCURRENCY:-2}"
+    # The Docker socket is commonly root:docker. This container is the
+    # trusted broker; root inside it is not an additional host capability,
+    # because socket access already grants root-equivalent control.
+    user: "0:0"
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     environment:
-      KUBONA_SANDBOX_IMAGE: ${KUBONA_SANDBOX_IMAGE:-kubona-quantum-runner:1.1.0}
-      # Host and container share this path so the daemon can read the
-      # generated seccomp profile and the benchmark/workspace mounts.
-      TMPDIR: /tmp/kubona-sandbox
+      KUBONA_ENV: "production"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandbox}:/tmp/kubona-sandbox
+      - sandbox-sock:/run/kubona-sandbox
+      - ${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandbox}:/tmp/kubona-sandboxd
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "--unix-socket", "/run/kubona-sandbox/sandbox.sock", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  kubonad:
+    environment:
+      KUBONA_SANDBOX_SOCKET: /run/kubona-sandbox/sandbox.sock
+      KUBONA_SANDBOX_IMAGE: ${KUBONA_SANDBOX_IMAGE:-kubona-quantum-runner:1.1.0}
+    volumes:
+      - sandbox-sock:/run/kubona-sandbox
+    depends_on:
+      sandboxd:
+        condition: service_started
+
+volumes:
+  sandbox-sock:

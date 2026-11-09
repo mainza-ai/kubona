@@ -106,6 +106,7 @@ type Config struct {
 	User              string        `json:"user"`
 	AllowHostFallback bool          `json:"allow_host_fallback"`
 	Runtime           string        `json:"runtime,omitempty"`
+	SidecarSocket     string        `json:"sidecar_socket,omitempty"`
 	// SeccompProfile is an operator override: absolute daemon-side path of
 	// a custom seccomp profile. "" (the default) applies the embedded
 	// shipped profile (Phase-2 default-on). There is deliberately no value
@@ -135,6 +136,7 @@ func DefaultConfig() Config {
 type SandboxRunner struct {
 	cfg       Config
 	useDocker bool
+	sidecar   *SidecarClient
 }
 
 // NewSandboxRunner instantiates a sandbox runner verifying Docker availability
@@ -145,6 +147,9 @@ func NewSandboxRunner(image string, timeout time.Duration) *SandboxRunner {
 	}
 	if timeout > 0 {
 		cfg.Timeout = timeout
+	}
+	if socket := strings.TrimSpace(os.Getenv(SidecarSocketEnv)); socket != "" {
+		cfg.SidecarSocket = socket
 	}
 	return NewSandboxRunnerWithConfig(cfg)
 }
@@ -180,6 +185,16 @@ func NewSandboxRunnerWithConfig(cfg Config) *SandboxRunner {
 		cfg.AllowHostFallback = false
 	}
 
+	// The sidecar is the supported production topology. It has the Docker
+	// socket; kubonad only has its private API. A configured sidecar is never
+	// silently replaced by a local Docker daemon.
+	if cfg.SidecarSocket == "" {
+		cfg.SidecarSocket = strings.TrimSpace(os.Getenv(SidecarSocketEnv))
+	}
+	if cfg.SidecarSocket != "" {
+		return &SandboxRunner{cfg: cfg, sidecar: NewSidecarClient(cfg.SidecarSocket)}
+	}
+
 	useDocker := false
 	if exec.Command("docker", "info").Run() == nil {
 		// Check primary image or fallback images
@@ -207,9 +222,25 @@ func (r *SandboxRunner) Config() Config {
 	return r.cfg
 }
 
-// IsDockerAvailable indicates if the Docker container runtime is active
+// IsDockerAvailable indicates if a sandbox execution rail is configured.
+// A configured sidecar is reported as available only after its health check;
+// callers that need the reason should use Availability.
 func (r *SandboxRunner) IsDockerAvailable() bool {
-	return r.useDocker
+	ok, _ := r.Availability()
+	return ok
+}
+
+// Availability reports whether sandbox execution can actually run now.
+func (r *SandboxRunner) Availability() (bool, string) {
+	if r.sidecar != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return r.sidecar.Health(ctx)
+	}
+	if r.useDocker {
+		return true, ""
+	}
+	return false, "Docker daemon/image not available and no sandboxd sidecar is configured"
 }
 
 // ExecutePython executes an ad-hoc python script in the hardened sandbox
@@ -223,6 +254,21 @@ func (r *SandboxRunner) ExecutePython(code string) (*ExecutionResult, error) {
 func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mutableArtifactContent string) (*ExecutionResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.cfg.Timeout)
 	defer cancel()
+	if r.sidecar != nil {
+		if strings.TrimSpace(benchmarkScript) == "" {
+			return nil, fmt.Errorf("benchmark script is required")
+		}
+		req := SidecarRequest{
+			Benchmark: benchmarkScript, ArtifactName: mutableArtifactName,
+			Artifact:       mutableArtifactContent,
+			TimeoutSeconds: int(r.cfg.Timeout / time.Second),
+		}
+		res, err := r.sidecar.Execute(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		return res, nil
+	}
 
 	tmpDir, err := os.MkdirTemp("", "kubona-sandbox-*")
 	if err != nil {
