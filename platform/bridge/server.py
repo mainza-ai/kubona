@@ -1042,6 +1042,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     holdout=None if holdout is None else int(holdout),
                     max_order=int(spec.get("max_order", 6)),
                     max_degree=int(spec.get("max_degree", 6)),
+                    literature_search=bool(spec.get("literature_search", False)),
                 )
             elif kind == "vqe_hardware":
                 from experiments import run_vqe_hardware, run_vqe_hardware_loop

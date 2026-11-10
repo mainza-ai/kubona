@@ -47,7 +47,9 @@ slice:
 - landed the signed experiment export envelope and console export action;
 - landed one-coordinate geometry optimization, repeated VQE variance, and
   LiH/BeH2 atomization reactions;
-- landed exact finite-size 2D TFIM quench dynamics.
+- landed exact finite-size 2D TFIM quench dynamics;
+- added optional OpenAlex conjecture lookup with explicit checked/unavailable
+  evidence and no novelty upgrade.
 
 Remaining P0/P1 work is arbitrary multidimensional geometry relaxation,
 DMRG/thermodynamic-limit physics, external math-literature novelty, PES/hardware

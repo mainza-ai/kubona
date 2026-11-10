@@ -14,7 +14,10 @@ than reported as a discovered law.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, Iterable
@@ -241,12 +244,45 @@ def _novelty(law: str) -> tuple[str, str, list[str]]:
     return ("known" if known else "unclassified", known, _catalog_matches(law))
 
 
+def _external_literature_matches(law: str, timeout: float = 5.0) -> dict[str, Any]:
+    """Best-effort OpenAlex lookup for a discovered law.
+
+    This is deliberately not a novelty verdict: it reports whether the network
+    lookup ran, and any matching work titles/DOIs. A failed/offline lookup is
+    ``unavailable``; it never becomes ``novel``.
+    """
+    query = urllib.parse.urlencode({
+        "search": f"sequence {law}",
+        "per-page": 5,
+        "select": "id,title,doi,publication_year",
+    })
+    request = urllib.request.Request(
+        "https://api.openalex.org/works?" + query,
+        headers={"User-Agent": "kubona-exact-conjecture/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=float(timeout)) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        matches = []
+        for work in payload.get("results", [])[:5]:
+            matches.append({
+                "id": work.get("id", ""),
+                "title": work.get("title", ""),
+                "doi": work.get("doi", ""),
+                "publication_year": work.get("publication_year"),
+            })
+        return {"status": "checked", "source": "openalex", "matches": matches}
+    except Exception as exc:  # noqa: BLE001 - offline/API refusal is data
+        return {"status": "unavailable", "source": "openalex", "error": str(exc), "matches": []}
+
+
 def discover_sequence_laws(
     values: Iterable[Any],
     *,
     holdout: int | None = None,
     max_order: int = MAX_ORDER,
     max_degree: int = MAX_DEGREE,
+    literature_search: bool = False,
 ) -> dict[str, Any]:
     seq = [_fraction(value) for value in values]
     if len(seq) < 4:
@@ -333,6 +369,14 @@ def discover_sequence_laws(
         seen.add(key)
         unique.append(candidate)
     candidates = unique
+    external_novelty: dict[str, Any] = {
+        "status": "not_run",
+        "source": "openalex",
+        "matches": [],
+        "note": "External literature comparison was not requested; local registry only.",
+    }
+    if literature_search and candidates:
+        external_novelty = _external_literature_matches(candidates[0].law)
     return {
         "success": True,
         "kind": "conjecture",
@@ -351,6 +395,7 @@ def discover_sequence_laws(
             "Registry matches are recorded; all other candidates are explicitly "
             "unclassified. No external novelty claim is made."
         ),
+        "external_novelty": external_novelty,
         "measured": False,
         "hardware": False,
         "claimable": False,

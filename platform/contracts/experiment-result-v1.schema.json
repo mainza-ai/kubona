@@ -41,6 +41,7 @@
     "candidate_count": { "type": "integer" },
     "novelty_status": { "type": "string" },
     "novelty_note": { "type": "string" },
+    "external_novelty": { "type": "object" },
     "bond_distance": { "type": ["number", "null"] },
     "reaction_energy": { "type": ["number", "null"] },
     "reaction_energy_exact": { "type": ["number", "null"] },
