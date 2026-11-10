@@ -5227,3 +5227,15 @@ skipped is the exact failure this incident is about:
 - Added an opt-in OpenAlex title/DOI lookup for conjecture candidates. It
   reports `checked` or `unavailable` and never upgrades `novelty_status`;
   offline/local-private runs remain local-registry only.
+
+## [2026-11-09] verification | complete science/export implementation head
+
+- External novelty lookup, geometry optimization, atomization reactions,
+  repeated VQE, exact 2D quench dynamics, signed export, and UI surfaces are
+  implemented at `9b05af2`.
+- Local gates: Go full pass; Python full 1262 passed / 36 skipped; bridge 48
+  passed; console 605 passed; tsc/eslint/build clean; contracts 140/121/128 and
+  wiki clean.
+- Live local-stack checks: signed export (22 jobs, Ed25519), geometry job
+  `19df6850...`, repeated VQE `6183b5db...`, 2D quench `ed96a702...`, LiH
+  reaction `a6439e9a...`; all completed with the expected claimability labels.
