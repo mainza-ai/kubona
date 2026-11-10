@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/alerts"
 	"github.com/mainza-ai/kubona/core/pkg/disk"
+	"github.com/mainza-ai/kubona/core/pkg/experimentresult"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/money"
@@ -118,6 +119,9 @@ type Runner struct {
 	// result to fold. The hook must be fast and non-blocking (ledger writes
 	// and pure folds only); a slow hook stalls the worker pool.
 	settledHook func(*Job)
+	// failureHook fires after a job reaches FAILED, on the worker goroutine.
+	// It records a negative result only; it cannot change the job outcome.
+	failureHook func(*Job)
 	// diskGuard freezes admission when set and blocking (S2 defense in
 	// depth: the HTTP edge 503s first, but A2A/internal callers reach
 	// SubmitJob directly). Nil means unguarded.
@@ -197,6 +201,20 @@ func (r *Runner) getSettledHook() func(*Job) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.settledHook
+}
+
+// SetFailureHook registers the post-failure callback (negative-result fold).
+// Nil clears it. Safe to call before or after Start.
+func (r *Runner) SetFailureHook(hook func(*Job)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failureHook = hook
+}
+
+func (r *Runner) getFailureHook() func(*Job) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.failureHook
 }
 
 func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, workers int) *Runner {
@@ -1135,14 +1153,8 @@ func validateExperimentResultVersion(jobType string, resultData []byte) error {
 	default:
 		return nil
 	}
-	var head struct {
-		ResultVersion string `json:"result_version"`
-	}
-	if err := json.Unmarshal(resultData, &head); err != nil {
-		return fmt.Errorf("experiment result is not JSON: %w", err)
-	}
-	if head.ResultVersion != "experiment-result-v1" {
-		return fmt.Errorf("experiment result_version %q is not experiment-result-v1: refusing untyped result", head.ResultVersion)
+	if _, err := experimentresult.Decode(jobType, resultData); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1256,6 +1268,9 @@ func (r *Runner) failJob(j *Job, reason string) {
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 	r.settleTerminalFromResult(j, string(j.ResultJSON))
+	if hook := r.getFailureHook(); hook != nil {
+		hook(j)
+	}
 }
 
 // settleCancelledJob settles one job cancelled via the supervisor paths

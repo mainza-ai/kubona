@@ -86,3 +86,34 @@ describe('ExperimentPanel', () => {
     expect(spec.values).toEqual(['1', '1', '2', '3', '5', '8', '13', '21', '34']);
   });
 });
+
+describe('ExperimentPanel custom molecule', () => {
+  it('submits an explicit PySCF geometry and active space', async () => {
+    runExperimentMock.mockResolvedValue({
+      ok: true,
+      job: { id: 'job-custom', session_id: 's', status: 'JOB_STATUS_QUEUED', job_type: 'vqe_run', params_json: {}, created_at: '' },
+    });
+    fetchJobMock.mockResolvedValue({
+      id: 'job-custom', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_run',
+      params_json: {}, result_json: { energy: -1.1, fci_exact_energy: -1.13, claimable: false }, created_at: '', completed_at: '',
+    });
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ExperimentPanel sessionId="s" />); });
+    const molecule = tree.root.findByProps({ 'aria-label': 'Experiment molecule' });
+    await act(async () => { molecule.props.onChange({ target: { value: 'custom' } }); });
+    const ncas = tree.root.findByProps({ 'aria-label': 'Active orbitals' });
+    const nelecas = tree.root.findByProps({ 'aria-label': 'Active electrons' });
+    await act(async () => {
+      ncas.props.onChange({ target: { value: '2' } });
+      nelecas.props.onChange({ target: { value: '2' } });
+    });
+    const run = runButton(tree.root);
+    await act(async () => { await run.props.onClick(); });
+    const spec = runExperimentMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(spec.molecule).toBe('custom');
+    expect(spec.atom).toContain('H 0 0 0');
+    expect(spec.ncas).toBe(2);
+    expect(spec.nelecas).toBe(2);
+    expect(spec.basis).toBe('sto-3g');
+  });
+});

@@ -223,8 +223,14 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 				"uncertainty": res.Uncertainty, "backend": res.Backend,
 				"hardware": res.Hardware, "hardware_job_id": res.HardwareJobID,
 			})
-			statement := fmt.Sprintf("VQE %s at R=%.4f Å measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; uncertainty %.3f mHa).",
-				res.Molecule, res.BondDistance, res.Energy, res.FCI, delta, res.Uncertainty*1000.0)
+			statement := ""
+			if strings.EqualFold(strings.TrimSpace(res.Molecule), "custom") {
+				statement = fmt.Sprintf("VQE custom geometry measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; uncertainty %.3f mHa).",
+					res.Energy, res.FCI, delta, res.Uncertainty*1000.0)
+			} else {
+				statement = fmt.Sprintf("VQE %s at R=%.4f Å measured %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; uncertainty %.3f mHa).",
+					res.Molecule, res.BondDistance, res.Energy, res.FCI, delta, res.Uncertainty*1000.0)
+			}
 			claimKind := "vqe_run"
 			if j.JobType == "hardware_experiment" {
 				claimKind = "vqe_hardware"
@@ -253,6 +259,55 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 		"job_type": j.JobType,
 		"note":     note,
 	})
+}
+
+// recordFailedJobResult is the failure hook: an experiment that reached a
+// terminal failure becomes a negative-result campaign entry. It never mints
+// a claim, never changes the job row, and never turns failure into success.
+func (s *Server) recordFailedJobResult(j *jobs.Job) {
+	if s.ledger == nil || j == nil {
+		return
+	}
+	switch j.JobType {
+	case "vqe_run", "vqe_pes", "qaoa_run", "excited_state", "reaction",
+		"spin_chain", "conjecture_run", "hardware_experiment",
+		"qaoa_hardware", "spin_chain_hardware", "krylov_json", "mitigate_json":
+	default:
+		return
+	}
+	rawState, err := s.ledger.GetCampaignState(j.SessionID)
+	if err != nil || len(rawState) == 0 {
+		return
+	}
+	reason := ""
+	var res struct {
+		Error   string `json:"error"`
+		Message string `json:"error_message"`
+	}
+	if json.Unmarshal(j.ResultJSON, &res) == nil {
+		reason = strings.TrimSpace(res.Error)
+		if reason == "" {
+			reason = strings.TrimSpace(res.Message)
+		}
+	}
+	if reason == "" {
+		reason = "job failed without a recorded reason"
+	}
+	updated, changed, note := agents.RecordJobFailure(rawState, j.ID, j.JobType, reason)
+	if !changed {
+		return
+	}
+	s.ledger.SaveCampaignStateWithTrigger(j.SessionID, updated, "failure:"+j.JobType+":"+shortJob(j.ID))
+	_ = s.ledger.AppendEvent(j.SessionID, "campaign_negative_result", map[string]any{
+		"job": j.ID, "job_type": j.JobType, "note": note, "reason": reason,
+	})
+}
+
+func shortJob(jobID string) string {
+	if len(jobID) > 8 {
+		return jobID[:8]
+	}
+	return jobID
 }
 
 // evalDeltaMHa extracts the evaluated discrepancy for claim evidence.

@@ -38,10 +38,16 @@ slice:
 - showed measured experiments before a molecular notebook, added a generic
   experiment report/export, fixed completed-status rendering, added ZNE UI and
   protocol history, and disclosed the missing vendor price preview;
-- preserved exact excited/gap/reaction/version fields in the campaign projection.
+- preserved exact excited/gap/reaction/version fields in the campaign projection;
+- landed the canonical `experimentresult` decoder and job-kind/field validation;
+- landed campaign `result_receipts` and the console receipt table;
+- landed negative-result folds for failed experiment jobs;
+- landed caller-supplied closed-shell STO-3G VQE with explicit `ncas`/`nelecas`
+  and a bounded full-FCI anchor.
 
-Remaining P0/P1 work is the canonical result adoption, broader chemistry/physics
-breadth, hardware accuracy/PES mitigation, and the human accessibility gate.
+Remaining P0/P1 work is signed export envelopes, geometry optimization and
+reaction families, broader physics, hardware accuracy/PES mitigation, and the
+human accessibility gate.
 
 ## 0. Execution log (2026-11-08)
 

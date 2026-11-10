@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"github.com/mainza-ai/kubona/core/pkg/experimentresult"
 	"math"
 	"strconv"
 	"strings"
@@ -172,6 +174,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections,
 			"Job "+shortID+" ("+jobType+"): "+fmt.Sprintf(format, args...))
 		trimMeasurementLines(&state)
+	}
+	if successTrue() {
+		version := ""
+		if raw, ok := present("result_version"); ok {
+			_ = json.Unmarshal(raw, &version)
+		}
+		appendResultRef(&state, jobID, jobType, version, experimentresult.ReceiptFromJSON(resultJSON))
 	}
 
 	switch jobType {
@@ -1137,6 +1146,62 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 
 	default:
 		return nil, false, "unknown job type " + jobType
+	}
+}
+
+// RecordJobFailure records a failed experiment job as a negative-result
+// campaign entry. Measured and claimable stay false; the reason is retained
+// verbatim (bounded by the job record) so a failure is not silently dropped.
+func RecordJobFailure(stateJSON []byte, jobID, jobType, reason string) (updated []byte, changed bool, note string) {
+	var state CampaignState
+	if err := json.Unmarshal(stateJSON, &state); err != nil {
+		return nil, false, "campaign undecodable"
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "job failed without a recorded reason"
+	}
+	for _, existing := range state.Experiments {
+		if existing.JobID == jobID {
+			return nil, false, "failure already folded"
+		}
+	}
+	state.Experiments = append(state.Experiments, CampaignExperiment{
+		JobID: jobID, Kind: jobType, Status: "failed",
+		Measured: false, Claimable: false, Error: reason,
+	})
+	if len(state.Experiments) > 50 {
+		state.Experiments = state.Experiments[len(state.Experiments)-50:]
+	}
+	nb := ensureNotebook(&state)
+	nb.Sections = append(nb.Sections, "Job "+shortJobID(jobID)+" ("+jobType+"): FAILED — "+reason)
+	trimMeasurementLines(&state)
+	return marshalReplan(&state, true, "failed job recorded as a negative result")
+}
+
+func shortJobID(jobID string) string {
+	if len(jobID) > 8 {
+		return jobID[:8]
+	}
+	return jobID
+}
+
+func appendResultRef(state *CampaignState, jobID, kind, version string, receipt *experimentresult.Receipt) {
+	if receipt == nil && version == "" {
+		return
+	}
+	for i := range state.ResultReceipts {
+		if state.ResultReceipts[i].JobID == jobID {
+			state.ResultReceipts[i].Kind = kind
+			state.ResultReceipts[i].ResultVersion = version
+			state.ResultReceipts[i].Receipt = receipt
+			return
+		}
+	}
+	state.ResultReceipts = append(state.ResultReceipts, CampaignResultRef{
+		JobID: jobID, Kind: kind, ResultVersion: version, Receipt: receipt,
+	})
+	if len(state.ResultReceipts) > 50 {
+		state.ResultReceipts = state.ResultReceipts[len(state.ResultReceipts)-50:]
 	}
 }
 

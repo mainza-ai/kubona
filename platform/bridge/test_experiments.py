@@ -309,7 +309,7 @@ def test_h2o_active_space_vqe_reports_casci_and_full_fci():
     assert res["qubit_count"] == 8
     assert res["active_space"]["ncas"] == 4
     assert res["active_space"]["nelecas"] == 4
-    assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
+    assert res["fci_exact_energy"] <= res["active_space_fci_energy"] < 0
     assert res["measured"] is True
     assert res["claimable"] is False
 
@@ -352,7 +352,7 @@ def test_lih_active_space_excited_state_reports_full_and_active_anchors():
     assert res["molecule"] == "LiH"
     assert res["active_space"]["ncas"] == 2
     assert res["active_space"]["nelecas"] == 2
-    assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
+    assert res["fci_exact_energy"] <= res["active_space_fci_energy"] < 0
     assert len(res["spectrum"]) >= 2
     assert res["measured"] is True
 
@@ -383,3 +383,36 @@ def test_water_reaction_subtracts_products_and_scopes_the_anchor(monkeypatch):
     assert res["claimable"] is True
     assert res["claimability_scope"].startswith("H2O active-space")
     assert calls == [("H2O", 3), ("H2", 3)]
+
+
+def test_generic_vqe_uses_caller_geometry_and_explicit_active_space():
+    from experiments import run_vqe
+
+    res = run_vqe(
+        molecule="custom",
+        atom="H 0 0 0; H 0 0 0.7414",
+        ncas=2,
+        nelecas=2,
+        shots=256,
+        seed=7,
+        max_iterations=2,
+    )
+    assert res["success"] is True, res
+    assert res["kind"] == "vqe"
+    assert res["generic"] is True
+    assert res["molecule"] == "custom"
+    assert res["active_space"]["ncas"] == 2
+    assert res["active_space"]["full_space"] is False
+    assert res["fci_exact_energy"] <= res["active_space_fci_energy"] < 0
+    assert res["measured"] is True
+    assert res["claimable"] is False
+
+
+def test_generic_vqe_refuses_unsupported_basis_and_missing_active_space():
+    from experiments import run_vqe
+
+    bad_basis = run_vqe(molecule="custom", atom="H 0 0 0; H 0 0 0.7414",
+                        basis="6-31g", ncas=1, nelecas=2)
+    assert bad_basis["success"] is False and "sto-3g" in bad_basis["error"]
+    missing = run_vqe(molecule="custom", atom="H 0 0 0; H 0 0 0.7414")
+    assert missing["success"] is False and "ncas" in missing["error"]

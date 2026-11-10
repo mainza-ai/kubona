@@ -683,11 +683,24 @@ def run_vqe(
     max_iterations: int = 80,
     full_space: bool = False,
     full_space_pool: str = "ceo",
+    *,
+    atom: str | None = None,
+    basis: str = "sto-3g",
+    charge: int = 0,
+    spin: int = 0,
+    ncas: int | None = None,
+    nelecas: int | None = None,
 ) -> dict[str, Any]:
     """Run a real H2 VQE with a live anchor and shot-measured final energy."""
     t0 = time.perf_counter()
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing VQE"}
+    if atom is not None:
+        return run_generic_vqe(
+            atom=str(atom), basis=str(basis), charge=int(charge), spin=int(spin),
+            ncas=ncas, nelecas=nelecas, shots=int(shots), seed=int(seed),
+            max_iterations=int(max_iterations),
+        )
     mol = (molecule or "").upper()
     if mol in _NATURE_ACTIVE:
         return run_nature_vqe(mol, float(bond_distance), shots=shots,
@@ -942,10 +955,12 @@ def _molecule_atom(spec: dict[str, Any], bond_distance: float) -> str:
     return str(atom).format(r=float(bond_distance))
 
 
-def _full_fci_and_casci(atom: str, ncas: int, nelecas: int) -> tuple[float, float]:
+def _full_fci_and_casci(atom: str, ncas: int, nelecas: int,
+                        basis: str = "sto-3g", charge: int = 0,
+                        spin: int = 0) -> tuple[float, float]:
     """Compute full FCI and active-space CASCI for the same geometry."""
     from pyscf import gto, scf, fci, mcscf
-    mol = gto.M(atom=atom, basis="sto-3g", charge=0, spin=0, verbose=0)
+    mol = gto.M(atom=atom, basis=basis, charge=int(charge), spin=int(spin), verbose=0)
     mf = scf.RHF(mol).run()
     e_fci, _ = fci.FCI(mf).kernel()
     cas = mcscf.CASCI(mf, ncas, nelecas).run()
@@ -1162,6 +1177,152 @@ def run_nature_vqe(
         "limitations": ("Full orbital space; full-molecule FCI and CASCI coincide."
                         if requested_full else
                         "Active-space model; full-molecule FCI is reported separately and is the physical comparison."),
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
+def run_generic_vqe(
+    atom: str,
+    basis: str = "sto-3g",
+    charge: int = 0,
+    spin: int = 0,
+    ncas: int | None = None,
+    nelecas: int | None = None,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+) -> dict[str, Any]:
+    """Run a real active-space VQE for a caller-supplied PySCF geometry.
+
+    This is deliberately bounded: closed-shell, STO-3G, at most 8 spatial
+    orbitals for the full-FCI anchor and at most 12 active-space qubits. The
+    full-molecule FCI and active-space CASCI anchors stay separate. No
+    geometry is inferred and no energy is borrowed from a curated molecule.
+    """
+    if not HAS_NATURE or not HAS_QISKIT:
+        return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing generic VQE"}
+    if str(basis).strip().lower() != "sto-3g":
+        return {"success": False, "error": "generic VQE currently supports basis=sto-3g only"}
+    if int(charge) != 0:
+        return {"success": False, "error": "generic VQE currently supports neutral closed-shell molecules only (charge=0)"}
+    if int(spin) != 0:
+        return {"success": False, "error": "generic VQE currently supports closed-shell molecules only (spin=0)"}
+    if ncas is None or nelecas is None:
+        return {"success": False, "error": "generic VQE requires explicit ncas and nelecas"}
+    ncas, nelecas = int(ncas), int(nelecas)
+    if ncas < 1 or nelecas < 2 or nelecas > 2 * ncas:
+        return {"success": False, "error": "generic VQE requires 1<=ncas and 2<=nelecas<=2*ncas"}
+    if 2 * ncas > 12:
+        return {"success": False, "error": f"generic active space needs {2 * ncas} qubits; the local cap is 12"}
+    atom = str(atom or "").strip()
+    if not atom or len(atom) > 2000 or ";" not in atom:
+        return {"success": False, "error": "generic VQE requires an explicit PySCF atom geometry string"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if int(max_iterations) < 1 or int(max_iterations) > 1000:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    try:
+        problem = PySCFDriver(atom=atom, basis=str(basis), charge=int(charge), spin=int(spin)).run()
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"PySCF could not build the supplied geometry: {e}"}
+    spatial = int(problem.num_spatial_orbitals)
+    if spatial > 8:
+        return {"success": False, "error": f"generic full-FCI anchor needs {spatial} spatial orbitals; local cap is 8 (16 qubits)"}
+    if ncas > spatial:
+        return {"success": False, "error": f"ncas {ncas} exceeds the molecule's {spatial} spatial orbitals"}
+    electrons = problem.num_particles
+    total_electrons = int(sum(electrons) if isinstance(electrons, (tuple, list)) else electrons)
+    if nelecas > total_electrons:
+        return {"success": False, "error": f"nelecas {nelecas} exceeds the molecule's {total_electrons} electrons"}
+    t0 = time.perf_counter()
+    try:
+        e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas, basis=str(basis), charge=0, spin=0)
+        reduced = ActiveSpaceTransformer(num_electrons=nelecas, num_spatial_orbitals=ncas).transform(problem)
+        mapper = JordanWignerMapper()
+        qop = mapper.map(reduced.hamiltonian.second_q_op())
+        constants = float(sum(reduced.hamiltonian.constants.values()))
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"active-space construction refused: {e}"}
+    hf = HartreeFock(reduced.num_spatial_orbitals, reduced.num_particles, mapper)
+    ansatz = UCCSD(reduced.num_spatial_orbitals, reduced.num_particles, mapper, initial_state=hf)
+    rng = np.random.default_rng(int(seed))
+    x0 = rng.uniform(-0.15, 0.15, size=ansatz.num_parameters)
+    trajectory: list[dict[str, Any]] = []
+
+    def objective(x: np.ndarray) -> float:
+        sv = Statevector.from_instruction(ansatz.assign_parameters(x))
+        e = float(np.real(sv.expectation_value(qop)) + constants)
+        if len(trajectory) < 500:
+            trajectory.append({"iteration": len(trajectory) + 1, "energy": e,
+                               "theta": [float(v) for v in x]})
+        return e
+
+    from scipy.optimize import minimize
+    opt = minimize(objective, x0, method="COBYLA",
+                   options={"maxiter": int(max_iterations), "rhobeg": 0.3, "tol": 1e-8})
+    theta = np.asarray(opt.x, dtype=float)
+    exact = float(np.real(Statevector.from_instruction(ansatz.assign_parameters(theta))
+                          .expectation_value(qop)) + constants)
+    measured = _pauli_measurement_energy(ansatz, theta, qop, int(shots), int(seed))
+    energy = float(measured["energy"] + constants)
+    delta_full_mha = abs(energy - e_full) * 1000.0
+    delta_active_mha = abs(energy - e_casci) * 1000.0
+    claimable = _claimable_against_anchor(energy, e_full, measured["uncertainty"])
+    return {
+        "success": True,
+        "kind": "vqe",
+        "result_version": "experiment-result-v1",
+        "molecule": "custom",
+        "generic": True,
+        "atom": atom,
+        "basis": str(basis),
+        "charge": int(charge),
+        "spin": int(spin),
+        "method": "VQE UCCSD active-space (caller geometry), COBYLA",
+        "ansatz": f"UCCSD active-space {ncas} orbitals",
+        "qubit_count": int(qop.num_qubits),
+        "active_space": {"ncas": ncas, "nelecas": nelecas,
+                         "spatial_orbitals": spatial, "full_space": False},
+        "layers": 1,
+        "shots": int(shots), "seed": int(seed),
+        "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
+                      "evaluations": int(opt.nfev), "success": bool(opt.success),
+                      "message": str(opt.message)},
+        "theta": [float(v) for v in theta],
+        "ansatz_qasm": _nature_ansatz_qasm(ansatz, theta, seed),
+        "ansatz_qpy": _ansatz_qpy(ansatz),
+        "pauli_coefficients": {str(p.to_label()): float(np.real(c))
+                               for p, c in zip(qop.paulis, qop.coeffs)
+                               if abs(float(np.real(c))) > 1e-14},
+        "constant_energy": float(constants),
+        "energy": float(energy),
+        "energy_exact": exact,
+        "energy_measured": float(energy),
+        "energy_measured_source": "shot-sampled Pauli expectation",
+        "uncertainty": float(measured["uncertainty"]),
+        "ci95_mha": _ci95_mha(measured["uncertainty"]),
+        "measurements": measured["terms"],
+        "fci_exact_energy": float(e_full),
+        "active_space_fci_energy": float(e_casci),
+        "delta_mha": delta_full_mha,
+        "active_space_delta_mha": delta_active_mha,
+        "chemical_accuracy": claimable,
+        "active_space_chemical_accuracy": _claimable_against_anchor(energy, e_casci, measured["uncertainty"]),
+        "below_fci": bool(energy < e_full - 3.0 * measured["uncertainty"]),
+        "chemical_accuracy_limit_mha": 1.6,
+        "claimable": claimable,
+        "converged": bool(opt.success),
+        "trajectory": trajectory,
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "hardware": False,
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "measured": True,
+        "limitations": ("Caller-supplied geometry; closed-shell STO-3G only; "
+                        "active-space CASCI is reported separately from the full-FCI anchor. "
+                        "No geometry relaxation or basis extrapolation."),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }

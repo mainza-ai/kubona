@@ -53,9 +53,17 @@ func (f *fakeBridge) MitigateCircuit(ctx context.Context, in *pb.MitigationReque
 	return &pb.MitigationResponse{Success: true, MethodUsed: in.Method}, nil
 }
 func (f *fakeBridge) RunExperiment(ctx context.Context, in *pb.ExperimentRequest, opts ...grpc.CallOption) (*pb.ExperimentResponse, error) {
+	var spec map[string]any
+	_ = json.Unmarshal([]byte(in.SpecJson), &spec)
+	if nodes, _ := spec["nodes"].(float64); nodes > 0 {
+		return &pb.ExperimentResponse{
+			Ok:         true,
+			ResultJson: `{"success":true,"kind":"qaoa_hardware","result_version":"experiment-result-v1","molecule":"MaxCut","graph":{"nodes":2,"edges":[[0,1]]},"measured_cut":1,"optimal_cut":1,"approximation_ratio":1,"hardware":true,"hardware_job_id":"hw-qaoa-test","usage_seconds":1,"actual_usd":0}`,
+		}, nil
+	}
 	return &pb.ExperimentResponse{
 		Ok:         true,
-		ResultJson: `{"success":true,"kind":"vqe_hardware","result_version":"experiment-result-v1","hardware":true,"hardware_job_id":"hw-test","usage_seconds":2,"actual_usd":0}`,
+		ResultJson: `{"success":true,"kind":"vqe_hardware","result_version":"experiment-result-v1","molecule":"H2","energy":-1.1,"energy_exact":-1.1,"fci_exact_energy":-1.137,"uncertainty":0.001,"hardware":true,"measured":true,"hardware_job_id":"hw-test","usage_seconds":2,"actual_usd":0,"claimable":false}`,
 	}, nil
 }
 
@@ -1442,15 +1450,25 @@ func TestExperimentResultVersionGate(t *testing.T) {
 		!strings.Contains(err.Error(), "result_version") {
 		t.Fatalf("untyped VQE result must be refused, got: %v", err)
 	}
-	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
+	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1","kind":"vqe","energy":-1.1,"fci_exact_energy":-1.137}`)); err != nil {
 		t.Fatalf("versioned VQE result must pass: %v", err)
 	}
-	for _, jobType := range []string{"spin_chain", "conjecture_run"} {
-		if err := validateExperimentResultVersion(jobType, []byte(`{"success":true}`)); err == nil {
-			t.Fatalf("untyped %s result must be refused", jobType)
+	if err := validateExperimentResultVersion("vqe_run", []byte(`{"success":true,"result_version":"experiment-result-v1","kind":"vqe"}`)); err == nil ||
+		!strings.Contains(err.Error(), "energy") {
+		t.Fatalf("VQE result missing its anchor must be refused, got: %v", err)
+	}
+	for _, tc := range []struct {
+		jobType string
+		body    string
+	}{
+		{"spin_chain", `{"success":true,"result_version":"experiment-result-v1","kind":"spin_chain","energy":-3.1,"energy_exact":-3.2}`},
+		{"conjecture_run", `{"success":true,"result_version":"experiment-result-v1","kind":"conjecture","candidate_count":1}`},
+	} {
+		if err := validateExperimentResultVersion(tc.jobType, []byte(`{"success":true}`)); err == nil {
+			t.Fatalf("untyped %s result must be refused", tc.jobType)
 		}
-		if err := validateExperimentResultVersion(jobType, []byte(`{"success":true,"result_version":"experiment-result-v1"}`)); err != nil {
-			t.Fatalf("versioned %s result must pass: %v", jobType, err)
+		if err := validateExperimentResultVersion(tc.jobType, []byte(tc.body)); err != nil {
+			t.Fatalf("versioned %s result must pass: %v", tc.jobType, err)
 		}
 	}
 }

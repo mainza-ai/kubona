@@ -13,7 +13,8 @@ treated as a claim to verify, not as evidence.
 
 The local-private stack is operational for the supported science surface:
 
-- H2/LiH/BeH2/H2O molecular VQE and PES on Qiskit Aer with live PySCF anchors;
+- H2/LiH/BeH2/H2O molecular VQE and PES on Qiskit Aer with live PySCF anchors,
+  plus caller-supplied closed-shell STO-3G geometries with explicit active spaces;
 - H2/LiH/BeH2/H2O active-space excited states and H2/H2O reaction energies;
 - exact 1D TFIM/Heisenberg/XXZ spin-chain simulation with a shot-measured
   experiment rail;
@@ -66,6 +67,7 @@ stronger claim.
 | Capability | State | Evidence class |
 |---|---|---|
 | H2, LiH, BeH2, H2O active-space VQE | Working | Shot-measured Aer; PySCF anchors |
+| Caller-supplied custom-geometry VQE | Working, bounded | Explicit atom/ncas/nelecas; CASCI + full FCI; 12-qubit active cap |
 | Full-space LiH/BeH2 ADAPT/CEO | Working with target/limits | Shot-measured; contested status is preserved |
 | H2/LiH/BeH2/H2O PES | Working | Per-point measured energy/uncertainty/FCI |
 | H2/LiH/BeH2/H2O active-space excited state | Working | Shot-measured; active-space anchors |
@@ -86,9 +88,10 @@ stronger claim.
    executed and settled, but measured `-2.278125` Ha against exact
    `-3.00902212` Ha; `claimable:false`. Execution is complete; an accuracy
    claim requires a better ansatz/optimizer/shot budget and a new measured run.
-2. **Chemistry breadth remains curated.** Supported VQE families are H2, LiH,
-   BeH2, and H2O. There is no general molecule/SMILES-to-active-space input, no
-   geometry optimization, no N2/CO/HF suite, and no general reaction network.
+2. **Chemistry breadth is still bounded.** Curated H2/LiH/BeH2/H2O and
+   caller-supplied closed-shell STO-3G geometries are supported, but there is
+   no SMILES-to-geometry conversion, geometry optimization, open-shell/charged
+   generic path, N2/CO/HF suite, or general reaction network.
 3. **Physics breadth is one-dimensional.** The lattice module is exact and
    tested, but there is no 2D lattice, Fermi-Hubbard quantum experiment,
    spectral-function, quench/time-evolution, or DMRG cross-check.
@@ -157,24 +160,32 @@ Exit criteria met:
 - parent bindings include the source job;
 - campaign projections preserve exact anchors and result versions.
 
-### Phase 1 — Canonical result adoption (next)
+### Phase 1 — Canonical result adoption (landed in this pass)
 
-1. Define one Go `ExperimentResult` decoder with per-kind required fields and
-   finite-number checks; use it in the jobs boundary, campaign fold, and export.
-2. Make campaign `measurement`, `pes_points`, `experiments`, and UI consume the
-   same object; keep old rows readable for one release.
-3. Add negative-result records for failed discovery steps.
-4. Add a signed export bundle containing the result receipt and claim linkage.
+1. **Landed:** dependency-free Go `experimentresult` decoder validates version,
+   job-kind match, per-kind required fields, finite numbers, and receipt shape
+   at the jobs boundary.
+2. **Landed:** completed jobs add a campaign `result_receipts` reference
+   (job id, kind, result version, ledger receipt); the console renders the
+   ledger/result hashes. The campaign still keeps readable projection fields
+   for one release.
+3. **Landed:** failed experiment jobs record a negative-result campaign entry
+   with status, reason, measured=false, claimable=false; duplicate failure folds
+   are idempotent.
+4. **Partially landed:** exports include the campaign's receipts and claim
+   references. A separate cryptographically signed export envelope is still
+   future work; the underlying per-result receipts are signed.
 
 **Gate:** every citable result has one job id, one result version, one receipt,
 and one campaign projection; no field is reconstructed from prose.
 
 ### Phase 2 — Science breadth
 
-1. General molecule input with explicit active-space limits and refusal beyond
-   the CPU qubit cap.
+1. **Landed:** caller-supplied PySCF geometry VQE with explicit `ncas`/
+   `nelecas`, closed-shell STO-3G, 8-spatial-orbital full-FCI cap, and 12-qubit
+   active-space cap. Unsupported geometries refuse.
 2. Geometry optimization and LiH/BeH2 reaction families with exact atom
-   anchors; no borrowed energies.
+   anchors; no borrowed energies. (Still open.)
 3. 2D lattice/Hubbard and time-evolution experiments with exact small-system
    anchors and explicit finite-size limits.
 4. Repeated-run variance/batch campaign and PES mitigation opt-in.
@@ -201,15 +212,15 @@ supported science surface without hidden shell steps or unsupported claims.
 
 | Gate | Result |
 |---|---|
-| Go full suite | pass (all packages) |
-| Python full suite | 1261 passed, 36 skipped (30:47) |
-| Bridge targeted science suite | 41 passed |
-| Console tests | 604 passed; tsc/eslint pass |
+| Go full suite | pass (all packages, including canonical decoder/negative folds) |
+| Python full suite | 1261 passed, 36 skipped (35:47) |
+| Bridge targeted science suite | 29 passed (custom-VQE/regression files) |
+| Console tests | 605 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `139 modeled / 14 client-only / 0 unmodeled`, `127 paths / 120 schemas` |
 | Wiki lint | clean |
-| Real-stack E2E | green at `4c4875b` |
+| Real-stack E2E | green at `4c4875b`; rerun required on this implementation head |
 
 ## 8. Operator actions
 

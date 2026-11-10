@@ -188,6 +188,11 @@ export interface ExperimentResult {
   success: boolean;
   kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'spin_chain_hardware' | 'conjecture';
   molecule?: string | null;
+  generic?: boolean;
+  atom?: string;
+  basis?: string;
+  charge?: number;
+  spin?: number;
   bond_distance?: number | null;
   model?: string;
   n_sites?: number;
@@ -293,6 +298,22 @@ export interface MeasurementSummary {
   evidence_refs?: string[];
 }
 
+export interface CampaignResultRef {
+  job_id: string;
+  kind: string;
+  result_version?: string;
+  result_receipt?: {
+    algorithm: string;
+    ledger_entry_hash: string;
+    result_sha256: string;
+    signer_pubkey?: string;
+    signature?: string;
+    signed: boolean;
+    hash_version?: number;
+    signature_domain?: string;
+  };
+}
+
 export interface CampaignExperiment {
   job_id: string;
   kind: string;
@@ -325,6 +346,7 @@ export interface CampaignExperiment {
   known_as?: string[];
   result_version?: string;
   status?: string;
+  error?: string;
 }
 
 export interface PesPoint {
@@ -391,6 +413,7 @@ export interface CampaignState {
   measurement?: MeasurementSummary;
   pes_points?: PesPoint[];
   experiments?: CampaignExperiment[];
+  result_receipts?: CampaignResultRef[];
   branches: Array<{ id: string; name: string; step: number; status: string; delta: string }>;
   epistemics: EpistemicState | null;
   admet?: Record<string, unknown>;

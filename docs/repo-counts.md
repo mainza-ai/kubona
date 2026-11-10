@@ -6,11 +6,11 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | Metric | Value | Source |
 |---|---:|---|
 | HTTP routes (Go API) | 138 | s.route registrations in `platform/core/pkg/api/server.go` |
-| Go packages | 36 | directories under `platform/core` containing `.go` files |
-| Go test functions | 845 | top-level `func Test...` in `*_test.go` |
+| Go packages | 37 | directories under `platform/core` containing `.go` files |
+| Go test functions | 851 | top-level `func Test...` in `*_test.go` |
 | Python test files | 182 | `test_*.py` under `platform/tests` |
 | Console test files | 120 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
-| Console test cases | 604 | `it(` / `test(` declarations in console test files |
+| Console test cases | 605 | `it(` / `test(` declarations in console test files |
 | Rust tests | 32 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |
