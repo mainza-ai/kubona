@@ -5247,3 +5247,8 @@ skipped is the exact failure this incident is about:
   the freshness threshold from the provider snapshot. A stale snapshot
   withholds claimability; unknown/absent snapshot stays unknown.
 - Added a regression test proving stale calibration cannot become claimable.
+
+## [2026-11-09] verification | calibration freshness implementation
+
+- Calibration-aware hardware results and stale-snapshot claim withholding are
+  committed at `eec7c18`; CI and Console E2E are green there.
