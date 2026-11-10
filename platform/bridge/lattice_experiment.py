@@ -327,7 +327,7 @@ def run_spin_chain_hardware(
         return {"success": False, "error": "spin-chain hardware refuses QASM containing reset; use a unitary VQE ansatz"}
 
     try:
-        from experiments import _hardware_batch, _measurement_qasm, _hardware_counts_to_energy
+        from experiments import _hardware_batch, _measurement_qasm, _hardware_counts_to_energy, _calibration_quality
         from qiskit import qasm2
         qc = qasm2.loads(str(qasm))
     except Exception as exc:  # noqa: BLE001
@@ -382,10 +382,12 @@ def run_spin_chain_hardware(
     uncertainty = float(measured["uncertainty"])
     delta = abs(energy - float(energy_exact))
     below_exact = bool(energy < float(energy_exact) - 3.0 * uncertainty)
+    calibration_quality = _calibration_quality(batch.get("calibration"))
     claimable = bool(
         delta <= float(target_error)
         and uncertainty <= float(target_error)
         and not below_exact
+        and calibration_quality["calibration_fresh"] is not False
     )
     return {
         "success": True,
@@ -428,6 +430,7 @@ def run_spin_chain_hardware(
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
         "calibration": batch.get("calibration"),
+        **calibration_quality,
         "usage_seconds": batch.get("usage_seconds"),
         "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,

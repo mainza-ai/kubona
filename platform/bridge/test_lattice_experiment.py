@@ -209,3 +209,32 @@ def test_square_lattice_quench_dynamics_is_exact_and_unclaimable():
     assert res["times"][0]["total_magnetization"] == pytest.approx(0.0, abs=1e-12)
     assert res["measured"] is False
     assert res["claimable"] is False
+
+
+def test_spin_chain_hardware_withholds_claim_on_stale_calibration(monkeypatch):
+    import experiments
+    from lattice_experiment import run_spin_chain_hardware
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"000": shots} for _ in qasms],
+            "backend": backend or "fake-qpu",
+            "hardware_job_id": "vendor-stale-cal",
+            "calibration": {"calibrated_at": "2020-01-01T00:00:00+00:00"},
+            "usage_seconds": 0.1,
+            "actual_usd": 0.0,
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = run_spin_chain_hardware(
+        qasm="OPENQASM 2.0; include \"qelib1.inc\"; qreg q[3];",
+        pauli_coefficients={"ZZI": 1.0, "IZZ": 1.0, "XXX": 0.5},
+        n_sites=3,
+        energy_exact=2.5,
+        shots=128,
+        backend="ibm_fez",
+        state_mode="vqe",
+    )
+    assert res["success"] is True
+    assert res["calibration_fresh"] is False
+    assert res["claimable"] is False

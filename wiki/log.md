@@ -5239,3 +5239,11 @@ skipped is the exact failure this incident is about:
 - Live local-stack checks: signed export (22 jobs, Ed25519), geometry job
   `19df6850...`, repeated VQE `6183b5db...`, 2D quench `ed96a702...`, LiH
   reaction `a6439e9a...`; all completed with the expected claimability labels.
+
+## [2026-11-09] implementation | calibration-aware hardware results
+
+- Hardware VQE, loop, spin-chain, and QAOA results now carry
+  `calibration_age_hours`, `calibration_fresh`, `calibration_checked_at`, and
+  the freshness threshold from the provider snapshot. A stale snapshot
+  withholds claimability; unknown/absent snapshot stays unknown.
+- Added a regression test proving stale calibration cannot become claimable.
