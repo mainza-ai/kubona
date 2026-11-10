@@ -10,7 +10,27 @@
     "success": { "type": "boolean" },
     "kind": {
       "type": "string",
-      "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop", "excited_state", "reaction", "spin_chain", "spin_chain_hardware", "conjecture"]
+      "enum": [
+        "vqe",
+        "geometry_optimization",
+        "vqe_repeats",
+        "pes",
+        "qaoa",
+        "krylov",
+        "mitigate",
+        "vqe_hardware",
+        "qaoa_hardware",
+        "vqe_hardware_loop",
+        "qaoa_hardware_loop",
+        "hardware_pes",
+        "excited_state",
+        "reaction",
+        "spin_chain",
+        "spin_chain_hardware",
+        "thermodynamic_limit",
+        "lattice_dynamics",
+        "conjecture"
+      ]
     },
     "molecule": { "type": ["string", "null"] },
     "generic": { "type": "boolean" },

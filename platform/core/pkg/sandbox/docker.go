@@ -197,17 +197,10 @@ func NewSandboxRunnerWithConfig(cfg Config) *SandboxRunner {
 
 	useDocker := false
 	if exec.Command("docker", "info").Run() == nil {
-		// Check primary image or fallback images
+		// Require the configured hardened runner image; never silently downgrade
+		// to a stock python:3.*-slim image that lacks qiskit/pyscf/scipy.
 		if exec.Command("docker", "image", "inspect", cfg.Image).Run() == nil {
 			useDocker = true
-		} else {
-			for _, alt := range []string{"python:3.11-slim", "python:3.12-slim", "python:3.12-alpine"} {
-				if exec.Command("docker", "image", "inspect", alt).Run() == nil {
-					cfg.Image = alt
-					useDocker = true
-					break
-				}
-			}
 		}
 	}
 

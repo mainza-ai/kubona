@@ -6,7 +6,15 @@ set -eu
 STATE="${KUBONA_STATE_DIR:-/home/kubona/.kubona}"
 mkdir -p "$STATE/contracts" "$STATE/models"
 for f in /contracts/*; do
-  [ -e "$STATE/contracts/$(basename "$f")" ] || cp "$f" "$STATE/contracts/"
+  base="$(basename "$f")"
+  case "$base" in
+    fidelity-devices.json|rate-cards.json)
+      [ -e "$STATE/contracts/$base" ] || cp "$f" "$STATE/contracts/"
+      ;;
+    *)
+      cp "$f" "$STATE/contracts/"
+      ;;
+  esac
 done
 export KUBONA_CONTRACTS_DIR="$STATE/contracts"
 

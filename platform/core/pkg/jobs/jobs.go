@@ -260,6 +260,12 @@ func (r *Runner) BridgeClient() pb.QuantumBridgeServiceClient {
 	return r.bridgeClient
 }
 
+// FidelityGate exposes the runner's admission gate so Server and Runner share
+// a single live calibration profile table.
+func (r *Runner) FidelityGate() *fidelity.FidelityGate {
+	return r.fidelityGate
+}
+
 func (r *Runner) tenantStore() *tenants.Manager {
 	return r.tenantMgr
 }
@@ -589,6 +595,9 @@ func (r *Runner) AdoptExternalJob(sessionID, jobID, jobType string, resultJSON [
 	}
 	r.appendMoneyEvent(sessionID, "job_queued", receipt)
 	r.appendMoneyEvent(sessionID, "job_settled", receipt)
+	if hook := r.getSettledHook(); hook != nil {
+		hook(j)
+	}
 	return j, nil
 }
 
@@ -637,7 +646,12 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				// (extended Q-51: the old "hardware-id failure keeps the full
 				// estimate" rule now applies ONLY when no usage was reported).
 				r.settleTerminalFromResult(j, resultJSON)
-				r.appendMoneyEvent(j.SessionID, "job_settled", j)
+				if !r.attachResultReceipt(j) {
+					r.appendMoneyEvent(j.SessionID, "job_settled", j)
+				}
+				if hook := r.getSettledHook(); hook != nil {
+					hook(j)
+				}
 			}
 		}
 	case "failed", "cancelled":
@@ -665,6 +679,9 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				// the vendor never ran), which release.
 				r.settleTerminalFromResult(j, resultJSON)
 				r.appendMoneyEvent(j.SessionID, "job_settled", j)
+				if hook := r.getFailureHook(); hook != nil {
+					hook(j)
+				}
 			}
 		}
 	}
@@ -1100,6 +1117,10 @@ func (r *Runner) executeJob(j *Job) {
 	}
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
 		if hook := r.getSettledHook(); hook != nil {
+			hook(j)
+		}
+	} else if j.Status == pb.JobStatus_JOB_STATUS_FAILED {
+		if hook := r.getFailureHook(); hook != nil {
 			hook(j)
 		}
 	}

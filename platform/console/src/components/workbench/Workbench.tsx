@@ -700,8 +700,8 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
               <caption>Campaign workbench objects — text equivalent of the canvas</caption>
               <thead><tr><th scope="col">Kind</th><th scope="col">Object</th><th scope="col">Recorded facts</th><th scope="col">Open</th></tr></thead>
               <tbody>
-                {visibleObjects.map((object) => (
-                  <tr key={object.id} data-provenance={object.provenance ?? 'catalog'}>
+                {visibleObjects.map((object, index) => (
+                  <tr key={object.id} data-provenance={object.provenance ?? 'catalog'} className={index >= 18 ? 'k-deferred-row' : undefined}>
                     <th scope="row">
                       <div className="flex items-center gap-1.5">
                         <span>{object.label}</span>

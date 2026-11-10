@@ -1,308 +1,176 @@
 <div align="center">
 
-<img src="assets/milimo_kubona_logo.png" alt="Kubona Logo" width="160" />
+<img src="assets/milimo_kubona_logo.png" alt="Kubona Logo" width="140" />
 
 # Kubona
 
 ### *See, observe, discover — then know.*
 
-**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 38 tools over stdio).**
+**An open-source quantum-computing and AI-enhanced scientific discovery platform for autonomous agents and human operators.**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
   <a href="https://creativecommons.org/licenses/by/4.0/"><img src="https://img.shields.io/badge/Docs-CC--BY--4.0-orange.svg" alt="Documentation License" /></a>
-  <a href="platform/kubona/"><img src="https://img.shields.io/badge/Python-49.7%25-3776AB?logo=python&logoColor=white" alt="Python" /></a>
-  <a href="platform/core/"><img src="https://img.shields.io/badge/Go-33.4%25-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
-  <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-2000%2B%20Passed-brightgreen" alt="Tests" /></a>
-  <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-156%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
-  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Resolved)-brightgreen" alt="Open Decisions" /></a>
-  <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
+  <a href="platform/kubona/"><img src="https://img.shields.io/badge/Python-Runtime%20%26%20Bridge-3776AB?logo=python&logoColor=white" alt="Python" /></a>
+  <a href="platform/core/"><img src="https://img.shields.io/badge/Go-Orchestrator-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
+  <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
+  <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-156%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
 </p>
 
 </div>
 
 ---
 
-> **“To see is the founding act of science: observe, measure, record, understand.”**  
-> **Kubona** draws its name from the Chitonga (*Tonga, Zambia*) infinitive: **ku-** (infinitive prefix) + **-bona** (*to see, observe, perceive*). Kubona systematically surfaces quantum phenomena, orchestrates autonomous agent experiments, and records immutable, reproducible findings.
-
-> [!NOTE]
-> **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
+**Kubona** (from Chitonga *ku-bona*, "to see, observe, perceive") is a local-first platform that pairs a sovereign Go orchestrator and hash-chained SQLite provenance ledger with a Python quantum/chemistry compute bridge (PySCF, Qiskit Aer, PennyLane), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools over stdio), and a Next.js operator console.
 
 > [!IMPORTANT]
-> **Current supported status: local-private production.** The local-first stack is verified for a single operator on their own host: preflight, login, local simulator, measured chemistry/physics/math experiments, measured discovery protocols, governed QPU settlement, SSE replay, backup/restore, bridge-restart persistence, response contracts, and WCAG A/AA automated checks. Public SaaS, HA, and multi-host operation are out of scope. Re-run the gate on the exact commit you ship; software is Apache-2.0, docs CC-BY-4.0, and neither is a warranty. Optional hardening is tracked in [`wiki/concepts/optional-enhancement-plan-2026-11-01.md`](wiki/concepts/optional-enhancement-plan-2026-11-01.md).
+> **Deployment Target — Local-Private Production:** Kubona is engineered for single-host local-private operation (`127.0.0.1` bindings for API `:8080` and Console `:3000`, Unix Domain Socket bridge transport, Ed25519 mandate/session signing, and fail-closed budget/fidelity gates). All simulators, classical anchors, and local LLMs run offline at `$0.00`; cloud QPU dispatch and cloud LLMs (BYOK) are explicit opt-ins. See [`docs/local-deployment.md`](docs/local-deployment.md).
 
 ---
 
-## 📽️ Deep Dive: The AI Quantum Bridge
-
-Watch the architectural walkthrough of how autonomous AI agents interface with the sovereign Go orchestrator and quantum execution runtime inside the Kubona stack:
-
-<div align="center">
-  <a href="https://youtu.be/Clo0PAk7Oj0" target="_blank">
-    <img src="https://img.youtube.com/vi/Clo0PAk7Oj0/maxresdefault.jpg" alt="Architecting the AI Quantum Bridge Inside the Kubona Stack" width="85%" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
-  </a>
-  <p><em>▶️ <strong><a href="https://youtu.be/Clo0PAk7Oj0">Watch: Architecting the AI Quantum Bridge Inside the Kubona Stack</a></strong> (Milimo Quantum)</em></p>
-</div>
-
----
-
-## 🗺️ Platform Architecture & Overview
+## Architecture Overview
 
 <div align="center">
   <a href="assets/misc/Kubona_Platform_Overview_Infographic.png">
-    <img src="assets/misc/Kubona_Platform_Overview_Infographic.png" alt="Kubona Platform Architecture and Overview Infographic" width="100%" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+    <img src="assets/misc/Kubona_Platform_Overview_Infographic.png" alt="Kubona Platform Architecture and Overview Infographic" width="100%" style="border-radius: 8px;" />
   </a>
-  <p><em>System topology, language breakdown, execution pipeline, and verification gates. Click image to expand.</em></p>
 </div>
 
-### 📑 Executive Presentation Deck
-Explore the comprehensive 10-slide architectural deck:
-👉 **[Download / View the Kubona Quantum & AI Discovery Platform Deck (PDF)](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)**
-*(Features: epistemic scientific loops, agentic autonomy pillars, polyglot system topology, evaluator-guided circuit co-design, and $0.00 local simulation).*
+- **Architectural Walkthrough (Video):** [Architecting the AI Quantum Bridge Inside the Kubona Stack](https://youtu.be/Clo0PAk7Oj0)
+- **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
+- **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
+
+### Core Principles
+
+1. **Receipts Don't Lie:** Every spend reservation, calibration check, experiment result, and agent action is recorded in a hash-chained SQLite WAL ledger with SHA-256 result receipts.
+2. **Fail-Closed Refusal:** No fabricated metrics, silent fallbacks, or unanchored quantum advantage claims. Missing credentials, stale calibration (>24h), or unconfigured sandboxes refuse explicitly.
+3. **Classical Anchoring:** Every quantum experiment computes or binds an explicit classical reference (PySCF RHF/CASCI/FCI, exact diagonalization, or MPS/DMRG) alongside measured outputs.
 
 ---
 
-## 🔬 The Epistemic Scientific Loop
+## System Topology
 
-Kubona structures scientific inquiry for autonomous agents across four deterministic stages:
-
-```
-  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-  │  1. Observe  │ ───►  │  2. Measure  │ ───►  │  3. Record   │ ───►  │4. Understand │
-  └──────────────┘       └──────────────┘       └──────────────┘       └──────────────┘
-  Surface quantum        Execute agent-         Log tamper-proof       Synthesize
-  phenomena              directed algorithms    provenance ledger      reproducible
-  systematically.        (VQE, QAOA, circuits). (SQLite WAL / edge).   discoveries.
-```
-
-- **Agentic Autonomy**: Sovereign multi-user labs, user- and agent-authored workflows, and meta-level self-evolution loops.
-- **Quantum Core**: QIR/MLIR execution pipelines, PySCF/Qiskit bridge, evaluator-guided circuit co-design, and built-in cost governance.
-- **Science Discovery**: Autonomous autoresearch engine, interactive experiment notebooks, and an organized results studio.
-
-### Verifiable Tool Grounding (MCP Layer)
-
-Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 38 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
-
-* **Observe & Measure**: `execution` server (circuit execution, VQE sweeps, state-vector simulation, hardware capability probes).
-* **Synthesize & Optimize**: `compiler` server (pass portfolio, QIR/OpenQASM3 transpilation, circuit co-design verification).
-* **Record & Attest**: `provenance` server (immutable SQLite WAL ledger, Merkle audit chains, confidentiality lattice labels).
-* **Govern & Gate**: `cost` & `control` servers (spend mandates, pre-flight budget checks, tenant isolation, operator approval cards).
-* **Navigate the World**: `world` server (agents traverse the same observatory as humans — `look`, `probe`, `anchor`, `gaze`, `summon`, `handoff`, `replay` — through governed, ledger-sealed rails; estimates only, agents never spend or dispatch).
-
-### Observatory: See the Science (3D Representation Layer)
-
-The console's Spatial Canvas ships a game-like, diegetic **Observatory** — the same platform, watched instead of read:
-
-* **Tier 1 — Walkable Lab ($0.00, air-gap safe):** a local Three.js potential-energy terrain bound to the PySCF FCI anchor, with a hover/click inspection probe, a procedural pavilion frame, and a calm-technology Attention Director (interrupt hierarchy, ambient sound, CheckInStrip pill).
-* **Tier 2 — Atlas Lens (opt-in, metered):** World Labs Marble 2 renders an illustrative architectural skin over exact local geometry — snapshot posing, depth-conditioned chisel from an offscreen-encoded EXR, `promptUsed` receipts. Every dispatch reserves $1.20 against the session spend cap, requires operator auth, and fails closed without imagery (no stock photos, ever).
-* **Vault pre-registration:** seal μ ± σ expectations before compute, evaluate measurements after — standardized surprise (z), Brier-scored 3σ containment, ghost-contour binding, both stages ledger-sealed.
-
-Design blueprint and full audit trail: [`wiki/concepts/observatory-spatial-representation-layer.md`](wiki/concepts/observatory-spatial-representation-layer.md) and [`wiki/concepts/observatory-lens-audit-2026-10-23.md`](wiki/concepts/observatory-lens-audit-2026-10-23.md). Live Atlas calls are opt-in and metered; everything else in this README runs at $0.00.
-
----
-
-### Scientific capability quickstart
-
-Kubona runs measured scientific experiments through the governed Go job rail, not through client-side simulation:
-
-| Capability | Kind | What is measured | Classical anchor |
-|---|---|---|---|
-| Molecular VQE | `vqe` | Shot-sampled Pauli energy | Live PySCF RHF/FCI/CASCI |
-| Custom-geometry VQE | `vqe` (`atom`, `ncas`, `nelecas`) | Shot-sampled active-space UCCSD energy | Live PySCF CASCI + full FCI (bounded) |
-| Geometry optimization | `geometry_optimization` | VQE at a classically optimized geometry | Curated bond search or caller-geometry RHF/STO-3G BFGS relaxation; full FCI anchor |
-| Repeated VQE | `vqe_repeats` | Mean + shot/between-run standard error | Full FCI at the same geometry |
-| 2D TFIM quench dynamics | `lattice_dynamics` | Exact finite-size magnetization trajectory | Exact `expm_multiply` finite-size simulation |
-| DMRG / thermodynamic limit | `thermodynamic_limit` | Finite-size MPS/DMRG energy density | Exact TFIM/isotropic-Heisenberg limit where known; XXZ finite-size only |
-| Hardware PES | `hardware_pes` | One QPU batch across source PES points | Per-point FCI anchors; optional ZNE |
-| Potential-energy scan | `pes` | Per-point shot energy | Live RHF/FCI per geometry |
-| Excited state (H2/LiH/BeH2/H2O) | `excited_state` | Ground and deflated excited energy | Exact spectrum / active-space anchor |
-| Reaction energy (H2, LiH, BeH2, H2O) | `reaction` | Endpoint energy difference | Active-space endpoint + exact atom anchors |
-| Spin chain | `spin_chain` | Shot energy, magnetization, gap | Exact diagonalization |
-| Math law discovery | `conjecture` | Exact holdout verification | Finite-scope certificate, not a theorem; optional OpenAlex lookup never establishes novelty |
-| Discovery protocol | n/a | Sequential real jobs + measured summary | Deterministic bounded planner |
-
-A custom geometry is accepted only as an explicit, bounded VQE or geometry-optimization input — no inferred structure and no borrowed energy:
-
-```bash
-curl -fsS -X POST http://127.0.0.1:8080/api/experiments -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","spec":{"kind":"vqe","molecule":"custom","atom":"O 0 0 0; H 0.757 0.586 0; H -0.757 0.586 0","ncas":4,"nelecas":4,"shots":8192,"max_iterations":60},"budget_usd":1}'
-```
-
-Submit one experiment through the API (session required):
-
-```bash
-curl -fsS -X POST http://127.0.0.1:8080/api/experiments -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","spec":{"kind":"spin_chain","model":"tfim","n_sites":4,"coupling":1.0,"field":0.8,"periodic":true,"layers":3,"shots":16384},"budget_usd":1}'
-```
-
-Plan or execute a bounded measured-discovery protocol:
-
-```bash
-curl -fsS -X POST http://127.0.0.1:8080/api/discovery/plan -H "Content-Type: application/json" -d '{"goal":"transverse-field Ising spin chain"}'
-curl -fsS -X POST http://127.0.0.1:8080/api/discovery/run -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","goal":"transverse-field Ising spin chain","step_timeout_s":120}'
-```
-
-Governed hardware spin-chain runs use the same parent rail as hardware VQE/QAOA: prepare the binding, sign it with the browser key, then launch. Hardware VQE accepts H2, active-space LiH/BeH2, and active-space H2O source jobs; QAOA uses the optimized graph circuit. The UI path is **Settings -> Experiments -> Run VQE/QAOA/spin chain -> Governed QPU launch**. A live QPU run requires an operator mandate and configured IBM credentials; the rail refuses absent/expired mandates rather than dispatching. Hardware results retain provider calibration age/freshness; a stale snapshot withholds claimability. The prepare response displays the reviewed QPU rate-card row when one exists (the configured local instance is IBM Open Plan free) and explicitly reports `pricing unavailable` otherwise; the signed operator cap remains the spend authority.
-
-Evidence and limitations: [`docs/core-scientific-capabilities-2026-11-09.md`](docs/core-scientific-capabilities-2026-11-09.md) and the corrected audit [`docs/production-audit-2026-11-09.md`](docs/production-audit-2026-11-09.md). Current scope: active-space excited states for H2/LiH/BeH2/H2O and reaction energies for H2/LiH/BeH2/H2O (the non-H2 paths use active-space endpoints + exact atomic FCI products, with separate full-molecule references); exact finite-scope conjectures with an explicit known-law/unclassified registry (not novel-theorem claims); and a live hardware spin-chain VQE execution with a negative accuracy result (`-2.278 Ha` vs exact `-3.009 Ha`, not claimable). Exact-state hardware is refused because its QASM contains reset gates. The console exposes measured experiments (including failed/negative records) before a molecular notebook exists, a generic experiment report/export, canonical result-receipt rows, a server-built signed experiment export, and protocol history. Custom VQE is closed-shell STO-3G only, capped at 8 spatial orbitals for the full-FCI anchor and 12 active-space qubits; larger systems refuse rather than borrowing an anchor. Geometry optimization holds the curated internal coordinate fixed; 2D quench dynamics is exact finite-size simulation and is never labeled a QPU measurement. Conjecture jobs can opt into an OpenAlex title/DOI lookup; an unavailable lookup is reported as `unavailable`, never as novelty.
-
-## 🧱 Design Principles
-
-Kubona runs on three rules. They apply to the code, the agents, and this README.
-
-**1. Receipts don't lie.** Every spend decision, every evaluation result, every agent action is written to a sealed, tamper-proof ledger. If it isn't in the ledger, it didn't happen. Measurements are measurements. Guesses are labeled as guesses.
-
-**2. Refuse loudly.** No silent defaults. No invented numbers. No unchecked boxes. When the platform cannot do the real thing, it says so, in plain language, at the point of failure. A loud refusal beats a quiet lie.
-
-**3. Count the tokens.** Every scaffold, every tool, every agent loop must justify its token tax with a trust property it provides. Scaffolding that doesn't beat the baseline gets taken down.
-
-These are not aspirations. The ledger is sealed, the refusal paths are tested, and the token budgets are capped.
-
----
-
-## 🏛️ System Topology & Codebase Layout
-
-| Directory | Layer | Description |
+| Path | Layer | Role |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; host-level containment documented in the security model), and the HTTP route surface (counts generated in [`docs/repo-counts.md`](docs/repo-counts.md)) on `:8080`. |
-| [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
-| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 38 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
-| [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
-| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (156 pages; all production-readiness decisions resolved 2026-10-27, implementation residuals tracked in the audit) cataloging entities, concepts, source audits, and settled invariants. |
-| [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
-| [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
-| [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
-| [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, 2026-10-12 production bar, and invariants for human and AI collaborators. |
-
-*\*Note on MCP Serving: The 6 MCP servers execute over stdio (`python -m kubona.mcp.servers.<name>`) spawned by the agent host; this is the supported local topology, not a long-running compose service. See [`docs/local-deployment.md`](docs/local-deployment.md).*
+| [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
+| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, and PennyLane compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
+| [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 stdio MCP servers (38 tools: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
+| [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
+| [`wiki/`](wiki/) | **Blueprint Wiki** | 156 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
 
 ---
 
-## 🐳 Local Private Deployment (Docker)
+## Scientific Capabilities
 
-The supported production shape is a **local-first** stack: console and API bind
-to `127.0.0.1`, with no domain, Cloudflare, or public reverse proxy. Cloud is
-used only for QPU dispatch and opt-in cloud LLM (BYOK). Full runbook:
-[`docs/local-deployment.md`](docs/local-deployment.md).
+All 13 experiment kinds execute through the governed Go job rail, validate against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), fold into campaign state, and render in the Console's **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`) and **Results Studio**:
+
+| Capability | Kind | Measurement | Classical Anchor |
+|---|---|---|---|
+| **Molecular VQE** | `vqe` (`vqe_run`) | Shot-sampled Pauli expectation energy | Live PySCF RHF / CASCI / FCI |
+| **Geometry Optimization** | `geometry_optimization` | VQE at classically relaxed bond geometry | Curated scan or caller-geometry RHF/STO-3G BFGS + FCI |
+| **Repeated VQE** | `vqe_repeats` | Multi-seed mean energy, shot σ, and between-run SE | Full FCI at identical geometry |
+| **Potential-Energy Scan** | `pes` (`vqe_pes`) | Bond-distance energy curve across geometry grid | Per-point live RHF & FCI |
+| **Hardware PES** | `hardware_pes` | Single QPU batch across source PES geometries | Per-point FCI anchors (optional ZNE) |
+| **Excited State** | `excited_state` | Ground + overlap-deflated first excited state (`H2`, `LiH`, `BeH2`, `H2O`) | Exact active-space spectrum |
+| **Reaction Energy** | `reaction` | Reactant-to-product ΔE (`H2`, `LiH`, `BeH2`, `H2O`) | Active-space endpoint + exact atomic FCI |
+| **1D Spin Chain** | `spin_chain` | Variational energy, magnetization, and gap (`heisenberg`, `xxz`, `tfim`) | Exact diagonalization (`COBYLA` + multi-start `L-BFGS-B`) |
+| **DMRG Scaling** | `thermodynamic_limit` | Finite-size MPS/DMRG energy per site & $1/N$ extrapolation | Bethe/Pfeuty analytic limit (`heisenberg`/`tfim`) |
+| **2D Quench Dynamics** | `lattice_dynamics` | Exact finite-size 2D TFIM $\langle Z \rangle(t)$ trajectory | Sparse Krylov `expm_multiply` time evolution |
+| **MaxCut QAOA** | `qaoa` (`qaoa_run`) | Shot-sampled cut value and approximation ratio | Exact brute-force MaxCut |
+| **Math Conjecture** | `conjecture` | Exact symbolic/rational search + holdout verification | Finite-scope holdout certificate + known-law registry |
+| **Discovery Protocol** | `/api/discovery/{plan,run}` | 1–5 sequential governed jobs (`then` / `->` / `;` pipelines) | Deterministic planner + ledger-linked job summaries |
+
+---
+
+## Quickstart: Local-Private Docker Stack (Recommended)
+
+The production stack binds strictly to `127.0.0.1:8080` (API) and `127.0.0.1:3000` (Console), communicating with the Python bridge over an internal Unix Domain Socket volume.
 
 ```bash
+# 1. Configure environment & keys
 cp .env.example .env
 chmod 600 .env
-# Required writes token: openssl rand -hex 32 -> KUBONA_API_TOKEN=
-# Reviewer key: (cd platform/core && go run ./cmd/kubonad keygen)
+# Populate KUBONA_API_TOKEN and KUBONA_SECRET_KEY in .env (e.g. openssl rand -hex 32)
+# Optional: generate a reviewer mandate key via (cd platform/core && go run ./cmd/kubonad keygen)
+
+# 2. Build and start bridge, preflight gate, kubonad, and console
 docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
+
+# 3. Verify health, readiness, and loopback-only exposure
 curl -fsS http://127.0.0.1:8080/api/health
-# console: http://127.0.0.1:3000
-```
-
-Console response contracts are generated from
-[`platform/contracts/console-contract-inventory.json`](platform/contracts/console-contract-inventory.json):
-**142 modeled / 14 client-only / 0 unmodeled**, with 121 schemas and 130 OpenAPI
-paths in [`platform/contracts/console-openapi.json`](platform/contracts/console-openapi.json).
-
-Prove the host is not publicly exposed:
-
-```bash
+curl -fsS http://127.0.0.1:8080/api/ready
 scripts/local-deployment-check.sh
-```
 
-Preflight the deployment (rate card, FK orphans, keys, LLM/air-gap, bridge,
-daemon):
-
-```bash
+# 4. Run the deployment doctor
 cd platform && .venv/bin/python -m kubona.run doctor --env-file ../.env
 ```
 
-For authenticated writes, open **Labs** in the console and bootstrap/log in
-with the lab admin key, or send `Authorization: Bearer $KUBONA_API_TOKEN` on
-API calls.
+Open **`http://localhost:3000`** in your browser. Press **`Cmd+E`** (`Ctrl+E`) or click **Experiment Lab** in the top bar to launch single experiments, multi-step discovery protocols, or governed QPU runs.
 
-### Choosing the LLM
+---
 
-**LLM Settings → Active provider** and the **Agent Routing** matrix select the
-provider/model per role. The shipped default is local Strata (`STRATA_MODEL`,
-`STRATA_BASE_URL`); oMLX, Ollama, and LM Studio are also local. Local providers
-need no cloud opt-in. Cloud providers (NVIDIA, OpenCode, OpenAI, Anthropic) are
-BYOK and, in `KUBONA_ENV=production`, require the deployment flag
-`KUBONA_LLM_CLOUD=1` plus Sovereign Air-Gap off. Persisted UI settings override
-env defaults; the UI is authoritative per user. Cloud pricing uses a runtime
-vendor-derived rate card (`KUBONA_RATE_CARD_PATH`/`URL`); the embedded card is
-a bootstrap only. Verify assigned models/prices with
-`kubonad rates-audit --db /abs/kubona.db`.
+## Quickstart: Native Development ($0.00 / Zero-QPU)
 
-## ⚡ Quickstart: Run It Locally ($0.00 / Zero-QPU)
-
-Work with ten adopted local-simulation scenarios ([`wiki/concepts/local-simulation-test-scenarios.md`](wiki/concepts/local-simulation-test-scenarios.md)) — including Co-pilot Chat, Tribunal, Flight Recorder, and On-Demand Widgets — at **$0.00 cost** without requiring physical QPU hardware:
-
-### 1. Launch the Go Orchestrator (Backend API)
 ```bash
+# 1. Start the Python Quantum Bridge (Unix socket or localhost:50051)
+cd platform/bridge
+../.venv/bin/python server.py
+
+# 2. Start the Go Orchestrator (:8080)
 cd platform/core
-go build -o /tmp/kubonad ./cmd/kubonad
-/tmp/kubonad -port 8080
-```
+go run ./cmd/kubonad --port 8080
 
-### 2. Launch the Sovereign Next.js Console (Frontend)
-```bash
+# 3. Start the Next.js Sovereign Console (:3000)
 cd platform/console
-NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
+pnpm dev --port 3000
 ```
-*Access the sovereign console at `http://localhost:3000`.*
 
-### 3. Run the Multi-Tier Verification Suite
+### Example API Calls
+
 ```bash
-# Go Core orchestrator (counts: docs/repo-counts.md)
+# Run an XXZ spin-chain experiment with anisotropy Δ = 1.5
+curl -fsS -X POST http://127.0.0.1:8080/api/experiments \
+  -H "Authorization: Bearer $KUBONA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"<session-id>","spec":{"kind":"spin_chain","model":"xxz","n_sites":4,"coupling":1.0,"anisotropy":1.5,"field":0.4,"layers":3,"shots":8192},"budget_usd":1}'
+
+# Plan and execute a multi-step discovery protocol
+curl -fsS -X POST http://127.0.0.1:8080/api/discovery/plan \
+  -H "Content-Type: application/json" \
+  -d '{"goal":"optimize LiH geometry then run PES scan then check excited state"}'
+```
+
+---
+
+## Verification & Quality Gates
+
+```bash
+# Go Orchestrator unit & integration suite
 cd platform/core && go test ./...
 
 # Rust native QIR compiler & IFC lattice
 cargo test --manifest-path platform/crates/qir-core/Cargo.toml
+cargo test --manifest-path platform/crates/ifc-core/Cargo.toml
 
-# Python runtime, autodiff, ansatz transfer, and co-design
-cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansatz_transfer.py tests/test_divstep_dual_model.py
+# Python runtime, bridge, DMRG, and scientific solvers
+PYTHONPATH=platform/bridge:platform platform/.venv/bin/pytest platform/bridge/ platform/tests/
 
-# Next.js sovereign console Vitest suite (counts: docs/repo-counts.md)
-cd platform/console && pnpm test
+# Console TypeScript, ESLint, Vitest, and OpenAPI/contract gates
+cd platform/console && pnpm exec tsc --noEmit && pnpm lint && pnpm test
+python3 scripts/console-contract-inventory.py --check
+node scripts/console-openapi.mjs --check
 
-# Strict blueprint structural linting (156 pages; open decisions in questions §F)
+# Strict wiki blueprint lint
 python3 scripts/wiki-lint.py --strict
 ```
 
-For extended console configuration, see [`platform/console/README.md`](platform/console/README.md).
-
 ---
 
-## 🧭 Implementation Roadmap
+## Author & License
 
-- **Phases 0–5 (Quantum Core Foundations)**: Federated MCP servers, QIR native lowering, cost governance, immutable provenance ledger, autoresearch engine (§11), and meta-level self-evolution loop (§13).
-- **Phase 6 (Science Discovery & Synthesis)**: Multi-user lab identities, workflow and agent authoring studio, interactive experiment notebook, scholarly data integrations, and localized model training.
-- **Observatory Representation Layer (Complete)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel, promptUsed receipts, spend-capped and edge-authed).
-- **Settled Blueprint & Research Invariants (Closed 2026-10-26)**:
-  - **v1 Boundary (Q-01)**: Bound to 5 executable backends (`local-simulator`, `qiskit-aer-simulator`, `ibm-qiskit`, `quantinuum`, `dwave-annealing`) and 4 core modalities (`molecular_chemistry`, `combinatorial_optimization`, `circuit_codesign_and_decoding`, `spatial_generative_synthesis`).
-  - **Flight Recorder (Q-42)**: Unified cold-audit API resolving terminal verdicts, realized spend, and halt reasons; the card is mounted on the recorder surface and renders the measured fetch latency per load (honest milliseconds, not a passing badge). A <200ms load-test budget remains to be proven under real load.
-  - **Single QIR Dialect (Q-43)**: Standardized on native Rust `qir-core` lowering directly to LLVM IR with OpenQASM 3.0 parsing.
-  - **Refuted-Genome Priors (Q-44)**: 4-tier failure taxonomy with global intrinsic blacklisting and hardware-scoped $T_2$/topology transfer filtering.
-  - **Dual-Model Packing (Q-46)**: `safe_288` (0.000% overflow guarantee) for production and `paper_256` tripwire accounting for research replication.
-  - **Single-Tape Autodiff (Q-45)**: Joint analytical mixed-state parameter-shift differentiation of gate angles $\vec{\theta}$ and channel noise $\phi$ on a single graph via PennyLane `default.mixed`.
-  - **3-Seam IFC Lattice (Q-47)**: Query filtering, sub-DAG export join, and cloud admission with fail-closed refusal of unmodelable legal/usage prose.
-  - **Workload Containment (Q-48)**: Docker hardening with dropped capabilities and process-group `killpg` is real; `runsc` is opt-in. Host-level containment is documented; do not describe it as a gVisor guarantee unless `runsc` is enabled.
-
-See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
-
----
-
-## 👤 Author & Creator
-
-**Mainza Kangombe**  
-Founder & Lead Architect — [Milimo Quantum](https://www.youtube.com/@MilimoQuantum)  
-LinkedIn: [linkedin.com/in/mainza-kangombe-6214295](https://www.linkedin.com/in/mainza-kangombe-6214295)  
-GitHub: [@mainza-ai](https://github.com/mainza-ai)
-
----
-
-## 📄 License & Attribution
-
-* **Software & Codebase**: Licensed under the [Apache License, Version 2.0](LICENSE).
-* **Documentation & Living Wiki**: Licensed under the [Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/) license.
-* **Notices & Contributions**: See [`NOTICE`](NOTICE) for copyright and attribution notices, and [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines and Developer Certificate of Origin (DCO) details.
+- **Author:** Mainza Kangombe — Founder & Lead Architect, [Milimo Quantum](https://www.youtube.com/@MilimoQuantum) ([LinkedIn](https://www.linkedin.com/in/mainza-kangombe-6214295) · [@mainza-ai](https://github.com/mainza-ai))
+- **Software License:** [Apache License 2.0](LICENSE) (see [`NOTICE`](NOTICE) and [`CONTRIBUTING.md`](CONTRIBUTING.md))
+- **Documentation & Wiki License:** [Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/)

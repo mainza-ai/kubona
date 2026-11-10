@@ -330,6 +330,11 @@ func NewServer(
 	pqcKey, _ := mandates.GenerateRecipientKeypair()
 	qirComp := qir.NewCompiler()
 
+	fg := fidelity.NewFidelityGate()
+	if jr != nil && jr.FidelityGate() != nil {
+		fg = jr.FidelityGate()
+	}
+
 	s := &Server{
 		httpMetrics:           newHTTPMetrics(),
 		ledger:                l,
@@ -340,7 +345,7 @@ func NewServer(
 		watchdog:              wd,
 		collective:            agents.NewAgentCollective(),
 		a2aServer:             agents.NewA2AServer("0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7", nil, sbRunner),
-		fidelityGate:          fidelity.NewFidelityGate(),
+		fidelityGate:          fg,
 		epistemicGate:         epistemics.NewEpistemicGate(),
 		harnessReg:            autoresearch.NewHarnessRegistry(),
 		llmSettings:           llmSet,

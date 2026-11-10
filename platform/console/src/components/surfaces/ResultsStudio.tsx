@@ -89,41 +89,74 @@ function csvCell(value: unknown): string {
 }
 
 function PesTable({ points }: { points: PesPoint[] }) {
+  const sorted = [...points].sort((a, b) => a.bond_distance - b.bond_distance);
+  const pesSpec: ChartSpec | undefined =
+    sorted.length >= 2
+      ? {
+          kind: 'line',
+          title: 'Potential Energy Surface (PES) · VQE vs Exact FCI',
+          series: [
+            {
+              name: 'Measured VQE',
+              points: sorted.map((p) => ({
+                x: p.bond_distance,
+                y: p.energy,
+                display: `R=${p.bond_distance.toFixed(3)} Å · VQE=${p.energy.toFixed(6)} Ha (Δ=${p.delta_mha.toFixed(3)} mHa)`,
+              })),
+            },
+            {
+              name: 'FCI Exact',
+              points: sorted.map((p) => ({
+                x: p.bond_distance,
+                y: p.fci_exact_energy,
+                display: `R=${p.bond_distance.toFixed(3)} Å · FCI=${p.fci_exact_energy.toFixed(6)} Ha`,
+              })),
+            },
+          ],
+          x: { label: 'Bond distance R (Å)', kind: 'linear' },
+          y: { label: 'Energy', unit: 'Ha', format: 'number' },
+          basis: `Stored PES scan across ${sorted.length} geometry points.`,
+          detail: 'full',
+        }
+      : undefined;
   return (
-    <div className="rounded-xl border border-white/10 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-        <span className="text-[12px] font-semibold text-white">PES points</span>
-        <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12px]">
-          <thead className="text-[var(--color-muted)]">
-            <tr className="border-b border-white/10">
-              <th className="px-2 py-1 text-left">R (Å)</th>
-              <th className="px-2 py-1 text-right">E (Ha)</th>
-              <th className="px-2 py-1 text-right">FCI (Ha)</th>
-              <th className="px-2 py-1 text-right">Δ (mHa)</th>
-              <th className="px-2 py-1 text-right">σ (mHa)</th>
-              <th className="px-2 py-1 text-right">95% (mHa)</th>
-              <th className="px-2 py-1 text-right">Chem. acc.</th>
-              <th className="px-2 py-1 text-left">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {points.map((point) => (
-              <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
-                <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
-                <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
-                <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
-                <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
-                <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
-                <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
-                <td className="px-2 py-1 text-right">{(point.claimable ?? point.chemical_accuracy) ? 'PASS' : 'outside'}</td>
-                <td className="px-2 py-1">{point.hardware ? `hardware${point.mitigated ? ' · ZNE' : ''}${point.backend ? ` · ${point.backend}` : ''}` : 'simulator'}</td>
+    <div className="space-y-3">
+      {pesSpec && <Chart spec={pesSpec} />}
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+          <span className="text-[12px] font-semibold text-white">PES points</span>
+          <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead className="text-[var(--color-muted)]">
+              <tr className="border-b border-white/10">
+                <th className="px-2 py-1 text-left">R (Å)</th>
+                <th className="px-2 py-1 text-right">E (Ha)</th>
+                <th className="px-2 py-1 text-right">FCI (Ha)</th>
+                <th className="px-2 py-1 text-right">Δ (mHa)</th>
+                <th className="px-2 py-1 text-right">σ (mHa)</th>
+                <th className="px-2 py-1 text-right">95% (mHa)</th>
+                <th className="px-2 py-1 text-right">Chem. acc.</th>
+                <th className="px-2 py-1 text-left">Source</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {points.map((point) => (
+                <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
+                  <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
+                  <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
+                  <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
+                  <td className="px-2 py-1 text-right font-code">{point.delta_mha.toFixed(3)}</td>
+                  <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
+                  <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
+                  <td className="px-2 py-1 text-right">{(point.claimable ?? point.chemical_accuracy) ? 'PASS' : 'outside'}</td>
+                  <td className="px-2 py-1">{point.hardware ? `hardware${point.mitigated ? ' · ZNE' : ''}${point.backend ? ` · ${point.backend}` : ''}` : 'simulator'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -167,54 +200,127 @@ function ResultReceiptTable({ receipts }: { receipts: CampaignResultRef[] }) {
 }
 
 function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }) {
+  const seriesCharts: ChartSpec[] = [];
+  for (const exp of experiments) {
+    if (!Array.isArray(exp.series) || exp.series.length < 2) continue;
+    if (exp.kind === 'thermodynamic_limit') {
+      const pts = exp.series
+        .map((pt) => ({
+          x: Number(pt.n_sites),
+          y: Number(pt.energy_per_site),
+        }))
+        .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+      if (pts.length >= 2) {
+        seriesCharts.push({
+          kind: 'line',
+          title: `DMRG Finite-Size Scaling (${exp.model || 'spin chain'}) · job ${exp.job_id.slice(0, 8)}`,
+          series: [
+            {
+              name: 'DMRG E/N',
+              points: pts.map((p) => ({
+                x: p.x,
+                y: p.y,
+                display: `N=${p.x} · E/N=${p.y.toFixed(6)}`,
+              })),
+            },
+          ],
+          x: { label: 'Lattice sites N', kind: 'linear' },
+          y: { label: 'Energy per site E/N', unit: 'J', format: 'number' },
+          headline:
+            typeof exp.energy_exact === 'number'
+              ? { label: 'Thermodynamic limit E∞/N', value: exp.energy_exact.toFixed(6) }
+              : undefined,
+          basis: 'Classical MPS/DMRG finite-size sweep; classical reference, not a QPU claim.',
+          detail: 'full',
+        });
+      }
+    } else if (exp.kind === 'lattice_dynamics') {
+      const pts = exp.series
+        .map((pt) => ({
+          x: Number(pt.t),
+          y: Number(pt.total_magnetization),
+        }))
+        .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+      if (pts.length >= 2) {
+        seriesCharts.push({
+          kind: 'line',
+          title: `2D TFIM Quench Dynamics ⟨Z⟩(t) · job ${exp.job_id.slice(0, 8)}`,
+          series: [
+            {
+              name: 'Magnetization ⟨Z⟩',
+              points: pts.map((p) => ({
+                x: p.x,
+                y: p.y,
+                display: `t=${p.x.toFixed(2)} · ⟨Z⟩=${p.y.toFixed(5)}`,
+              })),
+            },
+          ],
+          x: { label: 'Time t (1/J)', kind: 'linear' },
+          y: { label: 'Total Magnetization ⟨Z⟩', format: 'number' },
+          basis: 'Exact finite-size 2D TFIM unitary time evolution; classical reference, not a QPU claim.',
+          detail: 'full',
+        });
+      }
+    }
+  }
+
   return (
-    <div className="rounded-xl border border-white/10 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-        <span className="text-[12px] font-semibold text-white">Measured experiments</span>
-        <span className="text-[11px] text-[var(--color-muted)]">spin, excited, reaction, and conjecture records folded from jobs</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[12px]">
-          <thead className="text-[var(--color-muted)]">
-            <tr className="border-b border-white/10">
-              <th className="px-2 py-1 text-left">Kind</th>
-              <th className="px-2 py-1 text-left">System</th>
-              <th className="px-2 py-1 text-right">Measured</th>
-              <th className="px-2 py-1 text-right">Anchor</th>
-              <th className="px-2 py-1 text-right">Gap / ΔE</th>
-              <th className="px-2 py-1 text-right">σ</th>
-              <th className="px-2 py-1 text-right">Status</th>
-              <th className="px-2 py-1 text-left">Job</th>
-            </tr>
-          </thead>
-          <tbody>
-            {experiments.map((exp) => {
-              const primary = exp.energy ?? exp.ground_energy ?? exp.reaction_energy;
-              const secondary = exp.energy_exact ?? exp.ground_energy_exact ?? exp.reaction_energy_exact;
-              const gap = exp.gap ?? (exp.kind === 'reaction' ? exp.delta : undefined);
-              const system = exp.molecule || exp.model || exp.reaction || (exp.n_sites ? `${exp.n_sites} sites` : '—');
-              return (
-                <tr key={exp.job_id} className="border-b border-white/[0.06] last:border-0">
-                  <td className="px-2 py-1 font-code">{exp.kind}</td>
-                  <td className="px-2 py-1 font-code">{system}</td>
-                  <td className="px-2 py-1 text-right font-code">{typeof primary === 'number' ? primary.toFixed(6) : '—'}</td>
-                  <td className="px-2 py-1 text-right font-code">{typeof secondary === 'number' ? secondary.toFixed(6) : '—'}</td>
-                  <td className="px-2 py-1 text-right font-code">{typeof gap === 'number' ? gap.toFixed(6) : '—'}</td>
-                  <td className="px-2 py-1 text-right font-code">{typeof exp.uncertainty === 'number' ? exp.uncertainty.toFixed(6) : '—'}</td>
-                  <td className="px-2 py-1 text-right">
-                    {exp.status === 'failed'
-                      ? `failed${exp.error ? ` · ${exp.error}` : ''}`
-                      : exp.kind === 'conjecture_run'
-                        ? `${exp.novelty_status || 'unclassified'}${exp.laws?.length ? ` · ${exp.laws[0]}` : ''}`
-                        : exp.claimable ? 'claimable' : 'not claimable'}
-                    {exp.hardware && exp.status !== 'failed' ? ' · hardware' : ''}
-                  </td>
-                  <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div className="space-y-3">
+      {seriesCharts.map((spec, idx) => (
+        <Chart key={`${spec.title}-${idx}`} spec={spec} />
+      ))}
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+          <span className="text-[12px] font-semibold text-white">Measured experiments</span>
+          <span className="text-[11px] text-[var(--color-muted)]">spin, excited, reaction, QAOA, DMRG, dynamics, and conjecture records folded from jobs</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead className="text-[var(--color-muted)]">
+              <tr className="border-b border-white/10">
+                <th className="px-2 py-1 text-left">Kind</th>
+                <th className="px-2 py-1 text-left">System</th>
+                <th className="px-2 py-1 text-right">Measured</th>
+                <th className="px-2 py-1 text-right">Anchor</th>
+                <th className="px-2 py-1 text-right">Gap / ΔE</th>
+                <th className="px-2 py-1 text-right">σ</th>
+                <th className="px-2 py-1 text-right">Status</th>
+                <th className="px-2 py-1 text-left">Job</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiments.map((exp) => {
+                const primary = exp.energy ?? exp.ground_energy ?? exp.reaction_energy;
+                const secondary = exp.energy_exact ?? exp.ground_energy_exact ?? exp.reaction_energy_exact;
+                const gap = exp.gap ?? exp.delta;
+                const system = exp.molecule || exp.model || exp.reaction || (exp.n_sites ? `${exp.n_sites} sites` : '—');
+                return (
+                  <tr key={exp.job_id} className="border-b border-white/[0.06] last:border-0">
+                    <td className="px-2 py-1 font-code">{exp.kind}</td>
+                    <td className="px-2 py-1 font-code">{system}</td>
+                    <td className="px-2 py-1 text-right font-code">{typeof primary === 'number' ? primary.toFixed(6) : '—'}</td>
+                    <td className="px-2 py-1 text-right font-code">{typeof secondary === 'number' ? secondary.toFixed(6) : '—'}</td>
+                    <td className="px-2 py-1 text-right font-code">{typeof gap === 'number' ? gap.toFixed(6) : '—'}</td>
+                    <td className="px-2 py-1 text-right font-code">{typeof exp.uncertainty === 'number' ? exp.uncertainty.toFixed(6) : '—'}</td>
+                    <td className="px-2 py-1 text-right">
+                      {exp.status === 'failed'
+                        ? `failed${exp.error ? ` · ${exp.error}` : ''}`
+                        : exp.kind === 'conjecture_run'
+                          ? `${exp.novelty_status || 'unclassified'}${exp.laws?.length ? ` · ${exp.laws[0]}` : ''}`
+                          : exp.kind === 'thermodynamic_limit'
+                            ? 'classical reference (DMRG)'
+                            : exp.kind === 'lattice_dynamics'
+                              ? 'classical reference (quench)'
+                              : exp.claimable ? 'claimable' : 'not claimable'}
+                      {exp.hardware && exp.status !== 'failed' ? ' · hardware' : ''}
+                    </td>
+                    <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

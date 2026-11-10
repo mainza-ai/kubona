@@ -37,15 +37,49 @@ export function Dialog({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+    if (open && !dialog.open && typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    }
+    if (!open && dialog.open && typeof dialog.close === 'function') {
+      dialog.close();
+    }
   }, [open]);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog || typeof HTMLDialogElement === 'undefined') return;
+    if ('closedBy' in HTMLDialogElement.prototype) return;
+    const outside = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    };
+    let pressedOutside = false;
+    const onDown = (e: PointerEvent) => {
+      pressedOutside = outside(e);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (pressedOutside && outside(e)) {
+        dialog.close();
+      }
+    };
+    dialog.addEventListener('pointerdown', onDown);
+    dialog.addEventListener('pointerup', onUp);
+    return () => {
+      dialog.removeEventListener('pointerdown', onDown);
+      dialog.removeEventListener('pointerup', onUp);
+    };
+  }, []);
+
   return (
     <dialog
       ref={ref}
+      {...({ closedby: 'any' } as Record<string, string>)}
       className={`k-dialog ${className}`.trim()}
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={() => {
+        if (ref.current) ref.current.returnValue = '';
+        onClose();
+      }}
       onCancel={(event) => { event.preventDefault(); onClose(); }}
     >
       <div className="k-dialog-head">

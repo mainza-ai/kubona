@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Play } from 'lucide-react';
 import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
+import { publishInvalidation } from '@/domain/invalidation';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
@@ -176,8 +177,10 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       current = await fetchJob(current.id, sessionId);
       if (!current) break;
       setJob(current);
-      if (current.status !== 'queued' && current.status !== 'running') break;
+      const st = jobStatusLabel(current.status).toUpperCase();
+      if (st !== 'QUEUED' && st !== 'RUNNING') break;
     }
+    publishInvalidation(new Set(['campaign', 'jobs', 'obligations', 'loops', 'cost']));
     setBusy(false);
   };
 
@@ -202,7 +205,18 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       </div>
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Kind
-          <select aria-label="Experiment kind" value={kind} onChange={(e) => setKind(e.target.value as Kind)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
+          <select
+            aria-label="Experiment kind"
+            value={kind}
+            onChange={(e) => {
+              const nextKind = e.target.value as Kind;
+              setKind(nextKind);
+              if (molecule === 'custom' && nextKind !== 'vqe' && nextKind !== 'geometry_optimization') {
+                setMolecule('H2');
+              }
+            }}
+            className="w-full rounded bg-black/60 border border-white/10 px-2 py-1"
+          >
             <option value="vqe">VQE</option><option value="geometry_optimization">Geometry optimization</option>
             <option value="vqe_repeats">Repeated VQE (variance)</option>
             <option value="pes">PES</option><option value="qaoa">QAOA MaxCut</option>
@@ -227,9 +241,14 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             <label className="space-y-1">Coupling J
               <input aria-label="Spin coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
             </label>
-            <label className="space-y-1">Field h / anisotropy
+            <label className="space-y-1">Field h
               <input aria-label="Spin field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
             </label>
+            {model === 'xxz' && (
+              <label className="space-y-1">Anisotropy Δ
+                <input aria-label="Spin anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+              </label>
+            )}
             <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
               <input type="checkbox" aria-label="Periodic boundary" checked={periodic} onChange={(e) => setPeriodic(e.target.checked)} />
               Periodic boundary
@@ -310,7 +329,9 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             <label className="space-y-1">Molecule
               <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); if (next === 'H2') { setRMin('0.6'); setRMax('0.9'); } else if (next === 'H2O') { setRMin('0.8'); setRMax('1.2'); } else { setRMin('1.2'); setRMax('2.0'); } }} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
                 <option value="H2">H2</option><option value="LiH">LiH</option><option value="BeH2">BeH2</option><option value="H2O">H2O</option>
-                <option value="custom">Custom PySCF geometry</option>
+                {(kind === 'vqe' || kind === 'geometry_optimization') && (
+                  <option value="custom">Custom PySCF geometry</option>
+                )}
               </select>
             </label>
             {molecule !== 'custom' && (
@@ -358,13 +379,13 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
           </>
         )}
         <label className="space-y-1">Shots
-          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
+          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
         <label className="space-y-1">Layers
-          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
+          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
         <label className="space-y-1">Max iterations
-          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
+          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
         {kind === 'vqe_repeats' && (
           <label className="space-y-1">Repeats

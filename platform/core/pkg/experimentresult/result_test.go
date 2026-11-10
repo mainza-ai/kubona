@@ -2,6 +2,9 @@ package experimentresult
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -60,12 +63,57 @@ func TestDecodeRejectsTruthViolations(t *testing.T) {
 		{"missing anchor", "vqe_run", base(map[string]any{"fci_exact_energy": nil}), "fci_exact_energy"},
 		{"nan", "vqe_run", []byte(`{"result_version":"experiment-result-v1","success":true,"kind":"vqe","energy":NaN,"fci_exact_energy":-1}`), "not valid JSON"},
 		{"hardware no vendor id", "spin_chain_hardware", []byte(`{"result_version":"experiment-result-v1","success":true,"kind":"spin_chain_hardware","energy":-3,"energy_exact":-3.2,"hardware":true}`), "hardware_job_id"},
+		{"qaoa hardware loop no vendor id", "qaoa_hardware", []byte(`{"result_version":"experiment-result-v1","success":true,"kind":"qaoa_hardware_loop","measured_cut":7.5,"optimal_cut":10,"hardware":true}`), "hardware_job_id"},
 		{"receipt unsigned claim", "vqe_run", base(map[string]any{"result_receipt": map[string]any{"algorithm": "ed25519", "ledger_entry_hash": "h", "result_sha256": "r", "signed": true}}), "without a signature"},
 	}
 	for _, tc := range cases {
 		if _, err := Decode(tc.jobType, tc.raw); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: got %v, want %q", tc.name, err, tc.want)
 		}
+	}
+}
+
+func TestSchemaKindEnumMatchesDecoder(t *testing.T) {
+	schemaPath := filepath.Join("..", "..", "..", "contracts", "experiment-result-v1.schema.json")
+	raw, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("read schema %s: %v", schemaPath, err)
+	}
+	var doc struct {
+		Properties struct {
+			Kind struct {
+				Enum []string `json:"enum"`
+			} `json:"kind"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse schema: %v", err)
+	}
+	schemaSet := make(map[string]bool, len(doc.Properties.Kind.Enum))
+	for _, k := range doc.Properties.Kind.Enum {
+		schemaSet[k] = true
+	}
+	decoderSet := make(map[string]bool)
+	for _, kinds := range ExpectedJobKinds() {
+		for _, k := range kinds {
+			decoderSet[k] = true
+		}
+	}
+	var missingInSchema, missingInDecoder []string
+	for k := range decoderSet {
+		if !schemaSet[k] {
+			missingInSchema = append(missingInSchema, k)
+		}
+	}
+	for k := range schemaSet {
+		if !decoderSet[k] {
+			missingInDecoder = append(missingInDecoder, k)
+		}
+	}
+	sort.Strings(missingInSchema)
+	sort.Strings(missingInDecoder)
+	if len(missingInSchema) > 0 || len(missingInDecoder) > 0 {
+		t.Fatalf("experiment-result-v1.schema.json kind enum drift: missingInSchema=%v missingInDecoder=%v", missingInSchema, missingInDecoder)
 	}
 }
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Search } from 'lucide-react';
 import { fetchEventsResult, planDiscovery, runDiscoveryProtocol, type DiscoveryPlan, type DiscoveryProtocolResult } from '@/lib/api';
+import { publishInvalidation } from '@/domain/invalidation';
 
 /** Human entry point for the measured discovery protocol. The planning
  * response is deterministic; the run executes real jobs through the Go rail. */
@@ -61,6 +62,7 @@ export function DiscoveryProtocolPanel({ sessionId }: { sessionId: string | null
     try {
       setResult(await runDiscoveryProtocol(sessionId, goal, `ui-discovery-${Date.now()}`));
       await loadHistory();
+      publishInvalidation(new Set(['campaign', 'jobs', 'obligations', 'loops', 'cost']));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

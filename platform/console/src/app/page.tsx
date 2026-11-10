@@ -41,6 +41,7 @@ import { Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
 import { BannerStack, describeCreateFailure } from '@/components/shell/Banners';
 import { KeyHint } from '@/components/ui/Controls';
+import { Dialog } from '@/components/ui/Overlays';
 import { CampaignHeader } from '@/components/shell/CampaignHeader';
 import { buildShellSearch, parseShellParams, tabForSurface, type DockSurface, type MeshTab } from '@/lib/shell-params';
 
@@ -129,6 +130,7 @@ export default function Home() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isNewCampaignModalOpen, setIsNewCampaignModalOpen] = useState(false);
+  const [isExperimentLabOpen, setIsExperimentLabOpen] = useState(false);
   // createSession null/refusal text, rendered verbatim while the modal stays
   // open. Mirrored in a ref because the modal calls onClose synchronously
   // after onCreate resolves — state alone would not have flushed yet.
@@ -527,24 +529,40 @@ export default function Home() {
         : 'workbench';
 
   const handleSelectMode = useCallback((mode: ShellMode) => {
-    if (mode === 'workbench') {
-      setSurface('arena');
-      setArenaView('workbench');
-      setShowLegacyCanvas(false);
-      return;
-    }
-    if (mode === 'evidence') {
-      setSurface('proofs');
-      setProofsTab('manuscripts');
-      return;
-    }
-    if (mode === 'operations') {
+    const applyMode = () => {
+      if (mode === 'workbench') {
+        setSurface('arena');
+        setArenaView('workbench');
+        setShowLegacyCanvas(false);
+        return;
+      }
+      if (mode === 'evidence') {
+        setSurface('proofs');
+        setProofsTab('manuscripts');
+        return;
+      }
+      if (mode === 'operations') {
+        setSurface('mesh');
+        setMeshTab((current) => (surface === 'mesh' && current !== 'settings' ? current : 'fleet'));
+        return;
+      }
       setSurface('mesh');
-      setMeshTab((current) => (surface === 'mesh' && current !== 'settings' ? current : 'fleet'));
+      setMeshTab('settings');
+    };
+    const doc = typeof document !== 'undefined'
+      ? (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } })
+      : null;
+    if (!doc || typeof doc.startViewTransition !== 'function') {
+      applyMode();
+      doc?.getElementById('kubona-main')?.focus();
       return;
     }
-    setSurface('mesh');
-    setMeshTab('settings');
+    const transition = doc.startViewTransition(() => {
+      applyMode();
+    });
+    transition.finished.finally(() => {
+      doc.getElementById('kubona-main')?.focus();
+    });
   }, [surface]);
 
   useEffect(() => {
@@ -813,6 +831,11 @@ export default function Home() {
         }
         return;
       }
+      if (key === 'e' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !inField) {
+        e.preventDefault();
+        setIsExperimentLabOpen((v) => !v);
+        return;
+      }
       const shortcutName = KEY_TO_SHORTCUT[key];
       if (!shortcutName) return;
       const target = SHORTCUT_TARGETS[shortcutName as ShortcutKey];
@@ -927,6 +950,21 @@ export default function Home() {
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
       />
+      {isExperimentLabOpen && (
+        <Dialog
+          open={isExperimentLabOpen}
+          onClose={() => setIsExperimentLabOpen(false)}
+          title="Experiment & Discovery Lab"
+        >
+          <div className="space-y-4">
+            <ExperimentPanel
+              sessionId={currentSessionId || null}
+              tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id}
+            />
+            <DiscoveryProtocolPanel sessionId={currentSessionId || null} />
+          </div>
+        </Dialog>
+      )}
       <ConfirmDialog
         open={isAbortOpen}
         title="Emergency abort"
@@ -998,7 +1036,7 @@ export default function Home() {
       <ModeRail
         active={activeMode}
         onSelect={handleSelectMode}
-        airGapSovereign
+        airGapSovereign={access ? access.llm_local !== false : true}
         onOpenCampaigns={() => setShowCampaignMenu((v) => !v)}
       />
 
@@ -1100,7 +1138,7 @@ export default function Home() {
                   <button
                     onClick={(e) => handleDeleteSession(e, s.id)}
                     aria-label={`Delete ${s.title}`}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 opacity-0 group-hover:opacity-100 transition-all"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1219,16 +1257,28 @@ export default function Home() {
               </div>
             )}
 
-            {/* Molecule object view entry point */}
+            {/* Molecule object view & Experiment Lab entry points */}
             {!showLegacyCanvas && (
-              <button
-                onClick={() => setShowLegacyCanvas(true)}
-                title="Open molecule object view"
-                aria-label="Open molecule object view"
-                className="absolute bottom-6 right-6 z-20 w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
-              >
-                <Box className="w-4 h-4 text-cyan-400" />
-              </button>
+              <div className={`absolute bottom-6 ${inspectorOpen ? 'right-6' : 'right-40'} z-20 flex items-center gap-2`}>
+                <button
+                  type="button"
+                  onClick={() => setIsExperimentLabOpen(true)}
+                  title="Open Experiment & Discovery Lab (⌘E)"
+                  aria-label="Open Experiment & Discovery Lab"
+                  className="h-9 px-3 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 text-[var(--color-text)] text-xs font-medium transition-all shadow-2xl flex items-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Experiment Lab</span>
+                </button>
+                <button
+                  onClick={() => setShowLegacyCanvas(true)}
+                  title="Open molecule object view"
+                  aria-label="Open molecule object view"
+                  className="w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
+                >
+                  <Box className="w-4 h-4 text-cyan-400" />
+                </button>
+              </div>
             )}
 
             {/* On-demand canvas widget (co-pilot materialized, single slot) */}

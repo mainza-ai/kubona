@@ -63,23 +63,29 @@ body {
   box-shadow: none;
 }
 
-/* Custom Scientific Scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+/* Custom Scientific Scrollbar (Standard CSS + Legacy WebKit fallback) */
+:root,
+* {
+  --scrollbar-thumb: rgba(148, 163, 184, 0.55);
+  --scrollbar-track: rgba(10, 12, 16, 0.9);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 9999px;
-}
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+  }
 }
 
 /* Epistemic Truth Orb Animations */
@@ -664,8 +670,19 @@ body {
 .k-menu-trigger { list-style: none; cursor: default; }
 .k-menu-trigger::-webkit-details-marker { display: none; }
 .k-menu-panel { position: absolute; z-index: 30; inset-block-start: calc(100% + 6px); inset-inline-end: 0; min-inline-size: 180px; padding: 6px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-menu); box-shadow: var(--shadow-popover); }
-.k-dialog { max-inline-size: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--radius-panel); background: var(--color-page); color: var(--color-text); }
-.k-dialog::backdrop { background: rgb(0 0 0 / .58); }
+.k-dialog { max-inline-size: min(760px, calc(100vw - 32px)); max-block-size: min(85vh, calc(100vh - 32px)); overflow: auto; padding: 0; border: 1px solid var(--color-border-strong); border-radius: var(--radius-panel); background: var(--color-page); color: var(--color-text); box-shadow: var(--shadow-float); }
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.k-dialog::backdrop { background: rgb(0 0 0 / .68); backdrop-filter: blur(8px); }
+.k-deferred-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 44px;
+}
 .k-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-block-end: 1px solid var(--color-border); }
 .k-dialog-head h2 { margin: 0; font-size: var(--text-page-title); }
 .k-dialog-close { border: 1px solid var(--color-border); border-radius: var(--radius-control-compact); background: var(--color-fill); color: var(--color-label-secondary); font: inherit; font-size: var(--text-label); }
@@ -692,6 +709,11 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .k-toggle-track::after { transition: none; }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 @media (forced-colors: active) {

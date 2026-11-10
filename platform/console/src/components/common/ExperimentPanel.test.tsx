@@ -13,14 +13,15 @@ vi.mock('@/lib/api', () => ({
 const runExperimentMock = vi.mocked(runExperiment);
 const fetchJobMock = vi.mocked(fetchJob);
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 function runButton(root: TestRenderer.ReactTestInstance) {
   return root.findAll((node) => node.type === 'button')[0];
 }
 
 describe('ExperimentPanel', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('submits a spin-chain experiment with the selected model', async () => {
     runExperimentMock.mockResolvedValue({
@@ -185,5 +186,44 @@ describe('ExperimentPanel thermodynamic limit', () => {
     expect(spec.bond_dim).toBe(32);
     expect(spec.sweeps).toBe(8);
     expect(spec.field).toBe(0.8);
+  });
+
+  it('continues polling through JOB_STATUS_RUNNING until JOB_STATUS_COMPLETED and supports XXZ anisotropy', async () => {
+    vi.useFakeTimers();
+    try {
+      runExperimentMock.mockResolvedValue({
+        ok: true,
+        job: { id: 'job-xxz', session_id: 's', status: 'JOB_STATUS_QUEUED', job_type: 'spin_chain', params_json: {}, created_at: '' },
+      });
+      fetchJobMock
+        .mockResolvedValueOnce({
+          id: 'job-xxz', session_id: 's', status: 'JOB_STATUS_RUNNING', job_type: 'spin_chain',
+          params_json: {}, created_at: '',
+        })
+        .mockResolvedValueOnce({
+          id: 'job-xxz', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'spin_chain',
+          params_json: {}, result_json: {
+            energy: -3.5, energy_exact: -3.5, uncertainty: 0.005, gap: 0.4, claimable: true, model: 'xxz', n_sites: 4,
+          }, created_at: '', completed_at: '',
+        });
+      let tree!: TestRenderer.ReactTestRenderer;
+      await act(async () => { tree = TestRenderer.create(<ExperimentPanel sessionId="s" />); });
+      const kind = tree.root.findByProps({ 'aria-label': 'Experiment kind' });
+      await act(async () => { kind.props.onChange({ target: { value: 'spin_chain' } }); });
+      const model = tree.root.findByProps({ 'aria-label': 'Spin model' });
+      await act(async () => { model.props.onChange({ target: { value: 'xxz' } }); });
+      const anisotropyInput = tree.root.findByProps({ 'aria-label': 'Spin anisotropy' });
+      await act(async () => { anisotropyInput.props.onChange({ target: { value: '1.5' } }); });
+      const run = runButton(tree.root);
+      await act(async () => {
+        run.props.onClick();
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+      expect(fetchJobMock).toHaveBeenCalledTimes(2);
+      const spec = runExperimentMock.mock.calls[0][1] as Record<string, unknown>;
+      expect(spec.anisotropy).toBe(1.5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

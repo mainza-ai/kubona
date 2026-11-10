@@ -105,7 +105,9 @@ func (l *Ledger) OpenObligation(subjectKind, subjectID string, requiredCases, re
 	if subjectKind == "" || subjectID == "" {
 		return nil, fmt.Errorf("obligation needs a subject kind and id (empty input never closes)")
 	}
-	if existing, err := l.GetObligationBySubject(subjectKind, subjectID); err == nil && existing != nil {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	if existing, err := l.getObligationBySubjectLocked(subjectKind, subjectID); err == nil && existing != nil {
 		return existing, nil
 	}
 	id, err := newObligationID()
@@ -119,12 +121,12 @@ func (l *Ledger) OpenObligation(subjectKind, subjectID string, requiredCases, re
 		id, subjectKind, subjectID, mustJSON(requiredCases), mustJSON(requiredAuthorities), mustJSON(dependencies), now, now)
 	if err != nil {
 		// Lost the open race: return the winner (idempotent under storm).
-		if existing, gerr := l.GetObligationBySubject(subjectKind, subjectID); gerr == nil && existing != nil {
+		if existing, gerr := l.getObligationBySubjectLocked(subjectKind, subjectID); gerr == nil && existing != nil {
 			return existing, nil
 		}
 		return nil, fmt.Errorf("open obligation: %w", err)
 	}
-	return l.GetObligation(id)
+	return l.getObligationLocked(id)
 }
 
 func scanObligation(row interface {
@@ -154,8 +156,7 @@ func scanObligation(row interface {
 	return &ob, nil
 }
 
-// GetObligation loads by id (nil, nil when absent).
-func (l *Ledger) GetObligation(id string) (*Obligation, error) {
+func (l *Ledger) getObligationLocked(id string) (*Obligation, error) {
 	row := l.DB().QueryRow(`SELECT id, version, subject_kind, subject_id, owner,
 		required_cases_json, required_authorities_json, dependencies_json, unknowns_json,
 		disposition, created_at, updated_at FROM obligations WHERE id = ?`, id)
@@ -169,8 +170,14 @@ func (l *Ledger) GetObligation(id string) (*Obligation, error) {
 	return ob, nil
 }
 
-// GetObligationBySubject loads by subject (nil, nil when absent).
-func (l *Ledger) GetObligationBySubject(kind, subject string) (*Obligation, error) {
+// GetObligation loads by id (nil, nil when absent).
+func (l *Ledger) GetObligation(id string) (*Obligation, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	return l.getObligationLocked(id)
+}
+
+func (l *Ledger) getObligationBySubjectLocked(kind, subject string) (*Obligation, error) {
 	row := l.DB().QueryRow(`SELECT id, version, subject_kind, subject_id, owner,
 		required_cases_json, required_authorities_json, dependencies_json, unknowns_json,
 		disposition, created_at, updated_at FROM obligations WHERE subject_kind = ? AND subject_id = ?`, kind, subject)
@@ -182,6 +189,13 @@ func (l *Ledger) GetObligationBySubject(kind, subject string) (*Obligation, erro
 		return nil, err
 	}
 	return ob, nil
+}
+
+// GetObligationBySubject loads by subject (nil, nil when absent).
+func (l *Ledger) GetObligationBySubject(kind, subject string) (*Obligation, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	return l.getObligationBySubjectLocked(kind, subject)
 }
 
 // ListOpenObligations returns non-closed obligations, oldest first
@@ -196,6 +210,8 @@ func (l *Ledger) ListOpenObligations(limit int, owner, subjectKind string) ([]*O
 	if limit > 1000 {
 		limit = 1000
 	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
 	query := `SELECT id, version, subject_kind, subject_id, owner,
 		required_cases_json, required_authorities_json, dependencies_json, unknowns_json,
 		disposition, created_at, updated_at FROM obligations WHERE disposition != 'closed'`
@@ -236,7 +252,9 @@ func (l *Ledger) SetObligationOwner(id, owner string) error {
 	if owner == "" {
 		return fmt.Errorf("owner must be non-empty")
 	}
-	ob, err := l.GetObligation(id)
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	ob, err := l.getObligationLocked(id)
 	if err != nil {
 		return err
 	}
@@ -266,7 +284,9 @@ func (l *Ledger) RecordObligationCase(id string, c ObligationCase) error {
 	default:
 		return fmt.Errorf("case verdict must be pass|fail|contested, got %q", c.Verdict)
 	}
-	ob, err := l.GetObligation(id)
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	ob, err := l.getObligationLocked(id)
 	if err != nil {
 		return err
 	}
@@ -287,6 +307,8 @@ func (l *Ledger) RecordObligationCase(id string, c ObligationCase) error {
 
 // ListObligationCases returns all recorded cases.
 func (l *Ledger) ListObligationCases(id string) ([]ObligationCase, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
 	rows, err := l.DB().Query(`SELECT case_kind, verdict, authority, evidence_id FROM obligation_cases WHERE obligation_id = ? ORDER BY case_kind, authority`, id)
 	if err != nil {
 		return nil, err
@@ -309,7 +331,9 @@ func (l *Ledger) RecordObligationUnknown(id string, u Unknown) error {
 	if u.ID == "" {
 		return fmt.Errorf("unknown needs an id")
 	}
-	ob, err := l.GetObligation(id)
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	ob, err := l.getObligationLocked(id)
 	if err != nil {
 		return err
 	}
@@ -331,7 +355,9 @@ func (l *Ledger) RecordObligationUnknown(id string, u Unknown) error {
 // never reused within an obligation (audit keeps the resolution event in
 // cases — callers record a pass case alongside).
 func (l *Ledger) ResolveObligationUnknown(id, unknownID string) error {
-	ob, err := l.GetObligation(id)
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	ob, err := l.getObligationLocked(id)
 	if err != nil {
 		return err
 	}
@@ -364,6 +390,8 @@ func (l *Ledger) SetObligationDisposition(id, disposition string) error {
 	if disposition != "open" && disposition != "closed" {
 		return fmt.Errorf("disposition must be open|closed, got %q", disposition)
 	}
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	_, err := l.DB().Exec(`UPDATE obligations SET disposition = ?, updated_at = ? WHERE id = ?`,
 		disposition, time.Now().UTC().Format(time.RFC3339), id)
 	return err

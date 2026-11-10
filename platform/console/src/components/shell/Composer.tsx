@@ -114,8 +114,9 @@ export function Composer({
           value={text}
           onChange={(event) => { setText(event.target.value); grow(); }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
+              if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
               void send();
             }
           }}

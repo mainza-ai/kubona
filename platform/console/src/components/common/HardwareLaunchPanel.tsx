@@ -17,6 +17,7 @@ import {
 } from '@/lib/api';
 import { createSignedSpendMandateWithCustody } from '@/lib/mandates';
 import { verifySpendMandate } from '@/lib/api';
+import { publishInvalidation } from '@/domain/invalidation';
 import type { Job } from '@/types';
 
 /** Operator-facing governed launch for a measured spin-chain source job.
@@ -107,8 +108,10 @@ export function HardwareLaunchPanel({
         current = await fetchJob(current.id, sessionId);
         if (!current) break;
         setLaunched(current);
-        if (current.status !== 'JOB_STATUS_QUEUED' && current.status !== 'JOB_STATUS_RUNNING') break;
+        const st = jobStatusLabel(current.status).toUpperCase();
+        if (st !== 'QUEUED' && st !== 'RUNNING') break;
       }
+      publishInvalidation(new Set(['campaign', 'jobs', 'obligations', 'loops', 'cost']));
     } catch (err) {
       setNote(err instanceof Error ? err.message : String(err));
     } finally {

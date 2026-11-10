@@ -223,7 +223,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		measureLine("executed on %s, %d shots, measured MW=%.4f.", backend, shots, state.QuantumFactors.MeyerWallachQ)
 		return marshalReplan(&state, true, "circuit measurements folded")
 
-	case "krylov_solve":
+	case "krylov_solve", "krylov_json":
 		if !successTrue() {
 			return nil, false, "krylov reported success=false"
 		}
@@ -540,6 +540,22 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if raw, ok := present("converged"); ok {
 			_ = json.Unmarshal(raw, &state.Measurement.Converged)
+		}
+		if jobType == "geometry_optimization" || jobType == "vqe_repeats" {
+			var molecule string
+			if raw, ok := present("molecule"); ok {
+				_ = json.Unmarshal(raw, &molecule)
+			}
+			if molecule == "" {
+				molecule = state.QuantumFactors.TargetMolecule
+			}
+			appendCampaignExperiment(&state, CampaignExperiment{
+				JobID: jobID, Kind: jobType, Molecule: molecule,
+				Energy: floatPtr(energy), EnergyExact: floatPtr(fci),
+				Uncertainty: floatPtr(unc), Delta: floatPtr(delta / 1000.0),
+				Claimable: chemicalAccuracy, Measured: measuredFlag,
+				Hardware: hardware, Backend: backend, ResultVersion: resultVersion,
+			}, jobID)
 		}
 		measureLine("VQE measured E=%.6f Ha ± %.6f Ha vs FCI %.6f Ha (Δ=%.3f mHa; %s).%s",
 			energy, unc, fci, delta, map[bool]string{true: "within", false: "outside"}[nb.ChemicalAccuracy]+" chemical accuracy", citeSuffix(cite))
@@ -928,9 +944,20 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (thermodynamic_limit): %s open chain, DMRG bond dim %d, %d finite sizes; %s; measured=false and claimable=false.",
 			shortID, model, bondDim, len(finite), limitText))
+		var limitPtr *float64
+		if limitAvailable {
+			limitPtr = floatPtr(limitEnergy)
+		}
+		var deltaPtr *float64
+		lastPerSite := finite[len(finite)-1].EnergyPerSite
+		if limitAvailable {
+			deltaPtr = floatPtr(math.Abs(lastPerSite - limitEnergy))
+		}
 		appendCampaignExperiment(&state, CampaignExperiment{
-			JobID: jobID, Kind: jobType, Model: model, Series: series,
-			Measured: false, Claimable: false, Status: "simulated",
+			JobID: jobID, Kind: jobType, Model: model,
+			NSites: finite[len(finite)-1].NSites,
+			Energy: floatPtr(lastPerSite), EnergyExact: limitPtr, Delta: deltaPtr,
+			Series: series, Measured: false, Claimable: false, Status: "simulated",
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "thermodynamic-limit DMRG recorded")
@@ -946,12 +973,21 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if len(series) == 0 {
 			return nil, false, "lattice dynamics has no time trajectory"
 		}
+		var finalEnergy, finalMag *float64
+		lastPt := series[len(series)-1]
+		if v, ok := lastPt["energy"].(float64); ok {
+			finalEnergy = floatPtr(v)
+		}
+		if v, ok := lastPt["total_magnetization"].(float64); ok {
+			finalMag = floatPtr(v)
+		}
 		nb := ensureNotebook(&state)
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
 			"Job %s (lattice_dynamics): exact finite-size 2D TFIM quench with %d time points; measured=false and claimable=false.",
 			shortID, len(series)))
 		appendCampaignExperiment(&state, CampaignExperiment{
-			JobID: jobID, Kind: jobType, Model: "tfim-2d", Series: series,
+			JobID: jobID, Kind: jobType, Model: "tfim-2d",
+			Energy: finalEnergy, Gap: finalMag, Series: series,
 			Measured: false, Claimable: false, Status: "simulated",
 		}, jobID)
 		trimMeasurementLines(&state)
@@ -1013,6 +1049,9 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		var value, exact, ratio float64
 		var optimal int
+		var backend, jobRef, resultVersion string
+		var claimable, hardware bool
+		measuredFlag := true
 		for key, dst := range map[string]*float64{
 			"energy": &value, "energy_exact": &exact, "approximation_ratio": &ratio,
 		} {
@@ -1023,15 +1062,49 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				}
 			}
 		}
+		if value == 0 {
+			if raw, ok := present("measured_cut"); ok {
+				_ = json.Unmarshal(raw, &value)
+			}
+		}
 		if raw, ok := present("optimal_cut"); ok {
 			_ = json.Unmarshal(raw, &optimal)
+		}
+		if exact == 0 && optimal > 0 {
+			exact = float64(optimal)
 		}
 		if value == 0 && exact == 0 {
 			return nil, false, "QAOA value absent"
 		}
+		for key, dst := range map[string]*string{
+			"backend": &backend, "hardware_job_id": &jobRef, "result_version": &resultVersion,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("claimable"); ok {
+			_ = json.Unmarshal(raw, &claimable)
+		}
+		if raw, ok := present("hardware"); ok {
+			_ = json.Unmarshal(raw, &hardware)
+		}
+		if jobType == "qaoa_hardware" {
+			hardware = true
+		}
+		if raw, ok := present("measured"); ok {
+			_ = json.Unmarshal(raw, &measuredFlag)
+		}
 		ensureNotebook(&state)
 		measureLine("QAOA MaxCut measured %.3f (exact optimizer %.3f) vs classical optimum %d; ratio %.4f.%s",
 			value, exact, optimal, ratio, citeSuffix(cite))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: "maxcut",
+			Energy: floatPtr(value), EnergyExact: floatPtr(exact),
+			Gap: floatPtr(ratio), Claimable: claimable, Measured: measuredFlag,
+			Hardware: hardware, Backend: backend, HardwareJobID: jobRef,
+			ResultVersion: resultVersion,
+		}, jobID)
 		return marshalReplan(&state, true, "QAOA result recorded")
 
 	case "claim_eval":
@@ -1109,7 +1182,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		return marshalReplan(&state, true, "epistemics set from evaluated verdict")
 
-	case "mitigate":
+	case "mitigate", "mitigate_json":
 		if !successTrue() {
 			return nil, false, "mitigation reported success=false"
 		}

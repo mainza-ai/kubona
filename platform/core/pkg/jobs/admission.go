@@ -474,6 +474,14 @@ func (r *Runner) admitFidelity(sessionID, backend, qasm string) error {
 	}
 	qubits, depth, twoQ := countQasmGates(qasm)
 	assessment := r.fidelityGate.EvaluateAdmissionFloorOnly(device, depth, twoQ)
+	profileSource := "builtin-bootstrap"
+	calibratedAt := ""
+	if prof, ok := r.fidelityGate.Profile(device); ok {
+		if strings.TrimSpace(prof.Source) != "" {
+			profileSource = prof.Source
+		}
+		calibratedAt = prof.CalibratedAt
+	}
 	record := map[string]any{
 		"device_name":        assessment.DeviceName,
 		"predicted_fidelity": assessment.PredictedFidelity,
@@ -486,7 +494,8 @@ func (r *Runner) admitFidelity(sessionID, backend, qasm string) error {
 		"two_qubit_gates":    twoQ,
 		"floor_threshold":    r.fidelityGate.FloorThreshold(),
 		"drift_tolerance":    r.fidelityGate.DriftTolerance(),
-		"profile_source":     "builtin-bootstrap",
+		"profile_source":     profileSource,
+		"calibrated_at":      calibratedAt,
 		"backend":            backend,
 	}
 	if err := r.ledger.AppendEvent(sessionID, "fidelity_assessment", record); err != nil {

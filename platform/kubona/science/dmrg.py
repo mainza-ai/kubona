@@ -66,6 +66,18 @@ def dmrg_ground_energy(
 
     try:
         from quimb.tensor import DMRG2, SpinHam1D
+        from quimb.tensor.tensor_core import TNLinearOperator
+
+        if not getattr(TNLinearOperator, "_kubona_no_const_fold", False):
+            _orig_tn_linop_init = TNLinearOperator.__init__
+
+            def _kubona_tn_linop_init(self: Any, *args: Any, **kwargs: Any) -> None:
+                _orig_tn_linop_init(self, *args, **kwargs)
+                self._kws = {"get": "expression"}
+                self._ins = tuple(t.data for t in self._tensors)
+
+            TNLinearOperator.__init__ = _kubona_tn_linop_init  # type: ignore[method-assign]
+            TNLinearOperator._kubona_no_const_fold = True  # type: ignore[attr-defined]
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": f"quimb DMRG is unavailable: {e}"}
 

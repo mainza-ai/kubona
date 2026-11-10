@@ -790,3 +790,28 @@ func TestRecordJobFailureCreatesNegativeResultWithoutClaim(t *testing.T) {
 		t.Fatal("duplicate failure must be idempotent")
 	}
 }
+
+func TestReplanKrylovJsonMitigateJsonAndQAOAExperimentFold(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-kjson-1", "krylov_json",
+		[]byte(`{"success":true,"ground_state_energy":-1.13701,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.82,"solver":"numerical-krylov"}`), "")
+	if !changed {
+		t.Fatalf("krylov_json must fold: %s", note)
+	}
+	updated, changed, note = ReplanWithJobResult(updated, "job-mjson-1", "mitigate_json",
+		[]byte(`{"success":true,"method_used":"ZNE","unmitigated_value":-1.110,"mitigated_value":-1.1369,"error_bound":0.002}`), "")
+	if !changed {
+		t.Fatalf("mitigate_json must fold: %s", note)
+	}
+	updated, changed, note = ReplanWithJobResult(updated, "job-qaoa-1", "qaoa_run",
+		[]byte(`{"success":true,"kind":"qaoa","measured_cut":3.85,"optimal_cut":4,"approximation_ratio":0.9625,"claimable":true,"backend":"qiskit-aer-simulator"}`), "")
+	if !changed {
+		t.Fatalf("qaoa_run must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	if len(after.Experiments) != 1 || after.Experiments[0].Kind != "qaoa_run" ||
+		after.Experiments[0].Energy == nil || *after.Experiments[0].Energy != 3.85 ||
+		after.Experiments[0].EnergyExact == nil || *after.Experiments[0].EnergyExact != 4.0 {
+		t.Fatalf("qaoa_run experiment projection wrong: %+v", after.Experiments)
+	}
+}

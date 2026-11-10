@@ -167,7 +167,8 @@ def run_spin_chain(
         opt = None
     else:
         rng = np.random.default_rng(int(seed))
-        x0 = rng.uniform(-0.5, 0.5, size=2 * lattice.n_sites * int(layers))
+        n_params = 2 * lattice.n_sites * int(layers)
+        x0 = rng.uniform(-0.5, 0.5, size=n_params)
 
         def objective(x: np.ndarray) -> float:
             state = Statevector.from_instruction(_ansatz(lattice.n_sites, int(layers), np.asarray(x))).data
@@ -178,7 +179,20 @@ def run_spin_chain(
             objective, x0, method="COBYLA",
             options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8},
         )
-        theta = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+        best_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
+        best_val = float(opt.fun) if opt.fun is not None else objective(best_x)
+        if abs(best_val - exact_energy) > float(target_error) and int(max_iterations) >= 40:
+            x_warm = rng.uniform(-math.pi / 2.0, math.pi / 2.0, size=n_params)
+            opt_lbfgs = minimize(
+                objective, x_warm, method="L-BFGS-B",
+                options={"maxiter": max(25, int(max_iterations) // 2), "ftol": 1e-9},
+            )
+            cand_x = np.asarray(opt_lbfgs.x if opt_lbfgs.x is not None else x_warm, dtype=float)
+            cand_val = float(opt_lbfgs.fun) if opt_lbfgs.fun is not None else objective(cand_x)
+            if cand_val < best_val:
+                opt = opt_lbfgs
+                best_x = cand_x
+        theta = best_x
         qc = _ansatz(lattice.n_sites, int(layers), theta)
         exact_opt = float(np.real(np.vdot(
             Statevector.from_instruction(qc).data,

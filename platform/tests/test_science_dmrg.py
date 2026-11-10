@@ -25,3 +25,13 @@ def test_dmrg_refuses_invalid_bond_dimension_and_site_count():
     assert dmrg_ground_energy(model="tfim", n_sites=8, bond_dim=2)["success"] is False
     assert dmrg_ground_energy(model="tfim", n_sites=8, cutoff=0)["success"] is False
     assert dmrg_ground_energy(model="tfim", n_sites=8, coupling=0, field=0)["success"] is False
+
+
+def test_dmrg_twelve_site_heisenberg_converges():
+    result = dmrg_ground_energy(
+        model="heisenberg", n_sites=12, coupling=1.0, field=0.0,
+        bond_dim=16, sweeps=6, tolerance=1e-8,
+    )
+    assert result["success"] is True, result
+    assert result["converged"] is True
+    assert result["energy"] < -20.0

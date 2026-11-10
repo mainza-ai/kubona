@@ -83,7 +83,11 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') void runRecall();
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+                  void runRecall();
+                }
               }}
               placeholder="Recall query (empty lists newest)"
               aria-label="Memory recall query"

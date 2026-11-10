@@ -28,6 +28,13 @@ func TestPlanDiscoverySelectsMeasuredKinds(t *testing.T) {
 		{"H2 potential energy surface", "pes"},
 		{"water active-space VQE", "vqe"},
 		{"ground state baseline", "vqe"},
+		{"TFIM DMRG thermodynamic limit", "thermodynamic_limit"},
+		{"2D Ising quench dynamics", "lattice_dynamics"},
+		{"LiH geometry relaxation", "geometry_optimization"},
+		{"H2 multi-seed reproducibility repeats", "vqe_repeats"},
+		{"H2 reaction energy", "reaction"},
+		{"MaxCut QAOA graph", "qaoa"},
+		{"XXZ spin chain", "spin_chain"},
 	}
 	for _, tc := range cases {
 		steps, reason, err := planDiscovery(tc.goal)
@@ -37,6 +44,16 @@ func TestPlanDiscoverySelectsMeasuredKinds(t *testing.T) {
 		if len(steps) != 1 || steps[0].Kind != tc.kind {
 			t.Fatalf("%q: got %+v (%s)", tc.goal, steps, reason)
 		}
+	}
+
+	multiSteps, reason, err := planDiscovery("LiH geometry optimization then PES dissociation scan then excited state gap")
+	if err != nil {
+		t.Fatalf("multi-step plan failed: %v", err)
+	}
+	if len(multiSteps) != 3 || multiSteps[0].Kind != "geometry_optimization" ||
+		multiSteps[1].Kind != "pes" || multiSteps[2].Kind != "excited_state" ||
+		multiSteps[1].Spec["molecule"] != "LiH" {
+		t.Fatalf("multi-step plan wrong: %+v (%s)", multiSteps, reason)
 	}
 }
 

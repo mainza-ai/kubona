@@ -118,9 +118,10 @@ function summarize(job: Job): string | null {
       const law = str(first.law);
       return `math conjecture ${count} candidate(s)${law ? ` · ${law}` : ''} · ${str(r.novelty_status) || 'unclassified'} · finite-scope, not a theorem · job ${short}`;
     }
-    case 'qaoa_run': {
+    case 'qaoa_run':
+    case 'qaoa_hardware': {
       const ratio = num(r.approximation_ratio);
-      const cut = num(r.energy);
+      const cut = num(r.energy) ?? num(r.measured_cut);
       const optimal = num(r.optimal_cut);
       if (cut === null) return null;
       return `QAOA MaxCut ${cut.toFixed(3)}${optimal !== null ? ` vs classical ${optimal}` : ''}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · job ${short}`;
@@ -134,7 +135,8 @@ function summarize(job: Job): string | null {
       const fullSpace = str(r.full_space_status);
       return `VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)} Ha` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}${fullSpace && fullSpace !== 'within_target' ? ` · full-space ${fullSpace.replace(/_/g, ' ')}` : ''} · ${str(r.backend) || 'simulator'} · job ${short}`;
     }
-    case 'vqe_pes': {
+    case 'vqe_pes':
+    case 'hardware_pes': {
       const pts = Array.isArray(r.points) ? r.points : [];
       if (pts.length === 0) return null;
       let min = asRecord(pts[0]);
@@ -148,7 +150,8 @@ function summarize(job: Job): string | null {
       const closeR = num(closest.bond_distance);
       return `VQE PES ${pts.length} points${minR !== null ? ` · min E R=${minR.toFixed(4)} Å` : ''}${closeR !== null ? ` · closest R=${closeR.toFixed(4)} Å` : ''} · job ${short}`;
     }
-    case 'krylov_solve': {
+    case 'krylov_solve':
+    case 'krylov_json': {
       const e = num(r.ground_state_energy);
       if (e === null) return null;
       return `ground state ${e.toFixed(5)} Ha (classical emulation) · job ${short}`;
@@ -164,7 +167,8 @@ function summarize(job: Job): string | null {
       const delta = num(r.delta_mha);
       return `claim ${pass ? 'PASSED' : 'FAILED'}${delta !== null ? ` · Δ ${delta.toFixed(2)} mHa` : ''} · job ${short}`;
     }
-    case 'mitigate': {
+    case 'mitigate':
+    case 'mitigate_json': {
       const mit = num(r.mitigated_value);
       const method = str(r.method_used) || 'mitigation';
       if (mit === null) return null;

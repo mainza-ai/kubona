@@ -1662,6 +1662,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
                 handleSend();
               }
             }}

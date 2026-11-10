@@ -36,50 +36,137 @@ type discoveryStepResult struct {
 	Error  string          `json:"error,omitempty"`
 }
 
+func targetMoleculeFromGoal(g string) (string, float64) {
+	switch {
+	case strings.Contains(g, "water") || strings.Contains(g, "h2o"):
+		return "H2O", 0.96
+	case strings.Contains(g, "beh2"):
+		return "BeH2", 1.326
+	case strings.Contains(g, "lih"):
+		return "LiH", 1.595
+	default:
+		return "H2", 0.7414
+	}
+}
+
+func planSingleDiscoveryClause(g, defaultMol string, defaultBond float64) (discoveryStep, string, error) {
+	mol, bond := targetMoleculeFromGoal(g)
+	if mol == "H2" && !strings.Contains(g, "h2") && defaultMol != "" {
+		mol, bond = defaultMol, defaultBond
+	}
+	switch {
+	case strings.Contains(g, "conjecture") || strings.Contains(g, "sequence"):
+		return discoveryStep{}, "", fmt.Errorf("conjecture goals need explicit values; supply steps with the exact sequence terms")
+	case strings.Contains(g, "thermodynamic") || strings.Contains(g, "dmrg"):
+		model := "tfim"
+		if strings.Contains(g, "heisenberg") {
+			model = "heisenberg"
+		} else if strings.Contains(g, "xxz") {
+			model = "xxz"
+		}
+		return discoveryStep{Kind: "thermodynamic_limit", Spec: map[string]any{
+			"kind": "thermodynamic_limit", "model": model, "coupling": 1.0,
+			"field": 1.0, "bond_dim": 32,
+		}}, fmt.Sprintf("%s thermodynamic-limit DMRG plan", model), nil
+	case strings.Contains(g, "quench") || strings.Contains(g, "dynamics"):
+		return discoveryStep{Kind: "lattice_dynamics", Spec: map[string]any{
+			"kind": "lattice_dynamics", "coupling": 1.0,
+			"field_initial": 2.0, "field_final": 0.5,
+		}}, "2D TFIM lattice-dynamics quench plan", nil
+	case strings.Contains(g, "geometry") || strings.Contains(g, "relax"):
+		return discoveryStep{Kind: "geometry_optimization", Spec: map[string]any{
+			"kind": "geometry_optimization", "molecule": mol, "bond_distance": bond,
+			"layers": 2, "shots": 16384, "max_iterations": 80,
+		}}, fmt.Sprintf("%s geometry-optimization plan", mol), nil
+	case strings.Contains(g, "repeat") || strings.Contains(g, "reproducib"):
+		return discoveryStep{Kind: "vqe_repeats", Spec: map[string]any{
+			"kind": "vqe_repeats", "molecule": mol, "bond_distance": bond,
+			"repeats": 3, "layers": 2, "shots": 16384, "max_iterations": 80,
+		}}, fmt.Sprintf("%s multi-seed VQE repeats plan", mol), nil
+	case strings.Contains(g, "reaction"):
+		return discoveryStep{Kind: "reaction", Spec: map[string]any{
+			"kind": "reaction", "reaction": "H2_plus_H2_to_2H2",
+			"layers": 2, "shots": 8192, "max_iterations": 60,
+		}}, "reaction-energy VQE plan", nil
+	case strings.Contains(g, "qaoa") || strings.Contains(g, "maxcut"):
+		return discoveryStep{Kind: "qaoa", Spec: map[string]any{
+			"kind": "qaoa", "layers": 2, "shots": 8192,
+		}}, "QAOA MaxCut plan", nil
+	case strings.Contains(g, "excited"):
+		return discoveryStep{Kind: "excited_state", Spec: map[string]any{
+			"kind": "excited_state", "molecule": mol, "bond_distance": bond,
+			"layers": 2, "shots": 16384, "max_iterations": 80, "penalty": 10.0,
+		}}, fmt.Sprintf("excited-state %s plan", mol), nil
+	case strings.Contains(g, "xxz"):
+		return discoveryStep{Kind: "spin_chain", Spec: map[string]any{
+			"kind": "spin_chain", "model": "xxz", "n_sites": 4,
+			"coupling": 1.0, "field": 0.0, "anisotropy": 1.5, "periodic": true,
+			"layers": 3, "shots": 16384, "max_iterations": 180,
+		}}, "XXZ spin-chain plan", nil
+	case strings.Contains(g, "heisenberg"):
+		return discoveryStep{Kind: "spin_chain", Spec: map[string]any{
+			"kind": "spin_chain", "model": "heisenberg", "n_sites": 4,
+			"coupling": 1.0, "field": 0.0, "periodic": true,
+			"layers": 3, "shots": 16384, "max_iterations": 180,
+		}}, "Heisenberg spin-chain plan", nil
+	case strings.Contains(g, "ising") || strings.Contains(g, "tfim") || strings.Contains(g, "spin"):
+		return discoveryStep{Kind: "spin_chain", Spec: map[string]any{
+			"kind": "spin_chain", "model": "tfim", "n_sites": 4,
+			"coupling": 1.0, "field": 0.8, "periodic": true,
+			"layers": 3, "shots": 16384, "max_iterations": 180,
+		}}, "transverse-field Ising spin-chain plan", nil
+	case strings.Contains(g, "pes") || strings.Contains(g, "dissociation") || strings.Contains(g, "potential"):
+		return discoveryStep{Kind: "pes", Spec: map[string]any{
+			"kind": "pes", "molecule": mol, "r_min": 0.5, "r_max": 2.0,
+			"steps": 5, "layers": 2, "shots": 8192, "max_iterations": 60,
+		}}, fmt.Sprintf("%s potential-energy scan plan", mol), nil
+	case strings.Contains(g, "water") || strings.Contains(g, "h2o") || mol == "H2O":
+		return discoveryStep{Kind: "vqe", Spec: map[string]any{
+			"kind": "vqe", "molecule": "H2O", "bond_distance": 0.96,
+			"layers": 2, "shots": 8192, "max_iterations": 60, "full_space": false,
+		}}, "H2O active-space VQE plan", nil
+	default:
+		return discoveryStep{Kind: "vqe", Spec: map[string]any{
+			"kind": "vqe", "molecule": mol, "bond_distance": bond,
+			"layers": 2, "shots": 16384, "max_iterations": 80, "full_space": false,
+		}}, fmt.Sprintf("%s ground-state VQE baseline plan", mol), nil
+	}
+}
+
 // planDiscovery is a deterministic, bounded planner. It never invents a
 // sequence for a conjecture or an arbitrary molecule; ambiguous goals fall
-// through to the H2 VQE baseline or refuse when data is required.
+// through to the target molecule VQE baseline or refuse when data is required.
+// Multi-clause goals separated by " then ", " -> ", or ";" produce up to 5 steps.
 func planDiscovery(goal string) ([]discoveryStep, string, error) {
 	g := strings.ToLower(strings.TrimSpace(goal))
 	if g == "" {
 		return nil, "", fmt.Errorf("goal is required")
 	}
-	switch {
-	case strings.Contains(g, "excited"):
-		return []discoveryStep{{Kind: "excited_state", Spec: map[string]any{
-			"kind": "excited_state", "molecule": "H2", "bond_distance": 0.7414,
-			"layers": 2, "shots": 16384, "max_iterations": 80, "penalty": 10.0,
-		}}}, "excited-state H2 plan", nil
-	case strings.Contains(g, "heisenberg"):
-		return []discoveryStep{{Kind: "spin_chain", Spec: map[string]any{
-			"kind": "spin_chain", "model": "heisenberg", "n_sites": 4,
-			"coupling": 1.0, "field": 0.0, "periodic": true,
-			"layers": 3, "shots": 16384, "max_iterations": 180,
-		}}}, "Heisenberg spin-chain plan", nil
-	case strings.Contains(g, "ising") || strings.Contains(g, "tfim") || strings.Contains(g, "spin"):
-		return []discoveryStep{{Kind: "spin_chain", Spec: map[string]any{
-			"kind": "spin_chain", "model": "tfim", "n_sites": 4,
-			"coupling": 1.0, "field": 0.8, "periodic": true,
-			"layers": 3, "shots": 16384, "max_iterations": 180,
-		}}}, "transverse-field Ising spin-chain plan", nil
-	case strings.Contains(g, "conjecture") || strings.Contains(g, "sequence"):
-		return nil, "", fmt.Errorf("conjecture goals need explicit values; supply steps with the exact sequence terms")
-	case strings.Contains(g, "pes") || strings.Contains(g, "dissociation") || strings.Contains(g, "potential"):
-		return []discoveryStep{{Kind: "pes", Spec: map[string]any{
-			"kind": "pes", "molecule": "H2", "r_min": 0.5, "r_max": 2.0,
-			"steps": 5, "layers": 2, "shots": 8192, "max_iterations": 60,
-		}}}, "H2 potential-energy scan plan", nil
-	case strings.Contains(g, "water") || strings.Contains(g, "h2o"):
-		return []discoveryStep{{Kind: "vqe", Spec: map[string]any{
-			"kind": "vqe", "molecule": "H2O", "bond_distance": 0.96,
-			"layers": 2, "shots": 8192, "max_iterations": 60, "full_space": false,
-		}}}, "H2O active-space VQE plan", nil
-	default:
-		return []discoveryStep{{Kind: "vqe", Spec: map[string]any{
-			"kind": "vqe", "molecule": "H2", "bond_distance": 0.7414,
-			"layers": 2, "shots": 16384, "max_iterations": 80, "full_space": false,
-		}}}, "H2 ground-state VQE baseline plan", nil
+	defaultMol, defaultBond := targetMoleculeFromGoal(g)
+	normalized := strings.ReplaceAll(g, " and then ", " then ")
+	normalized = strings.ReplaceAll(normalized, " -> ", " then ")
+	normalized = strings.ReplaceAll(normalized, ";", " then ")
+	rawClauses := strings.Split(normalized, " then ")
+	clauses := make([]string, 0, len(rawClauses))
+	for _, c := range rawClauses {
+		if trimmed := strings.TrimSpace(c); trimmed != "" {
+			clauses = append(clauses, trimmed)
+		}
 	}
+	if len(clauses) > 5 {
+		return nil, "", fmt.Errorf("discovery protocol requires 1..5 steps")
+	}
+	steps := make([]discoveryStep, 0, len(clauses))
+	reasons := make([]string, 0, len(clauses))
+	for _, clause := range clauses {
+		step, reason, err := planSingleDiscoveryClause(clause, defaultMol, defaultBond)
+		if err != nil {
+			return nil, "", err
+		}
+		steps = append(steps, step)
+		reasons = append(reasons, reason)
+	}
+	return steps, strings.Join(reasons, " -> "), nil
 }
 
 func terminalJobStatus(status pb.JobStatus) bool {

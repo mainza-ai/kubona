@@ -138,8 +138,9 @@ func ReceiptFromJSON(data []byte) *Receipt {
 	return envelope.Receipt
 }
 
-func kindMatchesJobType(jobType, kind string) bool {
-	expected := map[string][]string{
+// ExpectedJobKinds returns a copy of the canonical jobType -> result kind mapping.
+func ExpectedJobKinds() map[string][]string {
+	return map[string][]string{
 		"vqe_run":               {"vqe"},
 		"vqe_repeats":           {"vqe_repeats"},
 		"geometry_optimization": {"geometry_optimization"},
@@ -158,6 +159,10 @@ func kindMatchesJobType(jobType, kind string) bool {
 		"krylov_json":           {"krylov"},
 		"mitigate_json":         {"mitigate"},
 	}
+}
+
+func kindMatchesJobType(jobType, kind string) bool {
+	expected := ExpectedJobKinds()
 	kinds, ok := expected[jobType]
 	if !ok {
 		// Non-experiment jobs are handled by their own RPC shapes.
@@ -268,7 +273,7 @@ func validateVariant(kind string, r *Result) error {
 				}
 			}
 		}
-	case "qaoa_hardware":
+	case "qaoa_hardware", "qaoa_hardware_loop":
 		if r.MeasuredCut == nil && r.Energy == nil {
 			return fmt.Errorf("experiment result kind %q requires measured_cut/energy", kind)
 		}
@@ -278,7 +283,7 @@ func validateVariant(kind string, r *Result) error {
 		if r.Hardware == nil || !*r.Hardware {
 			return fmt.Errorf("experiment result kind %q must be hardware=true", kind)
 		}
-		if strings.TrimSpace(r.HardwareJobID) == "" {
+		if strings.TrimSpace(r.HardwareJobID) == "" && len(r.HardwareJobIDs) == 0 {
 			return fmt.Errorf("experiment result kind %q requires hardware_job_id", kind)
 		}
 	case "vqe_hardware", "vqe_hardware_loop":

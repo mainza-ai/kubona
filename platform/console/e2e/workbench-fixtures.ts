@@ -100,6 +100,23 @@ export async function mockApi(page: Page, counts: { loops?: number; jobs?: numbe
     if (path === '/api/llm/models') return json({ models: [] });
     if (path === '/api/quantum/backends') return json({ backends: [] });
     if (path === '/api/quantum/settings') return json({ default_backend: 'local-simulator', harness_backends: {} });
+    if (path === '/api/access') {
+      return json({
+        mode: 'single-lab', role: 'operator', single_lab: true, anonymous_chat: true,
+        llm_local: true, campaign_create: true, auth_required: false,
+      });
+    }
+    if (path === '/api/tenants') return json({ tenants: [] });
+    if (path === '/api/codesign/verified') {
+      return json({
+        ok: true,
+        items: [{ id: 'rs-dec', name: 'Verified RS decoder', toffoli: 12, qubits: 8, tq_k1: 96, verified: true }],
+      });
+    }
+    if (path === '/api/codesign/packs') return json({ ok: true, packs: [] });
+    if (path === '/api/vault/leases') return json({ leases: [] });
+    if (path === '/api/system/readiness') return json({ ok: true, checks: [] });
+    if (path === '/api/fleet/calibration') return json({ profiles: [] });
 
     return json({});
   });
