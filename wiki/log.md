@@ -5167,8 +5167,8 @@ skipped is the exact failure this incident is about:
 
 ## [2026-11-09] decision | science truth/UI correction committed
 
-- Correction pass committed at `bd0d1a7`; Go, Python (1261 passed / 36 skipped),
-  console (604), build, contracts, and wiki gates are green locally.
+- Correction pass committed at `bd0d1a7`; formatting follow-up `4c4875b`; Go, Python (1261 passed / 36 skipped),
+  console (604), build, contracts, and wiki gates are green locally; CI and Console E2E are green at `4c4875b`.
 - Host compose was rebuilt from the correction tree with the repository `.env`
   plus the host secret env; health/ready/console responded. A separate host
   `next-server` listener on `*:3000` makes `local-deployment-check.sh` report a
