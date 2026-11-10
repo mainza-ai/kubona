@@ -205,3 +205,32 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('hardware QAOA');
   });
 });
+
+describe('MeasuredOutputs new science variants', () => {
+  it('renders geometry, repeated-VQE, and lattice trajectories', async () => {
+    const jobs = [
+      {
+        id: 'job-geom', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'geometry_optimization',
+        params_json: {}, created_at: '', completed_at: '2026-11-09T12:00:00Z',
+        result_json: { energy: -1.105, fci_exact_energy: -1.137, optimized_bond_distance: 0.735, claimable: false },
+      },
+      {
+        id: 'job-rep', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'vqe_repeats',
+        params_json: {}, created_at: '', completed_at: '2026-11-09T12:01:00Z',
+        result_json: { energy: -1.115, repeats: 2, between_run_standard_error: 0.0099, claimable: false },
+      },
+      {
+        id: 'job-lat', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'lattice_dynamics',
+        params_json: {}, created_at: '', completed_at: '2026-11-09T12:02:00Z',
+        result_json: { rows: 2, cols: 2, times: [{ t: 0, total_magnetization: 0 }, { t: 0.5, total_magnetization: 0.25 }] },
+      },
+    ];
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs }) }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('geometry optimized at R=0.73500');
+    expect(text).toContain('repeated VQE 2 runs');
+    expect(text).toContain('2D TFIM quench 2×2');
+  });
+});

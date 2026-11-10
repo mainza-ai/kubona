@@ -234,7 +234,7 @@ supported science surface without hidden shell steps or unsupported claims.
 | Go full suite | pass (all packages, including canonical decoder/negative folds) |
 | Python full suite | 1262 passed, 36 skipped (35:18) |
 | Bridge targeted science suite | 50 passed (science/custom/lattice/reaction/conjecture files) |
-| Console tests | 605 passed; tsc/eslint/build pass |
+| Console tests | 607 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `142 modeled / 14 client-only / 0 unmodeled`, `130 paths / 121 schemas` |
