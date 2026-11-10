@@ -22,6 +22,7 @@ try:
 except ImportError:  # pragma: no cover - bridge image always has it
     HAS_QISKIT = False
 
+from kubona.science.dmrg import dmrg_ground_energy
 from kubona.science.lattice import SpinChainModel
 
 
@@ -265,6 +266,180 @@ def run_spin_chain(
             "prepares that anchor on the circuit and measures it, while the "
             "vqe mode is local statevector optimization. Reported energy is "
             "shot-sampled. No thermodynamic-limit or quantum-advantage claim."
+        ),
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
+        "error_message": "",
+    }
+
+
+
+def _tfim_thermodynamic_energy_per_site(coupling: float, field: float) -> float:
+    """Exact Pauli-TFIM ground-state energy density in the thermodynamic limit."""
+    from scipy.integrate import quad
+
+    j, h = float(coupling), float(field)
+    if j < 0 or h < 0:
+        raise ValueError("TFIM thermodynamic limit requires non-negative coupling and field")
+    integral, _err = quad(
+        lambda k: math.sqrt(j * j + h * h - 2.0 * j * h * math.cos(k)),
+        0.0, 2.0 * math.pi, epsabs=1e-12, epsrel=1e-12,
+    )
+    return float(-integral / (2.0 * math.pi))
+
+
+def _heisenberg_thermodynamic_energy_per_site(coupling: float) -> float:
+    """Exact Pauli-Heisenberg energy density: J(1-4 ln 2), or J ferromagnetic."""
+    j = float(coupling)
+    if j == 0:
+        raise ValueError("Heisenberg thermodynamic limit requires non-zero coupling")
+    if j > 0:
+        return float(j * (1.0 - 4.0 * math.log(2.0)))
+    return float(j)
+
+
+def run_thermodynamic_limit(
+    model: str = "tfim",
+    sizes: list[int] | None = None,
+    coupling: float = 1.0,
+    field: float = 1.0,
+    anisotropy: float = 1.0,
+    bond_dim: int = 32,
+    cutoff: float = 1e-10,
+    sweeps: int = 8,
+    tolerance: float = 1e-8,
+) -> dict[str, Any]:
+    """Finite-size DMRG plus an exact thermodynamic-limit formula where known.
+
+    The finite-size points are variational MPS/DMRG energies at a declared bond
+    dimension. The thermodynamic value is returned only when an exact formula
+    exists; no finite-size extrapolation is promoted to an exact limit.
+    """
+    t0 = time.perf_counter()
+    key = str(model or "").strip().lower()
+    if key not in ("tfim", "heisenberg", "xxz"):
+        return {"success": False, "error": f"thermodynamic limit supports tfim, heisenberg, xxz; refusing {model!r}"}
+    if sizes is None:
+        sizes = [8, 12, 16]
+    if not isinstance(sizes, (list, tuple)):
+        return {"success": False, "error": "sizes must be a list of system sizes"}
+    parsed: list[int] = []
+    for value in sizes:
+        if isinstance(value, bool) or not isinstance(value, int):
+            return {"success": False, "error": f"size {value!r} must be an integer"}
+        if value < 4 or value > 40:
+            return {"success": False, "error": f"size {value!r} outside [4,40]"}
+        parsed.append(int(value))
+    parsed = sorted(set(parsed))
+    if not (2 <= len(parsed) <= 5):
+        return {"success": False, "error": "sizes must contain 2..5 distinct values in [4,40]"}
+    j, h, delta = float(coupling), float(field), float(anisotropy)
+    if not all(math.isfinite(v) for v in (j, h, delta)):
+        return {"success": False, "error": "coupling, field and anisotropy must be finite"}
+    if key == "tfim":
+        if j < 0 or h < 0:
+            return {"success": False, "error": "TFIM thermodynamic limit requires non-negative coupling and field"}
+        if j == 0 and h == 0:
+            return {"success": False, "error": "tfim requires coupling or field to be non-zero"}
+        exact_limit = _tfim_thermodynamic_energy_per_site(j, h)
+        limit_method = "exact free-fermion momentum integral"
+        limit_reason = ""
+    elif key == "heisenberg":
+        if j == 0:
+            return {"success": False, "error": "heisenberg requires a non-zero coupling"}
+        exact_limit = _heisenberg_thermodynamic_energy_per_site(j)
+        limit_method = "exact Bethe-ansatz energy density" if j > 0 else "exact ferromagnetic product state"
+        limit_reason = ""
+    else:
+        if j == 0:
+            return {"success": False, "error": "xxz requires a non-zero coupling"}
+        if abs(delta - 1.0) > 1e-12:
+            exact_limit = None
+            limit_method = "unavailable"
+            limit_reason = "No exact closed-form thermodynamic limit is wired for anisotropic XXZ; finite-size DMRG is reported without an inferred limit."
+        else:
+            exact_limit = _heisenberg_thermodynamic_energy_per_site(j)
+            limit_method = "exact isotropic Heisenberg limit (Delta=1)"
+            limit_reason = ""
+
+    finite: list[dict[str, Any]] = []
+    exact_anchor: list[dict[str, Any]] = []
+    for n in parsed:
+        point = dmrg_ground_energy(
+            model=key, n_sites=n, coupling=j, field=h, anisotropy=delta,
+            bond_dim=int(bond_dim), cutoff=float(cutoff), sweeps=int(sweeps),
+            tolerance=float(tolerance),
+        )
+        if not point.get("success"):
+            return {"success": False, "error": f"DMRG failed at n={n}: {point.get('error')}"}
+        if not point.get("converged"):
+            return {"success": False, "error": f"DMRG did not converge at n={n}"}
+        entry = {
+            "n_sites": n,
+            "energy": float(point["energy"]),
+            "energy_per_site": float(point["energy_per_site"]),
+            "bond_dim": int(point["bond_dim"]),
+            "max_bond_reached": int(point["max_bond_reached"]),
+            "converged": bool(point["converged"]),
+        }
+        finite.append(entry)
+        if n <= 14:
+            try:
+                exact_model = SpinChainModel(
+                    model=key, n_sites=n, coupling=j, field=h,
+                    anisotropy=delta, periodic=False,
+                )
+                exact_energy, _vec, _evals = exact_model.ground_state(k=1)
+                exact_anchor.append({
+                    "n_sites": n,
+                    "energy": float(exact_energy),
+                    "energy_per_site": float(exact_energy / n),
+                    "dmrg_delta_mha": abs(float(point["energy"]) - float(exact_energy)) * 1000.0,
+                })
+            except Exception:  # noqa: BLE001 — exact anchor is optional, not a substitute
+                pass
+
+    limit = None
+    gaps = []
+    if exact_limit is not None:
+        limit = {
+            "available": True,
+            "energy_per_site": float(exact_limit),
+            "method": limit_method,
+            "reason": "",
+        }
+        gaps = [
+            {"n_sites": p["n_sites"], "finite_size_minus_limit_mha_per_site": float((p["energy_per_site"] - exact_limit) * 1000.0)}
+            for p in finite
+        ]
+    else:
+        limit = {"available": False, "energy_per_site": None, "method": "unavailable", "reason": limit_reason}
+
+    return {
+        "success": True,
+        "kind": "thermodynamic_limit",
+        "result_version": "experiment-result-v1",
+        "model": key,
+        "boundary": "open",
+        "coupling": j,
+        "field": h,
+        "anisotropy": delta,
+        "sizes": parsed,
+        "finite_size": finite,
+        "exact_finite_size_anchor": exact_anchor,
+        "thermodynamic_limit": limit,
+        "finite_size_gap": gaps,
+        "bond_dim": int(bond_dim),
+        "sweeps": int(sweeps),
+        "cutoff": float(cutoff),
+        "method": "finite-size DMRG/MPS with an exact thermodynamic-limit formula where available",
+        "measured": False,
+        "hardware": False,
+        "claimable": False,
+        "converged": all(p["converged"] for p in finite),
+        "limitations": (
+            "Finite-size DMRG is variational at the declared bond dimension and has no certified "
+            "truncation-error bound. The thermodynamic value is included only when an exact formula "
+            "exists; finite-size points are not extrapolated into a claimed limit."
         ),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",

@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from lattice_experiment import run_spin_chain
+from lattice_experiment import run_spin_chain, run_thermodynamic_limit
 
 
 def test_tfim_experiment_is_shot_measured_and_anchored():
@@ -238,3 +238,55 @@ def test_spin_chain_hardware_withholds_claim_on_stale_calibration(monkeypatch):
     assert res["success"] is True
     assert res["calibration_fresh"] is False
     assert res["claimable"] is False
+
+
+def test_thermodynamic_limit_uses_exact_formula_and_reports_dmrg_error():
+    res = run_thermodynamic_limit(
+        model="tfim", sizes=[4, 8], coupling=1.0, field=1.0,
+        bond_dim=16, sweeps=6,
+    )
+    assert res["success"] is True, res
+    assert res["kind"] == "thermodynamic_limit"
+    assert res["boundary"] == "open"
+    assert len(res["finite_size"]) == 2
+    assert res["thermodynamic_limit"]["available"] is True
+    assert res["thermodynamic_limit"]["energy_per_site"] == pytest.approx(-4.0 / math.pi, abs=1e-12)
+    assert len(res["exact_finite_size_anchor"]) == 2
+    for anchor in res["exact_finite_size_anchor"]:
+        assert anchor["dmrg_delta_mha"] < 1e-3
+    assert res["measured"] is False
+    assert res["claimable"] is False
+
+
+def test_thermodynamic_limit_refuses_unwired_xxz_limit():
+    res = run_thermodynamic_limit(
+        model="xxz", sizes=[4, 8], coupling=1.0, field=0.0,
+        anisotropy=0.5, bond_dim=16, sweeps=4,
+    )
+    assert res["success"] is True, res
+    assert res["thermodynamic_limit"]["available"] is False
+    assert "anisotropic" in res["thermodynamic_limit"]["reason"]
+    assert res["claimable"] is False
+
+
+def test_bridge_run_experiment_dispatches_thermodynamic_limit():
+    import json
+    from types import SimpleNamespace
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    resp = svc.RunExperiment(
+        SimpleNamespace(
+            spec_json=json.dumps({
+                "kind": "thermodynamic_limit", "model": "tfim",
+                "sizes": [4, 8], "coupling": 1.0, "field": 1.0,
+                "bond_dim": 16, "sweeps": 4,
+            }),
+            session_id="test-session",
+        ),
+        None,
+    )
+    assert resp.ok is True, resp.error_message
+    result = json.loads(resp.result_json)
+    assert result["kind"] == "thermodynamic_limit"
+    assert result["thermodynamic_limit"]["available"] is True

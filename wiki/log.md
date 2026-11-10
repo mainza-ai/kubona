@@ -5276,3 +5276,16 @@ skipped is the exact failure this incident is about:
   surfaces are covered by Go route tests and console tests. Go coverage is
   64.8% (floor 64%); console 607 tests pass.
 - CI and Console E2E are green at `08526fb`.
+
+## [2026-11-09] ingest | multidimensional geometry and DMRG baselines
+
+- `geometry_optimization` now accepts an explicit PySCF atom geometry, relaxes
+  every Cartesian coordinate with an RHF/STO-3G analytic gradient and BFGS,
+  and runs the final active-space VQE at the relaxed geometry. The method is
+  disclosed as RHF-gradient relaxation, not an FCI gradient.
+- Added `kubona.science.dmrg`, an open-boundary MPS/DMRG baseline, and the
+  `thermodynamic_limit` experiment. It reports finite-size DMRG points plus
+  exact TFIM and isotropic-Heisenberg limits; anisotropic XXZ stays finite-size
+  with no inferred limit.
+- Added Go result validation, campaign folding, signed-export inclusion, console
+  launcher/output controls, schema fields, and tests for both paths.

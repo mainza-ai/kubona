@@ -66,6 +66,13 @@ function summarize(job: Job): string | null {
       if (e === null) return null;
       return `repeated VQE ${String(r.repeats ?? '?')} runs · mean ${e.toFixed(6)} Ha${se !== null ? ` · between-run SE ${(se * 1000).toFixed(3)} mHa` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
     }
+    case 'thermodynamic_limit': {
+      const finite = Array.isArray(r.finite_size) ? r.finite_size : [];
+      const limit = r.thermodynamic_limit && typeof r.thermodynamic_limit === 'object' ? r.thermodynamic_limit as Record<string, unknown> : null;
+      const limitEnergy = num(limit?.energy_per_site);
+      if (finite.length === 0) return null;
+      return `DMRG ${finite.length} sizes${limitEnergy !== null ? ` · exact limit ${limitEnergy.toFixed(6)} / site` : ' · no exact limit'} · classical baseline · job ${short}`;
+    }
     case 'lattice_dynamics': {
       const times = Array.isArray(r.times) ? r.times : [];
       if (times.length === 0) return null;

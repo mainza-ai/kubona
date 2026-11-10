@@ -878,6 +878,63 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "hardware PES folded")
 
+	case "thermodynamic_limit":
+		if !successTrue() {
+			return nil, false, "thermodynamic-limit experiment reported success=false"
+		}
+		var model string
+		var bondDim int
+		var finite []struct {
+			NSites        int     `json:"n_sites"`
+			Energy        float64 `json:"energy"`
+			EnergyPerSite float64 `json:"energy_per_site"`
+		}
+		if raw, ok := present("finite_size"); ok {
+			_ = json.Unmarshal(raw, &finite)
+		}
+		if len(finite) < 2 {
+			return nil, false, "thermodynamic-limit experiment has fewer than two finite-size points"
+		}
+		if raw, ok := present("model"); ok {
+			_ = json.Unmarshal(raw, &model)
+		}
+		if raw, ok := present("bond_dim"); ok {
+			_ = json.Unmarshal(raw, &bondDim)
+		}
+		var limitAvailable bool
+		var limitEnergy float64
+		if raw, ok := present("thermodynamic_limit"); ok {
+			var limit struct {
+				Available     bool    `json:"available"`
+				EnergyPerSite float64 `json:"energy_per_site"`
+			}
+			if json.Unmarshal(raw, &limit) == nil {
+				limitAvailable = limit.Available
+				limitEnergy = limit.EnergyPerSite
+			}
+		}
+		series := make([]map[string]any, 0, len(finite))
+		for _, point := range finite {
+			series = append(series, map[string]any{
+				"n_sites": point.NSites, "energy": point.Energy,
+				"energy_per_site": point.EnergyPerSite,
+			})
+		}
+		limitText := "no exact thermodynamic-limit formula wired"
+		if limitAvailable {
+			limitText = fmt.Sprintf("exact limit %.6f per site", limitEnergy)
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (thermodynamic_limit): %s open chain, DMRG bond dim %d, %d finite sizes; %s; measured=false and claimable=false.",
+			shortID, model, bondDim, len(finite), limitText))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: model, Series: series,
+			Measured: false, Claimable: false, Status: "simulated",
+		}, jobID)
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "thermodynamic-limit DMRG recorded")
+
 	case "lattice_dynamics":
 		if !successTrue() {
 			return nil, false, "lattice dynamics reported success=false"

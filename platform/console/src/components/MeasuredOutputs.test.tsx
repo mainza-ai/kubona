@@ -224,6 +224,15 @@ describe('MeasuredOutputs new science variants', () => {
         params_json: {}, created_at: '', completed_at: '2026-11-09T12:02:00Z',
         result_json: { rows: 2, cols: 2, times: [{ t: 0, total_magnetization: 0 }, { t: 0.5, total_magnetization: 0.25 }] },
       },
+      {
+        id: 'job-thermo', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'thermodynamic_limit',
+        params_json: {}, created_at: '', completed_at: '2026-11-09T12:03:00Z',
+        result_json: {
+          kind: 'thermodynamic_limit', bond_dim: 32,
+          finite_size: [{ n_sites: 8 }, { n_sites: 12 }],
+          thermodynamic_limit: { available: true, energy_per_site: -1.27324 },
+        },
+      },
     ];
     vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs }) }));
     let tree: TestRenderer.ReactTestRenderer;
@@ -232,5 +241,6 @@ describe('MeasuredOutputs new science variants', () => {
     expect(text).toContain('geometry optimized at R=0.73500');
     expect(text).toContain('repeated VQE 2 runs');
     expect(text).toContain('2D TFIM quench 2×2');
+    expect(text).toContain('exact limit -1.273240 / site');
   });
 });

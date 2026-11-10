@@ -112,9 +112,10 @@ Kubona runs measured scientific experiments through the governed Go job rail, no
 |---|---|---|---|
 | Molecular VQE | `vqe` | Shot-sampled Pauli energy | Live PySCF RHF/FCI/CASCI |
 | Custom-geometry VQE | `vqe` (`atom`, `ncas`, `nelecas`) | Shot-sampled active-space UCCSD energy | Live PySCF CASCI + full FCI (bounded) |
-| Geometry optimization | `geometry_optimization` | VQE at a classically optimized bond length | Live PySCF exact-energy search + full FCI |
+| Geometry optimization | `geometry_optimization` | VQE at a classically optimized geometry | Curated bond search or caller-geometry RHF/STO-3G BFGS relaxation; full FCI anchor |
 | Repeated VQE | `vqe_repeats` | Mean + shot/between-run standard error | Full FCI at the same geometry |
 | 2D TFIM quench dynamics | `lattice_dynamics` | Exact finite-size magnetization trajectory | Exact `expm_multiply` finite-size simulation |
+| DMRG / thermodynamic limit | `thermodynamic_limit` | Finite-size MPS/DMRG energy density | Exact TFIM/isotropic-Heisenberg limit where known; XXZ finite-size only |
 | Hardware PES | `hardware_pes` | One QPU batch across source PES points | Per-point FCI anchors; optional ZNE |
 | Potential-energy scan | `pes` | Per-point shot energy | Live RHF/FCI per geometry |
 | Excited state (H2/LiH/BeH2/H2O) | `excited_state` | Ground and deflated excited energy | Exact spectrum / active-space anchor |
@@ -123,7 +124,7 @@ Kubona runs measured scientific experiments through the governed Go job rail, no
 | Math law discovery | `conjecture` | Exact holdout verification | Finite-scope certificate, not a theorem; optional OpenAlex lookup never establishes novelty |
 | Discovery protocol | n/a | Sequential real jobs + measured summary | Deterministic bounded planner |
 
-A custom geometry is accepted only as an explicit, bounded VQE input — no inferred structure and no borrowed energy:
+A custom geometry is accepted only as an explicit, bounded VQE or geometry-optimization input — no inferred structure and no borrowed energy:
 
 ```bash
 curl -fsS -X POST http://127.0.0.1:8080/api/experiments -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","spec":{"kind":"vqe","molecule":"custom","atom":"O 0 0 0; H 0.757 0.586 0; H -0.757 0.586 0","ncas":4,"nelecas":4,"shots":8192,"max_iterations":60},"budget_usd":1}'

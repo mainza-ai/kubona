@@ -36,7 +36,7 @@ kubona = "kubona.run:_cli"
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
 qiskit = ["qiskit==2.5.2", "qiskit-aer==0.17.2", "qiskit-ibm-runtime==0.50.0", "qiskit-nature==0.8.0", "qiskit-nature-pyscf==0.4.0"]
-chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6"]
+chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6", "quimb==1.10.0"]
 providers = [
     # Pinned == : the suite-verified set (2026-10-28). Each pin names the
     # suite that verified it — a pin without a green suite is a guess, not
