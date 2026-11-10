@@ -5262,3 +5262,10 @@ skipped is the exact failure this incident is about:
 - Added reviewed QPU rate-card pricing to hardware prepare responses; Open Plan
   is free, unknown rows explicitly report unavailable. The signed cap remains
   the spend authority.
+
+## [2026-11-09] fix | coverage regressions for hardware PES
+
+- Added API route tests for PES/spin/QAOA prepare/unsigned-launch and kind
+  mapping; Go coverage returned to 64.8% locally.
+- Added console tests for hardware PES pricing and the new geometry/repeats/2D
+  output rows; console coverage passed (607 tests).
