@@ -30,20 +30,24 @@ platform. The working scientific spine is:
 That is real and useful. It is not the same as being able to **discover** new
 mathematics, chemistry, or physics. The missing capabilities are structural:
 
-1. **Physics is executable but finite-size.** `kubona.science.lattice`
-   supplies 1D TFIM/Heisenberg/XXZ and exact 2D TFIM quench dynamics, with
-   exact small-system Hamiltonians and Pauli export. There is no DMRG,
-   thermodynamic-limit, or hardware dynamics path; the 2D runner is explicitly
-   an exact classical simulation (`measured:false`), not a QPU result.
+1. **Physics is executable across finite-size and DMRG baselines.**
+   `kubona.science.lattice` supplies 1D TFIM/Heisenberg/XXZ and exact 2D
+   TFIM quench dynamics, with exact small-system Hamiltonians and Pauli export.
+   `kubona.science.dmrg` supplies an open-boundary MPS/DMRG baseline, and
+   `thermodynamic_limit` reports exact TFIM/isotropic-Heisenberg limits where
+   a closed form exists. Anisotropic XXZ has finite-size DMRG only, and the 2D
+   runner remains an exact classical simulation (`measured:false`); there is no
+   hardware dynamics path.
 2. **Mathematical discovery is an engine, with an external-validation gap.**
    Exact rational polynomial/recurrence discovery, train/holdout verification,
    a falsifier, and a ledger-bound job exist. External literature/proof novelty
    is still not established; unclassified is the correct boundary.
 3. **Chemistry is broader but still bounded.** H2/LiH/BeH2/H2O, caller-supplied
    closed-shell STO-3G geometry, active-space excited states, atomization
-   reactions, geometry optimization, and repeated-run variance exist. There is
-   no SMILES conversion, open-shell generic path, full multidimensional
-   geometry relaxation, or broad property suite.
+   reactions, geometry optimization, and repeated-run variance exist. A
+   caller-supplied geometry can now be relaxed over all Cartesian coordinates
+   with an RHF/STO-3G analytic gradient before the final VQE. There is no
+   SMILES conversion, open-shell generic path, or broad property suite.
 4. **Discovery is not a closed loop.** The campaign/notebook/claim rails fold
    measured results, but the campaign engine still runs a toy ansatz search
    rather than invoking the real VQE/PES/QAOA job rail. A researcher can run an
@@ -69,13 +73,13 @@ or operations.
 | Exact classical anchors | PySCF live for curated molecules | `platform/bridge/chemistry.py` | working |
 | Chemistry breadth | H2/LiH/BeH2/H2O curated plus caller-supplied closed-shell STO-3G geometry, geometry optimization, repeated VQE, and atomization reactions | `experiments.py` | **working, bounded** |
 | Excited states / reaction paths / geometry optimization | excited states + H2/LiH/BeH2/H2O reactions + bounded bond optimization | `experiments.py` | **working, bounded** |
-| Physics lattice simulation | **missing module** referenced by pack | `domain_packs/materials.../pack.yaml`; `test_domain_packs.py` | **P0 gap** |
-| Spectral gaps / magnetization / correlations | absent as experiments | no code | **gap** |
-| Time evolution / quench dynamics | absent | no code | **gap** |
+| Physics lattice simulation | 1D TFIM/Heisenberg/XXZ, exact 2D TFIM quench, open-boundary DMRG, exact TFIM/isotropic-Heisenberg limits | `kubona/science/lattice.py`; `kubona/science/dmrg.py` | **working, bounded** |
+| Spectral gaps / magnetization / correlations | exact finite-size gap, magnetization, and ZZ correlations in `spin_chain` | `lattice.py`; `lattice_experiment.py` | **working, finite-size** |
+| Time evolution / quench dynamics | exact 2D TFIM quench trajectory | `lattice_experiment.py`; `SquareLatticeModel` | **working, finite-size** |
 | Math corpus catalog | static index/search | `science/math_catalog.py` | working catalog |
 | Lean/Comparator verification | static AST + optional live kernel utility | `eval/comparator_eval.py` | utility, not an experiment |
-| Conjecture generation / law discovery | absent | no code | **P0 gap** |
-| Counterexample search | absent | no code | **gap** |
+| Conjecture generation / law discovery | exact finite-prefix laws with holdout/falsifier | `science/conjecture.py`; `conjecture` job | **working, bounded** |
+| Counterexample search | holdout falsifier; external search still open | `science/conjecture.py` | **partial** |
 | Autonomous campaign over real experiments | toy harness only | `discovery/campaign.py` | **gap** |
 | Provenance/claims/results | typed result + signed receipt + campaign fold | jobs/ledger/UI | working, partial |
 | Domain packs | 3 manifests; materials generator unresolved | `science/domain_pack.py` | **P0 gap** |
@@ -122,13 +126,12 @@ The correct order is:
 
 ### P2 — enhancements
 
-- 2D lattice / Fermi-Hubbard with DMRG cross-check.
-- Time-dependent quench dynamics and Loschmidt echo.
-- General molecule geometry optimization with classical optimizer and quantum
-  final-state check.
+- 2D Hubbard/PEPS and spectral functions.
+- Loschmidt echo and broader non-equilibrium observables.
+- FCI-gradient geometry relaxation and larger basis/active-space support.
 - Learned conjecture proposer over the math corpus.
 - Hardware spin-chain calibration-aware error mitigation.
-- Multi-experiment campaign scheduler and novelty search.
+- Multi-experiment campaign scheduler and external novelty search.
 
 ## 5. Implementation plan
 
@@ -269,8 +272,8 @@ Implemented and locally tested:
   measured/claimable summary. Real-stack E2E covers plan + run.
 - **Result projection:** the shared schema/types and `MeasuredOutputs` cover
   `excited_state`, `reaction`, `spin_chain`, `spin_chain_hardware`,
-  `conjecture`, `geometry_optimization`, `vqe_repeats`, and
-  `lattice_dynamics`; console launcher controls cover the new kinds.
+  `conjecture`, `geometry_optimization`, `vqe_repeats`, `thermodynamic_limit`,
+  and `lattice_dynamics`; console launcher controls cover the new kinds.
 
 Still queued after the correction pass:
 
@@ -280,10 +283,11 @@ Still queued after the correction pass:
   refused by design;
 - no SMILES conversion, open-shell generic molecule path, or broad property
   suite;
-- geometry optimization uses the curated one-coordinate template; arbitrary
-  multidimensional relaxation is not implemented;
-- 2D dynamics is exact finite-size simulation (not DMRG/Trotter/thermodynamic
-  limit) and has no hardware path;
+- curated geometry optimization still uses the one-coordinate template; a
+  caller-supplied geometry can be relaxed over all Cartesian coordinates under
+  an RHF/STO-3G gradient (not an FCI gradient);
+- 2D dynamics is exact finite-size simulation and has no hardware path; the
+  DMRG/thermodynamic-limit path is 1D/open-boundary only;
 - external literature/proof novelty and a counterexample search beyond the
   holdout falsifier remain open (SC-09 external-validation gap);
 - PES/hardware mitigation per point remains open; hardware results now carry

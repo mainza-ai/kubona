@@ -53,10 +53,13 @@ slice:
 - added one-batch hardware PES with optional per-point ZNE and reviewed QPU
   pricing preview; hardware PES is not yet live-run.
 
-Remaining P0/P1 work is arbitrary multidimensional geometry relaxation,
-DMRG/thermodynamic-limit physics, hardware PES/mitigation, hardware spin
-accuracy, and the human accessibility gate. Hardware results now retain
-calibration age/freshness and withhold claimability on a stale snapshot.
+Landed after that line: arbitrary caller-supplied multidimensional geometry
+relaxation under an RHF/STO-3G gradient, open-boundary DMRG, and exact
+TFIM/isotropic-Heisenberg thermodynamic limits. Remaining P0/P1 work is the
+live hardware PES/mitigation pilot, hardware spin accuracy, and the human
+accessibility gate; anisotropic XXZ has finite-size DMRG but no exact limit.
+Hardware results retain calibration age/freshness and withhold claimability on
+a stale snapshot.
 
 ## 0. Execution log (2026-11-08)
 

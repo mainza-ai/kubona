@@ -892,6 +892,13 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     shots=int(spec.get("shots", 8192)),
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 80)),
+                    max_geometry_steps=int(spec.get("max_geometry_steps", 100)),
+                    atom=spec.get("atom") or None,
+                    basis=str(spec.get("basis") or "sto-3g"),
+                    charge=int(spec.get("charge", 0)),
+                    spin=int(spec.get("spin", 0)),
+                    ncas=spec.get("ncas"),
+                    nelecas=spec.get("nelecas"),
                 )
             elif kind == "vqe_repeats":
                 from experiments import run_repeated_vqe
@@ -1002,6 +1009,19 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 160)),
                     target_error=float(spec.get("target_error", 1e-3)),
                     state_mode=str(spec.get("state_mode") or "vqe"),
+                )
+            elif kind == "thermodynamic_limit":
+                from lattice_experiment import run_thermodynamic_limit
+                result = run_thermodynamic_limit(
+                    model=str(spec.get("model") or "tfim"),
+                    sizes=spec.get("sizes"),
+                    coupling=float(spec.get("coupling", 1.0)),
+                    field=float(spec.get("field", 1.0)),
+                    anisotropy=float(spec.get("anisotropy", 1.0)),
+                    bond_dim=int(spec.get("bond_dim", 32)),
+                    cutoff=float(spec.get("cutoff", 1e-10)),
+                    sweeps=int(spec.get("sweeps", 8)),
+                    tolerance=float(spec.get("tolerance", 1e-8)),
                 )
             elif kind == "spin_chain_hardware":
                 from lattice_experiment import run_spin_chain_hardware
@@ -1120,7 +1140,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, thermodynamic_limit, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

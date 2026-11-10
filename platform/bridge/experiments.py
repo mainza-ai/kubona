@@ -1698,6 +1698,129 @@ def run_repeated_vqe(
     }
 
 
+def _relax_geometry_rhf(
+    atom: str,
+    basis: str,
+    charge: int,
+    spin: int,
+    max_steps: int,
+) -> dict[str, Any]:
+    """Relax every nuclear coordinate with an analytic RHF gradient.
+
+    This is a real multidimensional relaxation, but it is deliberately scoped:
+    the energy/gradient model is RHF/STO-3G, not a FCI gradient. The VQE claim
+    is made at the relaxed geometry and the relaxation method is reported.
+    """
+    if int(charge) != 0 or int(spin) != 0:
+        return {"success": False, "error": "multidimensional relaxation requires a neutral closed-shell molecule (charge=0, spin=0)"}
+    if str(basis).strip().lower() != "sto-3g":
+        return {"success": False, "error": "multidimensional relaxation currently supports basis=sto-3g only"}
+    atom = str(atom or "").strip()
+    if not atom or len(atom) > 2000 or ";" not in atom:
+        return {"success": False, "error": "multidimensional relaxation requires an explicit PySCF atom geometry string"}
+    if max_steps < 1 or max_steps > 300:
+        return {"success": False, "error": f"max_geometry_steps {max_steps!r} outside [1,300]"}
+    try:
+        from pyscf import gto, scf, grad
+        from scipy.optimize import minimize
+        mol = gto.M(atom=atom, basis=str(basis), charge=int(charge), spin=int(spin), verbose=0)
+        symbols = [str(mol.atom_pure_symbol(i)) for i in range(mol.natm)]
+        coords = np.asarray(mol.atom_coords(unit="Angstrom"), dtype=float)
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"PySCF could not parse the supplied geometry: {e}"}
+    if not (2 <= len(symbols) <= 6):
+        return {"success": False, "error": f"multidimensional relaxation supports 2..6 atoms, got {len(symbols)}"}
+    if coords.shape != (len(symbols), 3) or not np.all(np.isfinite(coords)):
+        return {"success": False, "error": "supplied geometry has non-finite coordinates"}
+    coords = coords - coords.mean(axis=0)
+
+    def encode(x: np.ndarray) -> str:
+        return "; ".join(
+            f"{symbol} {float(x[3*i]):.10f} {float(x[3*i+1]):.10f} {float(x[3*i+2]):.10f}"
+            for i, symbol in enumerate(symbols)
+        )
+
+    def objective(x: np.ndarray) -> tuple[float, np.ndarray]:
+        m = gto.M(atom=encode(np.asarray(x, dtype=float)), basis=str(basis),
+                  charge=int(charge), spin=int(spin), verbose=0)
+        mf = scf.RHF(m)
+        mf.conv_tol = 1e-10
+        mf.max_cycle = 200
+        mf.run()
+        if not mf.converged:
+            raise RuntimeError("RHF did not converge while evaluating the geometry")
+        g = np.asarray(grad.RHF(mf).kernel(), dtype=float).reshape(-1)
+        if not np.all(np.isfinite(g)):
+            raise RuntimeError("RHF returned a non-finite nuclear gradient")
+        return float(mf.e_tot), g
+
+    try:
+        opt = minimize(
+            objective, coords.reshape(-1), method="BFGS", jac=True,
+            options={"maxiter": int(max_steps), "gtol": 1e-5},
+        )
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"geometry relaxation failed: {e}"}
+    final_x = np.asarray(opt.x, dtype=float).reshape(-1, 3)
+    if not np.all(np.isfinite(final_x)):
+        return {"success": False, "error": "geometry relaxation returned non-finite coordinates"}
+    final_x = final_x - final_x.mean(axis=0)
+    gradient = np.asarray(getattr(opt, "jac", np.zeros_like(final_x)), dtype=float).reshape(-1)
+    gradient_norm = float(np.linalg.norm(gradient))
+    pair_distances = []
+    for i in range(len(symbols)):
+        for j in range(i + 1, len(symbols)):
+            pair_distances.append(float(np.linalg.norm(final_x[i] - final_x[j])))
+    minimum_pair = min(pair_distances) if pair_distances else 0.0
+    converged = bool(opt.success or gradient_norm <= 1e-4)
+    if minimum_pair < 0.4:
+        return {"success": False, "error": f"geometry relaxation collapsed two atoms to {minimum_pair:.4f} Å; refusing"}
+    if not converged:
+        return {
+            "success": False,
+            "error": f"geometry relaxation did not converge: {opt.message}",
+            "relaxation": {
+                "method": "RHF/STO-3G analytic nuclear gradient + BFGS",
+                "success": False,
+                "iterations": int(getattr(opt, "nit", 0)),
+                "function_evaluations": int(getattr(opt, "nfev", 0)),
+                "gradient_norm": gradient_norm,
+                "final_rhf_energy": float(opt.fun),
+                "message": str(opt.message),
+            },
+        }
+    optimized_atom = encode(final_x.reshape(-1))
+    geometry = [
+        {"symbol": symbol, "x": float(final_x[i, 0]), "y": float(final_x[i, 1]), "z": float(final_x[i, 2])}
+        for i, symbol in enumerate(symbols)
+    ]
+    bonds = []
+    for i in range(len(symbols)):
+        for j in range(i + 1, len(symbols)):
+            bonds.append({"i": i, "j": j, "symbols": f"{symbols[i]}-{symbols[j]}",
+                          "distance_angstrom": float(np.linalg.norm(final_x[i] - final_x[j]))})
+    return {
+        "success": True,
+        "optimized_atom": optimized_atom,
+        "optimized_geometry": geometry,
+        "bond_lengths": bonds,
+        "optimized_bond_distance": float(np.linalg.norm(final_x[0] - final_x[1])) if len(symbols) == 2 else None,
+        "relaxation": {
+            "method": "RHF/STO-3G analytic nuclear gradient + BFGS",
+            "success": True,
+            "converged": converged,
+            "iterations": int(getattr(opt, "nit", 0)),
+            "function_evaluations": int(getattr(opt, "nfev", 0)),
+            "gradient_evaluations": int(getattr(opt, "njev", 0)),
+            "gradient_norm": gradient_norm,
+            "final_rhf_energy": float(opt.fun),
+            "minimum_pair_distance_angstrom": minimum_pair,
+            "degrees_of_freedom": max(0, 3 * len(symbols) - 6),
+            "message": str(opt.message),
+        },
+    }
+
+
 def run_geometry_optimization(
     molecule: str = "H2",
     initial_bond_distance: float = 0.7414,
@@ -1705,17 +1828,96 @@ def run_geometry_optimization(
     shots: int = 8192,
     seed: int = 7,
     max_iterations: int = 80,
+    max_geometry_steps: int = 100,
+    *,
+    atom: str | None = None,
+    basis: str = "sto-3g",
+    charge: int = 0,
+    spin: int = 0,
+    ncas: int | None = None,
+    nelecas: int | None = None,
 ) -> dict[str, Any]:
-    """Optimize a molecular bond length classically, then VQE the optimized geometry.
+    """Optimize a molecular geometry, then VQE the optimized geometry.
 
-    The geometry objective is a live PySCF exact-energy evaluation (FCI for H2,
-    full FCI for the active-space molecules); the final energy is a separate,
-    shot-measured VQE run at the optimized geometry. The classical optimizer is
-    not used as a substitute for the quantum measurement.
+    With ``atom`` supplied this performs a genuine multidimensional relaxation
+    of every Cartesian coordinate under an RHF/STO-3G analytic gradient, then
+    runs the bounded active-space VQE at the relaxed geometry. Without
+    ``atom`` the curated one-coordinate templates remain available.
     """
+    if atom is not None:
+        if ncas is None or nelecas is None:
+            return {"success": False, "error": "multidimensional geometry optimization requires explicit ncas and nelecas for the final VQE"}
+        if not HAS_NATURE or not HAS_QISKIT:
+            return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing geometry optimization"}
+        if int(shots) < 128 or int(shots) > 1_000_000:
+            return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+        if int(max_iterations) < 1 or int(max_iterations) > 1000:
+            return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+        relaxed = _relax_geometry_rhf(str(atom), str(basis), int(charge), int(spin), int(max_geometry_steps))
+        if not relaxed.get("success"):
+            return {"success": False, "error": relaxed.get("error", "geometry relaxation failed"),
+                    "relaxation": relaxed.get("relaxation")}
+        optimized_atom = str(relaxed["optimized_atom"])
+        final = run_generic_vqe(
+            atom=optimized_atom, basis=str(basis), charge=int(charge), spin=int(spin),
+            ncas=int(ncas), nelecas=int(nelecas), shots=int(shots), seed=int(seed),
+            max_iterations=int(max_iterations),
+        )
+        if not final.get("success"):
+            return {"success": False, "error": "VQE at the relaxed geometry failed",
+                    "vqe_error": final.get("error"), "relaxation": relaxed.get("relaxation"),
+                    "optimized_atom": optimized_atom}
+        out = {
+            "success": True,
+            "kind": "geometry_optimization",
+            "result_version": "experiment-result-v1",
+            "molecule": "custom",
+            "generic": True,
+            "atom": str(atom),
+            "basis": str(basis),
+            "charge": int(charge),
+            "spin": int(spin),
+            "method": "Live PySCF RHF/STO-3G multidimensional geometry relaxation + active-space VQE",
+            "initial_geometry": str(atom),
+            "optimized_atom": optimized_atom,
+            "optimized_geometry": relaxed["optimized_geometry"],
+            "bond_lengths": relaxed["bond_lengths"],
+            "relaxation": relaxed["relaxation"],
+            "geometry_relaxed": True,
+            "classical_energy_exact": float(final["fci_exact_energy"]),
+            "classical_optimizer": {
+                "name": "BFGS with analytic RHF/STO-3G nuclear gradient",
+                "function_evaluations": int(relaxed["relaxation"]["function_evaluations"]),
+                "iterations": int(relaxed["relaxation"]["iterations"]),
+                "gradient_norm": float(relaxed["relaxation"]["gradient_norm"]),
+                "success": True,
+                "message": str(relaxed["relaxation"]["message"]),
+                "degrees_of_freedom": int(relaxed["relaxation"]["degrees_of_freedom"]),
+            },
+            "energy": float(final["energy"]),
+            "energy_exact": float(final["energy_exact"]),
+            "fci_exact_energy": float(final["fci_exact_energy"]),
+            "active_space_fci_energy": final.get("active_space_fci_energy"),
+            "uncertainty": float(final["uncertainty"]),
+            "delta_mha": float(final.get("delta_mha", 0.0)),
+            "claimable": bool(final.get("claimable", False)),
+            "measured": True,
+            "hardware": False,
+            "final_vqe": final,
+            "limitations": ("All Cartesian coordinates are relaxed under an RHF/STO-3G "
+                            "analytic gradient, then the final energy is a separate active-space "
+                            "VQE at that geometry. This is not an FCI-gradient relaxation and "
+                            "the final VQE remains subject to its declared active-space and "
+                            "shot-noise uncertainty."),
+            "error_message": "",
+        }
+        if relaxed.get("optimized_bond_distance") is not None:
+            out["optimized_bond_distance"] = float(relaxed["optimized_bond_distance"])
+            out["bond_distance"] = float(relaxed["optimized_bond_distance"])
+        return out
     mol = (molecule or "").upper()
     if mol not in ("H2", "LIH", "BEH2", "H2O"):
-        return {"success": False, "error": f"geometry optimization supports H2, LiH, BeH2, H2O; refusing {molecule}"}
+        return {"success": False, "error": f"geometry optimization supports H2, LiH, BeH2, H2O, or an explicit atom geometry; refusing {molecule}"}
     if not (0.3 <= float(initial_bond_distance) <= 10.0):
         return {"success": False, "error": f"initial_bond_distance {initial_bond_distance!r} outside [0.3,10.0]"}
     if int(shots) < 128 or int(shots) > 1_000_000:

@@ -26,6 +26,7 @@ func TestDecodeAcceptsEverySupportedVariant(t *testing.T) {
 		{"qaoa_hardware", map[string]any{"kind": "qaoa_hardware_loop", "measured_cut": 7.5, "optimal_cut": 10, "hardware": true, "hardware_job_id": "vendor-qaoa-loop"}},
 		{"conjecture_run", map[string]any{"kind": "conjecture", "candidate_count": 1}},
 		{"lattice_dynamics", map[string]any{"kind": "lattice_dynamics", "times": []map[string]any{{"t": 0.0, "energy": -4.0}, {"t": 0.5, "energy": -3.0}}}},
+		{"thermodynamic_limit", map[string]any{"kind": "thermodynamic_limit", "finite_size": []map[string]any{{"n_sites": 8, "energy": -9.8, "energy_per_site": -1.23}, {"n_sites": 12, "energy": -15.0, "energy_per_site": -1.25}}}},
 		{"hardware_pes", map[string]any{"kind": "hardware_pes", "hardware": true, "hardware_job_id": "vendor-pes", "points": []map[string]any{{"energy": -1.0, "fci_exact_energy": -1.0}, {"energy": -1.1, "fci_exact_energy": -1.1}}}},
 	}
 	for _, tc := range cases {

@@ -6,7 +6,7 @@ import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
-type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'lattice_dynamics' | 'conjecture';
+type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'thermodynamic_limit' | 'lattice_dynamics' | 'conjecture';
 
 function num(r: Job | null, key: string): number | null {
   const result = r?.result_json as Record<string, unknown> | undefined;
@@ -38,7 +38,11 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const [nSites, setNSites] = useState('4');
   const [coupling, setCoupling] = useState('1');
   const [field, setField] = useState('0.8');
+  const [anisotropy, setAnisotropy] = useState('1');
   const [periodic, setPeriodic] = useState(true);
+  const [thermoSizes, setThermoSizes] = useState('8, 12, 16');
+  const [bondDim, setBondDim] = useState('32');
+  const [sweeps, setSweeps] = useState('8');
   const [targetError, setTargetError] = useState('0.001');
   const [stateMode, setStateMode] = useState<'vqe' | 'exact'>('vqe');
   const [penalty, setPenalty] = useState('10');
@@ -68,7 +72,16 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.max_iterations = Number(iterations);
     } else if (kind === 'geometry_optimization') {
       spec.molecule = molecule;
-      spec.initial_bond_distance = Number(bond);
+      if (molecule === 'custom') {
+        spec.atom = customAtom.trim();
+        spec.ncas = Number(ncas);
+        spec.nelecas = Number(nelecas);
+        spec.basis = 'sto-3g';
+        spec.charge = 0;
+        spec.spin = 0;
+      } else {
+        spec.initial_bond_distance = Number(bond);
+      }
       spec.layers = Number(layers);
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
@@ -102,12 +115,21 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.n_sites = Number(nSites);
       spec.coupling = Number(coupling);
       spec.field = Number(field);
+      spec.anisotropy = Number(anisotropy);
       spec.periodic = periodic;
       spec.layers = Number(layers);
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
       spec.target_error = Number(targetError);
       spec.state_mode = stateMode;
+    } else if (kind === 'thermodynamic_limit') {
+      spec.model = model;
+      spec.sizes = thermoSizes.split(/[,\s]+/).filter(Boolean).map(Number);
+      spec.coupling = Number(coupling);
+      spec.field = Number(field);
+      spec.anisotropy = Number(anisotropy);
+      spec.bond_dim = Number(bondDim);
+      spec.sweeps = Number(sweeps);
     } else if (kind === 'conjecture') {
       spec.values = conjValues.split(/[,\s]+/).filter(Boolean);
       spec.holdout = Number(holdout);
@@ -115,7 +137,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.max_degree = 6;
     } else if (molecule === 'custom') {
       if (kind !== 'vqe') {
-        setError('custom geometry is supported for VQE only');
+        setError('custom geometry is supported for VQE and geometry optimization only');
         setBusy(false);
         return;
       }
@@ -187,7 +209,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             <option value="lattice_dynamics">2D TFIM quench dynamics</option>
             <option value="excited_state">Excited state (H2/LiH/BeH2/H2O)</option>
             <option value="reaction">Reaction energy (H2/LiH/BeH2/H2O)</option>
-            <option value="spin_chain">Spin chain</option><option value="conjecture">Math conjecture</option>
+            <option value="spin_chain">Spin chain</option><option value="thermodynamic_limit">DMRG / thermodynamic limit</option><option value="conjecture">Math conjecture</option>
           </select>
         </label>
         {kind === 'spin_chain' ? (
@@ -243,6 +265,37 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
               <input aria-label="Lattice times" value={latticeTimes} onChange={(e) => setLatticeTimes(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
             </label>
           </>
+        ) : kind === 'thermodynamic_limit' ? (
+          <>
+            <label className="space-y-1">Model
+              <select aria-label="Thermodynamic model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
+                <option value="tfim">Transverse-field Ising</option>
+                <option value="heisenberg">Heisenberg</option>
+                <option value="xxz">XXZ (finite-size only)</option>
+              </select>
+            </label>
+            <label className="space-y-1">Sizes
+              <input aria-label="Thermodynamic sizes" value={thermoSizes} onChange={(e) => setThermoSizes(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Coupling J
+              <input aria-label="Thermodynamic coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Field h
+              <input aria-label="Thermodynamic field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            {model === 'xxz' && (
+              <label className="space-y-1">Anisotropy Δ
+                <input aria-label="Thermodynamic anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+              </label>
+            )}
+            <label className="space-y-1">Bond dimension
+              <input aria-label="DMRG bond dimension" value={bondDim} onChange={(e) => setBondDim(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Sweeps
+              <input aria-label="DMRG sweeps" value={sweeps} onChange={(e) => setSweeps(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <p className="col-span-2 text-[11px] text-[var(--color-muted)]">Open boundary; exact thermodynamic values only for TFIM and isotropic Heisenberg. No finite-size extrapolation is promoted to a limit.</p>
+          </>
         ) : kind === 'conjecture' ? (
           <>
             <label className="col-span-2 space-y-1">Exact sequence terms
@@ -265,7 +318,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
                 <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
               </label>
             )}
-            {molecule === 'custom' && kind === 'vqe' && (
+            {molecule === 'custom' && (kind === 'vqe' || kind === 'geometry_optimization') && (
               <>
                 <label className="col-span-2 space-y-1">PySCF atom geometry
                   <textarea aria-label="Custom atom geometry" value={customAtom} onChange={(e) => setCustomAtom(e.target.value)} rows={2} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
@@ -353,15 +406,27 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
           {statusLabel === 'COMPLETED' && kind === 'spin_chain' && energy != null && exact != null && (
             <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.state_mode === 'exact' ? ' · exact-state readout' : result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
           )}
+          {statusLabel === 'COMPLETED' && kind === 'thermodynamic_limit' && (() => {
+            const finite = Array.isArray(result?.finite_size) ? result.finite_size as Array<Record<string, unknown>> : [];
+            const limit = result?.thermodynamic_limit && typeof result.thermodynamic_limit === 'object' ? result.thermodynamic_limit as Record<string, unknown> : null;
+            const limitEnergy = typeof limit?.energy_per_site === 'number' ? limit.energy_per_site : null;
+            return <div>{finite.length} sizes · DMRG bond dim {String(result?.bond_dim ?? '?')} · {limitEnergy != null ? `exact limit ${limitEnergy.toFixed(6)} / site` : 'no exact limit'} · exact classical baseline, not a measurement</div>;
+          })()}
           {statusLabel === 'COMPLETED' && kind === 'conjecture' && candidateCount != null && (
             <div>
               {candidateCount} candidate(s) · {String(result?.novelty_status || 'unclassified')}; not a theorem/claim.
               {candidates.slice(0, 2).map((c, i) => <div key={i}>{c.law}{c.status ? ` [${c.status}]` : ''}</div>)}
             </div>
           )}
-          {statusLabel === 'COMPLETED' && kind === 'geometry_optimization' && result?.optimized_bond_distance != null && (
-            <div>optimized R {Number(result.optimized_bond_distance).toFixed(6)} Å · VQE {typeof result.energy === 'number' ? result.energy.toFixed(6) : '—'} Ha vs FCI {typeof result.fci_exact_energy === 'number' ? result.fci_exact_energy.toFixed(6) : '—'} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>
-          )}
+          {statusLabel === 'COMPLETED' && kind === 'geometry_optimization' && (result?.optimized_bond_distance != null || Array.isArray(result?.optimized_geometry)) && (() => {
+            const geometry = Array.isArray(result?.optimized_geometry) ? result.optimized_geometry : [];
+            const relaxation = result?.relaxation && typeof result.relaxation === 'object' ? result.relaxation as Record<string, unknown> : null;
+            const where = result.optimized_bond_distance != null
+              ? `optimized R ${Number(result.optimized_bond_distance).toFixed(6)} Å`
+              : `${geometry.length} atoms relaxed`;
+            const steps = typeof relaxation?.iterations === 'number' ? ` · BFGS ${relaxation.iterations} steps` : '';
+            return <div>{where}{steps} · VQE {typeof result.energy === 'number' ? result.energy.toFixed(6) : '—'} Ha vs FCI {typeof result.fci_exact_energy === 'number' ? result.fci_exact_energy.toFixed(6) : '—'} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>;
+          })()}
           {statusLabel === 'COMPLETED' && kind === 'vqe_repeats' && result?.repeats != null && (
             <div>{String(result.repeats)} repeats · mean {typeof result.energy === 'number' ? result.energy.toFixed(6) : '—'} Ha · between-run SE {typeof result.between_run_standard_error === 'number' ? (result.between_run_standard_error * 1000).toFixed(3) : '—'} mHa · {result.claimable === true ? 'claimable' : 'not claimable'}</div>
           )}

@@ -186,7 +186,7 @@ export interface OptimizerPoint {
 export interface ExperimentResult {
   result_version: 'experiment-result-v1';
   success: boolean;
-  kind: 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'lattice_dynamics' | 'spin_chain_hardware' | 'conjecture';
+  kind: 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'thermodynamic_limit' | 'lattice_dynamics' | 'spin_chain_hardware' | 'conjecture';
   molecule?: string | null;
   generic?: boolean;
   atom?: string;
@@ -199,6 +199,15 @@ export interface ExperimentResult {
   cols?: number;
   n_sites?: number;
   optimized_bond_distance?: number;
+  finite_size?: Array<{ n_sites: number; energy: number; energy_per_site: number }>;
+  thermodynamic_limit?: { available: boolean; energy_per_site: number | null; method?: string; reason?: string };
+  bond_dim?: number;
+  sweeps?: number;
+  optimized_atom?: string;
+  optimized_geometry?: Array<{ symbol: string; x: number; y: number; z: number }>;
+  bond_lengths?: Array<{ symbols: string; distance_angstrom: number }>;
+  geometry_relaxed?: boolean;
+  relaxation?: { method?: string; iterations?: number; gradient_norm?: number; degrees_of_freedom?: number };
   repeats?: number;
   between_run_standard_error?: number;
   times?: Array<Record<string, unknown>>;

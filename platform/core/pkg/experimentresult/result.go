@@ -148,6 +148,7 @@ func kindMatchesJobType(jobType, kind string) bool {
 		"excited_state":         {"excited_state"},
 		"reaction":              {"reaction"},
 		"spin_chain":            {"spin_chain"},
+		"thermodynamic_limit":   {"thermodynamic_limit"},
 		"conjecture_run":        {"conjecture"},
 		"lattice_dynamics":      {"lattice_dynamics"},
 		"hardware_experiment":   {"vqe_hardware", "vqe_hardware_loop"},
@@ -292,6 +293,24 @@ func validateVariant(kind string, r *Result) error {
 		}
 		if strings.TrimSpace(r.HardwareJobID) == "" && len(r.HardwareJobIDs) == 0 {
 			return fmt.Errorf("experiment result kind %q requires a vendor hardware job id", kind)
+		}
+	case "thermodynamic_limit":
+		var points []map[string]json.RawMessage
+		raw, ok := r.raw["finite_size"]
+		if !ok || json.Unmarshal(raw, &points) != nil || len(points) < 2 {
+			return fmt.Errorf("experiment result kind %q requires at least two finite_size points", kind)
+		}
+		for i, point := range points {
+			for _, key := range []string{"n_sites", "energy", "energy_per_site"} {
+				value, ok := point[key]
+				if !ok {
+					return fmt.Errorf("thermodynamic point %d is missing %s", i, key)
+				}
+				var number float64
+				if json.Unmarshal(value, &number) != nil || !finite(number) {
+					return fmt.Errorf("thermodynamic point %d %s is not finite", i, key)
+				}
+			}
 		}
 	case "lattice_dynamics":
 		if len(r.Times) == 0 {

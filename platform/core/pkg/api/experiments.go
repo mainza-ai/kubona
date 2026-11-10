@@ -32,6 +32,8 @@ func experimentJobType(kind string) (string, bool) {
 		return "reaction", true
 	case "spin_chain":
 		return "spin_chain", true
+	case "thermodynamic_limit":
+		return "thermodynamic_limit", true
 	case "conjecture":
 		return "conjecture_run", true
 	case "lattice_dynamics":
@@ -87,7 +89,7 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	jobType, ok := experimentJobType(kind)
 	if !ok {
-		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, lattice_dynamics, or conjecture", nil)
+		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, thermodynamic_limit, lattice_dynamics, or conjecture", nil)
 		return
 	}
 	spec["kind"] = kind

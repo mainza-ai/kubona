@@ -13,7 +13,7 @@ func TestExperimentKindMappingCoversHardwareAndScienceKinds(t *testing.T) {
 		"vqe": "vqe_run", "geometry_optimization": "geometry_optimization",
 		"vqe_repeats": "vqe_repeats", "pes": "vqe_pes", "qaoa": "qaoa_run",
 		"excited_state": "excited_state", "reaction": "reaction",
-		"spin_chain": "spin_chain", "lattice_dynamics": "lattice_dynamics",
+		"spin_chain": "spin_chain", "thermodynamic_limit": "thermodynamic_limit", "lattice_dynamics": "lattice_dynamics",
 		"conjecture": "conjecture_run",
 	}
 	for kind, want := range cases {

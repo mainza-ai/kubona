@@ -432,6 +432,29 @@ def test_geometry_optimization_runs_vqe_at_optimized_geometry():
     assert res["claimable"] is False
 
 
+def test_multidimensional_geometry_relaxes_all_cartesian_coordinates():
+    from experiments import run_geometry_optimization
+
+    res = run_geometry_optimization(
+        "custom",
+        atom="O 0 0 0; H 0.7586 0 0.5043; H -0.7586 0 0.5043",
+        ncas=4,
+        nelecas=4,
+        shots=128,
+        seed=7,
+        max_iterations=1,
+        max_geometry_steps=20,
+    )
+    assert res["success"] is True, res
+    assert res["geometry_relaxed"] is True
+    assert res["relaxation"]["degrees_of_freedom"] == 3
+    assert len(res["optimized_geometry"]) == 3
+    assert {b["symbols"] for b in res["bond_lengths"]} == {"O-H", "H-H"}
+    assert res["relaxation"]["iterations"] >= 1
+    assert res["final_vqe"]["kind"] == "vqe"
+    assert res["measured"] is True
+    assert res["claimable"] is False
+
 def test_repeated_vqe_reports_between_run_standard_error():
     from experiments import run_repeated_vqe
 

@@ -668,6 +668,23 @@ func TestReplanSpinChainFoldsMeasuredEnergyWithoutChemicalClaim(t *testing.T) {
 	}
 }
 
+func TestReplanThermodynamicLimitKeepsDMRGClassical(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-thermo-1", "thermodynamic_limit",
+		[]byte(`{"success":true,"kind":"thermodynamic_limit","model":"tfim","bond_dim":32,"finite_size":[{"n_sites":8,"energy":-9.8,"energy_per_site":-1.23},{"n_sites":12,"energy":-15.0,"energy_per_site":-1.25}],"thermodynamic_limit":{"available":true,"energy_per_site":-1.27324}}`), "")
+	if !changed {
+		t.Fatalf("thermodynamic limit must be recorded: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "thermodynamic_limit") || !strings.Contains(last, "measured=false") {
+		t.Errorf("DMRG note must keep its classical/measurement boundary: %q", last)
+	}
+	if len(after.Experiments) != 1 || after.Experiments[0].Kind != "thermodynamic_limit" || after.Experiments[0].Measured {
+		t.Errorf("DMRG typed projection wrong: %+v", after.Experiments)
+	}
+}
+
 func TestReplanConjectureRecordsCandidatesWithoutClaim(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 	updated, changed, note := ReplanWithJobResult(raw, "job-conj-1", "conjecture_run",

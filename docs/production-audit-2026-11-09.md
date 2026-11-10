@@ -25,9 +25,10 @@ The local-private stack is operational for the supported science surface:
 
 It is **not** correct to call it a complete general science-discovery platform.
 The remaining gaps are capability breadth and external validation, not missing
-UI glue: no general molecule input, no geometry optimization, no 2D lattice or
-time-evolution experiment, no general reaction network, no external-literature
-novelty check, and no human screen-reader sign-off. Hardware VQE executions
+UI glue: no SMILES/open-shell general molecule input, no spectral-function or
+hardware-dynamics path, no general reaction network, no external-literature
+novelty proof, and no human screen-reader sign-off. Caller-supplied
+multidimensional geometry relaxation and open-boundary DMRG now exist. Hardware VQE executions
 exist, but the live spin-chain VQE run missed its exact anchor and remains
 non-claimable.
 
@@ -68,7 +69,8 @@ stronger claim.
 |---|---|---|
 | H2, LiH, BeH2, H2O active-space VQE | Working | Shot-measured Aer; PySCF anchors |
 | Caller-supplied custom-geometry VQE | Working, bounded | Explicit atom/ncas/nelecas; CASCI + full FCI; 12-qubit active cap |
-| Geometry optimization | Working, bounded | One curated internal coordinate; VQE at optimized geometry |
+| Geometry optimization | Working, bounded | Curated bond search or caller-geometry RHF/STO-3G BFGS relaxation; VQE at optimized geometry |
+| DMRG / thermodynamic limit | Working, bounded | Open-boundary MPS/DMRG; exact TFIM/isotropic-Heisenberg limits; anisotropic XXZ finite-size only |
 | Repeated VQE variance | Working | Mean shot energy + between-run standard error |
 | LiH/BeH2 atomization reactions | Working | Active-space endpoint + exact atomic FCI products |
 | 2D TFIM quench dynamics | Working, finite-size | Exact `expm_multiply`; not a QPU measurement |
@@ -98,12 +100,14 @@ stronger claim.
    claim requires a better ansatz/optimizer/shot budget and a new measured run.
 2. **Chemistry is broader but still bounded.** Curated H2/LiH/BeH2/H2O,
    caller-supplied closed-shell STO-3G geometry, atomization reactions,
-   one-coordinate geometry optimization, and repeated VQE are supported. There
-   is no SMILES conversion, open-shell/charged generic path, full
-   multidimensional relaxation, N2/CO/HF suite, or general reaction network.
-3. **Physics breadth is finite-size.** 1D TFIM/Heisenberg/XXZ and exact 2D
-   TFIM quench dynamics are implemented. There is no DMRG, thermodynamic-limit,
-   spectral-function, or hardware dynamics path.
+   one-coordinate curated geometry optimization, and caller-supplied
+   multidimensional RHF/STO-3G relaxation are supported. There is no SMILES
+   conversion, open-shell/charged generic path, N2/CO/HF suite, or general
+   reaction network.
+3. **Physics now has a DMRG baseline.** 1D TFIM/Heisenberg/XXZ, exact 2D TFIM
+   quench dynamics, open-boundary MPS/DMRG, and exact TFIM/isotropic-Heisenberg
+   thermodynamic limits are implemented. Anisotropic XXZ has no exact limit;
+   spectral functions and hardware dynamics remain open.
 4. **Mathematical discovery is not a proof/novelty system.** It discovers
    exact finite-prefix polynomial/recurrence laws with a holdout and falsifier.
    It does not prove theorems, search external literature, or establish
@@ -119,8 +123,9 @@ stronger claim.
 
 ### P1 — required for a complete researcher workflow
 
-- PES does not request mitigation per point and has no hardware PES path.
-- No repeated-run variance/batch campaign across a molecule family.
+- Hardware PES/mitigation and the reviewed QPU price preview are implemented;
+  the remaining work is a live hardware PES pilot, not the code path.
+- No batch campaign across a molecule family.
 - Negative/failed discovery steps are recorded in the protocol ledger but are
   not folded into the campaign notebook as negative results.
 - Hardware cost preview is a cap disclosure, not a vendor price estimate.
@@ -135,8 +140,8 @@ stronger claim.
 
 ### P2 — enhancements
 
-- 2D Hubbard/DMRG, time evolution, Loschmidt echo, spectral functions.
-- General molecular geometry optimization and larger basis/active-space support.
+- 2D Hubbard/PEPS, spectral functions, and non-equilibrium dynamics.
+- FCI-gradient geometry relaxation and larger basis/active-space support.
 - Hardware spin-chain calibration-aware mitigation and repeated-shot statistics.
 - External math catalog/literature search and counterexample search beyond the
   holdout falsifier.
@@ -194,11 +199,14 @@ and one campaign projection; no field is reconstructed from prose.
 1. **Landed:** caller-supplied PySCF geometry VQE with explicit `ncas`/
    `nelecas`, closed-shell STO-3G, 8-spatial-orbital full-FCI cap, and 12-qubit
    active-space cap. Unsupported geometries refuse.
-2. **Landed:** one-coordinate geometry optimization and LiH/BeH2 atomization
-   reactions with exact atomic FCI products; full-molecule and active-space
-   anchors remain separate.
+2. **Landed:** curated one-coordinate geometry optimization and LiH/BeH2
+   atomization reactions with exact atomic FCI products; caller-supplied
+   geometries can be relaxed over all Cartesian coordinates under an
+   RHF/STO-3G gradient, with the method disclosed. Full-molecule and
+   active-space anchors remain separate.
 3. **Landed:** exact finite-size 2D TFIM quench dynamics with explicit
-   `measured:false`; DMRG/thermodynamic-limit and hardware dynamics remain open.
+   `measured:false`, plus open-boundary DMRG and exact TFIM/isotropic-Heisenberg
+   thermodynamic limits. Anisotropic XXZ and hardware dynamics remain open.
 4. **Partially landed:** repeated-run variance is implemented. PES mitigation
    opt-in remains open.
 5. **Partially landed:** conjecture jobs can opt into an OpenAlex lookup that
@@ -232,9 +240,9 @@ supported science surface without hidden shell steps or unsupported claims.
 | Gate | Result |
 |---|---|
 | Go full suite | pass (all packages); coverage 64.8% against 64% floor |
-| Python full suite | 1262 passed, 36 skipped (35:18) |
-| Bridge targeted science suite | 50 passed (science/custom/lattice/reaction/conjecture files) |
-| Console tests | 607 passed; tsc/eslint/build pass |
+| Python fast suite | 993 passed, 36 skipped (paper-scale slices excluded) |
+| Bridge targeted science suite | 39 passed (experiment/lattice files); 92 passed, 1 skipped contract suite |
+| Console tests | 609 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `142 modeled / 14 client-only / 0 unmodeled`, `130 paths / 121 schemas` |

@@ -117,3 +117,73 @@ describe('ExperimentPanel custom molecule', () => {
     expect(spec.basis).toBe('sto-3g');
   });
 });
+
+
+describe('ExperimentPanel multidimensional geometry', () => {
+  it('submits a custom atom geometry for full relaxation', async () => {
+    runExperimentMock.mockResolvedValue({
+      ok: true,
+      job: { id: 'job-geom-custom', session_id: 's', status: 'JOB_STATUS_QUEUED', job_type: 'geometry_optimization', params_json: {}, created_at: '' },
+    });
+    fetchJobMock.mockResolvedValue({
+      id: 'job-geom-custom', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'geometry_optimization',
+      params_json: {}, result_json: {
+        energy: -74.8, fci_exact_energy: -75.0, claimable: false,
+        optimized_geometry: [{ symbol: 'O' }, { symbol: 'H' }, { symbol: 'H' }],
+        relaxation: { iterations: 6 },
+      }, created_at: '', completed_at: '',
+    });
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ExperimentPanel sessionId="s" />); });
+    const kind = tree.root.findByProps({ 'aria-label': 'Experiment kind' });
+    await act(async () => { kind.props.onChange({ target: { value: 'geometry_optimization' } }); });
+    const molecule = tree.root.findByProps({ 'aria-label': 'Experiment molecule' });
+    await act(async () => { molecule.props.onChange({ target: { value: 'custom' } }); });
+    const atom = tree.root.findByProps({ 'aria-label': 'Custom atom geometry' });
+    const ncas = tree.root.findByProps({ 'aria-label': 'Active orbitals' });
+    const nelecas = tree.root.findByProps({ 'aria-label': 'Active electrons' });
+    await act(async () => {
+      atom.props.onChange({ target: { value: 'O 0 0 0; H 0.7586 0 0.5043; H -0.7586 0 0.5043' } });
+      ncas.props.onChange({ target: { value: '4' } });
+      nelecas.props.onChange({ target: { value: '4' } });
+    });
+    const run = runButton(tree.root);
+    await act(async () => { await run.props.onClick(); });
+    const spec = runExperimentMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(spec.kind).toBe('geometry_optimization');
+    expect(spec.molecule).toBe('custom');
+    expect(spec.atom).toContain('O 0 0 0');
+    expect(spec.ncas).toBe(4);
+    expect(spec.nelecas).toBe(4);
+    expect(spec.initial_bond_distance).toBeUndefined();
+  });
+});
+
+
+describe('ExperimentPanel thermodynamic limit', () => {
+  it('submits DMRG finite sizes and bond dimension', async () => {
+    runExperimentMock.mockResolvedValue({
+      ok: true,
+      job: { id: 'job-thermo', session_id: 's', status: 'JOB_STATUS_QUEUED', job_type: 'thermodynamic_limit', params_json: {}, created_at: '' },
+    });
+    fetchJobMock.mockResolvedValue({
+      id: 'job-thermo', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'thermodynamic_limit',
+      params_json: {}, result_json: {
+        kind: 'thermodynamic_limit', bond_dim: 32, finite_size: [{ n_sites: 8 }, { n_sites: 12 }],
+        thermodynamic_limit: { available: true, energy_per_site: -1.27324 }, claimable: false,
+      }, created_at: '', completed_at: '',
+    });
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ExperimentPanel sessionId="s" />); });
+    const kind = tree.root.findByProps({ 'aria-label': 'Experiment kind' });
+    await act(async () => { kind.props.onChange({ target: { value: 'thermodynamic_limit' } }); });
+    const run = runButton(tree.root);
+    await act(async () => { await run.props.onClick(); });
+    const spec = runExperimentMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(spec.kind).toBe('thermodynamic_limit');
+    expect(spec.sizes).toEqual([8, 12, 16]);
+    expect(spec.bond_dim).toBe(32);
+    expect(spec.sweeps).toBe(8);
+    expect(spec.field).toBe(0.8);
+  });
+});
