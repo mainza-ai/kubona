@@ -5289,3 +5289,12 @@ skipped is the exact failure this incident is about:
   with no inferred limit.
 - Added Go result validation, campaign folding, signed-export inclusion, console
   launcher/output controls, schema fields, and tests for both paths.
+
+## [2026-11-09] verification | multidimensional geometry and DMRG
+
+- CI and Console E2E are green at `b9efe12`. Go coverage is 64.8% (floor
+  64%), console is 609 tests, the Python fast suite is 993 passed / 36 skipped,
+  and the bridge experiment/lattice files are 39 passed.
+- The new multidimensional relaxation and DMRG/thermodynamic-limit paths were
+  built into the bridge image and exercised locally; no live QPU run was made
+  for either path in this slice.

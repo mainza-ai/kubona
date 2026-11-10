@@ -1,7 +1,7 @@
 # Production audit and completion report — 2026-11-09
 
 **Audited baseline:** `1b18ade` (2026-11-09 science/UI closure)
-**Correction pass:** `08526fb` (this document plus the truth/UI/hardware
+**Correction pass:** `b9efe12` (this document plus the truth/UI/hardware
 hardening).
 **Scope:** fully functional **local-private** deployment on one trusted host.
 Not a public SaaS, not multi-tenant hosting, and not a demo.
@@ -247,11 +247,11 @@ supported science surface without hidden shell steps or unsupported claims.
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `142 modeled / 14 client-only / 0 unmodeled`, `130 paths / 121 schemas` |
 | Wiki lint | clean |
-| Real-stack E2E | green at `08526fb` |
+| Real-stack E2E | green at `b9efe12` |
 
 ### 7.1 Live functional checks
 
-The local compose stack was rebuilt from `08526fb` with the repository `.env`
+The local compose stack was rebuilt from `b9efe12` with the repository `.env`
 plus the host secret env, and exercised through the real HTTP API:
 
 - **Custom-geometry VQE job `04ee3265-88bd-446e-a4db-109762cc9b29`**
