@@ -1328,6 +1328,268 @@ def run_generic_vqe(
     }
 
 
+def _atom_fci(symbol: str, spin: int) -> float:
+    """Exact STO-3G FCI energy for one atom in its declared spin state."""
+    from pyscf import gto, scf, fci
+    mol = gto.M(atom=f"{symbol} 0 0 0", basis="sto-3g", charge=0,
+                spin=int(spin), verbose=0)
+    mf = scf.RHF(mol) if int(spin) == 0 else scf.ROHF(mol)
+    mf.run()
+    energy, _ = fci.FCI(mf).kernel()
+    return float(energy)
+
+
+def _reaction_atom_products(molecule: str) -> tuple[list[tuple[str, int, int]], str]:
+    """Return (element, count, spin) products for an atomization reaction."""
+    if molecule == "LIH":
+        return [("Li", 1, 1), ("H", 1, 1)], "LiH -> Li + H"
+    if molecule == "BEH2":
+        return [("Be", 1, 0), ("H", 2, 1)], "BeH2 -> Be + 2 H"
+    raise ValueError(f"no atomization reaction for {molecule}")
+
+
+def _run_atomization_reaction(molecule: str, bond_distance: float, layers: int,
+                              shots: int, seed: int, max_iterations: int) -> dict[str, Any]:
+    spec = _NATURE_ACTIVE.get(molecule)
+    if spec is None:
+        return {"success": False, "error": f"reaction energy supports H2, LiH, BeH2, H2O; refusing {molecule}"}
+    if not (0.3 <= float(bond_distance) <= 10.0):
+        return {"success": False, "error": f"bond_distance {bond_distance!r} outside [0.3,10.0]"}
+    if int(layers) < 1 or int(layers) > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    try:
+        products, reaction = _reaction_atom_products(molecule)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+    endpoint = run_vqe(molecule, float(bond_distance), int(layers), int(shots), int(seed), int(max_iterations))
+    if not endpoint.get("success"):
+        return {"success": False, "error": "reaction endpoint failed", "endpoint_error": endpoint.get("error")}
+    try:
+        product_energy = sum(_atom_fci(symbol, spin) * count for symbol, count, spin in products)
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"exact atom anchor failed: {e}"}
+    active_anchor = float(endpoint.get("active_space_fci_energy", endpoint["fci_exact_energy"]))
+    full_anchor = float(endpoint["fci_exact_energy"])
+    measured = float(endpoint["energy"] - product_energy)
+    exact_active = float(active_anchor - product_energy)
+    exact_full = float(full_anchor - product_energy)
+    uncertainty = float(endpoint["uncertainty"])
+    endpoint_ok = bool(endpoint.get("active_space_chemical_accuracy", endpoint.get("claimable", False)))
+    claimable = bool(
+        endpoint_ok and abs(measured - exact_active) <= 1.6e-3 and uncertainty <= 1.6e-3
+    )
+    return {
+        "success": True,
+        "kind": "reaction",
+        "result_version": "experiment-result-v1",
+        "molecule": molecule,
+        "reactant_distance": float(bond_distance),
+        "product_distance": 0.0,
+        "reaction": reaction,
+        "basis": "sto-3g",
+        "method": f"{molecule} active-space VQE endpoint + exact atom FCI products",
+        "reactant_energy": float(endpoint["energy"]),
+        "product_energy": float(product_energy),
+        "reaction_energy": measured,
+        "reactant_energy_exact": active_anchor,
+        "reactant_energy_exact_full": full_anchor,
+        "product_energy_exact": float(product_energy),
+        "reaction_energy_exact": exact_active,
+        "reaction_energy_exact_full": exact_full,
+        "uncertainty": uncertainty,
+        "delta": abs(measured - exact_active),
+        "delta_full": abs(measured - exact_full),
+        "claimable": claimable,
+        "claimability_scope": f"{molecule} active-space endpoint + exact atomic FCI products",
+        "endpoint_claimable": endpoint_ok,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "layers": int(layers),
+        "shots": int(shots),
+        "seed": int(seed),
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "limitations": "Active-space molecular endpoint plus exact atomic FCI products; the full-molecule FCI delta is reported separately. No geometry relaxation or full-molecule thermochemistry claim.",
+        "error_message": "",
+    }
+
+
+def run_repeated_vqe(
+    molecule: str = "H2",
+    bond_distance: float = 0.7414,
+    layers: int = 2,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+    repeats: int = 3,
+) -> dict[str, Any]:
+    """Run independent VQE optimizations at one geometry and report variance.
+
+    Each repeat is a full optimizer run with its own seed; the returned energy
+    is the mean of the shot-measured energies, with both the shot uncertainty
+    and the between-run standard error. A result is claimable only when every
+    repeat carries its own anchor and the combined interval fits the limit.
+    """
+    if int(repeats) < 2 or int(repeats) > 5:
+        return {"success": False, "error": f"repeats {repeats!r} outside [2,5]"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    runs: list[dict[str, Any]] = []
+    for i in range(int(repeats)):
+        res = run_vqe(molecule, float(bond_distance), int(layers), int(shots),
+                      int(seed) + 101 * i, int(max_iterations))
+        if not res.get("success"):
+            return {"success": False, "error": f"repeat {i} failed", "repeat_error": res.get("error")}
+        runs.append({
+            "repeat": i,
+            "seed": int(seed) + 101 * i,
+            "energy": float(res["energy"]),
+            "uncertainty": float(res["uncertainty"]),
+            "energy_exact": float(res["energy_exact"]),
+            "fci_exact_energy": float(res["fci_exact_energy"]),
+            "claimable": bool(res.get("claimable", False)),
+            "converged": bool(res.get("converged", False)),
+        })
+    energies = [r["energy"] for r in runs]
+    mean = float(sum(energies) / len(energies))
+    fci = float(runs[0]["fci_exact_energy"])
+    if len(energies) > 1:
+        variance = sum((e - mean) ** 2 for e in energies) / (len(energies) - 1)
+        between_se = float(math.sqrt(max(0.0, variance) / len(energies)))
+    else:
+        between_se = 0.0
+    mean_shot = float(sum(r["uncertainty"] for r in runs) / len(runs))
+    combined = float(math.sqrt(between_se * between_se + mean_shot * mean_shot))
+    all_endpoint_claimable = all(r["claimable"] for r in runs)
+    claimable = bool(
+        all_endpoint_claimable
+        and _claimable_against_anchor(mean, fci, combined)
+    )
+    return {
+        "success": True,
+        "kind": "vqe_repeats",
+        "result_version": "experiment-result-v1",
+        "molecule": str(molecule or "H2"),
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": "Repeated VQE optimizations, mean of shot-measured energies",
+        "shots": int(shots),
+        "seed": int(seed),
+        "repeats": int(repeats),
+        "runs": runs,
+        "energy": mean,
+        "energy_measured": mean,
+        "energy_exact": float(runs[0]["energy_exact"]),
+        "fci_exact_energy": fci,
+        "uncertainty": combined,
+        "between_run_standard_error": between_se,
+        "mean_shot_uncertainty": mean_shot,
+        "delta_mha": abs(mean - fci) * 1000.0,
+        "claimable": claimable,
+        "measured": True,
+        "hardware": False,
+        "simulated_optimizer": True,
+        "backend": "qiskit-aer-simulator",
+        "provider": "qiskit-aer-simulator",
+        "optimizer_backend": "qiskit-aer-simulator",
+        "measurement_backend": "qiskit-aer-simulator",
+        "limitations": "Independent optimizer seeds at one geometry; the interval combines shot noise and between-run standard error. It is not a calibration or systematic-error budget.",
+        "error_message": "",
+    }
+
+
+def run_geometry_optimization(
+    molecule: str = "H2",
+    initial_bond_distance: float = 0.7414,
+    layers: int = 2,
+    shots: int = 8192,
+    seed: int = 7,
+    max_iterations: int = 80,
+) -> dict[str, Any]:
+    """Optimize a molecular bond length classically, then VQE the optimized geometry.
+
+    The geometry objective is a live PySCF exact-energy evaluation (FCI for H2,
+    full FCI for the active-space molecules); the final energy is a separate,
+    shot-measured VQE run at the optimized geometry. The classical optimizer is
+    not used as a substitute for the quantum measurement.
+    """
+    mol = (molecule or "").upper()
+    if mol not in ("H2", "LIH", "BEH2", "H2O"):
+        return {"success": False, "error": f"geometry optimization supports H2, LiH, BeH2, H2O; refusing {molecule}"}
+    if not (0.3 <= float(initial_bond_distance) <= 10.0):
+        return {"success": False, "error": f"initial_bond_distance {initial_bond_distance!r} outside [0.3,10.0]"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if int(max_iterations) < 1 or int(max_iterations) > 1000:
+        return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    if mol == "H2":
+        lower, upper = 0.45, 2.5
+    elif mol == "H2O":
+        lower, upper = 0.55, 1.8
+    else:
+        lower, upper = 0.7, 4.0
+
+    def objective(r: float) -> float:
+        if mol == "H2":
+            _, fci, _ = h2_hamiltonian(float(r))
+            return fci
+        spec = _NATURE_ACTIVE[mol]
+        atom = _molecule_atom(spec, float(r))
+        e_full, _ = _full_fci_and_casci(atom, int(spec["ncas"]), int(spec["nelecas"]))
+        return e_full
+
+    from scipy.optimize import minimize_scalar
+    try:
+        opt = minimize_scalar(objective, bounds=(lower, upper), method="bounded",
+                              options={"xatol": 1e-3})
+    except Exception as e:  # noqa: BLE001
+        return {"success": False, "error": f"geometry optimization failed: {e}"}
+    optimized = float(opt.x)
+    final = run_vqe(mol, optimized, int(layers), int(shots), int(seed), int(max_iterations))
+    if not final.get("success"):
+        return {"success": False, "error": "VQE at optimized geometry failed", "vqe_error": final.get("error")}
+    spec = _NATURE_ACTIVE.get(mol)
+    atom = (f"H 0 0 0; H 0 0 {optimized:.8f}" if mol == "H2"
+            else _molecule_atom(spec, optimized))
+    return {
+        "success": True,
+        "kind": "geometry_optimization",
+        "result_version": "experiment-result-v1",
+        "molecule": mol,
+        "method": "Live PySCF bounded geometry search + shot-measured VQE at the optimized geometry",
+        "initial_bond_distance": float(initial_bond_distance),
+        "optimized_bond_distance": optimized,
+        "bond_distance": optimized,
+        "optimized_atom": atom,
+        "classical_energy_exact": float(opt.fun),
+        "classical_optimizer": {
+            "name": "bounded scalar minimization",
+            "function_evaluations": int(getattr(opt, "nfev", 0)),
+            "success": bool(opt.success),
+            "message": str(opt.message),
+            "bounds": [lower, upper],
+            "xatol": 1e-3,
+        },
+        "energy": float(final["energy"]),
+        "energy_exact": float(final["energy_exact"]),
+        "fci_exact_energy": float(final["fci_exact_energy"]),
+        "active_space_fci_energy": final.get("active_space_fci_energy"),
+        "uncertainty": float(final["uncertainty"]),
+        "delta_mha": float(final.get("delta_mha", 0.0)),
+        "claimable": bool(final.get("claimable", False)),
+        "measured": True,
+        "hardware": False,
+        "final_vqe": final,
+        "limitations": "One internal bond coordinate is optimized; angles/molecular orientation are held fixed by the curated geometry template. The final claim is the VQE claim at the optimized geometry, not the classical optimizer's value.",
+        "error_message": "",
+    }
+
+
 def run_qaoa(
     layers: int = 2,
     shots: int = 4096,
@@ -1946,10 +2208,12 @@ def run_reaction_energy(
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing reaction energy"}
     mol = str(molecule or "").upper()
-    if mol not in ("H2", "H2O"):
-        return {"success": False, "error": "reaction energy supports H2 and H2O; refusing " + str(molecule)}
+    if mol not in ("H2", "H2O", "LIH", "BEH2"):
+        return {"success": False, "error": "reaction energy supports H2, LiH, BeH2, H2O; refusing " + str(molecule)}
     if mol == "H2O":
         return _run_water_reaction(reactant_distance, shots, seed, max_iterations, layers)
+    if mol in ("LIH", "BEH2"):
+        return _run_atomization_reaction(mol, reactant_distance, layers, shots, seed, max_iterations)
     r0, r1 = float(reactant_distance), float(product_distance)
     if not (0.3 <= r0 < r1 <= 10.0):
         return {"success": False, "error": "require 0.3 <= reactant_distance < product_distance <= 10.0"}

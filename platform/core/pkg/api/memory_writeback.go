@@ -269,8 +269,8 @@ func (s *Server) recordFailedJobResult(j *jobs.Job) {
 		return
 	}
 	switch j.JobType {
-	case "vqe_run", "vqe_pes", "qaoa_run", "excited_state", "reaction",
-		"spin_chain", "conjecture_run", "hardware_experiment",
+	case "vqe_run", "geometry_optimization", "vqe_repeats", "vqe_pes", "qaoa_run", "excited_state", "reaction",
+		"spin_chain", "conjecture_run", "lattice_dynamics", "hardware_experiment",
 		"qaoa_hardware", "spin_chain_hardware", "krylov_json", "mitigate_json":
 	default:
 		return

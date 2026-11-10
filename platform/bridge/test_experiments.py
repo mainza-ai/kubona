@@ -416,3 +416,42 @@ def test_generic_vqe_refuses_unsupported_basis_and_missing_active_space():
     assert bad_basis["success"] is False and "sto-3g" in bad_basis["error"]
     missing = run_vqe(molecule="custom", atom="H 0 0 0; H 0 0 0.7414")
     assert missing["success"] is False and "ncas" in missing["error"]
+
+
+def test_geometry_optimization_runs_vqe_at_optimized_geometry():
+    from experiments import run_geometry_optimization
+
+    res = run_geometry_optimization("H2", initial_bond_distance=1.2, layers=2,
+                                    shots=128, seed=7, max_iterations=2)
+    assert res["success"] is True, res
+    assert res["kind"] == "geometry_optimization"
+    assert 0.45 <= res["optimized_bond_distance"] <= 2.5
+    assert res["classical_energy_exact"] < 0
+    assert res["final_vqe"]["kind"] == "vqe"
+    assert res["measured"] is True
+    assert res["claimable"] is False
+
+
+def test_repeated_vqe_reports_between_run_standard_error():
+    from experiments import run_repeated_vqe
+
+    res = run_repeated_vqe("H2", 0.7414, layers=2, shots=128, seed=7,
+                           max_iterations=2, repeats=2)
+    assert res["success"] is True, res
+    assert res["kind"] == "vqe_repeats"
+    assert res["repeats"] == 2
+    assert len(res["runs"]) == 2
+    assert res["between_run_standard_error"] >= 0
+    assert res["claimable"] is False
+
+
+def test_lih_atomization_reaction_has_exact_atom_anchor():
+    from experiments import run_reaction_energy
+
+    res = run_reaction_energy("LiH", 1.5957, shots=128, max_iterations=2)
+    assert res["success"] is True, res
+    assert res["kind"] == "reaction"
+    assert res["reaction"] == "LiH -> Li + H"
+    assert res["reaction_energy_exact"] != 0
+    assert res["reactant_energy_exact_full"] != res["reactant_energy_exact"]
+    assert res["measured"] is True

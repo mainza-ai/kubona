@@ -30,21 +30,20 @@ platform. The working scientific spine is:
 That is real and useful. It is not the same as being able to **discover** new
 mathematics, chemistry, or physics. The missing capabilities are structural:
 
-1. **Physics simulation is declared but absent.** The
-   `materials_condensed_matter_v1` pack names
-   `kubona.science.lattice.HubbardModel`; that module does not exist. The pack
-   loader test even asserts the generator is currently unresolved. There is no
-   spin-chain, lattice, spectral-gap, magnetization, correlation, or
-   time-evolution experiment.
-2. **Mathematical discovery is a catalog, not an engine.** The `openai/math`
-   corpus and Comparator/Lean verification utilities exist, but there is no
-   API/job that generates a conjecture, searches a law, finds a counterexample,
-   or records a verified finite-domain result. `autonomous-mathematical-discovery`
-   is a design page, not a live capability.
-3. **Chemistry is limited to three curated molecules.** There is no general
-   molecule input, no H2O/N2/CO support, no excited-state experiment, no
-   reaction-energy workflow, no geometry optimization, and no property suite.
-   Active-space VQE is real; the chemistry portfolio is not.
+1. **Physics is executable but finite-size.** `kubona.science.lattice`
+   supplies 1D TFIM/Heisenberg/XXZ and exact 2D TFIM quench dynamics, with
+   exact small-system Hamiltonians and Pauli export. There is no DMRG,
+   thermodynamic-limit, or hardware dynamics path; the 2D runner is explicitly
+   an exact classical simulation (`measured:false`), not a QPU result.
+2. **Mathematical discovery is an engine, with an external-validation gap.**
+   Exact rational polynomial/recurrence discovery, train/holdout verification,
+   a falsifier, and a ledger-bound job exist. External literature/proof novelty
+   is still not established; unclassified is the correct boundary.
+3. **Chemistry is broader but still bounded.** H2/LiH/BeH2/H2O, caller-supplied
+   closed-shell STO-3G geometry, active-space excited states, atomization
+   reactions, geometry optimization, and repeated-run variance exist. There is
+   no SMILES conversion, open-shell generic path, full multidimensional
+   geometry relaxation, or broad property suite.
 4. **Discovery is not a closed loop.** The campaign/notebook/claim rails fold
    measured results, but the campaign engine still runs a toy ansatz search
    rather than invoking the real VQE/PES/QAOA job rail. A researcher can run an
@@ -68,8 +67,8 @@ or operations.
 | Full-space CEO/ UCCSD ADAPT | live simulator | `platform/bridge/adapt.py` | working |
 | QAOA MaxCut | simulator + governed hardware | `run_qaoa*` | working, fixed graph |
 | Exact classical anchors | PySCF live for curated molecules | `platform/bridge/chemistry.py` | working |
-| Chemistry breadth | H2/LiH/BeH2/H2O curated plus caller-supplied closed-shell STO-3G geometry (bounded active space) | `experiments.py::run_generic_vqe` | **working, bounded** |
-| Excited states / reaction paths / geometry optimization | absent | no code | **gap** |
+| Chemistry breadth | H2/LiH/BeH2/H2O curated plus caller-supplied closed-shell STO-3G geometry, geometry optimization, repeated VQE, and atomization reactions | `experiments.py` | **working, bounded** |
+| Excited states / reaction paths / geometry optimization | excited states + H2/LiH/BeH2/H2O reactions + bounded bond optimization | `experiments.py` | **working, bounded** |
 | Physics lattice simulation | **missing module** referenced by pack | `domain_packs/materials.../pack.yaml`; `test_domain_packs.py` | **P0 gap** |
 | Spectral gaps / magnetization / correlations | absent as experiments | no code | **gap** |
 | Time evolution / quench dynamics | absent | no code | **gap** |
@@ -269,22 +268,27 @@ Implemented and locally tested:
   `discovery_step` ledger events, and returns the stored job results with a
   measured/claimable summary. Real-stack E2E covers plan + run.
 - **Result projection:** the shared schema/types and `MeasuredOutputs` cover
-  `excited_state`, `reaction`, `spin_chain`, `spin_chain_hardware`, and
-  `conjecture`; console launcher controls cover the new simulator kinds.
+  `excited_state`, `reaction`, `spin_chain`, `spin_chain_hardware`,
+  `conjecture`, `geometry_optimization`, `vqe_repeats`, and
+  `lattice_dynamics`; console launcher controls cover the new kinds.
 
 Still queued after the correction pass:
 
 - no live hardware spin-chain *accuracy* claim: the live VQE run was executed
   but missed the exact anchor, and exact-state hardware is refused by design;
-- broader reaction families beyond H2/H2O, geometry optimization, and general
-  molecule input;
-- 2D lattice/Hubbard quantum experiments, time evolution, and DMRG cross-checks;
-- external literature/catalog novelty search and a counterexample search beyond
-  the holdout falsifier (SC-09 remains an external-validation gap);
-- PES/hardware mitigation per point, repeated-run variance, and calibration-
-  aware spin runs;
-- manual VoiceOver/NVDA evidence remains human-only;
-- external literature novelty and theorem proofs remain out of scope.
+- no live hardware spin-chain accuracy claim; exact-state hardware remains
+  refused by design;
+- no SMILES conversion, open-shell generic molecule path, or broad property
+  suite;
+- geometry optimization uses the curated one-coordinate template; arbitrary
+  multidimensional relaxation is not implemented;
+- 2D dynamics is exact finite-size simulation (not DMRG/Trotter/thermodynamic
+  limit) and has no hardware path;
+- external literature/proof novelty and a counterexample search beyond the
+  holdout falsifier remain open (SC-09 external-validation gap);
+- PES/hardware mitigation per point and calibration-aware spin runs remain
+  open;
+- manual VoiceOver/NVDA evidence remains human-only.
 
 The governed hardware launch UI, protocol history, generic experiment
 report/export, and measured-experiment visibility before a molecular notebook

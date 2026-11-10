@@ -43,6 +43,7 @@
     "discovery.run",
     "epistemics",
     "events.list",
+    "experiment.export",
     "experiment.submit",
     "fidelity",
     "fleet",
@@ -165,6 +166,7 @@
     "discovery.run",
     "epistemics",
     "events.list",
+    "experiment.export",
     "experiment.submit",
     "fidelity",
     "fleet",
@@ -502,6 +504,12 @@
       "path": "/api/events",
       "method": "GET",
       "contract": "events.list"
+    },
+    {
+      "function": "fetchExperimentExport",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/experiment-export",
+      "method": "GET",
+      "contract": "experiment.export"
     },
     {
       "function": "fetchFidelity",

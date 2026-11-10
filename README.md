@@ -112,9 +112,12 @@ Kubona runs measured scientific experiments through the governed Go job rail, no
 |---|---|---|---|
 | Molecular VQE | `vqe` | Shot-sampled Pauli energy | Live PySCF RHF/FCI/CASCI |
 | Custom-geometry VQE | `vqe` (`atom`, `ncas`, `nelecas`) | Shot-sampled active-space UCCSD energy | Live PySCF CASCI + full FCI (bounded) |
+| Geometry optimization | `geometry_optimization` | VQE at a classically optimized bond length | Live PySCF exact-energy search + full FCI |
+| Repeated VQE | `vqe_repeats` | Mean + shot/between-run standard error | Full FCI at the same geometry |
+| 2D TFIM quench dynamics | `lattice_dynamics` | Exact finite-size magnetization trajectory | Exact `expm_multiply` finite-size simulation |
 | Potential-energy scan | `pes` | Per-point shot energy | Live RHF/FCI per geometry |
 | Excited state (H2/LiH/BeH2/H2O) | `excited_state` | Ground and deflated excited energy | Exact spectrum / active-space anchor |
-| Reaction energy (H2 -> 2H, H2O -> H2 + O) | `reaction` | Endpoint energy difference | Exact FCI endpoints |
+| Reaction energy (H2, LiH, BeH2, H2O) | `reaction` | Endpoint energy difference | Active-space endpoint + exact atom anchors |
 | Spin chain | `spin_chain` | Shot energy, magnetization, gap | Exact diagonalization |
 | Math law discovery | `conjecture` | Exact holdout verification | Finite-scope certificate, not a theorem |
 | Discovery protocol | n/a | Sequential real jobs + measured summary | Deterministic bounded planner |
@@ -140,7 +143,7 @@ curl -fsS -X POST http://127.0.0.1:8080/api/discovery/run -H "Authorization: Bea
 
 Governed hardware spin-chain runs use the same parent rail as hardware VQE/QAOA: prepare the binding, sign it with the browser key, then launch. Hardware VQE accepts H2, active-space LiH/BeH2, and active-space H2O source jobs; QAOA uses the optimized graph circuit. The UI path is **Settings -> Experiments -> Run VQE/QAOA/spin chain -> Governed QPU launch**. A live QPU run requires an operator mandate and configured IBM credentials; the rail refuses absent/expired mandates rather than dispatching.
 
-Evidence and limitations: [`docs/core-scientific-capabilities-2026-11-09.md`](docs/core-scientific-capabilities-2026-11-09.md) and the corrected audit [`docs/production-audit-2026-11-09.md`](docs/production-audit-2026-11-09.md). Current scope: active-space excited states for H2/LiH/BeH2/H2O and reaction energies for H2/H2O (the H2O path is explicitly active-space + exact O-atom, with a separate full-molecule reference); exact finite-scope conjectures with an explicit known-law/unclassified registry (not novel-theorem claims); and a live hardware spin-chain VQE execution with a negative accuracy result (`-2.278 Ha` vs exact `-3.009 Ha`, not claimable). Exact-state hardware is refused because its QASM contains reset gates. The console exposes measured experiments (including failed/negative records) before a molecular notebook exists, a generic experiment report/export, canonical result-receipt rows, and protocol history. Custom VQE is closed-shell STO-3G only, capped at 8 spatial orbitals for the full-FCI anchor and 12 active-space qubits; larger systems refuse rather than borrowing an anchor.
+Evidence and limitations: [`docs/core-scientific-capabilities-2026-11-09.md`](docs/core-scientific-capabilities-2026-11-09.md) and the corrected audit [`docs/production-audit-2026-11-09.md`](docs/production-audit-2026-11-09.md). Current scope: active-space excited states for H2/LiH/BeH2/H2O and reaction energies for H2/LiH/BeH2/H2O (the non-H2 paths use active-space endpoints + exact atomic FCI products, with separate full-molecule references); exact finite-scope conjectures with an explicit known-law/unclassified registry (not novel-theorem claims); and a live hardware spin-chain VQE execution with a negative accuracy result (`-2.278 Ha` vs exact `-3.009 Ha`, not claimable). Exact-state hardware is refused because its QASM contains reset gates. The console exposes measured experiments (including failed/negative records) before a molecular notebook exists, a generic experiment report/export, canonical result-receipt rows, a server-built signed experiment export, and protocol history. Custom VQE is closed-shell STO-3G only, capped at 8 spatial orbitals for the full-FCI anchor and 12 active-space qubits; larger systems refuse rather than borrowing an anchor. Geometry optimization holds the curated internal coordinate fixed; 2D quench dynamics is exact finite-size simulation and is never labeled a QPU measurement.
 
 ## 🧱 Design Principles
 
@@ -195,7 +198,7 @@ curl -fsS http://127.0.0.1:8080/api/health
 
 Console response contracts are generated from
 [`platform/contracts/console-contract-inventory.json`](platform/contracts/console-contract-inventory.json):
-**139 modeled / 14 client-only / 0 unmodeled**, with 120 schemas and 127 OpenAPI
+**140 modeled / 14 client-only / 0 unmodeled**, with 121 schemas and 128 OpenAPI
 paths in [`platform/contracts/console-openapi.json`](platform/contracts/console-openapi.json).
 
 Prove the host is not publicly exposed:

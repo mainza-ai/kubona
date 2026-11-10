@@ -883,6 +883,27 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     ncas=spec.get("ncas"),
                     nelecas=spec.get("nelecas"),
                 )
+            elif kind == "geometry_optimization":
+                from experiments import run_geometry_optimization
+                result = run_geometry_optimization(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    initial_bond_distance=float(spec.get("initial_bond_distance", spec.get("bond_distance", 0.7414))),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 8192)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                )
+            elif kind == "vqe_repeats":
+                from experiments import run_repeated_vqe
+                result = run_repeated_vqe(
+                    molecule=str(spec.get("molecule") or "H2"),
+                    bond_distance=float(spec.get("bond_distance", 0.7414)),
+                    layers=int(spec.get("layers", 2)),
+                    shots=int(spec.get("shots", 8192)),
+                    seed=int(spec.get("seed", 7)),
+                    max_iterations=int(spec.get("max_iterations", 80)),
+                    repeats=int(spec.get("repeats", 3)),
+                )
             elif kind == "pes":
                 from experiments import run_pes
                 result = run_pes(
@@ -1002,6 +1023,17 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     state_mode=str(spec.get("state_mode") or "vqe"),
                     source_job_id=str(spec.get("source_job_id") or ""),
                 )
+            elif kind == "lattice_dynamics":
+                from lattice_experiment import run_lattice_dynamics
+                result = run_lattice_dynamics(
+                    rows=int(spec.get("rows", 2)),
+                    cols=int(spec.get("cols", 2)),
+                    coupling=float(spec.get("coupling", 1.0)),
+                    initial_field=float(spec.get("initial_field", 1.0)),
+                    quench_field=float(spec.get("quench_field", 0.2)),
+                    times=spec.get("times"),
+                    periodic=bool(spec.get("periodic", True)),
+                )
             elif kind == "conjecture":
                 from kubona.science.conjecture import discover_sequence_laws
                 holdout = spec.get("holdout")
@@ -1075,7 +1107,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             else:
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, pes, qaoa, excited_state, reaction, spin_chain, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

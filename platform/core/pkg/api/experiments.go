@@ -17,6 +17,10 @@ func experimentJobType(kind string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
 	case "vqe":
 		return "vqe_run", true
+	case "geometry_optimization":
+		return "geometry_optimization", true
+	case "vqe_repeats":
+		return "vqe_repeats", true
 	case "pes":
 		return "vqe_pes", true
 	case "qaoa":
@@ -29,6 +33,8 @@ func experimentJobType(kind string) (string, bool) {
 		return "spin_chain", true
 	case "conjecture":
 		return "conjecture_run", true
+	case "lattice_dynamics":
+		return "lattice_dynamics", true
 	default:
 		return "", false
 	}
@@ -80,7 +86,7 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	jobType, ok := experimentJobType(kind)
 	if !ok {
-		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, pes, qaoa, excited_state, reaction, spin_chain, or conjecture", nil)
+		WriteAPIError(w, "bad_request", "unknown experiment kind: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, lattice_dynamics, or conjecture", nil)
 		return
 	}
 	spec["kind"] = kind

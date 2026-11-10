@@ -368,3 +368,151 @@ class HubbardModel:
             "dimension": self.dimension,
             "solver": "exact-fermionic-occupation-basis",
         }
+
+
+class SquareLatticeModel:
+    """Exact 2D transverse-field Ising model on a small square lattice.
+
+    The class is a finite-size exact simulator, not a QPU result. It exists so
+    2D quench dynamics has a real Hamiltonian and a reproducible anchor instead
+    of an illustrative curve. The qubit cap is 12.
+    """
+
+    def __init__(self, rows: int = 2, cols: int = 2, coupling: float = 1.0,
+                 field: float = 1.0, periodic: bool = True) -> None:
+        self.rows = int(rows)
+        self.cols = int(cols)
+        if self.rows < 2 or self.cols < 2 or self.rows * self.cols > 12:
+            raise ValueError("square lattice requires 2..12 sites with both dimensions >=2")
+        self.n_sites = self.rows * self.cols
+        self.coupling = _validate_finite("coupling", coupling)
+        self.field = _validate_finite("field", field)
+        self.periodic = bool(periodic)
+        if self.coupling == 0 and self.field == 0:
+            raise ValueError("square lattice requires coupling or field to be non-zero")
+
+    @property
+    def dimension(self) -> int:
+        return 1 << self.n_sites
+
+    def _index(self, row: int, col: int) -> int:
+        return row * self.cols + col
+
+    def bonds(self) -> list[tuple[int, int]]:
+        out: list[tuple[int, int]] = []
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if c + 1 < self.cols:
+                    out.append((self._index(r, c), self._index(r, c + 1)))
+                elif self.periodic and self.cols > 2:
+                    out.append((self._index(r, c), self._index(r, 0)))
+                if r + 1 < self.rows:
+                    out.append((self._index(r, c), self._index(r + 1, c)))
+                elif self.periodic and self.rows > 2:
+                    out.append((self._index(r, c), self._index(0, c)))
+        return out
+
+    def pauli_terms(self) -> list[tuple[str, float]]:
+        terms: dict[str, float] = {}
+        n = self.n_sites
+
+        def add(label: str, coeff: float) -> None:
+            if abs(coeff) > 1e-15:
+                terms[label] = terms.get(label, 0.0) + float(coeff)
+
+        for i, j in self.bonds():
+            zz = ["I"] * n
+            zz[i] = zz[j] = "Z"
+            add("".join(zz), -self.coupling)
+        for i in range(n):
+            x = ["I"] * n
+            x[i] = "X"
+            add("".join(x), -self.field)
+        return sorted(terms.items())
+
+    def hamiltonian(self) -> sparse.csr_matrix:
+        dim = self.dimension
+        rows: list[int] = []
+        cols: list[int] = []
+        data: list[complex] = []
+
+        def put(row: int, col: int, value: complex) -> None:
+            if abs(value) > 1e-15:
+                rows.append(row)
+                cols.append(col)
+                data.append(complex(value))
+
+        for state in range(dim):
+            for i, j in self.bonds():
+                put(state, state, -self.coupling * _z_value(state, i) * _z_value(state, j))
+            for i in range(self.n_sites):
+                put(state ^ (1 << i), state, -self.field)
+        h = sparse.coo_matrix((data, (rows, cols)), shape=(dim, dim), dtype=complex).tocsr()
+        h.sum_duplicates()
+        return h
+
+    def ground_state(self, k: int = 4) -> tuple[float, np.ndarray, list[float]]:
+        h = self.hamiltonian()
+        dim = h.shape[0]
+        if dim <= 1024:
+            evals, evecs = np.linalg.eigh(h.toarray())
+            order = np.argsort(evals)
+            evals = evals[order]
+            return float(np.real(evals[0])), np.asarray(evecs[:, order[0]], dtype=complex), [float(np.real(x)) for x in evals[:k]]
+        kk = min(max(2, int(k)), dim - 1)
+        evals, evecs = sparse_linalg.eigsh(h, k=kk, which="SA")
+        order = np.argsort(evals)
+        evals = evals[order]
+        return float(np.real(evals[0])), np.asarray(evecs[:, order[0]], dtype=complex), [float(np.real(x)) for x in evals]
+
+    def magnetization_z(self, vector: np.ndarray) -> list[float]:
+        probs = np.abs(np.asarray(vector, dtype=complex).reshape(-1)) ** 2
+        probs = probs / max(float(probs.sum()), 1e-15)
+        return [float(sum(p * _z_value(state, i) for state, p in enumerate(probs)))
+                for i in range(self.n_sites)]
+
+    def time_evolution(self, quench_field: float, times: list[float],
+                       k: int = 4) -> dict[str, Any]:
+        """Exact quench dynamics from the initial ground state.
+
+        The initial state is the ground state of this model; the quench
+        Hamiltonian uses ``quench_field`` with the same bonds/coupling. Each
+        time point evolves under the quench Hamiltonian with
+        ``expm_multiply(-i H t)``. No Trotter or shot approximation is used.
+        """
+        values = [float(t) for t in times]
+        if not values or len(values) > 20 or any(not math.isfinite(t) or t < 0 for t in values):
+            raise ValueError("times must contain 1..20 finite non-negative values")
+        qf = _validate_finite("quench_field", quench_field)
+        initial_energy, psi0, _evals = self.ground_state(k=k)
+        quench = SquareLatticeModel(self.rows, self.cols, self.coupling, qf, self.periodic)
+        hq = quench.hamiltonian()
+        rows: list[dict[str, Any]] = []
+        for t in values:
+            psi = sparse_linalg.expm_multiply(-1j * hq * t, psi0) if t > 0 else psi0
+            mag = self.magnetization_z(psi)
+            rows.append({
+                "t": t,
+                "magnetization_z": mag,
+                "total_magnetization": float(sum(mag)),
+                "energy": float(np.real(np.vdot(psi, hq.dot(psi)))),
+                "norm": float(np.linalg.norm(psi)),
+            })
+        return {
+            "initial_energy": float(initial_energy),
+            "times": rows,
+            "initial_field": self.field,
+            "quench_field": qf,
+            "rows": self.rows,
+            "cols": self.cols,
+            "n_sites": self.n_sites,
+            "periodic": self.periodic,
+        }
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "model": "tfim-2d", "rows": self.rows, "cols": self.cols,
+            "n_sites": self.n_sites, "coupling": self.coupling,
+            "field": self.field, "periodic": self.periodic,
+            "dimension": self.dimension, "qubits": self.n_sites,
+        }

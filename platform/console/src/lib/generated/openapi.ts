@@ -645,6 +645,26 @@ export type ExperimentSubmit = {
   "job": unknown;
 };
 
+export type ExperimentExport = {
+  "ok": boolean;
+  "payload": {
+  "export_version": string;
+  "session_id": string;
+  "exported_at": string;
+  "campaign": unknown;
+  "jobs": unknown[];
+};
+  "envelope": {
+  "algorithm": string;
+  "domain": string;
+  "payload_sha256": string;
+  "signed": boolean;
+  "signature": string;
+  "signer_pubkey": string;
+  "note": string;
+};
+};
+
 export type DiscoveryPlan = {
   "ok": boolean;
   "goal": string;
@@ -756,6 +776,7 @@ export type ApiOperationResponse = {
   fetchCustomAgents: AgentsCustom;
   fetchEpistemics: Epistemics;
   fetchEventsResult: EventsList;
+  fetchExperimentExport: ExperimentExport;
   fetchFidelity: Fidelity;
   fetchFleet: Fleet;
   fetchJob: Job;
@@ -898,6 +919,7 @@ export const API_OPERATIONS = {
   fetchCustomAgents: { method: "get", path: "/api/agents/custom", response: "agents.custom" },
   fetchEpistemics: { method: "get", path: "/api/epistemics", response: "epistemics" },
   fetchEventsResult: { method: "get", path: "/api/events", response: "events.list" },
+  fetchExperimentExport: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/experiment-export", response: "experiment.export" },
   fetchFidelity: { method: "get", path: "/api/fidelity", response: "fidelity" },
   fetchFleet: { method: "get", path: "/api/fleet", response: "fleet" },
   fetchJob: { method: "get", path: "/api/jobs/{id}", response: "job" },

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { CampaignExperiment, CampaignResultRef, CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
-import { fetchNotebooks, sendChatMessage } from '@/lib/api';
+import { fetchExperimentExport, fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
 import { numericClaimGuard } from '@/lib/resultNarrative';
 import { useJobsProjection } from '@/domain/useJobsProjection';
@@ -230,6 +230,7 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [annotations, setAnnotations] = useState<FrameAnnotation[]>([]);
   const [remoteNotebook, setRemoteNotebook] = useState<SystematicNotebook | null>(null);
   const [notebookError, setNotebookError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const target =
     campaign?.target_system ||
@@ -389,6 +390,18 @@ ${proofVerified
     }
     setCopiedBibtex(true);
     setTimeout(() => setCopiedBibtex(false), 2000);
+  };
+
+  const handleExportSigned = async () => {
+    if (!sessionId) return;
+    setExportError(null);
+    try {
+      const bundle = await fetchExperimentExport(sessionId);
+      downloadText(`kubona-experiment-export-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`,
+        JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8');
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleExportResult = () => {
@@ -698,9 +711,18 @@ ${bibtex}
               >
                 <Download className="w-3.5 h-3.5" /> Experiment JSON
               </button>
+              <button
+                type="button"
+                onClick={() => void handleExportSigned()}
+                disabled={!sessionId}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-400/30 text-emerald-200 text-[12px] disabled:opacity-40"
+              >
+                <Download className="w-3.5 h-3.5" /> Signed export
+              </button>
             </div>
           </>
         )}
+        {exportError && <p role="alert" className="text-[12px] text-rose-300">{exportError}</p>}
         <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-6 text-center space-y-2">
           <p className="text-sm font-medium text-white">No manuscript, citation, or proof receipt yet.</p>
           <p className="text-[13px] leading-relaxed text-slate-400">
@@ -799,6 +821,16 @@ ${bibtex}
           >
             <Download className="w-3.5 h-3.5" />
             <span>Result JSON</span>
+          </button>
+
+          <button
+            onClick={() => void handleExportSigned()}
+            disabled={!sessionId}
+            title="Download a server-built experiment bundle whose canonical payload is signed by the deployment key"
+            className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Signed export</span>
           </button>
 
           <button

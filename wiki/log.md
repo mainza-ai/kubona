@@ -5206,3 +5206,18 @@ skipped is the exact failure this incident is about:
 - Refused custom-basis job `6a9da3e7-b29f-48e0-ac52-48dfc622f3bf` failed with
   the bridge refusal and appeared in the campaign as a negative result
   (`measured:false`, `claimable:false`).
+
+## [2026-11-09] implementation | signed export, geometry, reactions, and 2D dynamics
+
+- Added `/api/sessions/{id}/experiment-export`: campaign + experiment job
+  payloads, canonical SHA-256, optional Ed25519 envelope, console Signed export.
+- Added live PySCF one-coordinate geometry optimization (`geometry_optimization`)
+  followed by a measured VQE at the optimized geometry.
+- Added independent repeated VQE runs (`vqe_repeats`) with shot and
+  between-run standard-error reporting.
+- Added LiH/BeH2 atomization reactions with exact atomic FCI products and
+  active/full anchors kept separate.
+- Added exact finite-size 2D TFIM quench dynamics (`lattice_dynamics`) using
+  `expm_multiply`; explicitly `measured:false`, `claimable:false`.
+- Added launcher/output cases, canonical result validation, campaign folding,
+  and negative-result coverage.

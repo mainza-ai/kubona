@@ -342,7 +342,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		measureLine("anchor recomputed: FCI %.5f -> %.5f Ha, discrepancy %.2f mHa.", oldFCI, fci, delta)
 		return marshalReplan(&state, true, "classical anchor recomputed")
 
-	case "vqe_run", "hardware_experiment":
+	case "vqe_run", "geometry_optimization", "vqe_repeats", "hardware_experiment":
 		if !successTrue() {
 			return nil, false, "vqe reported success=false"
 		}
@@ -826,6 +826,28 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain hardware measurement folded")
+
+	case "lattice_dynamics":
+		if !successTrue() {
+			return nil, false, "lattice dynamics reported success=false"
+		}
+		var series []map[string]any
+		if raw, ok := present("times"); ok {
+			_ = json.Unmarshal(raw, &series)
+		}
+		if len(series) == 0 {
+			return nil, false, "lattice dynamics has no time trajectory"
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (lattice_dynamics): exact finite-size 2D TFIM quench with %d time points; measured=false and claimable=false.",
+			shortID, len(series)))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: "tfim-2d", Series: series,
+			Measured: false, Claimable: false, Status: "simulated",
+		}, jobID)
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "lattice dynamics recorded")
 
 	case "conjecture_run":
 		if !successTrue() {
