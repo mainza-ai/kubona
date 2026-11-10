@@ -1483,7 +1483,6 @@ func TestRunnerBridgeAndActiveCountAreSafe(t *testing.T) {
 	}
 }
 
-
 func TestHardwareExperimentH2OAndSpinExactValidation(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
