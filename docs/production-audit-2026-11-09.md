@@ -1,7 +1,7 @@
 # Production audit and completion report — 2026-11-09
 
 **Audited baseline:** `1b18ade` (2026-11-09 science/UI closure)
-**Correction pass:** `eec7c18` (this document plus the truth/UI/hardware
+**Correction pass:** `08526fb` (this document plus the truth/UI/hardware
 hardening).
 **Scope:** fully functional **local-private** deployment on one trusted host.
 Not a public SaaS, not multi-tenant hosting, and not a demo.
@@ -231,7 +231,7 @@ supported science surface without hidden shell steps or unsupported claims.
 
 | Gate | Result |
 |---|---|
-| Go full suite | pass (all packages, including canonical decoder/negative folds) |
+| Go full suite | pass (all packages); coverage 64.8% against 64% floor |
 | Python full suite | 1262 passed, 36 skipped (35:18) |
 | Bridge targeted science suite | 50 passed (science/custom/lattice/reaction/conjecture files) |
 | Console tests | 607 passed; tsc/eslint/build pass |
@@ -239,11 +239,11 @@ supported science surface without hidden shell steps or unsupported claims.
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `142 modeled / 14 client-only / 0 unmodeled`, `130 paths / 121 schemas` |
 | Wiki lint | clean |
-| Real-stack E2E | green at `eec7c18` |
+| Real-stack E2E | green at `08526fb` |
 
 ### 7.1 Live functional checks
 
-The local compose stack was rebuilt from `eec7c18` with the repository `.env`
+The local compose stack was rebuilt from `08526fb` with the repository `.env`
 plus the host secret env, and exercised through the real HTTP API:
 
 - **Custom-geometry VQE job `04ee3265-88bd-446e-a4db-109762cc9b29`**
