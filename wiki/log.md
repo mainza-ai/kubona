@@ -5189,3 +5189,20 @@ skipped is the exact failure this incident is about:
 - Added the canonical result envelope fields for generic geometry and receipt
   visibility; tests cover decoder refusals, receipt projection, negative folds,
   and custom VQE.
+
+## [2026-11-09] verification | canonical results, negative folds, custom VQE
+
+- Canonical `experimentresult` decoder, campaign receipt projection, negative
+  result folds, and caller-supplied geometry VQE are committed at `fee14b4`.
+- Local gates: Go full suite pass; Python full suite 1261 passed / 36 skipped;
+  console 605 passed; tsc/eslint/build clean; contracts and wiki clean.
+- CI and Console E2E green at `fee14b4`.
+
+## [2026-11-09] verification | live custom VQE and negative result
+
+- Rebuilt `kubona-live` from `fee14b4`; custom-geometry VQE job
+  `04ee3265-88bd-446e-a4db-109762cc9b29` completed with a signed receipt and
+  campaign `result_receipts` projection.
+- Refused custom-basis job `6a9da3e7-b29f-48e0-ac52-48dfc622f3bf` failed with
+  the bridge refusal and appeared in the campaign as a negative result
+  (`measured:false`, `claimable:false`).

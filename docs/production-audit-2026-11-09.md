@@ -1,7 +1,7 @@
 # Production audit and completion report — 2026-11-09
 
 **Audited baseline:** `1b18ade` (2026-11-09 science/UI closure)
-**Correction pass:** `4c4875b` (this document plus the truth/UI/hardware
+**Correction pass:** `fee14b4` (this document plus the truth/UI/hardware
 hardening).
 **Scope:** fully functional **local-private** deployment on one trusted host.
 Not a public SaaS, not multi-tenant hosting, and not a demo.
@@ -220,7 +220,23 @@ supported science surface without hidden shell steps or unsupported claims.
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
 | Contract inventory / OpenAPI | `139 modeled / 14 client-only / 0 unmodeled`, `127 paths / 120 schemas` |
 | Wiki lint | clean |
-| Real-stack E2E | green at `4c4875b`; rerun required on this implementation head |
+| Real-stack E2E | green at `fee14b4` |
+
+### 7.1 Live functional checks
+
+The local compose stack was rebuilt from `fee14b4` with the repository `.env`
+plus the host secret env, and exercised through the real HTTP API:
+
+- **Custom-geometry VQE job `04ee3265-88bd-446e-a4db-109762cc9b29`**
+  completed on the bridge with `molecule:"custom"`, `generic:true`,
+  active-space energy `-1.046441054576304 Ha` against full FCI
+  `-1.137270174660903 Ha`, uncertainty `10.79 mHa`, `claimable:false`,
+  `measured:true`, and a signed `result_receipt`. The campaign response
+  contains that job in `result_receipts` with `signed:true`.
+- **Refused custom basis job `6a9da3e7-b29f-48e0-ac52-48dfc622f3bf`** reached
+  terminal `failed` with `generic VQE currently supports basis=sto-3g only`;
+  the campaign contains a negative-result entry with `status:"failed"`,
+  `measured:false`, and `claimable:false`.
 
 ## 8. Operator actions
 
