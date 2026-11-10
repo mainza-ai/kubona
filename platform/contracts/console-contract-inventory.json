@@ -716,6 +716,12 @@
       "contract": "vault.lease"
     },
     {
+      "function": "launchPESHardware",
+      "path": "/api/experiments/pes/hardware",
+      "method": "POST",
+      "contract": "hardware.launch"
+    },
+    {
       "function": "launchProposal",
       "path": "/api/chat/launch",
       "method": "POST",
@@ -768,6 +774,12 @@
       "path": "/api/workflows/plan",
       "method": "POST",
       "contract": "workflow.plan"
+    },
+    {
+      "function": "preparePESHardware",
+      "path": "/api/experiments/pes/hardware/prepare",
+      "method": "POST",
+      "contract": "hardware.prepare"
     },
     {
       "function": "prepareQAOAHardware",

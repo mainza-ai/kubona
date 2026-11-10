@@ -1044,6 +1044,18 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_degree=int(spec.get("max_degree", 6)),
                     literature_search=bool(spec.get("literature_search", False)),
                 )
+            elif kind == "hardware_pes":
+                from experiments import run_hardware_pes
+                result = run_hardware_pes(
+                    points=spec.get("points") or [],
+                    molecule=str(spec.get("molecule") or "H2"),
+                    shots=int(spec.get("shots", 4096)),
+                    seed=int(spec.get("seed", 7)),
+                    backend=spec.get("requested_backend"),
+                    mitigation=spec.get("mitigation"),
+                    mitigation_scales=spec.get("mitigation_scales"),
+                    source_job_id=str(spec.get("source_job_id") or ""),
+                )
             elif kind == "vqe_hardware":
                 from experiments import run_vqe_hardware, run_vqe_hardware_loop
                 if bool(spec.get("loop")):

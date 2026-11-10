@@ -127,3 +127,16 @@ func TestProductionLensRefusesEmbeddedBootstrap(t *testing.T) {
 		t.Fatal("production must refuse the embedded lens bootstrap")
 	}
 }
+
+func TestQPURateLookup(t *testing.T) {
+	r, ok := QPUPrice("ibm-qiskit")
+	if !ok {
+		t.Fatal("ibm-qiskit QPU rate missing")
+	}
+	if r.Plan != "open" || r.PricingType != "free" || r.PerSecondUSD != 0 {
+		t.Fatalf("unexpected QPU rate: %+v", r)
+	}
+	if _, ok := QPUPrice("mystery-qpu"); ok {
+		t.Fatal("unknown QPU must not be priced")
+	}
+}

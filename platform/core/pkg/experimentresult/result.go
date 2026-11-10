@@ -60,6 +60,7 @@ type Result struct {
 	HardwareJobIDs []string         `json:"hardware_job_ids,omitempty"`
 	Claimable      *bool            `json:"claimable,omitempty"`
 	Times          []map[string]any `json:"times,omitempty"`
+	Points         []map[string]any `json:"points,omitempty"`
 	Receipt        *Receipt         `json:"result_receipt,omitempty"`
 
 	raw map[string]json.RawMessage
@@ -150,6 +151,7 @@ func kindMatchesJobType(jobType, kind string) bool {
 		"conjecture_run":        {"conjecture"},
 		"lattice_dynamics":      {"lattice_dynamics"},
 		"hardware_experiment":   {"vqe_hardware", "vqe_hardware_loop"},
+		"hardware_pes":          {"hardware_pes"},
 		"qaoa_hardware":         {"qaoa_hardware", "qaoa_hardware_loop"},
 		"spin_chain_hardware":   {"spin_chain_hardware"},
 		"krylov_json":           {"krylov"},
@@ -242,6 +244,28 @@ func validateVariant(kind string, r *Result) error {
 		}
 		if strings.TrimSpace(r.HardwareJobID) == "" {
 			return fmt.Errorf("experiment result kind %q requires hardware_job_id", kind)
+		}
+	case "hardware_pes":
+		if len(r.Points) < 2 || len(r.Points) > 12 {
+			return fmt.Errorf("experiment result kind %q requires 2..12 points", kind)
+		}
+		if r.Hardware == nil || !*r.Hardware {
+			return fmt.Errorf("experiment result kind %q must be hardware=true", kind)
+		}
+		if strings.TrimSpace(r.HardwareJobID) == "" {
+			return fmt.Errorf("experiment result kind %q requires hardware_job_id", kind)
+		}
+		for i, point := range r.Points {
+			for _, key := range []string{"energy", "fci_exact_energy"} {
+				value, ok := point[key]
+				if !ok {
+					return fmt.Errorf("hardware PES point %d is missing %s", i, key)
+				}
+				number, ok := value.(float64)
+				if !ok || !finite(number) {
+					return fmt.Errorf("hardware PES point %d %s is not finite", i, key)
+				}
+			}
 		}
 	case "qaoa_hardware":
 		if r.MeasuredCut == nil && r.Energy == nil {

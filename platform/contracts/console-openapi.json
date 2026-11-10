@@ -1782,6 +1782,26 @@
         }
       }
     },
+    "/api/experiments/pes/hardware": {
+      "post": {
+        "operationId": "launchPESHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.launch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/launch": {
       "post": {
         "operationId": "launchProposal",
@@ -1983,6 +2003,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/workflow.plan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments/pes/hardware/prepare": {
+      "post": {
+        "operationId": "preparePESHardware",
+        "tags": [
+          "experiments"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hardware.prepare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hardware.prepare"
                 }
               }
             }

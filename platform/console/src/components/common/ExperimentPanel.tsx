@@ -333,7 +333,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
-      {job && statusLabel === 'COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run'].includes(job.job_type) && (
+      {job && statusLabel === 'COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'].includes(job.job_type) && (
         <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={job} />
       )}
       {job && (

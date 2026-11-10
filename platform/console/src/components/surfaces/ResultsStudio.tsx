@@ -106,6 +106,7 @@ function PesTable({ points }: { points: PesPoint[] }) {
               <th className="px-2 py-1 text-right">σ (mHa)</th>
               <th className="px-2 py-1 text-right">95% (mHa)</th>
               <th className="px-2 py-1 text-right">Chem. acc.</th>
+              <th className="px-2 py-1 text-left">Source</th>
             </tr>
           </thead>
           <tbody>
@@ -118,6 +119,7 @@ function PesTable({ points }: { points: PesPoint[] }) {
                 <td className="px-2 py-1 text-right font-code">{point.uncertainty_mha.toFixed(3)}</td>
                 <td className="px-2 py-1 text-right font-code">{typeof point.ci95_mha === 'number' ? point.ci95_mha.toFixed(3) : '—'}</td>
                 <td className="px-2 py-1 text-right">{(point.claimable ?? point.chemical_accuracy) ? 'PASS' : 'outside'}</td>
+                <td className="px-2 py-1">{point.hardware ? `hardware${point.mitigated ? ' · ZNE' : ''}${point.backend ? ` · ${point.backend}` : ''}` : 'simulator'}</td>
               </tr>
             ))}
           </tbody>

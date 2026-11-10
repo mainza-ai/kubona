@@ -49,7 +49,9 @@ slice:
   LiH/BeH2 atomization reactions;
 - landed exact finite-size 2D TFIM quench dynamics;
 - added optional OpenAlex conjecture lookup with explicit checked/unavailable
-  evidence and no novelty upgrade.
+  evidence and no novelty upgrade;
+- added one-batch hardware PES with optional per-point ZNE and reviewed QPU
+  pricing preview; hardware PES is not yet live-run.
 
 Remaining P0/P1 work is arbitrary multidimensional geometry relaxation,
 DMRG/thermodynamic-limit physics, hardware PES/mitigation, hardware spin

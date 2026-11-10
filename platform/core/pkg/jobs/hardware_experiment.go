@@ -13,8 +13,18 @@ import (
 // owns one bounded mandate, one vendor batch, one usage reading, and one
 // settlement. Child measurement circuits are prepared by the bridge inside
 // that parent execution; they are not independently admitted or settled.
+type HardwarePesPoint struct {
+	BondDistance      float64            `json:"bond_distance"`
+	QASM              string             `json:"qasm"`
+	Theta             []float64          `json:"theta,omitempty"`
+	PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
+	FCIExactEnergy    float64            `json:"fci_exact_energy"`
+	ConstantEnergy    float64            `json:"constant_energy"`
+}
+
 type HardwareExperimentParams struct {
 	Kind                string             `json:"kind"`
+	Points              []HardwarePesPoint `json:"points,omitempty"`
 	Molecule            string             `json:"molecule"`
 	Model               string             `json:"model"`
 	NSites              int                `json:"n_sites"`
@@ -60,6 +70,7 @@ func CanonicalHardwareExperimentBinding(sessionID string, p HardwareExperimentPa
 func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperimentParams) string {
 	spec := struct {
 		Molecule          string             `json:"molecule"`
+		Points            []HardwarePesPoint `json:"points,omitempty"`
 		Model             string             `json:"model"`
 		NSites            int                `json:"n_sites"`
 		TargetError       float64            `json:"target_error"`
@@ -86,7 +97,7 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Nodes             int                `json:"nodes"`
 		Edges             [][2]int           `json:"edges"`
 	}{
-		Molecule: p.Molecule, Model: p.Model, NSites: p.NSites,
+		Molecule: p.Molecule, Points: p.Points, Model: p.Model, NSites: p.NSites,
 		TargetError: p.TargetError, StateMode: p.StateMode, SourceJobID: p.SourceJobID,
 		BondDistance: p.BondDistance,
 		Layers:       p.Layers, Shots: p.Shots, Seed: p.Seed,
@@ -163,6 +174,25 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 		for label := range p.PauliCoefficients {
 			if len(label) != p.NSites || strings.Trim(label, "IXYZ") != "" {
 				return "", 0, fmt.Errorf("spin_chain_hardware Pauli label %q must be length %d over IXYZ", label, p.NSites)
+			}
+		}
+	case "hardware_pes":
+		p.Molecule = strings.ToUpper(strings.TrimSpace(p.Molecule))
+		if len(p.Points) < 2 || len(p.Points) > 12 {
+			return "", 0, fmt.Errorf("hardware_pes requires 2..12 source points")
+		}
+		if p.Loop {
+			return "", 0, fmt.Errorf("hardware_pes cannot run a hardware loop")
+		}
+		for i, point := range p.Points {
+			if strings.TrimSpace(point.QASM) == "" || strings.Contains(strings.ToLower(point.QASM), "reset") {
+				return "", 0, fmt.Errorf("hardware_pes point %d requires unitary qasm without reset", i)
+			}
+			if len(point.PauliCoefficients) == 0 {
+				return "", 0, fmt.Errorf("hardware_pes point %d requires pauli_coefficients", i)
+			}
+			if math.IsNaN(point.FCIExactEnergy) || math.IsInf(point.FCIExactEnergy, 0) || point.FCIExactEnergy == 0 {
+				return "", 0, fmt.Errorf("hardware_pes point %d requires a finite non-zero FCI anchor", i)
 			}
 		}
 	case "qaoa_hardware":

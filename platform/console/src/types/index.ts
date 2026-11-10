@@ -375,6 +375,11 @@ export interface PesPoint {
   claimable?: boolean;
   full_space_status?: string;
   method?: string;
+  hardware?: boolean;
+  mitigated?: boolean;
+  backend?: string;
+  hardware_job_id?: string;
+  result_version?: string;
 }
 
 export interface TrajectoryStep {
