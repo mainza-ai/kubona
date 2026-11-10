@@ -642,11 +642,19 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if !successTrue() {
 			return nil, false, "reaction energy reported success=false"
 		}
-		var measured, exact, uncertainty float64
+		var measured, exact, exactFull, uncertainty float64
 		var claimable bool
+		var molecule, reaction, version string
 		for key, dst := range map[string]*float64{
 			"reaction_energy": &measured, "reaction_energy_exact": &exact,
-			"uncertainty": &uncertainty,
+			"reaction_energy_exact_full": &exactFull, "uncertainty": &uncertainty,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*string{
+			"molecule": &molecule, "reaction": &reaction, "result_version": &version,
 		} {
 			if raw, ok := present(key); ok {
 				_ = json.Unmarshal(raw, dst)
@@ -657,13 +665,18 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		nb := ensureNotebook(&state)
 		nb.Sections = append(nb.Sections, fmt.Sprintf(
-			"Job %s (reaction): measured ΔE=%.6f Ha vs exact %.6f Ha (uncertainty %.3g, claimable=%v).",
-			shortID, measured, exact, uncertainty, claimable))
-		appendCampaignExperiment(&state, CampaignExperiment{
-			JobID: jobID, Kind: jobType, ReactionEnergy: floatPtr(measured),
-			ReactionEnergyExact: floatPtr(exact), Uncertainty: floatPtr(uncertainty),
-			Claimable: claimable, Measured: true,
-		}, jobID)
+			"Job %s (reaction): %s measured ΔE=%.6f Ha vs exact %.6f Ha (uncertainty %.3g, claimable=%v).",
+			shortID, reaction, measured, exact, uncertainty, claimable))
+		exp := CampaignExperiment{
+			JobID: jobID, Kind: jobType, Molecule: molecule, Reaction: reaction,
+			ReactionEnergy: floatPtr(measured), ReactionEnergyExact: floatPtr(exact),
+			Uncertainty: floatPtr(uncertainty), Claimable: claimable, Measured: true,
+			ResultVersion: version,
+		}
+		if exactFull != 0 {
+			exp.ReactionEnergyFull = floatPtr(exactFull)
+		}
+		appendCampaignExperiment(&state, exp, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "reaction energy folded")
 
@@ -673,10 +686,18 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		var ground, groundExact, excited, excitedExact, gap, gapExact, uncertainty float64
 		var claimable bool
+		var molecule, version string
 		for key, dst := range map[string]*float64{
 			"ground_energy": &ground, "ground_energy_exact": &groundExact,
 			"excited_energy": &excited, "excited_energy_exact": &excitedExact,
 			"gap": &gap, "gap_exact": &gapExact, "uncertainty": &uncertainty,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*string{
+			"molecule": &molecule, "result_version": &version,
 		} {
 			if raw, ok := present(key); ok {
 				_ = json.Unmarshal(raw, dst)
@@ -693,10 +714,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			"Job %s (excited_state): ground %.6f (exact %.6f), excited %.6f (exact %.6f), gap %.6f (exact %.6f), uncertainty %.3g, claimable=%v.",
 			shortID, ground, groundExact, excited, excitedExact, gap, gapExact, uncertainty, claimable))
 		appendCampaignExperiment(&state, CampaignExperiment{
-			JobID: jobID, Kind: jobType, GroundEnergy: floatPtr(ground),
-			EnergyExact: floatPtr(groundExact), ExcitedEnergy: floatPtr(excited),
-			Gap: floatPtr(gap), Uncertainty: floatPtr(uncertainty),
-			Claimable: claimable, Measured: true,
+			JobID: jobID, Kind: jobType, Molecule: molecule, GroundEnergy: floatPtr(ground),
+			GroundEnergyExact: floatPtr(groundExact), ExcitedEnergy: floatPtr(excited),
+			ExcitedEnergyExact: floatPtr(excitedExact), Gap: floatPtr(gap),
+			GapExact: floatPtr(gapExact), Uncertainty: floatPtr(uncertainty),
+			Claimable: claimable, Measured: true, ResultVersion: version,
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "excited-state energies folded")
@@ -745,7 +767,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			JobID: jobID, Kind: jobType, Model: model, NSites: nSites,
 			Energy: floatPtr(energy), EnergyExact: floatPtr(exact), Gap: floatPtr(gap),
 			Uncertainty: floatPtr(uncertainty), Claimable: claimable, Measured: true,
-			Backend: backend,
+			Backend: backend, ResultVersion: resultVersion,
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain measurement folded")
@@ -755,7 +777,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			return nil, false, "spin-chain hardware reported success=false"
 		}
 		var energy, exact, uncertainty, delta float64
-		var model, backend, jobRef string
+		var model, backend, jobRef, resultVersion string
 		var claimable, measured bool
 		for key, dst := range map[string]*float64{
 			"energy": &energy, "energy_exact": &exact,
@@ -767,6 +789,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		for key, dst := range map[string]*string{
 			"model": &model, "backend": &backend, "hardware_job_id": &jobRef,
+			"result_version": &resultVersion,
 		} {
 			if raw, ok := present(key); ok {
 				_ = json.Unmarshal(raw, dst)
@@ -790,7 +813,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			Energy: floatPtr(energy), EnergyExact: floatPtr(exact),
 			Uncertainty: floatPtr(uncertainty), Delta: floatPtr(delta),
 			Claimable: claimable, Measured: measured, Hardware: true,
-			Backend: backend, HardwareJobID: jobRef,
+			Backend: backend, HardwareJobID: jobRef, ResultVersion: resultVersion,
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain hardware measurement folded")
@@ -804,24 +827,33 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			_ = json.Unmarshal(raw, &count)
 		}
 		rawCandidates, ok := present("candidates")
-		var laws []string
+		var laws, knownAs []string
 		if ok {
 			var candidates []struct {
-				Law    string `json:"law"`
-				Status string `json:"status"`
+				Law     string `json:"law"`
+				Status  string `json:"status"`
+				KnownAs string `json:"known_as"`
 			}
 			if json.Unmarshal(rawCandidates, &candidates) == nil {
 				for _, c := range candidates {
 					if c.Law != "" {
 						laws = append(laws, c.Law+" ["+c.Status+"]")
 					}
+					if c.KnownAs != "" {
+						knownAs = append(knownAs, c.KnownAs)
+					}
 				}
 			}
 		}
 		nb := ensureNotebook(&state)
-		var novelty string
-		if raw, ok := present("novelty_status"); ok {
-			_ = json.Unmarshal(raw, &novelty)
+		var novelty, noveltyNote, version string
+		for key, dst := range map[string]*string{
+			"novelty_status": &novelty, "novelty_note": &noveltyNote,
+			"result_version": &version,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
 		}
 		line := fmt.Sprintf("Job %s (conjecture): %d exact finite-scope candidate(s) verified on holdout; not a theorem and not a claim.", shortID, count)
 		if len(laws) > 0 {
@@ -830,7 +862,8 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		nb.Sections = append(nb.Sections, line)
 		appendCampaignExperiment(&state, CampaignExperiment{
 			JobID: jobID, Kind: jobType, CandidateCount: count,
-			NoveltyStatus: novelty, Status: "conjecture", Measured: false,
+			NoveltyStatus: novelty, NoveltyNote: noveltyNote, Laws: laws,
+			KnownAs: knownAs, ResultVersion: version, Status: "conjecture", Measured: false,
 		}, jobID)
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "conjecture candidates recorded")

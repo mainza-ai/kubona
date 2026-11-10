@@ -8,6 +8,15 @@ CEO/hardware-loop/mitigation/claimable/sandbox/result-gate work).
 status prose. The earlier completion report contained stale entries; this page
 corrects them explicitly.
 
+> ⚑ **Follow-up correction (2026-11-09):** the recent science/UI slice was
+> re-audited after this register. A dedicated report at
+> [`production-audit-2026-11-09.md`](production-audit-2026-11-09.md) records the
+> fixed defects (water reaction sign, spin-hardware Pauli order, ZNE
+> claimability, below-anchor claims, exact-state hardware admission, H2O
+> hardware admission drift, source status/type/binding checks, and UI/result
+> projection gaps) and the remaining science/operations residuals. This page's
+> earlier "closed" rows remain valid only for the baseline it audited.
+
 ## 1. Executive verdict
 
 The local-private **core simulator stack is operational**: compose boots,

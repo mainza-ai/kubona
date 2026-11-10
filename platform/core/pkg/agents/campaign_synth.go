@@ -200,9 +200,14 @@ type CampaignExperiment struct {
 	EnergyExact         *float64 `json:"energy_exact,omitempty"`
 	GroundEnergy        *float64 `json:"ground_energy,omitempty"`
 	ExcitedEnergy       *float64 `json:"excited_energy,omitempty"`
+	GroundEnergyExact   *float64 `json:"ground_energy_exact,omitempty"`
+	ExcitedEnergyExact  *float64 `json:"excited_energy_exact,omitempty"`
 	Gap                 *float64 `json:"gap,omitempty"`
+	GapExact            *float64 `json:"gap_exact,omitempty"`
+	Reaction            string   `json:"reaction,omitempty"`
 	ReactionEnergy      *float64 `json:"reaction_energy,omitempty"`
 	ReactionEnergyExact *float64 `json:"reaction_energy_exact,omitempty"`
+	ReactionEnergyFull  *float64 `json:"reaction_energy_exact_full,omitempty"`
 	Uncertainty         *float64 `json:"uncertainty,omitempty"`
 	Delta               *float64 `json:"delta,omitempty"`
 	Claimable           bool     `json:"claimable"`
@@ -212,6 +217,10 @@ type CampaignExperiment struct {
 	HardwareJobID       string   `json:"hardware_job_id,omitempty"`
 	CandidateCount      int      `json:"candidate_count,omitempty"`
 	NoveltyStatus       string   `json:"novelty_status,omitempty"`
+	NoveltyNote         string   `json:"novelty_note,omitempty"`
+	Laws                []string `json:"laws,omitempty"`
+	KnownAs             []string `json:"known_as,omitempty"`
+	ResultVersion       string   `json:"result_version,omitempty"`
 	Status              string   `json:"status,omitempty"`
 }
 

@@ -7,6 +7,7 @@ import { fetchJob, runExperiment } from '@/lib/api';
 vi.mock('@/lib/api', () => ({
   runExperiment: vi.fn(),
   fetchJob: vi.fn(),
+  jobStatusLabel: (status: unknown) => String(status).replace(/^JOB_STATUS_/, ''),
 }));
 
 const runExperimentMock = vi.mocked(runExperiment);

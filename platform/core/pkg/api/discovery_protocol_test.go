@@ -141,4 +141,14 @@ func TestSpinChainHardwareParamsFromSource(t *testing.T) {
 	}); err == nil {
 		t.Fatal("missing source must refuse")
 	}
+	exactResult := strings.Replace(result, `"state_mode":"vqe"`, `"state_mode":"exact"`, 1)
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"job-spin-exact", sess.ID, "JOB_STATUS_COMPLETED", "spin_chain", "{}", exactResult); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.spinChainHardwareParamsFromSource(spinChainHardwareIntent{
+		SessionID: sess.ID, SourceJobID: "job-spin-exact", Backend: "ibm_fez",
+	}); err == nil || !strings.Contains(err.Error(), "state_mode=vqe") {
+		t.Fatalf("exact-state source must refuse before dispatch, got: %v", err)
+	}
 }

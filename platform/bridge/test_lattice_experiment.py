@@ -153,3 +153,44 @@ def test_spin_chain_hardware_refuses_exact_state_qasm():
     )
     assert res["success"] is False
     assert "state_mode" in res["error"]
+
+
+def test_spin_chain_hardware_maps_source_labels_to_qiskit_order(monkeypatch):
+    import experiments
+    from qiskit import qasm2
+    from lattice_experiment import run_spin_chain_hardware
+
+    captured = []
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        captured.extend(qasms)
+        return {
+            "counts": [{"00": shots} for _ in qasms],
+            "backend": backend or "fake-qpu",
+            "hardware_job_id": "vendor-spin-labels",
+            "usage_seconds": 0.1,
+            "actual_usd": 0.0,
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    res = run_spin_chain_hardware(
+        qasm="OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2];",
+        pauli_coefficients={"XI": 1.0},
+        n_sites=2,
+        energy_exact=1.0,
+        model="tfim",
+        shots=128,
+        backend="ibm_fez",
+        state_mode="vqe",
+    )
+    assert res["success"] is True, res
+    assert "XI" in res["measurements"]
+    # The source label XI means X on qubit 0. Qiskit order reverses the label,
+    # so the prepared measurement must put H on qubit 0, not qubit 1.
+    first = qasm2.loads(captured[0])
+    h_qubits = [
+        first.qubits.index(inst.qubits[0])
+        for inst in first.data
+        if inst.operation.name == "h"
+    ]
+    assert h_qubits == [0]

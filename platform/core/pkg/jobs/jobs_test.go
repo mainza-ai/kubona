@@ -1482,3 +1482,40 @@ func TestRunnerBridgeAndActiveCountAreSafe(t *testing.T) {
 		t.Fatalf("active count must be non-negative, got %d", n)
 	}
 }
+
+
+func TestHardwareExperimentH2OAndSpinExactValidation(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	h2o := HardwareExperimentParams{
+		Kind: "vqe_hardware", Molecule: "H2O", BondDistance: 0.96, Layers: 2,
+		Shots: 512, Seed: 7,
+		Theta:             []float64{0.1, 0.1},
+		PauliCoefficients: map[string]float64{"II": -1, "IZ": 0.2},
+		FCIExactEnergy:    -75.0, ConstantEnergy: -74.0,
+		Provider: "ibm-qiskit", RequestedBackend: "ibm_brisbane",
+		QASM:         "OPENQASM 2.0;\nqreg q[8];\nh q[0];\n",
+		FidelityQASM: "OPENQASM 2.0;\nqreg q[8];\nh q[0];\n",
+		MaxCostUSD:   5, CallerJurisdictions: []string{"US"},
+	}
+	h2oJSON, _ := json.Marshal(h2o)
+	if _, _, err := r.planHardwareExperiment("default", "sess-1", "hardware_experiment", h2oJSON); err == nil ||
+		!strings.Contains(err.Error(), "mandate_ref") {
+		t.Fatalf("H2O hardware source must pass molecule validation and reach the mandate check, got: %v", err)
+	}
+
+	spin := HardwareExperimentParams{
+		Kind: "spin_chain_hardware", Model: "tfim", NSites: 2,
+		StateMode: "exact", TargetError: 1e-3, EnergyExact: -1.0,
+		Provider: "ibm-qiskit", RequestedBackend: "ibm_brisbane",
+		QASM: "OPENQASM 2.0;\nqreg q[2];\n", FidelityQASM: "OPENQASM 2.0;\nqreg q[2];\n",
+		PauliCoefficients: map[string]float64{"ZZ": 1}, MaxCostUSD: 5,
+		CallerJurisdictions: []string{"US"},
+	}
+	spinJSON, _ := json.Marshal(spin)
+	if _, _, err := r.planHardwareExperiment("default", "sess-1", "spin_chain_hardware", spinJSON); err == nil ||
+		!strings.Contains(err.Error(), "state_mode='vqe'") {
+		t.Fatalf("exact-state spin hardware must refuse before admission, got: %v", err)
+	}
+}

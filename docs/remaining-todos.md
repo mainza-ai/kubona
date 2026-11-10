@@ -3,6 +3,12 @@
 Updated 2026-10-30. This is the short execution list; the full queue lives in
 `wiki/concepts/remaining-work.md`.
 
+> **2026-11-09 correction:** the current science/UI truth audit and prioritized
+> completion plan live in
+> [`production-audit-2026-11-09.md`](production-audit-2026-11-09.md). This
+> file remains a historical execution list; do not use its older hardware-loop
+> or UI rows as current status without checking that report.
+
 ## Console/backend integration execution (2026-10-30)
 
 - [x] Multi-lab login fallback: free-text lab ID when anonymous lab listing

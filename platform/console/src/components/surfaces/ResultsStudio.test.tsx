@@ -237,3 +237,23 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('Check signs on overlap integrals');
   });
 });
+
+
+describe('ResultsStudio non-molecular experiment visibility', () => {
+  it('shows measured non-molecular experiments even before a molecular claim exists', async () => {
+    const projected = {
+      ...campaign('PROJECTED'),
+      experiments: [
+        { job_id: 'job-spin-early', kind: 'spin_chain', model: 'tfim', n_sites: 4, energy: -3.19, energy_exact: -3.21, gap: 0.8, uncertainty: 0.004, claimable: false, measured: true, hardware: false },
+        { job_id: 'job-conj-early', kind: 'conjecture_run', candidate_count: 1, novelty_status: 'known', laws: ['a(n) = a(n-1) + a(n-2) [conjecture]'], claimable: false, measured: false, hardware: false },
+      ],
+    } as unknown as CampaignState;
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ResultsStudio campaign={projected} sessionId={null} />); });
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain('Measured experiments');
+    expect(text).toContain('spin_chain');
+    expect(text).toContain('conjecture_run');
+    expect(text).toContain('Download experiment report');
+  });
+});

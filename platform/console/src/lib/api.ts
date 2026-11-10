@@ -433,11 +433,15 @@ export async function prepareVQEHardware(
   backend: string,
   shots: number,
   loop: boolean,
+  mitigation = false,
 ): Promise<HardwarePrepareResult> {
   const res = await apiFetch(`${API_BASE}/api/experiments/vqe/hardware/prepare`, {
     method: 'POST', cache: 'no-store',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ session_id: sessionId, source_job_id: sourceJobId, backend, shots, loop, max_iterations: 8 }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, backend, shots, loop, max_iterations: 8,
+      ...(mitigation ? { mitigation: 'ZNE', mitigation_scales: [1, 3, 5] } : {}),
+    }),
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(String(body.message || body.error || `VQE hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
@@ -448,6 +452,7 @@ export async function prepareVQEHardware(
 export async function launchVQEHardware(
   sessionId: string, sourceJobId: string, mandateRef: string, backend: string,
   shots: number, budgetUsd: number, requestId: string, jurisdiction: string, loop: boolean,
+  mitigation = false,
 ): Promise<Job | null> {
   const res = await apiFetch(`${API_BASE}/api/experiments/vqe/hardware`, {
     method: 'POST', cache: 'no-store',
@@ -455,6 +460,7 @@ export async function launchVQEHardware(
     body: JSON.stringify({
       session_id: sessionId, source_job_id: sourceJobId, mandate_ref: mandateRef,
       backend, shots, budget_usd: budgetUsd, request_id: requestId, loop, max_iterations: 8,
+      ...(mitigation ? { mitigation: 'ZNE', mitigation_scales: [1, 3, 5] } : {}),
       caller_jurisdictions: [jurisdiction], caller_export_class: 'public', export_reviewed: true,
     }),
   });

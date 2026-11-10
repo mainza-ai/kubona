@@ -118,8 +118,9 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	}
 	switch jobType {
 	case "hardware_experiment":
-		if p.Molecule != "H2" && p.Molecule != "LiH" && p.Molecule != "BeH2" {
-			return "", 0, fmt.Errorf("hardware_experiment supports H2, LiH, BeH2; refusing %q", p.Molecule)
+		p.Molecule = strings.ToUpper(strings.TrimSpace(p.Molecule))
+		if p.Molecule != "H2" && p.Molecule != "LiH" && p.Molecule != "BeH2" && p.Molecule != "H2O" {
+			return "", 0, fmt.Errorf("hardware_experiment supports H2, LiH, BeH2, H2O; refusing %q", p.Molecule)
 		}
 		if p.Molecule != "H2" && strings.TrimSpace(p.QASM) == "" {
 			return "", 0, fmt.Errorf("hardware_experiment for %s requires the optimized active-space ansatz QASM", p.Molecule)
@@ -143,6 +144,9 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 		if strings.TrimSpace(p.QASM) == "" {
 			return "", 0, fmt.Errorf("spin_chain_hardware requires qasm")
 		}
+		if strings.Contains(strings.ToLower(p.QASM), "reset") {
+			return "", 0, fmt.Errorf("spin_chain_hardware refuses qasm containing reset")
+		}
 		if len(p.PauliCoefficients) == 0 {
 			return "", 0, fmt.Errorf("spin_chain_hardware requires pauli_coefficients")
 		}
@@ -153,8 +157,13 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 			return "", 0, fmt.Errorf("spin_chain_hardware target_error must be in (0,1]")
 		}
 		mode := strings.ToLower(strings.TrimSpace(p.StateMode))
-		if mode != "vqe" && mode != "exact" {
-			return "", 0, fmt.Errorf("spin_chain_hardware state_mode must be vqe|exact")
+		if mode != "vqe" {
+			return "", 0, fmt.Errorf("spin_chain_hardware accepts state_mode='vqe' only; exact-state QASM contains reset and cannot run on hardware")
+		}
+		for label := range p.PauliCoefficients {
+			if len(label) != p.NSites || strings.Trim(label, "IXYZ") != "" {
+				return "", 0, fmt.Errorf("spin_chain_hardware Pauli label %q must be length %d over IXYZ", label, p.NSites)
+			}
 		}
 	case "qaoa_hardware":
 		if p.OptimalCut <= 0 || p.Nodes <= 0 || len(p.Edges) == 0 {
@@ -200,6 +209,9 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 				return "", 0, fmt.Errorf("mitigation requires at least two distinct scales")
 			}
 		}
+	}
+	if p.Loop && p.Mitigation != "" {
+		return "", 0, fmt.Errorf("hardware loop and error mitigation cannot be combined; choose one execution mode")
 	}
 	if p.FidelityQASM == "" {
 		return "", 0, fmt.Errorf("%s requires fidelity_qasm", jobType)

@@ -1,0 +1,243 @@
+# Production audit and completion report — 2026-11-09
+
+**Audited baseline:** `1b18ade` (2026-11-09 science/UI closure)
+**Correction pass:** this document plus the uncommitted truth/UI/hardware
+hardening on the same date.
+**Scope:** fully functional **local-private** deployment on one trusted host.
+Not a public SaaS, not multi-tenant hosting, and not a demo.
+**Method:** re-read the current Go/Python/console code and tests, re-ran the
+targeted science suites, and checked generated contracts. Prior status prose was
+treated as a claim to verify, not as evidence.
+
+## 1. Executive verdict
+
+The local-private stack is operational for the supported science surface:
+
+- H2/LiH/BeH2/H2O molecular VQE and PES on Qiskit Aer with live PySCF anchors;
+- H2/LiH/BeH2/H2O active-space excited states and H2/H2O reaction energies;
+- exact 1D TFIM/Heisenberg/XXZ spin-chain simulation with a shot-measured
+  experiment rail;
+- exact finite-scope mathematical law discovery with holdout verification;
+- governed IBM hardware parents for VQE, QAOA, and spin-chain final states;
+- ledger-bound discovery protocols, campaign folding, claims, signed result
+  receipts, and real-stack browser E2E.
+
+It is **not** correct to call it a complete general science-discovery platform.
+The remaining gaps are capability breadth and external validation, not missing
+UI glue: no general molecule input, no geometry optimization, no 2D lattice or
+time-evolution experiment, no general reaction network, no external-literature
+novelty check, and no human screen-reader sign-off. Hardware VQE executions
+exist, but the live spin-chain VQE run missed its exact anchor and remains
+non-claimable.
+
+The pass below fixes several concrete truth/UI defects found in the recent
+science implementation. It does **not** upgrade any historical result to a
+stronger claim.
+
+## 2. Recent implementation audit
+
+| ID | Finding | Severity | Resolution |
+|---|---|---|---|
+| A-01 | H2O → H2 + O measured `water + hydrogen - oxygen`, which is not a reaction energy (products were added instead of subtracted). | P0 truth | Fixed to `water - hydrogen - oxygen`; exact active-space and full-molecule anchors are now separate, and the claim is scoped to the active-space water model. |
+| A-02 | Spin-chain hardware converted Pauli labels with the wrong qubit ordering. The uniform TFIM/Heisenberg set is reflection-symmetric, which hid the defect for the live model but would mis-measure asymmetric coefficients. | P0 truth | The bridge now converts source labels to Qiskit little-endian order for both measurement circuits and coefficient matching; a regression test asserts `X` on qubit 0 prepares `h q[0]`. |
+| A-03 | ZNE extrapolation could set `claimable:true` while `measured:false`; an extrapolated point is not a direct measurement. | P0 truth | ZNE is now always `claimable:false` and `chemical_accuracy:false`, even when the fit lands within 1.6 mHa. |
+| A-04 | Chemical-accuracy gates accepted a shot value below the exact anchor by more than three standard errors. | P0 truth | Added a shared below-anchor guard used by molecular, hardware, excited-state, and reaction results. |
+| A-05 | `SpinChainModel.observables(vector)` silently recomputed the ground state and ignored the supplied vector. | P1 truth | The supplied state is now used for magnetization, correlations, and entropy; the exact spectrum is still the gap anchor. Invalid/non-normalizable vectors refuse. |
+| A-06 | Go admission accepted source spin-chain data with `state_mode:"exact"` even though exact-state QASM contains reset and cannot be sent to hardware. | P0 governance | API source conversion and the jobs admission twin reject exact-state hardware before dispatch. |
+| A-07 | Hardware VQE source conversion accepted H2O, but the jobs admission twin only allowed H2/LiH/BeH2. | P1 consistency | H2O active-space hardware VQE is now accepted consistently; a regression test reaches the mandate check rather than a molecule-type refusal. |
+| A-08 | Hardware source jobs were checked for session/result shape but not for `vqe_run`/`qaoa_run`/`spin_chain` status and type. | P1 governance | Conversion now requires a completed source job of the expected type. |
+| A-09 | VQE and QAOA parent bindings did not include `source_job_id`; a mandate could be prepared for one source and reused with another source having the same visible spec. | P0 governance | `source_job_id` is now part of the canonical parent binding for VQE/QAOA (spin already had it). |
+| A-10 | Experiment results were rendered only when a molecular `COLLAPSED_VERIFIED` claim existed; spin/excited/reaction/conjecture records were hidden before that. | P1 UI | The measured-experiment table and generic report now render in the pre-claim state. |
+| A-11 | `ExperimentPanel` compared `job.status` to lowercase `'completed'` while the API emits `JOB_STATUS_COMPLETED`; measured result details were not displayed. | P1 UI | All status checks use `jobStatusLabel`; stale labels were corrected for LiH/BeH2/H2O excited/reaction paths. |
+| A-12 | There was no generic report/export for non-molecular experiments; manuscript export remained chemistry-shaped. | P1 UI | Added a measured experiment report and JSON export built only from stored campaign experiments; no prose-generated numbers. |
+| A-13 | Discovery protocol history was ephemeral; only the latest response was visible. | P1 UI | Completed protocol summaries are written into the ledger event and reloaded in the panel; each step carries job id, status, measured/claimable flags. |
+| A-14 | Hardware launch did not disclose the absence of a pre-dispatch vendor price. | P1 UI | The panel now explicitly states that the operator cap is enforced and a vendor price is unavailable before dispatch; no invented estimate. |
+| A-15 | VQE hardware exposed no ZNE control even though the bridge supports it; loop + mitigation could be requested together and silently ignore mitigation. | P1 UI/truth | Added a VQE ZNE control and a Go/UI guard that refuses loop + mitigation together. |
+| A-16 | Conjecture discovery advertised 3 terms but holdout validation effectively required 4. | P2 input | It now explicitly requires 4 terms (3 training + at least 1 holdout) and refuses earlier. |
+| A-17 | Campaign projections lost exact excited-state/gap anchors, reaction molecule/reaction labels, conjecture laws/known-as, and result versions. | P1 result truth | Added typed fields and fold logic for all four result families. |
+| A-18 | H2O reaction ignored the requested layer count. | P2 reproducibility | `layers` is now forwarded to both endpoints. |
+| A-19 | Spin-chain hardware returned energy but not per-term measured expectations or CI95. | P1 result truth | Added per-term measurements, `ci95`, and the label-convention receipt. |
+| A-20 | Hardware QASM containing reset was refused only by `state_mode`; a malformed VQE source could still carry reset. | P1 governance | The bridge now refuses any spin hardware QASM containing reset. |
+| A-21 | H2O reaction compared an active-space water measurement to a full-FCI reaction anchor without saying so. | P1 truth | It now reports active-space and full-molecule anchors separately and scopes any claim to the mixed active-space/exact-atom model. |
+| A-22 | Provenance tenant writes re-read the process environment for their base path while queries used the module ledger's base; a test/state-root change could write and read different files. | P1 test isolation/truth | Tenant shards are now bound to the module ledger base, so a write and its query share one path. |
+
+## 3. Current capability matrix
+
+| Capability | State | Evidence class |
+|---|---|---|
+| H2, LiH, BeH2, H2O active-space VQE | Working | Shot-measured Aer; PySCF anchors |
+| Full-space LiH/BeH2 ADAPT/CEO | Working with target/limits | Shot-measured; contested status is preserved |
+| H2/LiH/BeH2/H2O PES | Working | Per-point measured energy/uncertainty/FCI |
+| H2/LiH/BeH2/H2O active-space excited state | Working | Shot-measured; active-space anchors |
+| H2 → 2H and H2O → H2 + O reaction energy | Working | Measured endpoints; exact atom anchors |
+| 1D TFIM/Heisenberg/XXZ spin chain | Working | Exact diagonalization + shot-measured VQE/exact-state readout |
+| Mathematically exact finite-prefix law discovery | Working, bounded | Exact rational training/holdout; not a proof |
+| QAOA MaxCut | Working on fixed 8-node graph | Aer + governed hardware final state |
+| Governed hardware VQE/QAOA/spin | Working | Mandate/fidelity/settlement/vendor receipts |
+| Discovery protocol | Working, bounded | Deterministic planner, 1–5 real jobs |
+| Full browser science E2E | Working for supported kinds | Real compose stack |
+| Manual VoiceOver/NVDA | Not run | Human-only residual |
+
+## 4. Remaining gaps
+
+### P0 — blocks a broad production science claim
+
+1. **Hardware spin-chain accuracy is not established.** The live VQE run was
+   executed and settled, but measured `-2.278125` Ha against exact
+   `-3.00902212` Ha; `claimable:false`. Execution is complete; an accuracy
+   claim requires a better ansatz/optimizer/shot budget and a new measured run.
+2. **Chemistry breadth remains curated.** Supported VQE families are H2, LiH,
+   BeH2, and H2O. There is no general molecule/SMILES-to-active-space input, no
+   geometry optimization, no N2/CO/HF suite, and no general reaction network.
+3. **Physics breadth is one-dimensional.** The lattice module is exact and
+   tested, but there is no 2D lattice, Fermi-Hubbard quantum experiment,
+   spectral-function, quench/time-evolution, or DMRG cross-check.
+4. **Mathematical discovery is not a proof/novelty system.** It discovers
+   exact finite-prefix polynomial/recurrence laws with a holdout and falsifier.
+   It does not prove theorems, search external literature, or establish
+   novelty; `unclassified` is the correct boundary.
+5. **Result truth is not yet one shared object end-to-end.** The versioned
+   JSON envelope, TypeScript interface, signed result receipt, and typed
+   campaign projection exist, but campaign state, exports, and UI still carry
+   projections. A single canonical `ExperimentResult` should be adopted across
+   bridge → Go job → campaign → export → UI.
+6. **The host forensic ledger is not a verified restore source.** The existing
+   host database has historical chain faults from legacy unsigned deletes.
+   Production must start from a fresh volume; the history must not be rewritten.
+
+### P1 — required for a complete researcher workflow
+
+- PES does not request mitigation per point and has no hardware PES path.
+- No repeated-run variance/batch campaign across a molecule family.
+- Negative/failed discovery steps are recorded in the protocol ledger but are
+  not folded into the campaign notebook as negative results.
+- Hardware cost preview is a cap disclosure, not a vendor price estimate.
+- Manuscript/report generation still centers molecular VQE; the generic
+  experiment report is an additional surface, not a replacement.
+- Non-executable/planned providers and legacy proposal surfaces still need a
+  harder default-picker boundary.
+- A single operator is the complete deployment mode; multi-lab roles and
+  first-run onboarding are not fully separated.
+- Manual screen-reader testing and a signed residual-risk waiver are still
+  outstanding.
+
+### P2 — enhancements
+
+- 2D Hubbard/DMRG, time evolution, Loschmidt echo, spectral functions.
+- General molecular geometry optimization and larger basis/active-space support.
+- Hardware spin-chain calibration-aware mitigation and repeated-shot statistics.
+- External math catalog/literature search and counterexample search beyond the
+  holdout falsifier.
+- OTel/Sentry, chaos/load baselines, multi-host/HA, public plugin marketplace.
+  These are outside the local-private scope and must not be advertised as live.
+
+## 5. Improvements landed in this audit pass
+
+- Corrected reaction stoichiometry and separate active/full anchors.
+- Corrected spin hardware Pauli basis mapping and added per-term measurements.
+- Corrected ZNE claimability and added a below-anchor truth guard.
+- Corrected focus-state observables and conjecture input-domain refusal.
+- Hardened hardware source status/type/mode checks and added `source_job_id`
+  to VQE/QAOA parent bindings.
+- Removed the H2O hardware admission mismatch and the loop+mitigation ambiguity.
+- Exposed measured experiments before a molecular notebook exists.
+- Added a generic measured experiment report/JSON export and protocol history.
+- Added a ZNE control and explicit hardware-cap disclosure.
+- Preserved result version/labels/anchors in the campaign projection.
+
+## 6. Updated implementation plan
+
+### Phase 0 — Truth and governance (completed in this pass)
+
+Exit criteria met:
+
+- no reaction sign error, no silent ZNE claim, no below-anchor pass;
+- exact-state hardware refuses before admission;
+- source jobs are completed and type-checked before parent preparation;
+- parent bindings include the source job;
+- campaign projections preserve exact anchors and result versions.
+
+### Phase 1 — Canonical result adoption (next)
+
+1. Define one Go `ExperimentResult` decoder with per-kind required fields and
+   finite-number checks; use it in the jobs boundary, campaign fold, and export.
+2. Make campaign `measurement`, `pes_points`, `experiments`, and UI consume the
+   same object; keep old rows readable for one release.
+3. Add negative-result records for failed discovery steps.
+4. Add a signed export bundle containing the result receipt and claim linkage.
+
+**Gate:** every citable result has one job id, one result version, one receipt,
+and one campaign projection; no field is reconstructed from prose.
+
+### Phase 2 — Science breadth
+
+1. General molecule input with explicit active-space limits and refusal beyond
+   the CPU qubit cap.
+2. Geometry optimization and LiH/BeH2 reaction families with exact atom
+   anchors; no borrowed energies.
+3. 2D lattice/Hubbard and time-evolution experiments with exact small-system
+   anchors and explicit finite-size limits.
+4. Repeated-run variance/batch campaign and PES mitigation opt-in.
+5. External math catalog/literature comparison before any novelty statement;
+   retain `unclassified` when no comparison is proven.
+
+**Gate:** every advertised model has an exact anchor, a measured result, a
+claimability gate, and a documented unsupported boundary.
+
+### Phase 3 — Hardware and operations
+
+1. Hardware PES/mitigation per point and calibration-aware spin runs.
+2. Repeat the live spin-chain run with a better ansatz/shot budget; record the
+   result as claimable only if the gate passes.
+3. Vendor price preview from the reviewed rate card; keep the signed cap.
+4. Fresh-volume release acceptance, restore drill, and secret/ledger custody
+   verification on the exact shipped commit.
+5. Manual accessibility run or explicit signed waiver.
+
+**Gate:** one operator can install, run, back up, restore, and operate the
+supported science surface without hidden shell steps or unsupported claims.
+
+## 7. Verification
+
+| Gate | Result |
+|---|---|
+| Go full suite | pass (all packages) |
+| Python full suite | 1261 passed, 36 skipped (30:47) |
+| Bridge targeted science suite | 41 passed |
+| Console tests | 604 passed; tsc/eslint pass |
+| Console tsc/eslint | pass |
+| Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
+| Contract inventory / OpenAPI | `139 modeled / 14 client-only / 0 unmodeled`, `127 paths / 120 schemas` |
+| Wiki lint | clean |
+| Real-stack E2E | required on the committed head |
+
+## 8. Operator actions
+
+- Do not cite historical live hardware spin accuracy as a pass; it is a
+  measured non-claimable run.
+- Start production on a fresh state volume; do not rewrite the forensic host
+  database.
+- Run the manual screen-reader script or sign the residual-risk waiver.
+- If a vendor price is required before approval, add it to the reviewed rate
+  card; do not infer a price from shots.
+
+## 9. File map
+
+- Science core: `platform/kubona/science/lattice.py`,
+  `platform/kubona/science/conjecture.py`
+- Bridge runners: `platform/bridge/experiments.py`,
+  `platform/bridge/lattice_experiment.py`
+- Go API/admission: `platform/core/pkg/api/experiments.go`,
+  `platform/core/pkg/jobs/hardware_experiment.go`,
+  `platform/core/pkg/api/discovery_protocol.go`
+- Campaign projection: `platform/core/pkg/agents/campaign_synth.go`,
+  `platform/core/pkg/agents/replan.go`
+- Console: `HardwareLaunchPanel.tsx`, `ExperimentPanel.tsx`,
+  `DiscoveryProtocolPanel.tsx`, `ResultsStudio.tsx`, `types/index.ts`
+- Contracts: `platform/contracts/experiment-result-v1.schema.json`,
+  `platform/contracts/console-contract-inventory.json`,
+  `platform/contracts/console-openapi.json`
+- Tests: `platform/tests/test_lattice.py`, `test_conjecture.py`,
+  `platform/bridge/test_experiments.py`, `test_lattice_experiment.py`,
+  `platform/core/pkg/jobs/jobs_test.go`,
+  `platform/console/src/components/**/*.test.tsx`

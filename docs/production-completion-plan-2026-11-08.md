@@ -3,6 +3,8 @@
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
 **Current code head:** `b4b3a3e` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
+**Correction-pass head:** the follow-up audit commit on 2026-11-09 (see
+[`production-audit-2026-11-09.md`](production-audit-2026-11-09.md)).
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
 
@@ -18,6 +20,28 @@ Not a public SaaS, not a multi-tenant hosted service, not a demo.
 > queue operations, full campaign/UI type adoption (the signed receipt is now
 > embedded by the job rail), browser breadth, manual accessibility, and the
 > forensic host ledger.
+
+## 0.1 Correction pass (2026-11-09)
+
+The follow-up audit is in [`production-audit-2026-11-09.md`](production-audit-2026-11-09.md).
+It does not replace this plan; it updates the status of the recent science/UI
+slice:
+
+- fixed the H2O reaction sign and separated active-space/full-molecule anchors;
+- fixed spin-hardware Pauli label ordering and added per-term measurements/CI;
+- made ZNE non-claimable and added a below-anchor chemical-accuracy guard;
+- made `observables(vector)` honor the supplied VQE state;
+- rejected exact-state hardware at API and jobs admission, not only the bridge;
+- required completed/type-correct source jobs and bound `source_job_id` into
+  VQE/QAOA parent mandates;
+- aligned H2O hardware admission and refused loop+mitigation together;
+- showed measured experiments before a molecular notebook, added a generic
+  experiment report/export, fixed completed-status rendering, added ZNE UI and
+  protocol history, and disclosed the missing vendor price preview;
+- preserved exact excited/gap/reaction/version fields in the campaign projection.
+
+Remaining P0/P1 work is the canonical result adoption, broader chemistry/physics
+breadth, hardware accuracy/PES mitigation, and the human accessibility gate.
 
 ## 0. Execution log (2026-11-08)
 

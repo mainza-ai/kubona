@@ -268,6 +268,29 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	stepReports := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		report := map[string]any{
+			"kind": result.Kind, "status": result.Status,
+		}
+		if result.JobID != "" {
+			report["job_id"] = result.JobID
+		}
+		if result.Error != "" {
+			report["error"] = result.Error
+		}
+		if len(result.Result) > 0 {
+			var probe struct {
+				Claimable bool `json:"claimable"`
+				Measured  bool `json:"measured"`
+			}
+			if json.Unmarshal(result.Result, &probe) == nil {
+				report["measured"] = probe.Measured
+				report["claimable"] = probe.Claimable
+			}
+		}
+		stepReports = append(stepReports, report)
+	}
 	payload := map[string]any{
 		"ok": true, "protocol_id": protocolID, "goal": req.Goal,
 		"planned_by": plannedBy, "steps_requested": len(steps),
@@ -276,8 +299,10 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		"stopped_on_failure": stopped, "results": results,
 	}
 	_ = s.ledger.AppendEvent(sid, "discovery_protocol_completed", map[string]any{
-		"protocol_id": protocolID, "completed": completed, "failed": failed,
+		"protocol_id": protocolID, "goal": req.Goal, "planned_by": plannedBy,
+		"completed": completed, "failed": failed,
 		"measured": measured, "claimable": claimable, "stopped": stopped,
+		"steps": stepReports,
 	})
 	if idem != nil && idem.active {
 		s.idemFinishJSON(w, idem, http.StatusOK, payload)
