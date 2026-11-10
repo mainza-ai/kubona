@@ -45,7 +45,7 @@ function summarize(job: Job): string | null {
       const unc = num(r.uncertainty);
       const delta = num(r.delta_mha);
       const fci = num(r.fci_exact_energy);
-      return `hardware VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)}` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · ${r.simulated_optimizer === false ? 'hardware-in-the-loop optimizer' : 'local optimizer'} · job ${short}`;
+      return `hardware VQE ${e.toFixed(6)} Ha${unc !== null ? ` ± ${(unc * 1000).toFixed(3)} mHa` : ''}${fci !== null ? ` vs FCI ${fci.toFixed(6)}` : ''}${delta !== null ? ` · Δ ${delta.toFixed(3)} mHa` : ''} · ${r.simulated_optimizer === false ? 'hardware-in-the-loop optimizer' : 'local optimizer'}${r.calibration_fresh === false ? ' · calibration STALE' : ''} · job ${short}`;
     }
     case 'qaoa_hardware': {
       const cut = num(r.measured_cut) ?? num(r.energy);
@@ -101,7 +101,7 @@ function summarize(job: Job): string | null {
       const exact = num(r.energy_exact);
       if (e === null || exact === null) return null;
       const unc = num(r.uncertainty);
-      return `hardware spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · ${str(r.backend) || 'hardware'} · job ${short}`;
+      return `hardware spin chain ${str(r.model)} n=${num(r.n_sites) ?? '?'} E ${e.toFixed(6)} vs exact ${exact.toFixed(6)}${unc !== null ? ` ± ${unc.toFixed(6)}` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'}${r.calibration_fresh === false ? ' · calibration STALE' : ''} · ${str(r.backend) || 'hardware'} · job ${short}`;
     }
     case 'conjecture_run': {
       const count = num(r.candidate_count);

@@ -73,6 +73,7 @@ stronger claim.
 | LiH/BeH2 atomization reactions | Working | Active-space endpoint + exact atomic FCI products |
 | 2D TFIM quench dynamics | Working, finite-size | Exact `expm_multiply`; not a QPU measurement |
 | Signed experiment export | Working | Server-built payload + Ed25519 envelope/receipts |
+| Calibration-aware hardware results | Working | Provider snapshot age/freshness retained; stale snapshots withhold claimability |
 | Full-space LiH/BeH2 ADAPT/CEO | Working with target/limits | Shot-measured; contested status is preserved |
 | H2/LiH/BeH2/H2O PES | Working | Per-point measured energy/uncertainty/FCI |
 | H2/LiH/BeH2/H2O active-space excited state | Working | Shot-measured; active-space anchors |
@@ -207,7 +208,9 @@ claimability gate, and a documented unsupported boundary.
 
 ### Phase 3 — Hardware and operations
 
-1. Hardware PES/mitigation per point and calibration-aware spin runs.
+1. Hardware PES/mitigation per point remains open. Calibration-aware hardware
+   results are now recorded with `calibration_age_hours`/`calibration_fresh`;
+   a stale snapshot withholds claimability.
 2. Repeat the live spin-chain run with a better ansatz/shot budget; record the
    result as claimable only if the gate passes.
 3. Vendor price preview from the reviewed rate card; keep the signed cap.

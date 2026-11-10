@@ -286,8 +286,8 @@ Still queued after the correction pass:
   limit) and has no hardware path;
 - external literature/proof novelty and a counterexample search beyond the
   holdout falsifier remain open (SC-09 external-validation gap);
-- PES/hardware mitigation per point and calibration-aware spin runs remain
-  open;
+- PES/hardware mitigation per point remains open; hardware results now carry
+  provider calibration age/freshness and stale snapshots withhold claimability;
 - manual VoiceOver/NVDA evidence remains human-only.
 
 The governed hardware launch UI, protocol history, generic experiment

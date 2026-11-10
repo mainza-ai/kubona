@@ -300,6 +300,10 @@ export interface MeasurementSummary {
   actual_usd?: number;
   layout?: Record<string, unknown>;
   calibration?: Record<string, unknown>;
+  calibration_age_hours?: number | null;
+  calibration_fresh?: boolean | null;
+  calibration_checked_at?: string | null;
+  calibration_max_age_hours?: number;
   counts?: Record<string, number>;
   evidence_refs?: string[];
 }

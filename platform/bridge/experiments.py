@@ -17,6 +17,7 @@ import io
 import math
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -75,6 +76,29 @@ def _claimable_against_anchor(energy: float, anchor: float, uncertainty: float,
     if abs(float(energy) - float(anchor)) > float(limit_ha):
         return False
     return float(energy) >= float(anchor) - 3.0 * float(uncertainty)
+
+
+def _calibration_quality(calibration: Any, max_age_hours: float | None = None) -> dict[str, Any]:
+    """Derive freshness from the provider snapshot; unknown stays unknown."""
+    limit = float(max_age_hours if max_age_hours is not None else
+                  os.getenv("KUBONA_CALIBRATION_MAX_AGE_HOURS", "24"))
+    if not isinstance(calibration, dict):
+        return {"calibration_age_hours": None, "calibration_fresh": None,
+                "calibration_checked_at": None, "calibration_max_age_hours": limit}
+    raw = calibration.get("calibrated_at")
+    if not isinstance(raw, str) or not raw.strip():
+        return {"calibration_age_hours": None, "calibration_fresh": None,
+                "calibration_checked_at": None, "calibration_max_age_hours": limit}
+    try:
+        at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        age = max(0.0, (datetime.now(timezone.utc) - at).total_seconds() / 3600.0)
+    except ValueError:
+        return {"calibration_age_hours": None, "calibration_fresh": None,
+                "calibration_checked_at": raw, "calibration_max_age_hours": limit}
+    return {"calibration_age_hours": age, "calibration_fresh": age <= limit,
+            "calibration_checked_at": raw, "calibration_max_age_hours": limit}
 
 
 def _pauli_matrix(name: str) -> np.ndarray:
@@ -417,6 +441,9 @@ def run_vqe_hardware(
         claimable = _claimable_against_anchor(energy, float(fci_exact_energy), measured["uncertainty"])
         below_fci = bool(energy < float(fci_exact_energy) - 3.0 * measured["uncertainty"])
         mitigation_receipt = None
+    calibration_quality = _calibration_quality(batch.get("calibration"))
+    if calibration_quality["calibration_fresh"] is False:
+        claimable = False
     return {
         "success": True,
         "kind": "vqe_hardware",
@@ -456,6 +483,7 @@ def run_vqe_hardware(
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
         "calibration": batch.get("calibration"),
+        **calibration_quality,
         "usage_seconds": batch.get("usage_seconds"),
         "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,
@@ -622,7 +650,10 @@ def run_vqe_hardware_loop(
     # The final uncertainty is the last shot-measured evaluation's standard
     # error; the fit/optimizer trajectory is not a substitute for it.
     uncertainty = float(trajectory[-1]["uncertainty"]) if trajectory else 0.0
+    calibration_quality = _calibration_quality(last_calibration)
     claimable = _claimable_against_anchor(float(final), float(fci_exact_energy), uncertainty)
+    if calibration_quality["calibration_fresh"] is False:
+        claimable = False
     below_fci = bool(float(final) < float(fci_exact_energy) - 3.0 * uncertainty)
     return {
         "success": True,
@@ -665,6 +696,7 @@ def run_vqe_hardware_loop(
         "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
         "layout": last_layout,
         "calibration": last_calibration,
+        **calibration_quality,
         "usage_seconds": sum(usage_values) if usage_values else None,
         "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
         "backend": str(trajectory[-1].get("backend", "")) if trajectory and "backend" in trajectory[-1] else "ibm-qiskit",
@@ -1808,6 +1840,7 @@ def run_qaoa_hardware_loop(
         "hardware_job_id": hardware_job_ids[-1] if hardware_job_ids else "",
         "layout": last_layout,
         "calibration": last_calibration,
+        **_calibration_quality(last_calibration),
         "usage_seconds": sum(usage_values) if usage_values else None,
         "actual_usd": sum(actual_values) if len(actual_values) == len(hardware_job_ids) and actual_values else None,
         "provider": "ibm-qiskit",
@@ -1883,6 +1916,7 @@ def run_qaoa_hardware(
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
         "calibration": batch.get("calibration"),
+        **_calibration_quality(batch.get("calibration")),
         "usage_seconds": batch.get("usage_seconds"),
         "actual_usd": batch.get("actual_usd"),
         "execution_time_ms": 0.0,

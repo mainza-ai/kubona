@@ -52,8 +52,9 @@ slice:
   evidence and no novelty upgrade.
 
 Remaining P0/P1 work is arbitrary multidimensional geometry relaxation,
-DMRG/thermodynamic-limit physics, external math-literature novelty, PES/hardware
-mitigation, hardware spin accuracy, and the human accessibility gate.
+DMRG/thermodynamic-limit physics, hardware PES/mitigation, hardware spin
+accuracy, and the human accessibility gate. Hardware results now retain
+calibration age/freshness and withhold claimability on a stale snapshot.
 
 ## 0. Execution log (2026-11-08)
 
