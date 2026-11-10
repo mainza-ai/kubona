@@ -811,6 +811,7 @@ export type ApiOperationResponse = {
   importSession: SessionImport;
   issueTenantGrant: TenantGrant;
   issueVaultLease: VaultLease;
+  launchPESHardware: HardwareLaunch;
   launchProposal: ChatLaunch;
   launchQAOAHardware: HardwareLaunch;
   launchSpinChainHardware: HardwareLaunch;
@@ -820,6 +821,7 @@ export type ApiOperationResponse = {
   pauseAutoresearchLoop: AutoresearchLoop;
   planDiscovery: DiscoveryPlan;
   planWorkflow: WorkflowPlan;
+  preparePESHardware: HardwarePrepare;
   prepareQAOAHardware: HardwarePrepare;
   prepareSpinChainHardware: HardwarePrepare;
   prepareVQEHardware: HardwarePrepare;
@@ -954,6 +956,7 @@ export const API_OPERATIONS = {
   importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
+  launchPESHardware: { method: "post", path: "/api/experiments/pes/hardware", response: "hardware.launch" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
   launchQAOAHardware: { method: "post", path: "/api/experiments/qaoa/hardware", response: "hardware.launch" },
   launchSpinChainHardware: { method: "post", path: "/api/experiments/spin-chain/hardware", response: "hardware.launch" },
@@ -963,6 +966,7 @@ export const API_OPERATIONS = {
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
   planDiscovery: { method: "post", path: "/api/discovery/plan", response: "discovery.plan" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
+  preparePESHardware: { method: "post", path: "/api/experiments/pes/hardware/prepare", response: "hardware.prepare" },
   prepareQAOAHardware: { method: "post", path: "/api/experiments/qaoa/hardware/prepare", response: "hardware.prepare" },
   prepareSpinChainHardware: { method: "post", path: "/api/experiments/spin-chain/hardware/prepare", response: "hardware.prepare" },
   prepareVQEHardware: { method: "post", path: "/api/experiments/vqe/hardware/prepare", response: "hardware.prepare" },

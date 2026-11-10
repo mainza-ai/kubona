@@ -5252,3 +5252,13 @@ skipped is the exact failure this incident is about:
 
 - Calibration-aware hardware results and stale-snapshot claim withholding are
   committed at `eec7c18`; CI and Console E2E are green there.
+
+## [2026-11-09] implementation | hardware PES and QPU price preview
+
+- Added a `hardware_pes` parent: a local simulator PES now carries per-point
+  bound QASM/Pauli evidence, and one governed QPU batch returns per-point
+  measured energy/uncertainty/FCI/claimability. Optional ZNE is inferred and
+  non-claimable.
+- Added reviewed QPU rate-card pricing to hardware prepare responses; Open Plan
+  is free, unknown rows explicitly report unavailable. The signed cap remains
+  the spend authority.

@@ -455,3 +455,31 @@ def test_lih_atomization_reaction_has_exact_atom_anchor():
     assert res["reaction_energy_exact"] != 0
     assert res["reactant_energy_exact_full"] != res["reactant_energy_exact"]
     assert res["measured"] is True
+
+
+def test_hardware_pes_batches_all_points_once(monkeypatch):
+    import experiments
+
+    calls = []
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        calls.append((list(qasms), shots, seed, backend))
+        return {"counts": [{"00": shots} for _ in qasms], "backend": backend or "fake-qpu",
+                "hardware_job_id": "hw-pes-1", "usage_seconds": 1.0, "actual_usd": 0.0}
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    points = [
+        {"bond_distance": 0.7, "ansatz_qasm": "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2];",
+         "pauli_coefficients": {"II": -1.0, "ZZ": 0.5}, "fci_exact_energy": -1.0, "constant_energy": 0.0},
+        {"bond_distance": 0.8, "ansatz_qasm": "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2];",
+         "pauli_coefficients": {"II": -1.0, "ZZ": 0.5}, "fci_exact_energy": -1.0, "constant_energy": 0.0},
+    ]
+    res = experiments.run_hardware_pes(points=points, molecule="H2", shots=128, backend="ibm-test")
+    assert res["success"] is True, res
+    assert res["kind"] == "hardware_pes"
+    assert res["hardware"] is True
+    assert res["point_count"] == 2
+    assert len(res["points"]) == 2
+    assert len(calls) == 1
+    assert len(calls[0][0]) == 4
+    assert res["hardware_job_id"] == "hw-pes-1"

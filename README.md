@@ -115,6 +115,7 @@ Kubona runs measured scientific experiments through the governed Go job rail, no
 | Geometry optimization | `geometry_optimization` | VQE at a classically optimized bond length | Live PySCF exact-energy search + full FCI |
 | Repeated VQE | `vqe_repeats` | Mean + shot/between-run standard error | Full FCI at the same geometry |
 | 2D TFIM quench dynamics | `lattice_dynamics` | Exact finite-size magnetization trajectory | Exact `expm_multiply` finite-size simulation |
+| Hardware PES | `hardware_pes` | One QPU batch across source PES points | Per-point FCI anchors; optional ZNE |
 | Potential-energy scan | `pes` | Per-point shot energy | Live RHF/FCI per geometry |
 | Excited state (H2/LiH/BeH2/H2O) | `excited_state` | Ground and deflated excited energy | Exact spectrum / active-space anchor |
 | Reaction energy (H2, LiH, BeH2, H2O) | `reaction` | Endpoint energy difference | Active-space endpoint + exact atom anchors |
@@ -141,7 +142,7 @@ curl -fsS -X POST http://127.0.0.1:8080/api/discovery/plan -H "Content-Type: app
 curl -fsS -X POST http://127.0.0.1:8080/api/discovery/run -H "Authorization: Bearer $KUBONA_API_TOKEN" -H "Content-Type: application/json" -d '{"session_id":"<session-id>","goal":"transverse-field Ising spin chain","step_timeout_s":120}'
 ```
 
-Governed hardware spin-chain runs use the same parent rail as hardware VQE/QAOA: prepare the binding, sign it with the browser key, then launch. Hardware VQE accepts H2, active-space LiH/BeH2, and active-space H2O source jobs; QAOA uses the optimized graph circuit. The UI path is **Settings -> Experiments -> Run VQE/QAOA/spin chain -> Governed QPU launch**. A live QPU run requires an operator mandate and configured IBM credentials; the rail refuses absent/expired mandates rather than dispatching. Hardware results retain provider calibration age/freshness; a stale snapshot withholds claimability.
+Governed hardware spin-chain runs use the same parent rail as hardware VQE/QAOA: prepare the binding, sign it with the browser key, then launch. Hardware VQE accepts H2, active-space LiH/BeH2, and active-space H2O source jobs; QAOA uses the optimized graph circuit. The UI path is **Settings -> Experiments -> Run VQE/QAOA/spin chain -> Governed QPU launch**. A live QPU run requires an operator mandate and configured IBM credentials; the rail refuses absent/expired mandates rather than dispatching. Hardware results retain provider calibration age/freshness; a stale snapshot withholds claimability. The prepare response displays the reviewed QPU rate-card row when one exists (the configured local instance is IBM Open Plan free) and explicitly reports `pricing unavailable` otherwise; the signed operator cap remains the spend authority.
 
 Evidence and limitations: [`docs/core-scientific-capabilities-2026-11-09.md`](docs/core-scientific-capabilities-2026-11-09.md) and the corrected audit [`docs/production-audit-2026-11-09.md`](docs/production-audit-2026-11-09.md). Current scope: active-space excited states for H2/LiH/BeH2/H2O and reaction energies for H2/LiH/BeH2/H2O (the non-H2 paths use active-space endpoints + exact atomic FCI products, with separate full-molecule references); exact finite-scope conjectures with an explicit known-law/unclassified registry (not novel-theorem claims); and a live hardware spin-chain VQE execution with a negative accuracy result (`-2.278 Ha` vs exact `-3.009 Ha`, not claimable). Exact-state hardware is refused because its QASM contains reset gates. The console exposes measured experiments (including failed/negative records) before a molecular notebook exists, a generic experiment report/export, canonical result-receipt rows, a server-built signed experiment export, and protocol history. Custom VQE is closed-shell STO-3G only, capped at 8 spatial orbitals for the full-FCI anchor and 12 active-space qubits; larger systems refuse rather than borrowing an anchor. Geometry optimization holds the curated internal coordinate fixed; 2D quench dynamics is exact finite-size simulation and is never labeled a QPU measurement. Conjecture jobs can opt into an OpenAlex title/DOI lookup; an unavailable lookup is reported as `unavailable`, never as novelty.
 
@@ -198,7 +199,7 @@ curl -fsS http://127.0.0.1:8080/api/health
 
 Console response contracts are generated from
 [`platform/contracts/console-contract-inventory.json`](platform/contracts/console-contract-inventory.json):
-**140 modeled / 14 client-only / 0 unmodeled**, with 121 schemas and 128 OpenAPI
+**142 modeled / 14 client-only / 0 unmodeled**, with 121 schemas and 130 OpenAPI
 paths in [`platform/contracts/console-openapi.json`](platform/contracts/console-openapi.json).
 
 Prove the host is not publicly exposed:

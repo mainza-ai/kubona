@@ -152,3 +152,35 @@ func TestSpinChainHardwareParamsFromSource(t *testing.T) {
 		t.Fatalf("exact-state source must refuse before dispatch, got: %v", err)
 	}
 }
+
+func TestHardwarePESParamsRequirePerPointCircuits(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_hardware_pes_source.db")
+	defer cleanup()
+	sess, err := srv.sessionMgr.CreateSession("hardware PES source", 10, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := `{"success":true,"kind":"pes","result_version":"experiment-result-v1","molecule":"H2","hardware":false,"points":[{"bond_distance":0.7,"ansatz_qasm":"OPENQASM 2.0; qreg q[2];","pauli_coefficients":{"II":-1},"fci_exact_energy":-1.0,"constant_energy":0.0},{"bond_distance":0.8,"ansatz_qasm":"OPENQASM 2.0; qreg q[2];","pauli_coefficients":{"II":-1},"fci_exact_energy":-1.0,"constant_energy":0.0}]}`
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"job-pes-source", sess.ID, "JOB_STATUS_COMPLETED", "vqe_pes", "{}", result); err != nil {
+		t.Fatal(err)
+	}
+	p, err := srv.hardwarePESParamsFromSource(hardwarePESIntent{
+		SessionID: sess.ID, SourceJobID: "job-pes-source", Backend: "ibm_fez", BudgetUSD: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Kind != "hardware_pes" || len(p.Points) != 2 || p.Points[0].QASM == "" {
+		t.Fatalf("hardware PES params wrong: %+v", p)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"job-pes-no-qasm", sess.ID, "JOB_STATUS_COMPLETED", "vqe_pes", "{}", strings.Replace(result, `"ansatz_qasm":"OPENQASM 2.0; qreg q[2];"`, `"ansatz_qasm":""`, 1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.hardwarePESParamsFromSource(hardwarePESIntent{
+		SessionID: sess.ID, SourceJobID: "job-pes-no-qasm", Backend: "ibm_fez",
+	}); err == nil || !strings.Contains(err.Error(), "ansatz_qasm") {
+		t.Fatalf("PES without per-point qasm must refuse, got: %v", err)
+	}
+}

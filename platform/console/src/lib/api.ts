@@ -382,6 +382,48 @@ export async function runDiscoveryProtocol(
 export interface HardwarePrepareResult {
   binding: string;
   spec: Record<string, unknown>;
+  pricing?: Record<string, unknown>;
+}
+
+export async function preparePESHardware(
+  sessionId: string,
+  sourceJobId: string,
+  backend: string,
+  shots: number,
+  mitigation: boolean,
+): Promise<HardwarePrepareResult> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/pes/hardware/prepare`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, backend, shots,
+      ...(mitigation ? { mitigation: 'ZNE', mitigation_scales: [1, 3, 5] } : {}),
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `hardware PES prepare refused (HTTP ${res.status})`).slice(0, 280));
+  const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {}, pricing: (checked as { pricing?: Record<string, unknown> }).pricing };
+}
+
+export async function launchPESHardware(
+  sessionId: string, sourceJobId: string, mandateRef: string, backend: string,
+  shots: number, budgetUsd: number, requestId: string, jurisdiction: string,
+  mitigation: boolean,
+): Promise<Job | null> {
+  const res = await apiFetch(`${API_BASE}/api/experiments/pes/hardware`, {
+    method: 'POST', cache: 'no-store',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      session_id: sessionId, source_job_id: sourceJobId, mandate_ref: mandateRef,
+      backend, shots, budget_usd: budgetUsd, request_id: requestId,
+      ...(mitigation ? { mitigation: 'ZNE', mitigation_scales: [1, 3, 5] } : {}),
+      caller_jurisdictions: [jurisdiction], caller_export_class: 'public', export_reviewed: true,
+    }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new Error(String(body.message || body.error || `hardware PES launch refused (HTTP ${res.status})`).slice(0, 280));
+  return ((contract('hardware.launch', body) as { job?: Job }).job) || null;
 }
 
 export async function prepareSpinChainHardware(
@@ -399,7 +441,7 @@ export async function prepareSpinChainHardware(
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(String(body.message || body.error || `hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
   const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
-  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {}, pricing: (checked as { pricing?: Record<string, unknown> }).pricing };
 }
 
 export async function launchSpinChainHardware(
@@ -446,7 +488,7 @@ export async function prepareVQEHardware(
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(String(body.message || body.error || `VQE hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
   const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
-  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {}, pricing: (checked as { pricing?: Record<string, unknown> }).pricing };
 }
 
 export async function launchVQEHardware(
@@ -480,7 +522,7 @@ export async function prepareQAOAHardware(
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(String(body.message || body.error || `QAOA hardware prepare refused (HTTP ${res.status})`).slice(0, 280));
   const checked = contract('hardware.prepare', body) as { binding?: string; spec?: Record<string, unknown> };
-  return { binding: String(checked.binding || ''), spec: checked.spec || {} };
+  return { binding: String(checked.binding || ''), spec: checked.spec || {}, pricing: (checked as { pricing?: Record<string, unknown> }).pricing };
 }
 
 export async function launchQAOAHardware(

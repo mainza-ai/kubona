@@ -174,6 +174,11 @@ type MeasurementSummary struct {
 // and the per-point uncertainty.
 type PesPoint struct {
 	BondDistance     float64 `json:"bond_distance"`
+	Hardware         bool    `json:"hardware,omitempty"`
+	Mitigated        bool    `json:"mitigated,omitempty"`
+	Backend          string  `json:"backend,omitempty"`
+	HardwareJobID    string  `json:"hardware_job_id,omitempty"`
+	ResultVersion    string  `json:"result_version,omitempty"`
 	Energy           float64 `json:"energy"`
 	EnergyExact      float64 `json:"energy_exact,omitempty"`
 	FCIEnergy        float64 `json:"fci_exact_energy"`

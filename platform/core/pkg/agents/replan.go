@@ -827,6 +827,57 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "spin-chain hardware measurement folded")
 
+	case "hardware_pes":
+		if !successTrue() {
+			return nil, false, "hardware PES reported success=false"
+		}
+		rawPoints, ok := present("points")
+		if !ok {
+			return nil, false, "hardware PES points absent"
+		}
+		var points []struct {
+			BondDistance float64 `json:"bond_distance"`
+			Energy       float64 `json:"energy"`
+			FCI          float64 `json:"fci_exact_energy"`
+			Uncertainty  float64 `json:"uncertainty"`
+			DeltaMHa     float64 `json:"delta_mha"`
+			Claimable    bool    `json:"claimable"`
+			Measured     bool    `json:"measured"`
+			Mitigated    bool    `json:"mitigated"`
+		}
+		if json.Unmarshal(rawPoints, &points) != nil || len(points) == 0 {
+			return nil, false, "hardware PES points undecodable"
+		}
+		var backend, jobRef, version string
+		for key, dst := range map[string]*string{"backend": &backend, "hardware_job_id": &jobRef, "result_version": &version} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for _, p := range points {
+			state.PesPoints = append(state.PesPoints, PesPoint{
+				BondDistance: p.BondDistance, Energy: p.Energy, FCIEnergy: p.FCI,
+				UncertaintyMHa: p.Uncertainty * 1000.0, DeltaMHa: p.DeltaMHa,
+				ChemicalAccuracy: p.Claimable, Claimable: p.Claimable,
+				Hardware: true, Mitigated: p.Mitigated, Backend: backend,
+				HardwareJobID: jobRef, ResultVersion: version,
+			})
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (hardware_pes): %d QPU points on %s; claimable points %d.",
+			shortID, len(points), backend, func() int {
+				n := 0
+				for _, p := range points {
+					if p.Claimable {
+						n++
+					}
+				}
+				return n
+			}()))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "hardware PES folded")
+
 	case "lattice_dynamics":
 		if !successTrue() {
 			return nil, false, "lattice dynamics reported success=false"

@@ -1451,6 +1451,169 @@ def _run_atomization_reaction(molecule: str, bond_distance: float, layers: int,
     }
 
 
+def run_hardware_pes(
+    points: list[dict[str, Any]] | None = None,
+    molecule: str = "H2",
+    shots: int = 4096,
+    seed: int = 7,
+    backend: str | None = None,
+    mitigation: str | None = None,
+    mitigation_scales: list[int] | None = None,
+    source_job_id: str = "",
+) -> dict[str, Any]:
+    """Execute a PES curve as one governed QPU batch.
+
+    Each source point already carries its bound ansatz QASM and Pauli
+    coefficients from a measured simulator PES job. This runner validates
+    those artifacts, then submits all point measurement circuits in one
+    provider batch. Optional ZNE folds each point; a mitigated point is
+    reported as inferred and non-claimable, never as a direct measurement.
+    """
+    if not HAS_QISKIT:
+        return {"success": False, "error": "qiskit unavailable: refusing hardware PES"}
+    if not isinstance(points, list) or len(points) < 2 or len(points) > 12:
+        return {"success": False, "error": "hardware PES requires 2..12 source points"}
+    if int(shots) < 128 or int(shots) > 1_000_000:
+        return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    method = str(mitigation or "").strip().upper()
+    if method and method != "ZNE":
+        return {"success": False, "error": f"hardware PES mitigation {method!r} is unsupported; use ZNE"}
+    scales = [int(x) for x in (mitigation_scales or ([1, 3, 5] if method else []))]
+    if method:
+        if len(set(scales)) < 2 or any(s < 1 or s % 2 == 0 for s in scales):
+            return {"success": False, "error": "hardware PES ZNE needs >=2 distinct positive odd scales"}
+    try:
+        from qiskit import qasm2
+        from experiments import _measurement_qasm, _hardware_batch, _hardware_counts_to_energy, _fold_unitary, _calibration_quality, _claimable_against_anchor
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"hardware PES dependencies unavailable: {exc}"}
+
+    prepared: list[dict[str, Any]] = []
+    qasms: list[str] = []
+    for i, point in enumerate(points):
+        if not isinstance(point, dict):
+            return {"success": False, "error": f"point {i} is not an object"}
+        try:
+            bond = float(point["bond_distance"])
+            coeffs = {str(k): float(v) for k, v in (point.get("pauli_coefficients") or {}).items()}
+            fci = float(point["fci_exact_energy"])
+            constant = float(point.get("constant_energy", 0.0))
+        except (KeyError, TypeError, ValueError) as exc:
+            return {"success": False, "error": f"point {i} missing numeric evidence: {exc}"}
+        if not math.isfinite(bond) or not math.isfinite(fci) or not math.isfinite(constant):
+            return {"success": False, "error": f"point {i} has non-finite evidence"}
+        if not coeffs or any(not math.isfinite(v) for v in coeffs.values()):
+            return {"success": False, "error": f"point {i} needs finite pauli_coefficients"}
+        qasm = str(point.get("ansatz_qasm") or "").strip()
+        if not qasm:
+            return {"success": False, "error": f"point {i} has no bound ansatz_qasm; re-run the source PES"}
+        try:
+            qc = qasm2.loads(qasm)
+        except Exception as exc:  # noqa: BLE001
+            return {"success": False, "error": f"point {i} ansatz QASM is not executable: {exc}"}
+        if getattr(qc, "num_clbits", 0) > 0 or any(
+            getattr(inst.operation, "name", "") == "measure" for inst in qc.data
+        ):
+            return {"success": False, "error": f"point {i} ansatz carries measurement; hardware PES needs a unitary"}
+        point_qasms: list[str] = []
+        if method:
+            for term in sorted(coeffs):
+                for scale in scales:
+                    point_qasms.append(_measurement_qasm(_fold_unitary(qc, int(scale)), term))
+        else:
+            for term in sorted(coeffs):
+                point_qasms.append(_measurement_qasm(qc, term))
+        qasms.extend(point_qasms)
+        prepared.append({"bond_distance": bond, "coeffs": coeffs, "fci": fci,
+                         "constant": constant, "qasms": point_qasms, "index": i})
+    if len(qasms) > 2000:
+        return {"success": False, "error": f"hardware PES would submit {len(qasms)} circuits; cap is 2000"}
+    try:
+        batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": f"hardware PES batch refused: {exc}"}
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
+        return {"success": False, "error": "hardware PES batch returned no aligned counts"}
+    quality = _calibration_quality(batch.get("calibration"))
+    out_points: list[dict[str, Any]] = []
+    cursor = 0
+    all_claimable = True
+    all_measured = True
+    for point in prepared:
+        term_count = len(point["qasms"])
+        chunk = counts_list[cursor:cursor + term_count]
+        cursor += term_count
+        if method:
+            by_scale: dict[int, list[dict[str, int]]] = {s: [] for s in scales}
+            idx = 0
+            for term in sorted(point["coeffs"]):
+                for scale in scales:
+                    by_scale[scale].append(chunk[idx]); idx += 1
+            energies, uncs = [], []
+            for scale in scales:
+                m = _hardware_counts_to_energy(by_scale[scale], point["coeffs"])
+                energies.append(float(m["energy"])); uncs.append(float(m["uncertainty"]))
+            xs = [int(s) for s in scales]
+            deg = min(len(xs) - 1, 2)
+            fit = np.polyfit(np.asarray(xs, dtype=float), np.asarray(energies, dtype=float), deg=deg)
+            mitigated = float(np.polyval(fit, 0.0)) + point["constant"]
+            rmse = float(np.sqrt(np.mean((np.asarray(energies) - np.polyval(fit, xs)) ** 2)))
+            energy = mitigated
+            uncertainty = float(rmse + uncs[0])
+            measured = False
+            claimable = False
+        else:
+            m = _hardware_counts_to_energy(chunk, point["coeffs"])
+            energy = float(m["energy"] + point["constant"])
+            uncertainty = float(m["uncertainty"])
+            measured = True
+            claimable = bool(
+                _claimable_against_anchor(energy, point["fci"], uncertainty)
+                and quality["calibration_fresh"] is not False
+            )
+        delta = abs(energy - point["fci"])
+        out_points.append({
+            "bond_distance": point["bond_distance"],
+            "energy": energy,
+            "energy_exact": point["fci"],
+            "fci_exact_energy": point["fci"],
+            "uncertainty": uncertainty,
+            "delta_mha": delta * 1000.0,
+            "claimable": claimable,
+            "measured": measured,
+            "mitigated": bool(method),
+            "hardware": True,
+        })
+        all_claimable = all_claimable and claimable
+        all_measured = all_measured and measured
+    return {
+        "success": True,
+        "kind": "hardware_pes",
+        "result_version": "experiment-result-v1",
+        "molecule": str(molecule or "H2"),
+        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "provider": "ibm-qiskit",
+        "shots": int(shots),
+        "seed": int(seed),
+        "points": out_points,
+        "point_count": len(out_points),
+        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "layout": batch.get("layout"),
+        "calibration": batch.get("calibration"),
+        **quality,
+        "usage_seconds": batch.get("usage_seconds"),
+        "actual_usd": batch.get("actual_usd"),
+        "measured": all_measured,
+        "hardware": True,
+        "mitigated": bool(method),
+        "claimable": all_claimable and not method,
+        "source_job_id": str(source_job_id),
+        "limitations": "One QPU batch across the source PES points; per-point claimability uses FCI and shot uncertainty. ZNE points are inferred and non-claimable. No thermodynamic-limit claim.",
+        "error_message": "",
+    }
+
+
 def run_repeated_vqe(
     molecule: str = "H2",
     bond_distance: float = 0.7414,
@@ -1987,6 +2150,9 @@ def run_pes(
             "full_space_status": res.get("full_space_status"),
             "method": res.get("method"),
             "theta": res.get("theta", []),
+            "ansatz_qasm": res.get("ansatz_qasm", ""),
+            "pauli_coefficients": res.get("pauli_coefficients", {}),
+            "constant_energy": res.get("constant_energy", 0.0),
         })
     return {
         "success": True,

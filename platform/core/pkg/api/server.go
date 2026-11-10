@@ -586,6 +586,8 @@ func (s *Server) registerRoutes() {
 	s.route("/api/experiments", s.handleExperiments)
 	s.route("/api/experiments/qaoa/hardware/prepare", s.handleQAOAHardware)
 	s.route("/api/experiments/qaoa/hardware", s.handleQAOAHardware)
+	s.route("/api/experiments/pes/hardware/prepare", s.handlePrepareHardwarePES)
+	s.route("/api/experiments/pes/hardware", s.handleHardwarePES)
 	s.route("/api/experiments/vqe/hardware/prepare", s.handlePrepareHardwareVQE)
 	s.route("/api/experiments/vqe/hardware", s.handleHardwareVQE)
 	s.route("/api/experiments/spin-chain/hardware/prepare", s.handlePrepareSpinChainHardware)

@@ -55,6 +55,18 @@ type ModelRate struct {
 	Confidence string `json:"confidence,omitempty"`
 }
 
+type QPURate struct {
+	Provider     string  `json:"provider,omitempty"`
+	Plan         string  `json:"plan,omitempty"`
+	PricingType  string  `json:"pricing_type,omitempty"`
+	PerSecondUSD float64 `json:"per_second_usd"`
+	MinimumUSD   float64 `json:"minimum_usd,omitempty"`
+	Status       string  `json:"status,omitempty"`
+	Source       string  `json:"source,omitempty"`
+	RetrievedAt  string  `json:"retrieved_at,omitempty"`
+	Notes        string  `json:"notes,omitempty"`
+}
+
 type LensRate struct {
 	CostUSD     float64 `json:"cost_usd"`
 	Unit        string  `json:"unit"`
@@ -73,6 +85,7 @@ type Card struct {
 	Heuristic      bool                 `json:"heuristic"`
 	Notes          string               `json:"notes"`
 	Lens           map[string]LensRate  `json:"lens"`
+	QPU            map[string]QPURate   `json:"qpu,omitempty"`
 	Models         map[string]ModelRate `json:"models"`
 }
 
@@ -295,6 +308,14 @@ func validateCard(c *Card, now time.Time) error {
 			return fmt.Errorf("rate card model %q has a negative rate", model)
 		}
 	}
+	for name, r := range c.QPU {
+		if r.PerSecondUSD < 0 || r.MinimumUSD < 0 {
+			return fmt.Errorf("rate card QPU %q has a negative rate", name)
+		}
+		if r.Status != "" && r.Status != "active" && r.Status != "deprecated" && r.Status != "retired" {
+			return fmt.Errorf("rate card QPU %q has unknown status %q", name, r.Status)
+		}
+	}
 	return nil
 }
 
@@ -334,6 +355,20 @@ func LoadedAt() time.Time {
 		return st.loadedAt
 	}
 	return time.Time{}
+}
+
+// QPUPrice returns the reviewed QPU rate row for a provider, or false when
+// no reviewed row exists. It never invents a price for an unknown backend.
+func QPUPrice(provider string) (QPURate, bool) {
+	st := current.Load()
+	if st == nil || st.card == nil {
+		return QPURate{}, false
+	}
+	r, ok := st.card.QPU[strings.TrimSpace(provider)]
+	if !ok || r.Status == "retired" {
+		return QPURate{}, false
+	}
+	return r, true
 }
 
 // LensCostUSD returns the per-dispatch lens cost, or false when the card is

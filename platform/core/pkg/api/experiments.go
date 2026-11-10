@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/rates"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -273,6 +274,32 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
 }
 
+// hardwarePricing is a reviewed rate-card preview. It is deliberately not a
+// meter: the signed parent cap is still the spend authority, and the vendor's
+// measured usage is still the settlement source.
+func hardwarePricing(capUSD float64) map[string]any {
+	r, ok := rates.QPUPrice("ibm-qiskit")
+	if !ok {
+		return map[string]any{
+			"available": false,
+			"reason":    "no reviewed QPU rate-card row for ibm-qiskit",
+		}
+	}
+	return map[string]any{
+		"available":        true,
+		"provider":         r.Provider,
+		"plan":             r.Plan,
+		"pricing_type":     r.PricingType,
+		"per_second_usd":   r.PerSecondUSD,
+		"minimum_usd":      r.MinimumUSD,
+		"estimated_usd":    0.0,
+		"operator_cap_usd": capUSD,
+		"source":           r.Source,
+		"retrieved_at":     r.RetrievedAt,
+		"note":             r.Notes,
+	}
+}
+
 // hardwareVQEIntent is the shared request shape for prepare and launch.
 // Prepare returns the parent mandate binding; launch requires the resulting
 // mandate_ref. Both load only a local source job in the same session.
@@ -395,6 +422,7 @@ func (s *Server) handlePrepareHardwareVQE(w http.ResponseWriter, r *http.Request
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"binding": jobs.CanonicalHardwareExperimentBinding(sid, p),
+		"pricing": hardwarePricing(p.MaxCostUSD),
 		"spec": map[string]any{
 			"molecule": p.Molecule, "provider": p.Provider,
 			"requested_backend": p.RequestedBackend, "shots": p.Shots, "seed": p.Seed,
@@ -581,6 +609,7 @@ func (s *Server) handlePrepareSpinChainHardware(w http.ResponseWriter, r *http.R
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"binding": jobs.CanonicalHardwareJobBinding("spin_chain_hardware", sid, p),
+		"pricing": hardwarePricing(p.MaxCostUSD),
 		"spec": map[string]any{
 			"model": p.Model, "n_sites": p.NSites, "provider": p.Provider,
 			"requested_backend": p.RequestedBackend, "shots": p.Shots, "seed": p.Seed,
@@ -645,6 +674,187 @@ func (s *Server) handleSpinChainHardware(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	job, err := s.jobRunner.SubmitJob(sid, "spin_chain_hardware", p)
+	if err != nil {
+		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+}
+
+// hardwarePESIntent is shared by the PES hardware prepare and launch routes.
+type hardwarePESIntent struct {
+	SessionID           string   `json:"session_id"`
+	SourceJobID         string   `json:"source_job_id"`
+	Shots               int      `json:"shots"`
+	Seed                int      `json:"seed"`
+	BudgetUSD           float64  `json:"budget_usd"`
+	Backend             string   `json:"backend"`
+	MandateRef          string   `json:"mandate_ref"`
+	Mitigation          string   `json:"mitigation"`
+	MitigationScales    []int    `json:"mitigation_scales"`
+	CallerJurisdictions []string `json:"caller_jurisdictions"`
+	CallerExportClass   string   `json:"caller_export_class"`
+	ExportReviewed      bool     `json:"export_reviewed"`
+	RequestID           string   `json:"request_id"`
+}
+
+func (s *Server) hardwarePESParamsFromSource(req hardwarePESIntent) (jobs.HardwareExperimentParams, error) {
+	var p jobs.HardwareExperimentParams
+	source, err := s.jobRunner.GetJob(req.SourceJobID)
+	if err != nil || source == nil || source.SessionID != req.SessionID {
+		return p, fmt.Errorf("source PES job not found in this session")
+	}
+	if source.JobType != "vqe_pes" || source.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		return p, fmt.Errorf("source PES job must be a completed vqe_pes result")
+	}
+	var res struct {
+		Kind          string `json:"kind"`
+		Success       bool   `json:"success"`
+		Hardware      bool   `json:"hardware"`
+		Molecule      string `json:"molecule"`
+		ResultVersion string `json:"result_version"`
+		Points        []struct {
+			BondDistance      float64            `json:"bond_distance"`
+			AnsatzQASM        string             `json:"ansatz_qasm"`
+			Theta             []float64          `json:"theta"`
+			PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
+			FCIExactEnergy    float64            `json:"fci_exact_energy"`
+			ConstantEnergy    float64            `json:"constant_energy"`
+		} `json:"points"`
+	}
+	if err := json.Unmarshal(source.ResultJSON, &res); err != nil || !res.Success ||
+		res.Kind != "pes" || res.Hardware || res.ResultVersion != "experiment-result-v1" ||
+		len(res.Points) < 2 || len(res.Points) > 12 {
+		return p, fmt.Errorf("source PES job carries no 2..12 typed simulator points")
+	}
+	points := make([]jobs.HardwarePesPoint, 0, len(res.Points))
+	for i, point := range res.Points {
+		if strings.TrimSpace(point.AnsatzQASM) == "" || len(point.PauliCoefficients) == 0 {
+			return p, fmt.Errorf("source PES point %d lacks ansatz_qasm/pauli_coefficients; re-run the PES", i)
+		}
+		if point.FCIExactEnergy == 0 {
+			return p, fmt.Errorf("source PES point %d lacks an FCI anchor", i)
+		}
+		points = append(points, jobs.HardwarePesPoint{
+			BondDistance: point.BondDistance, QASM: point.AnsatzQASM,
+			Theta: point.Theta, PauliCoefficients: point.PauliCoefficients,
+			FCIExactEnergy: point.FCIExactEnergy, ConstantEnergy: point.ConstantEnergy,
+		})
+	}
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+	if req.Seed <= 0 {
+		req.Seed = 7
+	}
+	if req.BudgetUSD <= 0 {
+		req.BudgetUSD = 1.0
+	}
+	backend := strings.TrimSpace(req.Backend)
+	if backend == "" {
+		backend = strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_BACKEND"))
+	}
+	if backend == "" {
+		return p, fmt.Errorf("backend is required (or set KUBONA_IBM_QISKIT_BACKEND)")
+	}
+	p = jobs.HardwareExperimentParams{
+		Kind: "hardware_pes", SourceJobID: req.SourceJobID, Molecule: res.Molecule,
+		Points: points, Shots: req.Shots, Seed: req.Seed,
+		Provider: "ibm-qiskit", RequestedBackend: backend,
+		FidelityQASM: points[0].QASM, Mitigation: req.Mitigation,
+		MitigationScales: req.MitigationScales, MaxCostUSD: req.BudgetUSD,
+		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
+		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
+	}
+	return p, nil
+}
+
+func (s *Server) handlePrepareHardwarePES(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to prepare hardware PES", nil)
+		return
+	}
+	var req hardwarePESIntent
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid hardware PES request: %v", err), nil)
+		return
+	}
+	sid, err := s.requireSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", err.Error(), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	req.SessionID = sid
+	p, err := s.hardwarePESParamsFromSource(req)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"binding": jobs.CanonicalHardwareJobBinding("hardware_pes", sid, p),
+		"pricing": hardwarePricing(p.MaxCostUSD),
+		"spec": map[string]any{
+			"molecule": p.Molecule, "points": len(p.Points), "provider": p.Provider,
+			"requested_backend": p.RequestedBackend, "shots": p.Shots, "seed": p.Seed,
+			"max_cost_usd": p.MaxCostUSD, "mandate_required": true,
+		},
+	})
+}
+
+func (s *Server) handleHardwarePES(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to launch hardware PES", nil)
+		return
+	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
+	var req hardwarePESIntent
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid hardware PES request: %v", err), nil)
+		return
+	}
+	sid, err := s.requireSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", err.Error(), nil)
+		return
+	}
+	if err := s.requireDispatchAutonomy(sid); err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	req.SessionID = sid
+	p, err := s.hardwarePESParamsFromSource(req)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	if p.MandateRef == "" {
+		WriteAPIError(w, "bad_request", "mandate_ref is required: prepare the parent binding, sign it, then launch", map[string]any{
+			"binding": jobs.CanonicalHardwareJobBinding("hardware_pes", sid, p),
+		})
+		return
+	}
+	idem, iref := s.idemBegin(sid, req.RequestID, map[string]any{
+		"session_id": sid, "source_job_id": req.SourceJobID, "backend": p.RequestedBackend,
+		"shots": p.Shots, "seed": p.Seed, "budget_usd": p.MaxCostUSD,
+		"mandate_ref": p.MandateRef, "jurisdictions": req.CallerJurisdictions,
+	}, idemRailJob)
+	if iref != nil {
+		iref.write(w)
+		return
+	}
+	if idem.replay {
+		s.idemReplay(w, idem)
+		return
+	}
+	job, err := s.jobRunner.SubmitJob(sid, "hardware_pes", p)
 	if err != nil {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return

@@ -6,9 +6,11 @@ import {
   fetchJob,
   jobStatusLabel,
   launchQAOAHardware,
+  launchPESHardware,
   launchSpinChainHardware,
   launchVQEHardware,
   prepareQAOAHardware,
+  preparePESHardware,
   prepareSpinChainHardware,
   prepareVQEHardware,
   type HardwarePrepareResult,
@@ -46,7 +48,7 @@ export function HardwareLaunchPanel({
     ? sourceJob.result_json as Record<string, unknown>
     : {};
   const sourceKind = sourceJob.job_type;
-  if (!['spin_chain', 'vqe_run', 'qaoa_run'].includes(sourceKind)) return null;
+  if (!['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'].includes(sourceKind)) return null;
   if (sourceKind === 'spin_chain' && result.state_mode === 'exact') {
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 text-[12px] text-[var(--color-muted)]">
@@ -67,7 +69,9 @@ export function HardwareLaunchPanel({
         ? prepareVQEHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), loop, mitigation)
         : sourceKind === 'qaoa_run'
           ? prepareQAOAHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), loop)
-          : prepareSpinChainHardware(sessionId, sourceJob.id, backend.trim(), Number(shots));
+          : sourceKind === 'vqe_pes'
+            ? preparePESHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), mitigation)
+            : prepareSpinChainHardware(sessionId, sourceJob.id, backend.trim(), Number(shots));
       setPrepared(await prep);
     } catch (err) {
       setNote(err instanceof Error ? err.message : String(err));
@@ -91,7 +95,9 @@ export function HardwareLaunchPanel({
         ? launchVQEHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-vqe-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', loop, mitigation)
         : sourceKind === 'qaoa_run'
           ? launchQAOAHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-qaoa-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', loop)
-          : launchSpinChainHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-spin-hw-${Date.now()}`, jurisdiction.trim() || 'ZM');
+          : sourceKind === 'vqe_pes'
+            ? launchPESHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-pes-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', mitigation)
+            : launchSpinChainHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-spin-hw-${Date.now()}`, jurisdiction.trim() || 'ZM');
       const job = await launch;
       if (!job) throw new Error('launch returned no job');
       let current: Job | null = job;
@@ -116,7 +122,7 @@ export function HardwareLaunchPanel({
         <Radio className="w-4 h-4 text-amber-300" />
         <span className="text-xs font-semibold text-white">Governed QPU launch</span>
       </div>
-      <p className="text-[12px] text-[var(--color-muted)]">Prepares the exact {sourceKind === 'vqe_run' ? 'VQE' : sourceKind === 'qaoa_run' ? 'QAOA' : 'spin-chain'} parent binding, signs it with the browser WebCrypto key, then submits through mandate, fidelity, reservation, and settlement gates. Nothing here bypasses the Go rail.</p>
+      <p className="text-[12px] text-[var(--color-muted)]">Prepares the exact {sourceKind === 'vqe_run' ? 'VQE' : sourceKind === 'qaoa_run' ? 'QAOA' : sourceKind === 'vqe_pes' ? 'PES' : 'spin-chain'} parent binding, signs it with the browser WebCrypto key, then submits through mandate, fidelity, reservation, and settlement gates. Nothing here bypasses the Go rail.</p>
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Backend
           <input aria-label="Hardware backend" value={backend} onChange={(e) => setBackend(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
@@ -130,13 +136,13 @@ export function HardwareLaunchPanel({
         <label className="space-y-1">Jurisdiction
           <input aria-label="Hardware jurisdiction" value={jurisdiction} onChange={(e) => setJurisdiction(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
         </label>
-        {sourceKind !== 'spin_chain' && (
+        {sourceKind !== 'spin_chain' && sourceKind !== 'vqe_pes' && (
           <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
             <input type="checkbox" aria-label="Hardware loop" checked={loop} onChange={(e) => { setLoop(e.target.checked); if (e.target.checked) setMitigation(false); }} />
             Hardware-in-the-loop optimizer (bounded)
           </label>
         )}
-        {sourceKind === 'vqe_run' && (
+        {sourceKind !== 'spin_chain' && sourceKind !== 'qaoa_run' && (
           <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
             <input type="checkbox" aria-label="Hardware ZNE mitigation" checked={mitigation} disabled={loop} onChange={(e) => setMitigation(e.target.checked)} />
             Zero-noise extrapolation (ZNE, scales 1/3/5; result stays measured=false)
@@ -158,6 +164,13 @@ export function HardwareLaunchPanel({
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code space-y-1 break-all">
           <div>binding {prepared.binding.slice(0, 22)}…</div>
           <div>backend {String(prepared.spec.requested_backend || backend)} · shots {String(prepared.spec.shots || shots)} · max ${String(prepared.spec.max_cost_usd || budget)}</div>
+          {prepared.pricing && (
+            <div>
+              {prepared.pricing.available === true
+                ? `pricing ${String(prepared.pricing.plan || 'reviewed')} · ${String(prepared.pricing.pricing_type || 'rate')} · estimated $${String(prepared.pricing.estimated_usd ?? 'unknown')}`
+                : `pricing unavailable · ${String(prepared.pricing.reason || 'no reviewed QPU rate row')}`}
+            </div>
+          )}
         </div>
       )}
       {launched && (

@@ -74,6 +74,8 @@ stronger claim.
 | 2D TFIM quench dynamics | Working, finite-size | Exact `expm_multiply`; not a QPU measurement |
 | Signed experiment export | Working | Server-built payload + Ed25519 envelope/receipts |
 | Calibration-aware hardware results | Working | Provider snapshot age/freshness retained; stale snapshots withhold claimability |
+| Hardware PES/mitigation | Implemented, not live-run | One QPU batch across source PES points; optional per-point ZNE; per-point FCI claims |
+| Reviewed QPU price preview | Working | Rate-card QPU row; Open Plan free, explicit unavailable otherwise |
 | Full-space LiH/BeH2 ADAPT/CEO | Working with target/limits | Shot-measured; contested status is preserved |
 | H2/LiH/BeH2/H2O PES | Working | Per-point measured energy/uncertainty/FCI |
 | H2/LiH/BeH2/H2O active-space excited state | Working | Shot-measured; active-space anchors |
@@ -208,12 +210,16 @@ claimability gate, and a documented unsupported boundary.
 
 ### Phase 3 — Hardware and operations
 
-1. Hardware PES/mitigation per point remains open. Calibration-aware hardware
-   results are now recorded with `calibration_age_hours`/`calibration_fresh`;
-   a stale snapshot withholds claimability.
+1. Hardware PES/mitigation is implemented as one governed batch across source
+   PES points with optional per-point ZNE, but has not yet been live-run on a
+   QPU. Calibration-aware hardware results are recorded with
+   `calibration_age_hours`/`calibration_fresh`; a stale snapshot withholds
+   claimability.
 2. Repeat the live spin-chain run with a better ansatz/shot budget; record the
    result as claimable only if the gate passes.
-3. Vendor price preview from the reviewed rate card; keep the signed cap.
+3. Reviewed QPU price preview is exposed in prepare responses from the rate
+   card (Open Plan free; explicit unavailable otherwise); the signed cap remains
+   the spend authority.
 4. Fresh-volume release acceptance, restore drill, and secret/ledger custody
    verification on the exact shipped commit.
 5. Manual accessibility run or explicit signed waiver.
@@ -227,11 +233,11 @@ supported science surface without hidden shell steps or unsupported claims.
 |---|---|
 | Go full suite | pass (all packages, including canonical decoder/negative folds) |
 | Python full suite | 1262 passed, 36 skipped (35:18) |
-| Bridge targeted science suite | 48 passed (science/custom/lattice/reaction/conjecture files) |
+| Bridge targeted science suite | 50 passed (science/custom/lattice/reaction/conjecture files) |
 | Console tests | 605 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
-| Contract inventory / OpenAPI | `140 modeled / 14 client-only / 0 unmodeled`, `128 paths / 121 schemas` |
+| Contract inventory / OpenAPI | `142 modeled / 14 client-only / 0 unmodeled`, `130 paths / 121 schemas` |
 | Wiki lint | clean |
 | Real-stack E2E | green at `eec7c18` |
 

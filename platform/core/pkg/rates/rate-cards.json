@@ -113,5 +113,18 @@
       "retrieved_at": "2026-10-30",
       "confidence": "aggregator"
     }
+  },
+  "qpu": {
+    "ibm-qiskit": {
+      "provider": "ibm-qiskit",
+      "plan": "open",
+      "pricing_type": "free",
+      "per_second_usd": 0.0,
+      "minimum_usd": 0.0,
+      "status": "active",
+      "source": "https://quantum.cloud.ibm.com/docs/en/guides/plans-overview",
+      "retrieved_at": "2026-10-31",
+      "notes": "Configured local instance is IBM Open Plan (600 s/month, $0); paid plans require a runtime vendor rate-card row."
+    }
   }
 }
