@@ -1,8 +1,8 @@
 # Production audit and completion report — 2026-11-09
 
 **Audited baseline:** `1b18ade` (2026-11-09 science/UI closure)
-**Correction pass:** this document plus the uncommitted truth/UI/hardware
-hardening on the same date.
+**Correction pass:** `bd0d1a7` (this document plus the truth/UI/hardware
+hardening).
 **Scope:** fully functional **local-private** deployment on one trusted host.
 Not a public SaaS, not multi-tenant hosting, and not a demo.
 **Method:** re-read the current Go/Python/console code and tests, re-ran the

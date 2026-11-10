@@ -5164,3 +5164,12 @@ skipped is the exact failure this incident is about:
   hardware cap disclosure.
 - Verified Go/console suites and corrected a provenance write/read base-path
   mismatch found by the full Python suite.
+
+## [2026-11-09] decision | science truth/UI correction committed
+
+- Correction pass committed at `bd0d1a7`; Go, Python (1261 passed / 36 skipped),
+  console (604), build, contracts, and wiki gates are green locally.
+- Host compose was rebuilt from the correction tree with the repository `.env`
+  plus the host secret env; health/ready/console responded. A separate host
+  `next-server` listener on `*:3000` makes `local-deployment-check.sh` report a
+  public console until that non-compose process is stopped.
