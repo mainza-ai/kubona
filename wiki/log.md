@@ -5269,3 +5269,10 @@ skipped is the exact failure this incident is about:
   mapping; Go coverage returned to 64.8% locally.
 - Added console tests for hardware PES pricing and the new geometry/repeats/2D
   output rows; console coverage passed (607 tests).
+
+## [2026-11-09] verification | hardware PES and coverage closure
+
+- Hardware PES, reviewed QPU pricing, calibration freshness, and the new UI
+  surfaces are covered by Go route tests and console tests. Go coverage is
+  64.8% (floor 64%); console 607 tests pass.
+- CI and Console E2E are green at `08526fb`.
