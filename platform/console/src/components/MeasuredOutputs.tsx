@@ -53,6 +53,26 @@ function summarize(job: Job): string | null {
       const ratio = num(r.approximation_ratio);
       return `hardware QAOA cut ${cut.toFixed(4)}${ratio !== null ? ` · ratio ${ratio.toFixed(4)}` : ''} · ${r.simulated_optimizer === false ? 'hardware-in-the-loop optimizer' : 'local optimizer'} · job ${short}`;
     }
+    case 'geometry_optimization': {
+      const e = num(r.energy);
+      const exact = num(r.fci_exact_energy);
+      const rOpt = num(r.optimized_bond_distance);
+      if (e === null || exact === null) return null;
+      return `geometry optimized${rOpt !== null ? ` at R=${rOpt.toFixed(5)} Å` : ''} · VQE ${e.toFixed(6)} Ha vs FCI ${exact.toFixed(6)} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+    }
+    case 'vqe_repeats': {
+      const e = num(r.energy);
+      const se = num(r.between_run_standard_error);
+      if (e === null) return null;
+      return `repeated VQE ${String(r.repeats ?? '?')} runs · mean ${e.toFixed(6)} Ha${se !== null ? ` · between-run SE ${(se * 1000).toFixed(3)} mHa` : ''} · ${r.claimable === true ? 'claimable' : 'not claimable'} · job ${short}`;
+    }
+    case 'lattice_dynamics': {
+      const times = Array.isArray(r.times) ? r.times : [];
+      if (times.length === 0) return null;
+      const last = asRecord(times[times.length - 1]);
+      const mag = num(last.total_magnetization);
+      return `2D TFIM quench ${String(r.rows)}×${String(r.cols)} · ${times.length} times${mag !== null ? ` · final total Mz ${mag.toFixed(4)}` : ''} · exact, not claimable · job ${short}`;
+    }
     case 'spin_chain': {
       const e = num(r.energy);
       const exact = num(r.energy_exact);

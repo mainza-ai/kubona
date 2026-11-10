@@ -6,7 +6,7 @@ import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
-type Kind = 'vqe' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'conjecture';
+type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'lattice_dynamics' | 'conjecture';
 
 function num(r: Job | null, key: string): number | null {
   const result = r?.result_json as Record<string, unknown> | undefined;
@@ -45,6 +45,12 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const [productDistance, setProductDistance] = useState('10');
   const [conjValues, setConjValues] = useState('1, 1, 2, 3, 5, 8, 13, 21, 34');
   const [holdout, setHoldout] = useState('2');
+  const [repeats, setRepeats] = useState('3');
+  const [latticeRows, setLatticeRows] = useState('2');
+  const [latticeCols, setLatticeCols] = useState('2');
+  const [initialField, setInitialField] = useState('1');
+  const [quenchField, setQuenchField] = useState('0.2');
+  const [latticeTimes, setLatticeTimes] = useState('0, 0.5, 1');
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +66,26 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.layers = Number(layers);
       spec.shots = Number(shots);
       spec.max_iterations = Number(iterations);
+    } else if (kind === 'geometry_optimization') {
+      spec.molecule = molecule;
+      spec.initial_bond_distance = Number(bond);
+      spec.layers = Number(layers);
+      spec.shots = Number(shots);
+      spec.max_iterations = Number(iterations);
+    } else if (kind === 'vqe_repeats') {
+      spec.molecule = molecule;
+      spec.bond_distance = Number(bond);
+      spec.layers = Number(layers);
+      spec.shots = Number(shots);
+      spec.max_iterations = Number(iterations);
+      spec.repeats = Number(repeats);
+    } else if (kind === 'lattice_dynamics') {
+      spec.rows = Number(latticeRows);
+      spec.cols = Number(latticeCols);
+      spec.coupling = Number(coupling);
+      spec.initial_field = Number(initialField);
+      spec.quench_field = Number(quenchField);
+      spec.times = latticeTimes.split(/[,\s]+/).filter(Boolean).map(Number);
     } else if (kind === 'excited_state') {
       spec.molecule = molecule;
       spec.bond_distance = Number(bond);
@@ -155,9 +181,12 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Kind
           <select aria-label="Experiment kind" value={kind} onChange={(e) => setKind(e.target.value as Kind)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
-            <option value="vqe">VQE</option><option value="pes">PES</option><option value="qaoa">QAOA MaxCut</option>
+            <option value="vqe">VQE</option><option value="geometry_optimization">Geometry optimization</option>
+            <option value="vqe_repeats">Repeated VQE (variance)</option>
+            <option value="pes">PES</option><option value="qaoa">QAOA MaxCut</option>
+            <option value="lattice_dynamics">2D TFIM quench dynamics</option>
             <option value="excited_state">Excited state (H2/LiH/BeH2/H2O)</option>
-            <option value="reaction">Reaction energy (H2/H2O)</option>
+            <option value="reaction">Reaction energy (H2/LiH/BeH2/H2O)</option>
             <option value="spin_chain">Spin chain</option><option value="conjecture">Math conjecture</option>
           </select>
         </label>
@@ -191,6 +220,27 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
                 <option value="vqe">VQE (variational, may not reach ground)</option>
                 <option value="exact">Exact state preparation + shot readout</option>
               </select>
+            </label>
+          </>
+        ) : kind === 'lattice_dynamics' ? (
+          <>
+            <label className="space-y-1">Rows
+              <input aria-label="Lattice rows" value={latticeRows} onChange={(e) => setLatticeRows(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Columns
+              <input aria-label="Lattice columns" value={latticeCols} onChange={(e) => setLatticeCols(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Coupling J
+              <input aria-label="Lattice coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Initial field
+              <input aria-label="Initial field" value={initialField} onChange={(e) => setInitialField(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="space-y-1">Quench field
+              <input aria-label="Quench field" value={quenchField} onChange={(e) => setQuenchField(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+            </label>
+            <label className="col-span-2 space-y-1">Times
+              <input aria-label="Lattice times" value={latticeTimes} onChange={(e) => setLatticeTimes(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
             </label>
           </>
         ) : kind === 'conjecture' ? (
@@ -263,6 +313,11 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
         <label className="space-y-1">Max iterations
           <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
         </label>
+        {kind === 'vqe_repeats' && (
+          <label className="space-y-1">Repeats
+            <input aria-label="VQE repeats" value={repeats} onChange={(e) => setRepeats(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+          </label>
+        )}
         {kind === 'excited_state' && (
           <label className="space-y-1">Deflation penalty
             <input aria-label="Deflation penalty" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
@@ -304,9 +359,19 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
               {candidates.slice(0, 2).map((c, i) => <div key={i}>{c.law}{c.status ? ` [${c.status}]` : ''}</div>)}
             </div>
           )}
-          {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
+          {statusLabel === 'COMPLETED' && kind === 'geometry_optimization' && result?.optimized_bond_distance != null && (
+            <div>optimized R {Number(result.optimized_bond_distance).toFixed(6)} Å · VQE {typeof result.energy === 'number' ? result.energy.toFixed(6) : '—'} Ha vs FCI {typeof result.fci_exact_energy === 'number' ? result.fci_exact_energy.toFixed(6) : '—'} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>
+          )}
+          {statusLabel === 'COMPLETED' && kind === 'vqe_repeats' && result?.repeats != null && (
+            <div>{String(result.repeats)} repeats · mean {typeof result.energy === 'number' ? result.energy.toFixed(6) : '—'} Ha · between-run SE {typeof result.between_run_standard_error === 'number' ? (result.between_run_standard_error * 1000).toFixed(3) : '—'} mHa · {result.claimable === true ? 'claimable' : 'not claimable'}</div>
+          )}
+          {statusLabel === 'COMPLETED' && kind === 'lattice_dynamics' && Array.isArray(result?.times) && result.times.length > 0 && (() => {
+            const last = result.times[result.times.length - 1] as Record<string, unknown>;
+            return <div>2D quench · {String(result.rows)}×{String(result.cols)} · final total magnetization {typeof last.total_magnetization === 'number' ? last.total_magnetization.toFixed(4) : '—'} · exact, not claimable</div>;
+          })()}
+          {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && kind !== 'geometry_optimization' && kind !== 'vqe_repeats' && kind !== 'lattice_dynamics' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
           {statusLabel === 'COMPLETED' && cut != null && <div>classical optimum {cut}</div>}
-          {job.status === 'failed' && <div className="text-rose-300">failed — see job record</div>}
+          {statusLabel === 'FAILED' && <div className="text-rose-300">failed — see job record</div>}
         </div>
       )}
     </div>

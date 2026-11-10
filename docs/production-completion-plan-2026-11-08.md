@@ -43,11 +43,15 @@ slice:
 - landed campaign `result_receipts` and the console receipt table;
 - landed negative-result folds for failed experiment jobs;
 - landed caller-supplied closed-shell STO-3G VQE with explicit `ncas`/`nelecas`
-  and a bounded full-FCI anchor.
+  and a bounded full-FCI anchor;
+- landed the signed experiment export envelope and console export action;
+- landed one-coordinate geometry optimization, repeated VQE variance, and
+  LiH/BeH2 atomization reactions;
+- landed exact finite-size 2D TFIM quench dynamics.
 
-Remaining P0/P1 work is signed export envelopes, geometry optimization and
-reaction families, broader physics, hardware accuracy/PES mitigation, and the
-human accessibility gate.
+Remaining P0/P1 work is arbitrary multidimensional geometry relaxation,
+DMRG/thermodynamic-limit physics, external math-literature novelty, PES/hardware
+mitigation, hardware spin accuracy, and the human accessibility gate.
 
 ## 0. Execution log (2026-11-08)
 

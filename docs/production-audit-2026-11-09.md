@@ -68,6 +68,11 @@ stronger claim.
 |---|---|---|
 | H2, LiH, BeH2, H2O active-space VQE | Working | Shot-measured Aer; PySCF anchors |
 | Caller-supplied custom-geometry VQE | Working, bounded | Explicit atom/ncas/nelecas; CASCI + full FCI; 12-qubit active cap |
+| Geometry optimization | Working, bounded | One curated internal coordinate; VQE at optimized geometry |
+| Repeated VQE variance | Working | Mean shot energy + between-run standard error |
+| LiH/BeH2 atomization reactions | Working | Active-space endpoint + exact atomic FCI products |
+| 2D TFIM quench dynamics | Working, finite-size | Exact `expm_multiply`; not a QPU measurement |
+| Signed experiment export | Working | Server-built payload + Ed25519 envelope/receipts |
 | Full-space LiH/BeH2 ADAPT/CEO | Working with target/limits | Shot-measured; contested status is preserved |
 | H2/LiH/BeH2/H2O PES | Working | Per-point measured energy/uncertainty/FCI |
 | H2/LiH/BeH2/H2O active-space excited state | Working | Shot-measured; active-space anchors |
@@ -88,13 +93,14 @@ stronger claim.
    executed and settled, but measured `-2.278125` Ha against exact
    `-3.00902212` Ha; `claimable:false`. Execution is complete; an accuracy
    claim requires a better ansatz/optimizer/shot budget and a new measured run.
-2. **Chemistry breadth is still bounded.** Curated H2/LiH/BeH2/H2O and
-   caller-supplied closed-shell STO-3G geometries are supported, but there is
-   no SMILES-to-geometry conversion, geometry optimization, open-shell/charged
-   generic path, N2/CO/HF suite, or general reaction network.
-3. **Physics breadth is one-dimensional.** The lattice module is exact and
-   tested, but there is no 2D lattice, Fermi-Hubbard quantum experiment,
-   spectral-function, quench/time-evolution, or DMRG cross-check.
+2. **Chemistry is broader but still bounded.** Curated H2/LiH/BeH2/H2O,
+   caller-supplied closed-shell STO-3G geometry, atomization reactions,
+   one-coordinate geometry optimization, and repeated VQE are supported. There
+   is no SMILES conversion, open-shell/charged generic path, full
+   multidimensional relaxation, N2/CO/HF suite, or general reaction network.
+3. **Physics breadth is finite-size.** 1D TFIM/Heisenberg/XXZ and exact 2D
+   TFIM quench dynamics are implemented. There is no DMRG, thermodynamic-limit,
+   spectral-function, or hardware dynamics path.
 4. **Mathematical discovery is not a proof/novelty system.** It discovers
    exact finite-prefix polynomial/recurrence laws with a holdout and falsifier.
    It does not prove theorems, search external literature, or establish
@@ -172,9 +178,10 @@ Exit criteria met:
 3. **Landed:** failed experiment jobs record a negative-result campaign entry
    with status, reason, measured=false, claimable=false; duplicate failure folds
    are idempotent.
-4. **Partially landed:** exports include the campaign's receipts and claim
-   references. A separate cryptographically signed export envelope is still
-   future work; the underlying per-result receipts are signed.
+4. **Landed:** `/api/sessions/{id}/experiment-export` returns a server-built
+   payload (campaign + experiment jobs/results) with a canonical SHA-256 and an
+   Ed25519 envelope; the console exposes **Signed export**. Underlying
+   per-result receipts remain independently signed.
 
 **Gate:** every citable result has one job id, one result version, one receipt,
 and one campaign projection; no field is reconstructed from prose.
@@ -184,13 +191,15 @@ and one campaign projection; no field is reconstructed from prose.
 1. **Landed:** caller-supplied PySCF geometry VQE with explicit `ncas`/
    `nelecas`, closed-shell STO-3G, 8-spatial-orbital full-FCI cap, and 12-qubit
    active-space cap. Unsupported geometries refuse.
-2. Geometry optimization and LiH/BeH2 reaction families with exact atom
-   anchors; no borrowed energies. (Still open.)
-3. 2D lattice/Hubbard and time-evolution experiments with exact small-system
-   anchors and explicit finite-size limits.
-4. Repeated-run variance/batch campaign and PES mitigation opt-in.
-5. External math catalog/literature comparison before any novelty statement;
-   retain `unclassified` when no comparison is proven.
+2. **Landed:** one-coordinate geometry optimization and LiH/BeH2 atomization
+   reactions with exact atomic FCI products; full-molecule and active-space
+   anchors remain separate.
+3. **Landed:** exact finite-size 2D TFIM quench dynamics with explicit
+   `measured:false`; DMRG/thermodynamic-limit and hardware dynamics remain open.
+4. **Partially landed:** repeated-run variance is implemented. PES mitigation
+   opt-in remains open.
+5. External math catalog/literature comparison before any novelty statement
+   remains open; `unclassified` is retained when no comparison is proven.
 
 **Gate:** every advertised model has an exact anchor, a measured result, a
 claimability gate, and a documented unsupported boundary.
@@ -213,12 +222,12 @@ supported science surface without hidden shell steps or unsupported claims.
 | Gate | Result |
 |---|---|
 | Go full suite | pass (all packages, including canonical decoder/negative folds) |
-| Python full suite | 1261 passed, 36 skipped (35:47) |
-| Bridge targeted science suite | 29 passed (custom-VQE/regression files) |
+| Python full suite | 1261 passed, 36 skipped (37:12) |
+| Bridge targeted science suite | 41 passed (science/custom/lattice/reaction files) |
 | Console tests | 605 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
-| Contract inventory / OpenAPI | `139 modeled / 14 client-only / 0 unmodeled`, `127 paths / 120 schemas` |
+| Contract inventory / OpenAPI | `140 modeled / 14 client-only / 0 unmodeled`, `128 paths / 121 schemas` |
 | Wiki lint | clean |
 | Real-stack E2E | green at `fee14b4` |
 

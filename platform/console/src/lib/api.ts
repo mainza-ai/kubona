@@ -878,6 +878,38 @@ export async function evaluateDiscoveryPipeline(
   }
 }
 
+export interface ExperimentExportEnvelope {
+  ok: boolean;
+  payload: {
+    export_version: string;
+    session_id: string;
+    exported_at: string;
+    campaign: import('@/types').CampaignState;
+    jobs: Array<Record<string, unknown>>;
+  };
+  envelope: {
+    algorithm: string;
+    domain: string;
+    payload_sha256: string;
+    signed: boolean;
+    signature: string;
+    signer_pubkey: string;
+    note: string;
+  };
+}
+
+export async function fetchExperimentExport(sessionId: string): Promise<ExperimentExportEnvelope> {
+  const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/experiment-export`, {
+    cache: 'no-store',
+    headers: authHeaders(),
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    throw new Error(String(body.message || body.error || `experiment export refused (HTTP ${res.status})`).slice(0, 280));
+  }
+  return contract('experiment.export', body) as unknown as ExperimentExportEnvelope;
+}
+
 export async function fetchCampaignResult(sessionId: string): Promise<ApiResult<import('@/types').CampaignState | null>> {
   const pathTemplate = '/api/sessions/{id}/campaign';
   const path = pathTemplate.replace('{id}', encodeURIComponent(sessionId));

@@ -12,6 +12,8 @@ func TestDecodeAcceptsEverySupportedVariant(t *testing.T) {
 		body    map[string]any
 	}{
 		{"vqe_run", map[string]any{"kind": "vqe", "energy": -1.1, "fci_exact_energy": -1.137}},
+		{"geometry_optimization", map[string]any{"kind": "geometry_optimization", "energy": -1.1, "fci_exact_energy": -1.137, "optimized_bond_distance": 0.74}},
+		{"vqe_repeats", map[string]any{"kind": "vqe_repeats", "energy": -1.1, "fci_exact_energy": -1.137, "repeats": 3}},
 		{"vqe_pes", map[string]any{"kind": "pes", "points": []map[string]any{{"energy": -1.1, "fci_exact_energy": -1.137}}}},
 		{"qaoa_run", map[string]any{"kind": "qaoa", "energy": 7.5, "optimal_cut": 10}},
 		{"excited_state", map[string]any{"kind": "excited_state", "ground_energy": -1.1, "excited_energy": -0.5, "gap": 0.6}},
@@ -23,6 +25,7 @@ func TestDecodeAcceptsEverySupportedVariant(t *testing.T) {
 		{"qaoa_hardware", map[string]any{"kind": "qaoa_hardware", "measured_cut": 7.5, "optimal_cut": 10, "hardware": true, "hardware_job_id": "vendor-qaoa"}},
 		{"qaoa_hardware", map[string]any{"kind": "qaoa_hardware_loop", "measured_cut": 7.5, "optimal_cut": 10, "hardware": true, "hardware_job_id": "vendor-qaoa-loop"}},
 		{"conjecture_run", map[string]any{"kind": "conjecture", "candidate_count": 1}},
+		{"lattice_dynamics", map[string]any{"kind": "lattice_dynamics", "times": []map[string]any{{"t": 0.0, "energy": -4.0}, {"t": 0.5, "energy": -3.0}}}},
 	}
 	for _, tc := range cases {
 		tc.body["result_version"] = Version

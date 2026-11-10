@@ -194,3 +194,18 @@ def test_spin_chain_hardware_maps_source_labels_to_qiskit_order(monkeypatch):
         if inst.operation.name == "h"
     ]
     assert h_qubits == [0]
+
+
+def test_square_lattice_quench_dynamics_is_exact_and_unclaimable():
+    from lattice_experiment import run_lattice_dynamics
+
+    res = run_lattice_dynamics(rows=2, cols=2, coupling=1.0,
+                               initial_field=1.0, quench_field=0.2,
+                               times=[0.0, 0.5, 1.0], periodic=True)
+    assert res["success"] is True, res
+    assert res["kind"] == "lattice_dynamics"
+    assert res["n_sites"] == 4
+    assert len(res["times"]) == 3
+    assert res["times"][0]["total_magnetization"] == pytest.approx(0.0, abs=1e-12)
+    assert res["measured"] is False
+    assert res["claimable"] is False

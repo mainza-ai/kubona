@@ -2254,6 +2254,10 @@ func (s *Server) handleSessionContext(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+	if sid, ok := experimentExportPath(id); ok {
+		s.handleExperimentExport(w, r, sid)
+		return
+	}
 	if strings.HasSuffix(id, "/messages") {
 		sessionID := strings.TrimSuffix(id, "/messages")
 		// T-09b: known session — bind caller to session tenant. Ghosts

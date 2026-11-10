@@ -437,3 +437,56 @@ def run_spin_chain_hardware(
         ),
         "error_message": "",
     }
+
+
+def run_lattice_dynamics(
+    rows: int = 2,
+    cols: int = 2,
+    coupling: float = 1.0,
+    initial_field: float = 1.0,
+    quench_field: float = 0.2,
+    times: list[float] | None = None,
+    periodic: bool = True,
+) -> dict[str, Any]:
+    """Exact finite-size 2D TFIM quench dynamics.
+
+    This is a classical exact simulation, not a QPU measurement. It returns
+    the full magnetization trajectory and per-time quench energy with an
+    explicit finite-size limitation; ``measured`` and ``claimable`` stay false.
+    """
+    if not HAS_QISKIT:
+        # The exact model does not need Qiskit, but this runner lives beside
+        # the bridge's lattice surface; refuse consistently if the bridge
+        # image is incomplete.
+        return {"success": False, "error": "lattice dynamics unavailable: Qiskit bridge dependency missing"}
+    if times is None:
+        times = [0.0, 0.5, 1.0]
+    from kubona.science.lattice import SquareLatticeModel
+    try:
+        model = SquareLatticeModel(rows=int(rows), cols=int(cols), coupling=float(coupling),
+                                   field=float(initial_field), periodic=bool(periodic))
+        result = model.time_evolution(float(quench_field), [float(t) for t in times])
+    except (TypeError, ValueError) as exc:
+        return {"success": False, "error": str(exc)}
+    return {
+        "success": True,
+        "kind": "lattice_dynamics",
+        "result_version": "experiment-result-v1",
+        "model": "tfim-2d",
+        "rows": result["rows"],
+        "cols": result["cols"],
+        "n_sites": result["n_sites"],
+        "coupling": float(coupling),
+        "initial_field": result["initial_field"],
+        "quench_field": result["quench_field"],
+        "periodic": result["periodic"],
+        "times": result["times"],
+        "method": "exact finite-size 2D TFIM quench (expm_multiply)",
+        "energy_initial": result["initial_energy"],
+        "measured": False,
+        "hardware": False,
+        "claimable": False,
+        "simulated": True,
+        "limitations": "Finite-size exact statevector evolution; no thermodynamic-limit, Trotter-error, shot-noise, or advantage claim.",
+        "error_message": "",
+    }

@@ -186,7 +186,7 @@ export interface OptimizerPoint {
 export interface ExperimentResult {
   result_version: 'experiment-result-v1';
   success: boolean;
-  kind: 'vqe' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'spin_chain_hardware' | 'conjecture';
+  kind: 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'krylov' | 'mitigate' | 'vqe_hardware' | 'qaoa_hardware' | 'vqe_hardware_loop' | 'qaoa_hardware_loop' | 'excited_state' | 'reaction' | 'spin_chain' | 'lattice_dynamics' | 'spin_chain_hardware' | 'conjecture';
   molecule?: string | null;
   generic?: boolean;
   atom?: string;
@@ -195,7 +195,13 @@ export interface ExperimentResult {
   spin?: number;
   bond_distance?: number | null;
   model?: string;
+  rows?: number;
+  cols?: number;
   n_sites?: number;
+  optimized_bond_distance?: number;
+  repeats?: number;
+  between_run_standard_error?: number;
+  times?: Array<Record<string, unknown>>;
   coupling?: number;
   field?: number;
   periodic?: boolean;
@@ -345,6 +351,7 @@ export interface CampaignExperiment {
   laws?: string[];
   known_as?: string[];
   result_version?: string;
+  series?: Array<Record<string, unknown>>;
   status?: string;
   error?: string;
 }

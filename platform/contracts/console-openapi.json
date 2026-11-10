@@ -1090,6 +1090,36 @@
         }
       }
     },
+    "/api/sessions/${encodeURIComponent}(sessionId)/experiment-export": {
+      "get": {
+        "operationId": "fetchExperimentExport",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: experiment.export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/experiment.export"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fidelity": {
       "get": {
         "operationId": "fetchFidelity",
@@ -5006,6 +5036,80 @@
         ],
         "properties": {
           "job": {}
+        }
+      },
+      "experiment.export": {
+        "type": "object",
+        "required": [
+          "ok",
+          "payload",
+          "envelope"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "payload": {
+            "type": "object",
+            "required": [
+              "export_version",
+              "session_id",
+              "exported_at",
+              "campaign",
+              "jobs"
+            ],
+            "properties": {
+              "export_version": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "exported_at": {
+                "type": "string"
+              },
+              "campaign": {},
+              "jobs": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          },
+          "envelope": {
+            "type": "object",
+            "required": [
+              "algorithm",
+              "domain",
+              "payload_sha256",
+              "signed",
+              "signature",
+              "signer_pubkey",
+              "note"
+            ],
+            "properties": {
+              "algorithm": {
+                "type": "string"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "payload_sha256": {
+                "type": "string"
+              },
+              "signed": {
+                "type": "boolean"
+              },
+              "signature": {
+                "type": "string"
+              },
+              "signer_pubkey": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "discovery.plan": {

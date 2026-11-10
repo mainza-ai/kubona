@@ -457,6 +457,25 @@ export const RESPONSE_SCHEMAS = {
   'experiment.submit': obj({
     job: any,
   }),
+  'experiment.export': obj({
+    ok: bool,
+    payload: obj({
+      export_version: str,
+      session_id: str,
+      exported_at: str,
+      campaign: any,
+      jobs: arr(any),
+    }),
+    envelope: obj({
+      algorithm: str,
+      domain: str,
+      payload_sha256: str,
+      signed: bool,
+      signature: str,
+      signer_pubkey: str,
+      note: str,
+    }),
+  }),
   'discovery.plan': obj({
     ok: bool,
     goal: str,

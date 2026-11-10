@@ -30,36 +30,37 @@ type Receipt struct {
 // Result is the shared envelope. Numeric pointers preserve the difference
 // between "absent" and a measured zero.
 type Result struct {
-	ResultVersion  string   `json:"result_version"`
-	Success        bool     `json:"success"`
-	Kind           string   `json:"kind"`
-	Molecule       string   `json:"molecule,omitempty"`
-	Generic        *bool    `json:"generic,omitempty"`
-	Atom           string   `json:"atom,omitempty"`
-	Basis          string   `json:"basis,omitempty"`
-	Charge         *int     `json:"charge,omitempty"`
-	Spin           *int     `json:"spin,omitempty"`
-	Model          string   `json:"model,omitempty"`
-	NSites         int      `json:"n_sites,omitempty"`
-	Energy         *float64 `json:"energy,omitempty"`
-	EnergyExact    *float64 `json:"energy_exact,omitempty"`
-	FCIExactEnergy *float64 `json:"fci_exact_energy,omitempty"`
-	Uncertainty    *float64 `json:"uncertainty,omitempty"`
-	DeltaMHa       *float64 `json:"delta_mha,omitempty"`
-	OptimalCut     *int     `json:"optimal_cut,omitempty"`
-	MeasuredCut    *float64 `json:"measured_cut,omitempty"`
-	GroundEnergy   *float64 `json:"ground_energy,omitempty"`
-	ExcitedEnergy  *float64 `json:"excited_energy,omitempty"`
-	Gap            *float64 `json:"gap,omitempty"`
-	ReactionEnergy *float64 `json:"reaction_energy,omitempty"`
-	ReactionExact  *float64 `json:"reaction_energy_exact,omitempty"`
-	CandidateCount *int     `json:"candidate_count,omitempty"`
-	Measured       *bool    `json:"measured,omitempty"`
-	Hardware       *bool    `json:"hardware,omitempty"`
-	HardwareJobID  string   `json:"hardware_job_id,omitempty"`
-	HardwareJobIDs []string `json:"hardware_job_ids,omitempty"`
-	Claimable      *bool    `json:"claimable,omitempty"`
-	Receipt        *Receipt `json:"result_receipt,omitempty"`
+	ResultVersion  string           `json:"result_version"`
+	Success        bool             `json:"success"`
+	Kind           string           `json:"kind"`
+	Molecule       string           `json:"molecule,omitempty"`
+	Generic        *bool            `json:"generic,omitempty"`
+	Atom           string           `json:"atom,omitempty"`
+	Basis          string           `json:"basis,omitempty"`
+	Charge         *int             `json:"charge,omitempty"`
+	Spin           *int             `json:"spin,omitempty"`
+	Model          string           `json:"model,omitempty"`
+	NSites         int              `json:"n_sites,omitempty"`
+	Energy         *float64         `json:"energy,omitempty"`
+	EnergyExact    *float64         `json:"energy_exact,omitempty"`
+	FCIExactEnergy *float64         `json:"fci_exact_energy,omitempty"`
+	Uncertainty    *float64         `json:"uncertainty,omitempty"`
+	DeltaMHa       *float64         `json:"delta_mha,omitempty"`
+	OptimalCut     *int             `json:"optimal_cut,omitempty"`
+	MeasuredCut    *float64         `json:"measured_cut,omitempty"`
+	GroundEnergy   *float64         `json:"ground_energy,omitempty"`
+	ExcitedEnergy  *float64         `json:"excited_energy,omitempty"`
+	Gap            *float64         `json:"gap,omitempty"`
+	ReactionEnergy *float64         `json:"reaction_energy,omitempty"`
+	ReactionExact  *float64         `json:"reaction_energy_exact,omitempty"`
+	CandidateCount *int             `json:"candidate_count,omitempty"`
+	Measured       *bool            `json:"measured,omitempty"`
+	Hardware       *bool            `json:"hardware,omitempty"`
+	HardwareJobID  string           `json:"hardware_job_id,omitempty"`
+	HardwareJobIDs []string         `json:"hardware_job_ids,omitempty"`
+	Claimable      *bool            `json:"claimable,omitempty"`
+	Times          []map[string]any `json:"times,omitempty"`
+	Receipt        *Receipt         `json:"result_receipt,omitempty"`
 
 	raw map[string]json.RawMessage
 }
@@ -138,18 +139,21 @@ func ReceiptFromJSON(data []byte) *Receipt {
 
 func kindMatchesJobType(jobType, kind string) bool {
 	expected := map[string][]string{
-		"vqe_run":             {"vqe"},
-		"vqe_pes":             {"pes"},
-		"qaoa_run":            {"qaoa"},
-		"excited_state":       {"excited_state"},
-		"reaction":            {"reaction"},
-		"spin_chain":          {"spin_chain"},
-		"conjecture_run":      {"conjecture"},
-		"hardware_experiment": {"vqe_hardware", "vqe_hardware_loop"},
-		"qaoa_hardware":       {"qaoa_hardware", "qaoa_hardware_loop"},
-		"spin_chain_hardware": {"spin_chain_hardware"},
-		"krylov_json":         {"krylov"},
-		"mitigate_json":       {"mitigate"},
+		"vqe_run":               {"vqe"},
+		"vqe_repeats":           {"vqe_repeats"},
+		"geometry_optimization": {"geometry_optimization"},
+		"vqe_pes":               {"pes"},
+		"qaoa_run":              {"qaoa"},
+		"excited_state":         {"excited_state"},
+		"reaction":              {"reaction"},
+		"spin_chain":            {"spin_chain"},
+		"conjecture_run":        {"conjecture"},
+		"lattice_dynamics":      {"lattice_dynamics"},
+		"hardware_experiment":   {"vqe_hardware", "vqe_hardware_loop"},
+		"qaoa_hardware":         {"qaoa_hardware", "qaoa_hardware_loop"},
+		"spin_chain_hardware":   {"spin_chain_hardware"},
+		"krylov_json":           {"krylov"},
+		"mitigate_json":         {"mitigate"},
 	}
 	kinds, ok := expected[jobType]
 	if !ok {
@@ -172,7 +176,7 @@ func validateVariant(kind string, r *Result) error {
 		return nil
 	}
 	switch kind {
-	case "vqe":
+	case "vqe", "geometry_optimization", "vqe_repeats":
 		if err := require("energy", r.Energy); err != nil {
 			return err
 		}
@@ -264,6 +268,25 @@ func validateVariant(kind string, r *Result) error {
 		}
 		if strings.TrimSpace(r.HardwareJobID) == "" && len(r.HardwareJobIDs) == 0 {
 			return fmt.Errorf("experiment result kind %q requires a vendor hardware job id", kind)
+		}
+	case "lattice_dynamics":
+		if len(r.Times) == 0 {
+			return fmt.Errorf("experiment result kind %q requires a non-empty times trajectory", kind)
+		}
+		for i, point := range r.Times {
+			for _, key := range []string{"t", "energy"} {
+				value, ok := point[key]
+				if !ok {
+					return fmt.Errorf("lattice time point %d is missing %s", i, key)
+				}
+				number, ok := value.(float64)
+				if !ok || !finite(number) {
+					return fmt.Errorf("lattice time point %d %s is not finite", i, key)
+				}
+				if key == "t" && number < 0 {
+					return fmt.Errorf("lattice time point %d t is negative", i)
+				}
+			}
 		}
 	case "conjecture":
 		if r.CandidateCount == nil || *r.CandidateCount < 0 {
