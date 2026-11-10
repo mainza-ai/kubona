@@ -1,9 +1,9 @@
 # Production Completion Report and Plan — Local-Private Deployment
 
 **Date:** 2026-11-08 (execution continued 2026-11-09)  
-**Current code head:** `9b05af2` (2026-11-09 CEO/hardware-loop/mitigation/
+**Current code head:** `eec7c18` (2026-11-09 CEO/hardware-loop/mitigation/
 result-version/claimable/sandbox-proof slices; re-verify the exact commit)  
-**Correction-pass head:** `9b05af2` (follow-up audit commit; see
+**Correction-pass head:** `eec7c18` (follow-up audit commit; see
 [`production-audit-2026-11-09.md`](production-audit-2026-11-09.md)).
 **Scope:** fully functional, unattended local-private deployment on one trusted host.
 Not a public SaaS, not a multi-tenant hosted service, not a demo.
