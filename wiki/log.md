@@ -5221,3 +5221,9 @@ skipped is the exact failure this incident is about:
   `expm_multiply`; explicitly `measured:false`, `claimable:false`.
 - Added launcher/output cases, canonical result validation, campaign folding,
   and negative-result coverage.
+
+## [2026-11-09] implementation | optional external conjecture lookup
+
+- Added an opt-in OpenAlex title/DOI lookup for conjecture candidates. It
+  reports `checked` or `unavailable` and never upgrades `novelty_status`;
+  offline/local-private runs remain local-registry only.

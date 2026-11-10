@@ -60,3 +60,16 @@ def test_bad_input_refuses():
 def test_three_terms_refuse_instead_of_claiming_an_unvalidated_law():
     with pytest.raises(ValueError, match="4 sequence"):
         discover_sequence_laws([1, 1, 2])
+
+
+def test_external_novelty_lookup_is_optional_and_never_claims_novelty(monkeypatch):
+    from kubona.science import conjecture as mod
+
+    monkeypatch.setattr(mod, "_external_literature_matches", lambda law, timeout=5.0: {
+        "status": "checked", "source": "openalex",
+        "matches": [{"id": "W1", "title": "Known sequence work", "doi": "", "publication_year": 2020}],
+    })
+    out = discover_sequence_laws([1, 1, 2, 3, 5, 8, 13, 21], literature_search=True)
+    assert out["external_novelty"]["status"] == "checked"
+    assert out["external_novelty"]["matches"][0]["id"] == "W1"
+    assert out["novelty_status"] == "known"

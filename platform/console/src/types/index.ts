@@ -348,6 +348,7 @@ export interface CampaignExperiment {
   candidate_count?: number;
   novelty_status?: string;
   novelty_note?: string;
+  external_novelty?: Record<string, unknown>;
   laws?: string[];
   known_as?: string[];
   result_version?: string;

@@ -198,8 +198,9 @@ and one campaign projection; no field is reconstructed from prose.
    `measured:false`; DMRG/thermodynamic-limit and hardware dynamics remain open.
 4. **Partially landed:** repeated-run variance is implemented. PES mitigation
    opt-in remains open.
-5. External math catalog/literature comparison before any novelty statement
-   remains open; `unclassified` is retained when no comparison is proven.
+5. **Partially landed:** conjecture jobs can opt into an OpenAlex lookup that
+   records matching titles/DOIs or an explicit `unavailable` result. It still
+   does not establish novelty; `unclassified` remains the default boundary.
 
 **Gate:** every advertised model has an exact anchor, a measured result, a
 claimability gate, and a documented unsupported boundary.
@@ -222,8 +223,8 @@ supported science surface without hidden shell steps or unsupported claims.
 | Gate | Result |
 |---|---|
 | Go full suite | pass (all packages, including canonical decoder/negative folds) |
-| Python full suite | 1261 passed, 36 skipped (37:12) |
-| Bridge targeted science suite | 41 passed (science/custom/lattice/reaction files) |
+| Python full suite | 1262 passed, 36 skipped (35:18) |
+| Bridge targeted science suite | 48 passed (science/custom/lattice/reaction/conjecture files) |
 | Console tests | 605 passed; tsc/eslint/build pass |
 | Console tsc/eslint | pass |
 | Console production build | pass with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` unset (the build intentionally refuses a browser bearer) |
@@ -246,6 +247,18 @@ plus the host secret env, and exercised through the real HTTP API:
   terminal `failed` with `generic VQE currently supports basis=sto-3g only`;
   the campaign contains a negative-result entry with `status:"failed"`,
   `measured:false`, and `claimable:false`.
+- **Signed export** returned `experiment-export-v1` with 22 stored jobs,
+  `envelope.signed:true`, a payload SHA-256, and an Ed25519 signature.
+- **Geometry optimization `19df6850-658b-452f-80bc-27aa9f23bed1`** completed at
+  `R=0.734833 Å` with measured `-1.105165 Ha` vs FCI `-1.137306 Ha`, not
+  claimable.
+- **Repeated VQE `6183b5db-e351-4657-b07c-3e99e2523bd5`** completed two runs;
+  mean `-1.115140 Ha`, between-run SE `9.945 mHa`, not claimable.
+- **2D quench `ed96a702-728d-4521-88f8-ee048ceea5fd`** completed exact
+  finite-size dynamics with three time points and `measured:false`.
+- **LiH reaction `a6439e9a-c84b-41b0-a621-05baa4bbacac`** completed
+  `LiH -> Li + H` with measured `-0.067674 Ha` against active-space anchor
+  `-0.079846 Ha`, not claimable.
 
 ## 8. Operator actions
 
