@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
 // experimentJobType is the single kind -> job-type mapping shared by the
@@ -175,6 +176,10 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "not_found", "source QAOA job not found in this session", nil)
 		return
 	}
+	if source.JobType != "qaoa_run" || source.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		WriteAPIError(w, "bad_request", "source QAOA job must be a completed qaoa_run result", nil)
+		return
+	}
 	var res struct {
 		Kind        string  `json:"kind"`
 		CircuitQASM string  `json:"circuit_qasm"`
@@ -188,6 +193,10 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.Unmarshal(source.ResultJSON, &res); err != nil || res.Kind != "qaoa" || strings.TrimSpace(res.CircuitQASM) == "" {
 		WriteAPIError(w, "bad_request", "source job carries no optimized QAOA circuit_qasm", nil)
+		return
+	}
+	if res.Graph.Nodes < 2 || len(res.Graph.Edges) == 0 || res.OptimalCut <= 0 {
+		WriteAPIError(w, "bad_request", "source QAOA job carries no executable graph/optimal_cut", nil)
 		return
 	}
 	if req.Shots <= 0 {
@@ -212,7 +221,8 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := jobs.HardwareExperimentParams{
-		Kind: "qaoa_hardware", Provider: "ibm-qiskit", RequestedBackend: backend,
+		Kind: "qaoa_hardware", SourceJobID: req.SourceJobID,
+		Provider: "ibm-qiskit", RequestedBackend: backend,
 		QASM: res.CircuitQASM, FidelityQASM: res.CircuitQASM,
 		OptimalCut: res.OptimalCut, EnergyExact: res.EnergyExact,
 		Layers: layerCount,
@@ -286,6 +296,9 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 	if err != nil || source == nil || source.SessionID != req.SessionID {
 		return p, fmt.Errorf("source VQE job not found in this session")
 	}
+	if source.JobType != "vqe_run" || source.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		return p, fmt.Errorf("source VQE job must be a completed vqe_run result")
+	}
 	var res struct {
 		Kind              string             `json:"kind"`
 		Success           bool               `json:"success"`
@@ -332,8 +345,9 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		return p, fmt.Errorf("backend is required (or set KUBONA_IBM_QISKIT_BACKEND)")
 	}
 	p = jobs.HardwareExperimentParams{
-		Kind: "vqe_hardware", Molecule: res.Molecule, BondDistance: res.BondDistance,
-		Layers: layerCount, Shots: req.Shots, Seed: req.Seed,
+		Kind: "vqe_hardware", SourceJobID: req.SourceJobID, Molecule: res.Molecule,
+		BondDistance: res.BondDistance,
+		Layers:       layerCount, Shots: req.Shots, Seed: req.Seed,
 		Theta: res.Theta, PauliCoefficients: res.PauliCoefficients,
 		FCIExactEnergy: res.FCIExactEnergy, ConstantEnergy: res.ConstantEnergy,
 		Provider: "ibm-qiskit", QASM: res.AnsatzQASM,
@@ -467,6 +481,9 @@ func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) 
 	if err != nil || source == nil || source.SessionID != req.SessionID {
 		return p, fmt.Errorf("source spin-chain job not found in this session")
 	}
+	if source.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		return p, fmt.Errorf("source spin-chain job must be completed")
+	}
 	var res struct {
 		Kind              string             `json:"kind"`
 		Success           bool               `json:"success"`
@@ -489,6 +506,9 @@ func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) 
 		res.NSites < 2 || res.NSites > 14 ||
 		len(res.PauliCoefficients) == 0 || strings.TrimSpace(res.AnsatzQASM) == "" {
 		return p, fmt.Errorf("source job carries no local spin-chain ansatz and Pauli coefficients")
+	}
+	if strings.ToLower(strings.TrimSpace(res.StateMode)) != "vqe" {
+		return p, fmt.Errorf("source spin-chain job must be state_mode=vqe; exact-state QASM contains reset and cannot run on hardware")
 	}
 	if req.Shots <= 0 {
 		req.Shots = 1024

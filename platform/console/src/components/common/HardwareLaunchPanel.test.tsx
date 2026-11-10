@@ -12,6 +12,7 @@ vi.mock('@/lib/api', () => ({
   launchVQEHardware: vi.fn(),
   fetchJob: vi.fn(),
   verifySpendMandate: vi.fn(),
+  jobStatusLabel: (status: unknown) => String(status).replace(/^JOB_STATUS_/, ''),
 }));
 vi.mock('@/lib/mandates', () => ({ createSignedSpendMandateWithCustody: vi.fn() }));
 
@@ -78,9 +79,9 @@ describe('HardwareLaunchPanel', () => {
     let tree!: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<HardwareLaunchPanel sessionId="s" tenantId="lab" sourceJob={vqeSource as never} />); });
     await act(async () => { await button(tree.root, 'Prepare binding').props.onClick(); });
-    expect(prepareVQEMock).toHaveBeenCalledWith('s', 'job-vqe-source', 'ibm_fez', 1024, false);
+    expect(prepareVQEMock).toHaveBeenCalledWith('s', 'job-vqe-source', 'ibm_fez', 1024, false, false);
     await act(async () => { await button(tree.root, 'Sign').props.onClick(); });
-    expect(launchVQEMock).toHaveBeenCalledWith('s', 'job-vqe-source', 'receipt-vqe', 'ibm_fez', 1024, 1, expect.any(String), 'ZM', false);
+    expect(launchVQEMock).toHaveBeenCalledWith('s', 'job-vqe-source', 'receipt-vqe', 'ibm_fez', 1024, 1, expect.any(String), 'ZM', false, false);
     expect(JSON.stringify(tree.toJSON())).toContain('vendor-vqe');
   }, 10_000);
 });

@@ -16,6 +16,14 @@ status: tracked
 > [[autonomous-mathematical-discovery]]. Full report:
 > `docs/core-scientific-capabilities-2026-11-09.md`.
 
+> ⚑ **Correction pass (2026-11-09):** a follow-up audit found and fixed the
+> water reaction sign, spin-hardware Pauli order, ZNE claimability,
+> below-anchor claim leak, exact-state hardware admission, H2O hardware
+> admission drift, source status/type/binding checks, and several UI/result
+> projection gaps. Full register:
+> `docs/production-audit-2026-11-09.md`. Historical live results were not
+> upgraded.
+
 ## The finding (2026-11-09)
 
 Kubona has a real **measured science spine**: H2/LiH/BeH2/H2O chemistry,
@@ -43,8 +51,9 @@ external validation:
 - **The discovery loop is bounded.** `/api/discovery/plan` deterministically
   selects a bounded experiment from a goal; `/api/discovery/run` sequences
   1–5 real jobs through the normal rail and returns stored results plus a
-  measured/claimable summary. The old simulator-era `DiscoveryCampaign` is
-  still legacy and must not be used as measured science.
+  measured/claimable summary. Completed protocol summaries are now retained in
+  the ledger and shown in the panel; the old simulator-era `DiscoveryCampaign`
+  is still legacy and must not be used as measured science.
 
 ## Why it matters
 
@@ -66,8 +75,8 @@ result → falsifiable claim → report.
 | SC-06 | No excited-state/reaction experiment | H2 deflation VQE and H2→2H reaction energy implemented; general molecules remain. |
 | SC-07 | No physics hardware rail | Implemented `spin_chain_hardware`; live QPU acceptance pending. |
 | SC-08 | No finite-domain certificate format | Implemented finite-scope certificate/falsifier; never called a theorem. |
-| SC-09 | No novelty boundary | Catalog/literature comparison before any "known/unknown" statement. |
-| SC-10 | No physics/math UI | `ExperimentPanel`/`MeasuredOutputs` cover the new kinds; hardware/protocol launch UI remains. |
+| SC-09 | No novelty boundary | A local known-law registry labels matches `known`; everything else is `unclassified`. External literature/proof novelty remains open. |
+| SC-10 | No physics/math UI | `ExperimentPanel`/`MeasuredOutputs` cover the kinds; hardware launch, protocol history, and generic experiment report are present. |
 
 ## Implementation status (2026-11-09)
 
@@ -96,8 +105,13 @@ S1–S4 and the S5b/S5c first slices are implemented in the tree:
   normal admission/settlement rail and returns stored results plus a
   measured/claimable summary.
 - S5b adds a governed `spin_chain_hardware` parent rail (bridge batch, Go
-  prepare/launch, mandate/fidelity/settlement); E2E covers preparation and
-  mandate refusal.
+  prepare/launch, mandate/fidelity/settlement); a live `ibm_fez` execution
+  completed with a negative, non-claimable accuracy result. The exact-state
+  source remains simulator-only and is refused before hardware admission.
+- The 2026-11-09 correction pass fixed the water reaction sign, spin hardware
+  Pauli basis order, ZNE claimability, below-anchor claims, focus-observable
+  semantics, source-job binding/status checks, and the measured-experiment UI.
+  Remaining work is breadth, external validation, and manual accessibility.
 - S5c adds H2 deflation excited-state VQE and H2→2H reaction energy against
   exact FCI endpoints; both are measured simulator results.
 - Still open: a live hardware spin-chain *accuracy* claim (execution completed

@@ -249,8 +249,8 @@ def discover_sequence_laws(
     max_degree: int = MAX_DEGREE,
 ) -> dict[str, Any]:
     seq = [_fraction(value) for value in values]
-    if len(seq) < 3:
-        raise ValueError("at least 3 sequence terms are required")
+    if len(seq) < 4:
+        raise ValueError("at least 4 sequence terms are required (3 training terms + at least 1 holdout)")
     if len(seq) > MAX_SEQUENCE_TERMS:
         raise ValueError(f"at most {MAX_SEQUENCE_TERMS} sequence terms are accepted")
     order_cap = int(max_order)

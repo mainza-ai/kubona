@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Play, Search } from 'lucide-react';
-import { planDiscovery, runDiscoveryProtocol, type DiscoveryPlan, type DiscoveryProtocolResult } from '@/lib/api';
+import { fetchEventsResult, planDiscovery, runDiscoveryProtocol, type DiscoveryPlan, type DiscoveryProtocolResult } from '@/lib/api';
 
 /** Human entry point for the measured discovery protocol. The planning
  * response is deterministic; the run executes real jobs through the Go rail. */
@@ -12,6 +12,37 @@ export function DiscoveryProtocolPanel({ sessionId }: { sessionId: string | null
   const [result, setResult] = useState<DiscoveryProtocolResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
+  // Reset during render on session change; the effect only loads the new
+  // session's ledger tail, so there is no synchronous setState in the effect.
+  const [prevSessionId, setPrevSessionId] = useState<string | null>(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setHistory([]);
+  }
+
+  const parseHistory = (events: Awaited<ReturnType<typeof fetchEventsResult>>) => {
+    if (!events.ok) return [];
+    return events.data
+      .filter((event) => event.event_type === 'discovery_protocol_completed')
+      .map((event) => ({ id: event.id, timestamp: event.timestamp, ...event.payload }))
+      .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))
+      .slice(0, 10);
+  };
+
+  const loadHistory = async () => {
+    if (!sessionId) return;
+    setHistory(parseHistory(await fetchEventsResult(sessionId)));
+  };
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let live = true;
+    fetchEventsResult(sessionId).then((events) => {
+      if (live) setHistory(parseHistory(events));
+    });
+    return () => { live = false; };
+  }, [sessionId]);
 
   const makePlan = async () => {
     setBusy(true); setError(null); setResult(null);
@@ -29,6 +60,7 @@ export function DiscoveryProtocolPanel({ sessionId }: { sessionId: string | null
     setBusy(true); setError(null); setResult(null);
     try {
       setResult(await runDiscoveryProtocol(sessionId, goal, `ui-discovery-${Date.now()}`));
+      await loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -64,6 +96,21 @@ export function DiscoveryProtocolPanel({ sessionId }: { sessionId: string | null
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] space-y-1">
           <div>protocol {result.protocol_id.slice(0, 12)} · {result.steps_completed} completed · {result.steps_failed} failed · {result.measured_results} measured · {result.claimable_results} claimable</div>
           {result.results.map((r, i) => <div key={i}>{i + 1}. {r.kind} · {r.status}{r.job_id ? ` · job ${r.job_id.slice(0, 8)}` : ''}{r.error ? ` · ${r.error}` : ''}</div>)}
+        </div>
+      )}
+      {history.length > 0 && (
+        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] space-y-1">
+          <div className="font-semibold text-white">Protocol history</div>
+          {history.map((row) => {
+            const steps = Array.isArray(row.steps) ? row.steps as Array<Record<string, unknown>> : [];
+            return (
+              <div key={String(row.id)} className="border-t border-white/[0.06] pt-1 first:border-0 first:pt-0">
+                <div className="font-code text-[var(--color-muted)]">{String(row.protocol_id || 'unknown').slice(0, 12)} · {String(row.completed ?? 0)} completed · {String(row.failed ?? 0)} failed · {String(row.measured ?? 0)} measured · {String(row.claimable ?? 0)} claimable</div>
+                <div className="text-[var(--color-muted)]">{String(row.goal || '')}</div>
+                {steps.length > 0 && <div className="font-code">{steps.map((step) => `${String(step.kind)}=${String(step.status)}`).join(' · ')}</div>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

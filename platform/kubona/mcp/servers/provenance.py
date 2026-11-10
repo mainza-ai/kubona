@@ -87,9 +87,12 @@ def write_record(kind: str, payload: dict, label: str | None = None,
     except ValueError as e:
         return {"ok": False, "error": str(e)}
     if caller is not None and resolved != "public":
-        target = Ledger.for_tenant(caller["tenant"])
+        # Bind shards to THIS module's ledger base. Re-reading the process
+        # environment here lets a test/tenant path change write into a
+        # different file than query_records unions.
+        target = Ledger.for_tenant(caller["tenant"], path=_ledger.base)
     elif resolved is not None and resolved.startswith("tenant/"):
-        target = Ledger.for_tenant(resolved[len("tenant/"):])
+        target = Ledger.for_tenant(resolved[len("tenant/"):], path=_ledger.base)
     else:
         target = _ledger
     record = target.append(kind, payload, label=resolved)

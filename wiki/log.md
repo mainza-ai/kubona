@@ -5149,3 +5149,18 @@ skipped is the exact failure this incident is about:
   contracts (`139 modeled / 14 client-only / 0 unmodeled`).
 - CI + Console E2E green at `b4b3a3e`; Go coverage 64.5%; bridge 25 passed;
   console 602 passed; build/lint/wiki/contracts clean.
+
+## [2026-11-09] audit | production correction pass
+
+- Re-audited the recent science/UI slice against the production bar and filed
+  `docs/production-audit-2026-11-09.md`.
+- Fixed the H2O reaction sign and separated active-space/full anchors.
+- Fixed spin-hardware Pauli ordering; added per-term measurements and CI95.
+- Made ZNE non-claimable and added a below-anchor chemical-accuracy guard.
+- Hardened exact-state/source status/type admission and VQE/QAOA parent
+  bindings with `source_job_id`.
+- Exposed measured experiments before a molecular notebook, added generic
+  experiment report/export, protocol history, ZNE controls, and explicit
+  hardware cap disclosure.
+- Verified Go/console suites and corrected a provenance write/read base-path
+  mismatch found by the full Python suite.

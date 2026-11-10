@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { KeyRound, Radio } from 'lucide-react';
 import {
   fetchJob,
+  jobStatusLabel,
   launchQAOAHardware,
   launchSpinChainHardware,
   launchVQEHardware,
@@ -34,12 +35,13 @@ export function HardwareLaunchPanel({
   const [budget, setBudget] = useState('1.00');
   const [shots, setShots] = useState('1024');
   const [loop, setLoop] = useState(false);
+  const [mitigation, setMitigation] = useState(false);
   const [prepared, setPrepared] = useState<HardwarePrepareResult | null>(null);
   const [launched, setLaunched] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  if (!sourceJob || sourceJob.status !== 'JOB_STATUS_COMPLETED') return null;
+  if (!sourceJob || jobStatusLabel(sourceJob.status) !== 'COMPLETED') return null;
   const result = sourceJob.result_json && typeof sourceJob.result_json === 'object'
     ? sourceJob.result_json as Record<string, unknown>
     : {};
@@ -62,7 +64,7 @@ export function HardwareLaunchPanel({
     setBusy(true); setNote(null); setLaunched(null);
     try {
       const prep = sourceKind === 'vqe_run'
-        ? prepareVQEHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), loop)
+        ? prepareVQEHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), loop, mitigation)
         : sourceKind === 'qaoa_run'
           ? prepareQAOAHardware(sessionId, sourceJob.id, backend.trim(), Number(shots), loop)
           : prepareSpinChainHardware(sessionId, sourceJob.id, backend.trim(), Number(shots));
@@ -86,7 +88,7 @@ export function HardwareLaunchPanel({
         throw new Error(verified.error || 'mandate verification returned no ledger receipt');
       }
       const launch = sourceKind === 'vqe_run'
-        ? launchVQEHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-vqe-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', loop)
+        ? launchVQEHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-vqe-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', loop, mitigation)
         : sourceKind === 'qaoa_run'
           ? launchQAOAHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-qaoa-hw-${Date.now()}`, jurisdiction.trim() || 'ZM', loop)
           : launchSpinChainHardware(sessionId, sourceJob.id, verified.receipt, backend.trim(), Number(shots), maxBudget, `ui-spin-hw-${Date.now()}`, jurisdiction.trim() || 'ZM');
@@ -130,11 +132,18 @@ export function HardwareLaunchPanel({
         </label>
         {sourceKind !== 'spin_chain' && (
           <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
-            <input type="checkbox" aria-label="Hardware loop" checked={loop} onChange={(e) => setLoop(e.target.checked)} />
+            <input type="checkbox" aria-label="Hardware loop" checked={loop} onChange={(e) => { setLoop(e.target.checked); if (e.target.checked) setMitigation(false); }} />
             Hardware-in-the-loop optimizer (bounded)
           </label>
         )}
+        {sourceKind === 'vqe_run' && (
+          <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+            <input type="checkbox" aria-label="Hardware ZNE mitigation" checked={mitigation} disabled={loop} onChange={(e) => setMitigation(e.target.checked)} />
+            Zero-noise extrapolation (ZNE, scales 1/3/5; result stays measured=false)
+          </label>
+        )}
       </div>
+      <p className="text-[12px] text-[var(--color-muted)]">Vendor price is not exposed before dispatch. Set the operator max budget explicitly; the parent rail enforces it against the signed mandate, reserving it before any QPU batch.</p>
       {!tenantId && <p role="alert" className="text-[12px] text-amber-300">No lab tenant on this session: signing is disabled.</p>}
       {note && <p role="alert" className="text-[12px] text-rose-300">{note}</p>}
       <div className="flex flex-wrap gap-2">
@@ -154,10 +163,10 @@ export function HardwareLaunchPanel({
       {launched && (
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] space-y-0.5">
           <div>hardware job {launched.id.slice(0, 8)} · {launched.status}</div>
-          {launched.status === 'JOB_STATUS_COMPLETED' && typeof (launched.result_json as Record<string, unknown>)?.hardware_job_id === 'string' && (
+          {jobStatusLabel(launched.status) === 'COMPLETED' && typeof (launched.result_json as Record<string, unknown>)?.hardware_job_id === 'string' && (
             <div>vendor job {String((launched.result_json as Record<string, unknown>).hardware_job_id)}</div>
           )}
-          {launched.status === 'JOB_STATUS_FAILED' && <div className="text-rose-300">failed — see the job record</div>}
+          {jobStatusLabel(launched.status) === 'FAILED' && <div className="text-rose-300">failed — see the job record</div>}
         </div>
       )}
     </div>

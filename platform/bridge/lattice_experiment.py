@@ -70,6 +70,12 @@ def _shot_expectation(counts: dict[str, int], label: str) -> tuple[float, float]
     return float(mean), float(std)
 
 
+def _qiskit_pauli_label(label: str) -> str:
+    """Convert the lattice module's qubit-0-at-index-0 label to Qiskit's
+    little-endian Pauli string (qubit 0 is the last character)."""
+    return str(label)[::-1]
+
+
 def _measured_terms(qc: Any, terms: list[tuple[str, float]], shots: int,
                     seed: int) -> dict[str, Any]:
     sim = AerSimulator()
@@ -293,9 +299,14 @@ def run_spin_chain_hardware(
         return {"success": False, "error": "qiskit unavailable: refusing spin-chain hardware"}
     if not str(qasm or "").strip():
         return {"success": False, "error": "spin-chain hardware requires ansatz qasm"}
-    coeffs = {str(label): float(coeff) for label, coeff in (pauli_coefficients or {}).items()}
+    try:
+        coeffs = {str(label): float(coeff) for label, coeff in (pauli_coefficients or {}).items()}
+    except (TypeError, ValueError) as exc:
+        return {"success": False, "error": f"invalid pauli_coefficients: {exc}"}
     if not coeffs:
         return {"success": False, "error": "spin-chain hardware requires pauli_coefficients"}
+    if any(not math.isfinite(value) for value in coeffs.values()):
+        return {"success": False, "error": "pauli_coefficients must be finite"}
     n = int(n_sites)
     if n < 2 or n > 14:
         return {"success": False, "error": f"n_sites {n_sites!r} outside [2,14]"}
@@ -303,6 +314,8 @@ def run_spin_chain_hardware(
         return {"success": False, "error": "every Pauli label must be a length-n string over IXYZ"}
     if int(shots) < 128 or int(shots) > 1_000_000:
         return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
+    if int(layers) < 1 or int(layers) > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
     if not math.isfinite(float(energy_exact)):
         return {"success": False, "error": "energy_exact must be finite"}
     if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
@@ -310,6 +323,8 @@ def run_spin_chain_hardware(
     mode = str(state_mode or "vqe").strip().lower()
     if mode != "vqe":
         return {"success": False, "error": "spin-chain hardware accepts state_mode='vqe' only; exact-state QASM contains reset, which QASM2 cannot carry"}
+    if "reset" in str(qasm).lower():
+        return {"success": False, "error": "spin-chain hardware refuses QASM containing reset; use a unitary VQE ansatz"}
 
     try:
         from experiments import _hardware_batch, _measurement_qasm, _hardware_counts_to_energy
@@ -324,11 +339,15 @@ def run_spin_chain_hardware(
     ):
         return {"success": False, "error": "spin-chain hardware requires a unitary ansatz without measurement"}
 
+    # The lattice module labels qubit 0 at string index 0. Qiskit measures
+    # Pauli operators with the opposite convention, so convert both the
+    # measurement circuits and the coefficient map. Relying on the uniform
+    # model's reflection symmetry would hide this for TFIM but silently
+    # mis-measure asymmetric coefficients.
+    qiskit_coeffs = {_qiskit_pauli_label(label): float(coeff) for label, coeff in coeffs.items()}
     qasms: list[str] = []
-    labels: list[str] = []
-    for label in sorted(coeffs):
+    for label in sorted(qiskit_coeffs):
         qasms.append(_measurement_qasm(qc, label))
-        labels.append(label)
     # One extra Z-basis circuit for the measured magnetization vector.
     z_circuit = qc.copy()
     z_circuit.measure_all()
@@ -340,7 +359,12 @@ def run_spin_chain_hardware(
     counts_list = batch.get("counts")
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
-    measured = _hardware_counts_to_energy(counts_list[:-1], coeffs)
+    measured = _hardware_counts_to_energy(counts_list[:-1], qiskit_coeffs)
+    measured_terms = {
+        label: measured["terms"][_qiskit_pauli_label(label)]
+        for label in coeffs
+        if _qiskit_pauli_label(label) in measured["terms"]
+    }
     z_counts = counts_list[-1]
     z_total = sum(int(v) for v in z_counts.values())
     if z_total <= 0:
@@ -386,8 +410,11 @@ def run_spin_chain_hardware(
         "energy_measured": energy,
         "energy_measured_source": "QPU measurement-basis batch",
         "uncertainty": uncertainty,
+        "ci95": float(1.96 * uncertainty),
         "delta": delta,
         "below_exact": below_exact,
+        "measurements": measured_terms,
+        "pauli_label_convention": "qubit-0-at-label-index-0; converted to Qiskit little-endian for measurement",
         "measured_magnetization_z": magnetization,
         "claimable": claimable,
         "ground_state_reached": bool(claimable or mode == "exact"),

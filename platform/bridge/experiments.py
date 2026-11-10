@@ -59,6 +59,24 @@ def _ci95_mha(uncertainty_ha: float) -> float:
     return float(1.96 * float(uncertainty_ha) * 1000.0)
 
 
+def _claimable_against_anchor(energy: float, anchor: float, uncertainty: float,
+                              limit_ha: float = 1.6e-3) -> bool:
+    """Truth gate for a shot-measured energy against an exact anchor.
+
+    A point below the anchor by more than three standard errors is a
+    contradiction, not a pass: it must not be promoted to chemical accuracy
+    merely because |delta| is small. The uncertainty must also fit inside the
+    claim tolerance.
+    """
+    if not all(math.isfinite(v) for v in (float(energy), float(anchor), float(uncertainty))):
+        return False
+    if float(uncertainty) > float(limit_ha):
+        return False
+    if abs(float(energy) - float(anchor)) > float(limit_ha):
+        return False
+    return float(energy) >= float(anchor) - 3.0 * float(uncertainty)
+
+
 def _pauli_matrix(name: str) -> np.ndarray:
     if len(name) != 2 or any(ch not in _PAULI for ch in name):
         raise ValueError(f"invalid two-qubit Pauli label {name!r}")
@@ -346,6 +364,7 @@ def run_vqe_hardware(
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
 
+    below_fci = False
     if method:
         by_scale: dict[int, list[dict[str, int]]] = {int(s): [] for s in mitigation_scales}
         for (term, scale), counts in zip(fold_keys, counts_list):
@@ -375,7 +394,10 @@ def run_vqe_hardware(
         measured = {"energy": mitigated, "uncertainty": uncertainty, "terms": {}}
         energy = mitigated + float(constant_energy)
         delta = abs(energy - float(fci_exact_energy))
-        claimable = bool(delta <= 1.6e-3 and uncertainty <= 1.6e-3)
+        # A ZNE value is an extrapolation, not a direct measurement. It must
+        # never become claimable merely because the extrapolated point lands
+        # near the anchor; the result keeps measured=false and claimable=false.
+        claimable = False
         mitigation_receipt = {
             "method": "ZNE",
             "scales": xs,
@@ -392,7 +414,8 @@ def run_vqe_hardware(
         measured = _hardware_counts_to_energy(counts_list, coeffs)
         energy = measured["energy"] + float(constant_energy)
         delta = abs(energy - float(fci_exact_energy))
-        claimable = bool(delta <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3)
+        claimable = _claimable_against_anchor(energy, float(fci_exact_energy), measured["uncertainty"])
+        below_fci = bool(energy < float(fci_exact_energy) - 3.0 * measured["uncertainty"])
         mitigation_receipt = None
     return {
         "success": True,
@@ -425,6 +448,7 @@ def run_vqe_hardware(
         "chemical_accuracy": claimable,
         "chemical_accuracy_limit_mha": 1.6,
         "claimable": claimable,
+        "below_fci": below_fci,
         "simulated_optimizer": True,
         "hardware": True,
         "backend": str(batch.get("backend") or "ibm-qiskit"),
@@ -598,7 +622,8 @@ def run_vqe_hardware_loop(
     # The final uncertainty is the last shot-measured evaluation's standard
     # error; the fit/optimizer trajectory is not a substitute for it.
     uncertainty = float(trajectory[-1]["uncertainty"]) if trajectory else 0.0
-    claimable = bool(delta <= 1.6e-3 and uncertainty <= 1.6e-3)
+    claimable = _claimable_against_anchor(float(final), float(fci_exact_energy), uncertainty)
+    below_fci = bool(float(final) < float(fci_exact_energy) - 3.0 * uncertainty)
     return {
         "success": True,
         "kind": "vqe_hardware_loop",
@@ -625,6 +650,7 @@ def run_vqe_hardware_loop(
         "chemical_accuracy": claimable,
         "chemical_accuracy_limit_mha": 1.6,
         "claimable": claimable,
+        "below_fci": below_fci,
         "hardware": True,
         "measured": True,
         "simulated_optimizer": False,
@@ -742,7 +768,9 @@ def run_vqe(
         "fci_exact_energy": float(fci),
         "rhf_mean_field_energy": float(rhf),
         "delta_mha": float(delta * 1000.0),
-        "chemical_accuracy": bool(delta <= 1.6e-3),
+        "chemical_accuracy": _claimable_against_anchor(energy, fci, measured["uncertainty"]),
+        "claimable": _claimable_against_anchor(energy, fci, measured["uncertainty"]),
+        "below_fci": bool(energy < fci - 3.0 * measured["uncertainty"]),
         "chemical_accuracy_limit_mha": 1.6,
         "converged": bool(opt.success),
         "trajectory": trajectory,
@@ -815,7 +843,10 @@ def _run_full_space_vqe(spec: dict[str, Any], atom: str, bond_distance: float,
     except (AdaptError, ValueError, RuntimeError) as e:
         return {"success": False, "error": f"adaptive VQE refused: {e}"}
     exact_delta = abs(res.energy_exact - e_full) * 1000.0
-    claimable = (res.delta_mha <= 1.6 and res.uncertainty <= 1.6 and exact_delta <= 1.6)
+    claimable = (
+        _claimable_against_anchor(res.energy_measured, e_full, res.uncertainty)
+        and exact_delta <= 1.6
+    )
     if claimable:
         status = "within_target"
     elif res.stopped in ("time_limit", "max_ops") and exact_delta > 1.6:
@@ -1115,10 +1146,11 @@ def run_nature_vqe(
         "active_space_fci_energy": e_casci,
         "delta_mha": delta_full,
         "active_space_delta_mha": delta_active,
-        "chemical_accuracy": bool(delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
-        "active_space_chemical_accuracy": bool(delta_active <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
+        "chemical_accuracy": _claimable_against_anchor(e, e_full, measured["uncertainty"]),
+        "active_space_chemical_accuracy": _claimable_against_anchor(e, e_casci, measured["uncertainty"]),
+        "below_fci": bool(e < e_full - 3.0 * measured["uncertainty"]),
         "chemical_accuracy_limit_mha": 1.6,
-        "claimable": bool(delta_full <= 1.6e-3 and measured["uncertainty"] <= 1.6e-3),
+        "claimable": _claimable_against_anchor(e, e_full, measured["uncertainty"]),
         "converged": bool(opt.success),
         "trajectory": trajectory,
         "backend": "qiskit-aer-simulator",
@@ -1470,7 +1502,7 @@ def run_pes(
     if n < 2 or n > 21:
         return {"success": False, "error": "steps must be in [2,21]: refusing"}
     if bool(full_space) and mol == "H2":
-        return {"success": False, "error": "H2 has no active-space reduction; full_space is for LiH/BeH2"}
+        return {"success": False, "error": "H2 has no active-space reduction; full_space is for LiH/BeH2/H2O"}
     t0 = time.perf_counter()
     points = []
     for i in range(n):
@@ -1594,9 +1626,8 @@ def run_excited_state(
         + float(excited_measured["uncertainty"]) ** 2
     ))
     claimable = bool(
-        abs(excited_measured["energy"] - spectrum[1]) <= 1.6e-3
-        and abs(ground_measured["energy"] - spectrum[0]) <= 1.6e-3
-        and uncertainty <= 1.6e-3
+        _claimable_against_anchor(ground_measured["energy"], spectrum[0], ground_measured["uncertainty"])
+        and _claimable_against_anchor(excited_measured["energy"], spectrum[1], excited_measured["uncertainty"])
         and gap_measured > 0
     )
     return {
@@ -1658,24 +1689,44 @@ def _oxygen_atom_fci() -> float:
 
 
 def _run_water_reaction(reactant_distance: float, shots: int, seed: int,
-                        max_iterations: int) -> dict[str, Any]:
-    """H2O -> H2 + O with a measured H2O/H2 VQE pair and exact atom anchors."""
+                        max_iterations: int, layers: int = 2) -> dict[str, Any]:
+    """H2O -> H2 + O with a measured H2O/H2 VQE pair and exact atom anchors.
+
+    The primary reaction delta is measured against the active-space water
+    anchor (the model the water VQE actually optimized), with the full-molecule
+    FCI delta retained separately. The O atom is an exact FCI anchor; the H2
+    endpoint is measured. A reaction claim is therefore explicitly scoped to
+    that mixed active-space/exact-atom model, never presented as a full-molecule
+    thermochemical claim.
+    """
     r = float(reactant_distance)
     if not (0.3 <= r <= 10.0):
         return {"success": False, "error": f"bond_distance {reactant_distance!r} outside [0.3,10.0]"}
+    if int(layers) < 1 or int(layers) > 8:
+        return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
     spec = _NATURE_ACTIVE["H2O"]
     atom = _molecule_atom(spec, r)
-    e_h2o, _cas = _full_fci_and_casci(atom, 4, 4)
+    e_h2o_full, e_h2o_active = _full_fci_and_casci(atom, 4, 4)
     _, e_h2, _ = h2_hamiltonian(0.7414)
     e_o = _oxygen_atom_fci()
-    water = run_vqe("H2O", r, 2, shots, seed, max_iterations)
-    hydrogen = run_vqe("H2", 0.7414, 2, shots, seed + 1, max_iterations)
+    water = run_vqe("H2O", r, int(layers), shots, seed, max_iterations)
+    hydrogen = run_vqe("H2", 0.7414, int(layers), shots, seed + 1, max_iterations)
     if not water.get("success") or not hydrogen.get("success"):
         return {"success": False, "error": "one water-reaction endpoint failed",
                 "water_error": water.get("error"), "hydrogen_error": hydrogen.get("error")}
-    measured = float(water["energy"] + hydrogen["energy"] - e_o)
-    exact = float(e_h2o - (e_h2 + e_o))
+    measured = float(water["energy"] - hydrogen["energy"] - e_o)
+    exact_active = float(e_h2o_active - (e_h2 + e_o))
+    exact_full = float(e_h2o_full - (e_h2 + e_o))
     uncertainty = float(math.sqrt(float(water["uncertainty"]) ** 2 + float(hydrogen["uncertainty"]) ** 2))
+    water_endpoint_ok = bool(
+        water.get("active_space_chemical_accuracy", water.get("claimable", False))
+    )
+    h2_endpoint_ok = bool(hydrogen.get("claimable", False))
+    claimable = bool(
+        water_endpoint_ok and h2_endpoint_ok
+        and abs(measured - exact_active) <= 1.6e-3
+        and uncertainty <= 1.6e-3
+    )
     return {
         "success": True,
         "kind": "reaction",
@@ -1685,26 +1736,33 @@ def _run_water_reaction(reactant_distance: float, shots: int, seed: int,
         "product_distance": 0.0,
         "reaction": "H2O -> H2 + O",
         "basis": "sto-3g",
-        "method": "H2O active-space VQE + H2 VQE against exact atom/FCI anchors",
+        "method": "H2O active-space VQE + H2 VQE against exact O-atom FCI and active-space water anchor",
         "reactant_energy": float(water["energy"]),
         "product_energy": float(hydrogen["energy"] + e_o),
         "reaction_energy": measured,
-        "reactant_energy_exact": float(e_h2o),
+        "reactant_energy_exact": float(e_h2o_active),
+        "reactant_energy_exact_full": float(e_h2o_full),
         "product_energy_exact": float(e_h2 + e_o),
-        "reaction_energy_exact": exact,
+        "reaction_energy_exact": exact_active,
+        "reaction_energy_exact_full": exact_full,
         "uncertainty": uncertainty,
-        "delta": abs(measured - exact),
-        "claimable": False,
+        "delta": abs(measured - exact_active),
+        "delta_full": abs(measured - exact_full),
+        "claimable": claimable,
+        "claimability_scope": "H2O active-space (ncas=4, nelecas=4) + measured H2 + exact O-atom FCI",
+        "water_endpoint_claimable": water_endpoint_ok,
+        "h2_endpoint_claimable": h2_endpoint_ok,
         "measured": True,
         "hardware": False,
         "simulated_optimizer": True,
+        "layers": int(layers),
         "shots": int(shots),
         "seed": int(seed),
         "backend": "qiskit-aer-simulator",
         "provider": "qiskit-aer-simulator",
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
-        "limitations": "H2O/H2 VQE endpoints plus exact O-atom FCI; active-space water model, so the measured reaction is not a full-molecule claim.",
+        "limitations": "H2O active-space VQE + H2 VQE + exact O-atom FCI; the full-molecule FCI delta is reported separately, so this is not a full-molecule thermochemical claim.",
         "error_message": "",
     }
 
@@ -1730,7 +1788,7 @@ def run_reaction_energy(
     if mol not in ("H2", "H2O"):
         return {"success": False, "error": "reaction energy supports H2 and H2O; refusing " + str(molecule)}
     if mol == "H2O":
-        return _run_water_reaction(reactant_distance, shots, seed, max_iterations)
+        return _run_water_reaction(reactant_distance, shots, seed, max_iterations, layers)
     r0, r1 = float(reactant_distance), float(product_distance)
     if not (0.3 <= r0 < r1 <= 10.0):
         return {"success": False, "error": "require 0.3 <= reactant_distance < product_distance <= 10.0"}
@@ -1858,9 +1916,8 @@ def run_nature_excited_state(
     gap_exact = float(spectrum[1] - spectrum[0])
     uncertainty = float(math.sqrt(float(ground_measured["uncertainty"]) ** 2 + float(excited_measured["uncertainty"]) ** 2))
     claimable = bool(
-        abs(excited_energy - spectrum[1]) <= 1.6e-3
-        and abs(ground_energy - spectrum[0]) <= 1.6e-3
-        and uncertainty <= 1.6e-3
+        _claimable_against_anchor(ground_energy, spectrum[0], ground_measured["uncertainty"])
+        and _claimable_against_anchor(excited_energy, spectrum[1], excited_measured["uncertainty"])
         and gap > 0
     )
     return {

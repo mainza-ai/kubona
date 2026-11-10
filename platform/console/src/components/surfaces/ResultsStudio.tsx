@@ -151,18 +151,21 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
           <tbody>
             {experiments.map((exp) => {
               const primary = exp.energy ?? exp.ground_energy ?? exp.reaction_energy;
-              const secondary = exp.energy_exact ?? exp.reaction_energy_exact;
-              const gap = exp.gap ?? exp.reaction_energy;
+              const secondary = exp.energy_exact ?? exp.ground_energy_exact ?? exp.reaction_energy_exact;
+              const gap = exp.gap ?? (exp.kind === 'reaction' ? exp.delta : undefined);
+              const system = exp.molecule || exp.model || exp.reaction || (exp.n_sites ? `${exp.n_sites} sites` : '—');
               return (
                 <tr key={exp.job_id} className="border-b border-white/[0.06] last:border-0">
                   <td className="px-2 py-1 font-code">{exp.kind}</td>
-                  <td className="px-2 py-1 font-code">{exp.molecule || exp.model || (exp.n_sites ? `${exp.n_sites} sites` : '—')}</td>
+                  <td className="px-2 py-1 font-code">{system}</td>
                   <td className="px-2 py-1 text-right font-code">{typeof primary === 'number' ? primary.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right font-code">{typeof secondary === 'number' ? secondary.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right font-code">{typeof gap === 'number' ? gap.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right font-code">{typeof exp.uncertainty === 'number' ? exp.uncertainty.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right">
-                    {exp.kind === 'conjecture_run' ? (exp.novelty_status || 'unclassified') : exp.claimable ? 'claimable' : 'not claimable'}
+                    {exp.kind === 'conjecture_run'
+                      ? `${exp.novelty_status || 'unclassified'}${exp.laws?.length ? ` · ${exp.laws[0]}` : ''}`
+                      : exp.claimable ? 'claimable' : 'not claimable'}
                     {exp.hardware ? ' · hardware' : ''}
                   </td>
                   <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>
@@ -356,6 +359,7 @@ ${proofVerified
       campaign,
       measurement: campaign?.measurement ?? null,
       pes_points: campaign?.pes_points ?? [],
+      experiments: campaign?.experiments ?? [],
       notebook: notebook ?? null,
     };
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -543,6 +547,70 @@ ${bibtex}
       })()
     : undefined;
 
+  const experimentReport = (() => {
+    const rows = campaign?.experiments ?? [];
+    if (rows.length === 0) return '';
+    const lines = [
+      '# Measured experiment report',
+      '',
+      `Target: ${target}`,
+      `Generated: ${new Date().toISOString()}`,
+      '',
+      'This report lists stored job results only. It is not a chemical-accuracy claim,',
+      'a novelty claim, or a theorem. Claimability is reported per row.',
+      '',
+    ];
+    for (const exp of rows) {
+      lines.push(`## ${exp.kind} · ${exp.molecule || exp.model || exp.reaction || 'unrecorded system'}`);
+      lines.push(`- job: ${exp.job_id}`);
+      if (exp.result_version) lines.push(`- result_version: ${exp.result_version}`);
+      if (exp.backend) lines.push(`- backend: ${exp.backend}`);
+      if (exp.hardware_job_id) lines.push(`- vendor job: ${exp.hardware_job_id}`);
+      if (exp.hardware) lines.push('- hardware: yes');
+      if (typeof exp.energy === 'number') lines.push(`- measured energy: ${exp.energy} Ha`);
+      if (typeof exp.energy_exact === 'number') lines.push(`- exact anchor: ${exp.energy_exact} Ha`);
+      if (typeof exp.ground_energy === 'number') lines.push(`- measured ground: ${exp.ground_energy} Ha`);
+      if (typeof exp.ground_energy_exact === 'number') lines.push(`- exact ground: ${exp.ground_energy_exact} Ha`);
+      if (typeof exp.excited_energy === 'number') lines.push(`- measured excited: ${exp.excited_energy} Ha`);
+      if (typeof exp.excited_energy_exact === 'number') lines.push(`- exact excited: ${exp.excited_energy_exact} Ha`);
+      if (typeof exp.gap === 'number') lines.push(`- measured gap: ${exp.gap} Ha`);
+      if (typeof exp.gap_exact === 'number') lines.push(`- exact gap: ${exp.gap_exact} Ha`);
+      if (typeof exp.reaction_energy === 'number') lines.push(`- measured reaction energy: ${exp.reaction_energy} Ha`);
+      if (typeof exp.reaction_energy_exact === 'number') lines.push(`- exact reaction anchor: ${exp.reaction_energy_exact} Ha`);
+      if (typeof exp.reaction_energy_exact_full === 'number') lines.push(`- full-molecule reaction anchor: ${exp.reaction_energy_exact_full} Ha`);
+      if (typeof exp.uncertainty === 'number') lines.push(`- uncertainty: ${exp.uncertainty} Ha`);
+      if (typeof exp.delta === 'number') lines.push(`- delta: ${exp.delta} Ha`);
+      lines.push(`- measured: ${exp.measured ? 'yes' : 'no'}`);
+      lines.push(`- claimable: ${exp.claimable ? 'yes' : 'no'}`);
+      if (exp.kind === 'conjecture_run') {
+        lines.push(`- novelty_status: ${exp.novelty_status || 'unclassified'}`);
+        if (exp.laws?.length) lines.push(`- laws: ${exp.laws.join('; ')}`);
+        if (exp.known_as?.length) lines.push(`- known as: ${exp.known_as.join('; ')}`);
+        lines.push('- proof_status: not-a-proof');
+      }
+      lines.push('');
+    }
+    return lines.join('\n');
+  })();
+
+  const handleExportExperiments = () => {
+    if (!experimentReport) return;
+    downloadText(`kubona-experiments-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.md`,
+      experimentReport, 'text/markdown;charset=utf-8');
+  };
+
+  const handleExportExperimentsJSON = () => {
+    const bundle = {
+      schema_version: 1,
+      exported_at: new Date().toISOString(),
+      target,
+      result_version: 'experiment-result-v1',
+      experiments: campaign?.experiments ?? [],
+    };
+    downloadText(`kubona-experiments-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`,
+      JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8');
+  };
+
   if (!hasVerifiedData) {
     return (
       <div className="relative min-h-[520px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-6 space-y-5">
@@ -558,6 +626,27 @@ ${bibtex}
         <MeasuredOutputs sessionId={sessionId ?? null} />
         {(campaign?.pes_points?.length ?? 0) > 0 && (
           <PesTable points={campaign!.pes_points!} />
+        )}
+        {(campaign?.experiments?.length ?? 0) > 0 && (
+          <>
+            <ExperimentsTable experiments={campaign!.experiments!} />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleExportExperiments}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-text)] text-[12px]"
+              >
+                <Download className="w-3.5 h-3.5" /> Download experiment report
+              </button>
+              <button
+                type="button"
+                onClick={handleExportExperimentsJSON}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-text)] text-[12px]"
+              >
+                <Download className="w-3.5 h-3.5" /> Experiment JSON
+              </button>
+            </div>
+          </>
         )}
         <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-6 text-center space-y-2">
           <p className="text-sm font-medium text-white">No manuscript, citation, or proof receipt yet.</p>

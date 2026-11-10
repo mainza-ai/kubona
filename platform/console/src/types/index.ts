@@ -195,8 +195,17 @@ export interface ExperimentResult {
   field?: number;
   periodic?: boolean;
   gap?: number | null;
+  gap_exact?: number | null;
   below_exact?: boolean;
+  below_fci?: boolean;
   ground_state_reached?: boolean;
+  claimability_scope?: string;
+  reaction_energy_exact_full?: number | null;
+  reactant_energy_exact_full?: number | null;
+  delta_full?: number | null;
+  layers?: number;
+  pauli_coefficients?: Record<string, number>;
+  pauli_label_convention?: string;
   state_mode?: 'vqe' | 'exact';
   observable_state?: string;
   candidates?: Record<string, unknown>[];
@@ -294,9 +303,14 @@ export interface CampaignExperiment {
   energy_exact?: number;
   ground_energy?: number;
   excited_energy?: number;
+  ground_energy_exact?: number;
+  excited_energy_exact?: number;
   gap?: number;
+  gap_exact?: number;
+  reaction?: string;
   reaction_energy?: number;
   reaction_energy_exact?: number;
+  reaction_energy_exact_full?: number;
   uncertainty?: number;
   delta?: number;
   claimable: boolean;
@@ -306,6 +320,10 @@ export interface CampaignExperiment {
   hardware_job_id?: string;
   candidate_count?: number;
   novelty_status?: string;
+  novelty_note?: string;
+  laws?: string[];
+  known_as?: string[];
+  result_version?: string;
   status?: string;
 }
 

@@ -178,9 +178,28 @@ class SpinChainModel:
         vec = np.asarray(evecs[:, order[0]], dtype=complex)
         return float(np.real(evals[0])), vec, [float(np.real(x)) for x in evals]
 
-    def observables(self, vector: np.ndarray, k: int = 4) -> LatticeObservables:
-        energy, vec, evals = self.ground_state(k=k)
+    def observables(self, vector: np.ndarray | None = None, k: int = 4) -> LatticeObservables:
+        """Return observables for ``vector``, or the exact ground state.
+
+        The gap/eigenvalues are always the exact finite-size spectrum of this
+        model. Magnetization, correlations, and half-chain entropy are computed
+        from the supplied state; passing an optimized VQE vector must not be
+        silently replaced by the ground-state anchor.
+        """
+        _energy, ground_vec, evals = self.ground_state(k=k)
         n = self.n_sites
+        if vector is None:
+            vec = ground_vec
+        else:
+            vec = np.asarray(vector, dtype=complex).reshape(-1)
+            if vec.size != self.dimension:
+                raise ValueError(
+                    f"state vector has {vec.size} amplitudes; expected {self.dimension}"
+                )
+            norm = float(np.linalg.norm(vec))
+            if not math.isfinite(norm) or norm <= 0:
+                raise ValueError("state vector must be finite and non-zero")
+            vec = vec / norm
         probs = np.abs(vec) ** 2
         probs = probs / max(float(probs.sum()), 1e-15)
         mag = []

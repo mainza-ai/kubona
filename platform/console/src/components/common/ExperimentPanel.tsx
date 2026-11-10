@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Play } from 'lucide-react';
-import { fetchJob, runExperiment } from '@/lib/api';
+import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
@@ -126,6 +126,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
     ? result.candidates as Array<{ law?: string; status?: string; predictions?: string[] }>
     : [];
   const claimable = result?.claimable === true;
+  const statusLabel = jobStatusLabel(job?.status);
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-3" aria-label="Experiment launcher">
       <div>
@@ -136,8 +137,8 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
         <label className="space-y-1">Kind
           <select aria-label="Experiment kind" value={kind} onChange={(e) => setKind(e.target.value as Kind)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1">
             <option value="vqe">VQE</option><option value="pes">PES</option><option value="qaoa">QAOA MaxCut</option>
-            <option value="excited_state">Excited state (H2)</option>
-            <option value="reaction">Reaction energy (H2)</option>
+            <option value="excited_state">Excited state (H2/LiH/BeH2/H2O)</option>
+            <option value="reaction">Reaction energy (H2/H2O)</option>
             <option value="spin_chain">Spin chain</option><option value="conjecture">Math conjecture</option>
           </select>
         </label>
@@ -242,34 +243,34 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-pulse-cyan)] text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
-      {job && job.status === 'JOB_STATUS_COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run'].includes(job.job_type) && (
+      {job && statusLabel === 'COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run'].includes(job.job_type) && (
         <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={job} />
       )}
       {job && (
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
-          {job.status === 'completed' && kind === 'reaction' && result?.reaction_energy != null && (() => {
+          {statusLabel === 'COMPLETED' && kind === 'reaction' && result?.reaction_energy != null && (() => {
             const rxn = typeof result.reaction_energy === 'number' ? result.reaction_energy : null;
             const exactRxn = typeof result.reaction_energy_exact === 'number' ? result.reaction_energy_exact : null;
             return <div>reaction ΔE {rxn?.toFixed(6)} Ha vs exact {exactRxn?.toFixed(6)} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>;
           })()}
-          {job.status === 'completed' && kind === 'excited_state' && result?.ground_energy != null && (() => {
+          {statusLabel === 'COMPLETED' && kind === 'excited_state' && result?.ground_energy != null && (() => {
             const g = typeof result.ground_energy === 'number' ? result.ground_energy : null;
             const e = typeof result.excited_energy === 'number' ? result.excited_energy : null;
             const gap = typeof result.gap === 'number' ? result.gap : null;
             return <div>excited state: ground {g?.toFixed(6)} · excited {e?.toFixed(6)}{gap != null ? ` · gap ${gap.toFixed(5)}` : ''} · {result.claimable === true ? 'claimable' : 'not claimable'}</div>;
           })()}
-          {job.status === 'completed' && kind === 'spin_chain' && energy != null && exact != null && (
+          {statusLabel === 'COMPLETED' && kind === 'spin_chain' && energy != null && exact != null && (
             <div>spin E {energy.toFixed(6)} vs exact {exact.toFixed(6)}{uncertainty != null ? ` ± ${uncertainty.toFixed(6)}` : ''}{gap != null ? ` · gap ${gap.toFixed(4)}` : ''} · {claimable ? 'claimable' : 'not claimable'}{result?.state_mode === 'exact' ? ' · exact-state readout' : result?.ground_state_reached === false ? ' · VQE state not ground' : ''}</div>
           )}
-          {job.status === 'completed' && kind === 'conjecture' && candidateCount != null && (
+          {statusLabel === 'COMPLETED' && kind === 'conjecture' && candidateCount != null && (
             <div>
               {candidateCount} candidate(s) · {String(result?.novelty_status || 'unclassified')}; not a theorem/claim.
               {candidates.slice(0, 2).map((c, i) => <div key={i}>{c.law}{c.status ? ` [${c.status}]` : ''}</div>)}
             </div>
           )}
-          {job.status === 'completed' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
-          {job.status === 'completed' && cut != null && <div>classical optimum {cut}</div>}
+          {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
+          {statusLabel === 'COMPLETED' && cut != null && <div>classical optimum {cut}</div>}
           {job.status === 'failed' && <div className="text-rose-300">failed — see job record</div>}
         </div>
       )}

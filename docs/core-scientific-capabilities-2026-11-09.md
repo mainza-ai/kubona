@@ -5,6 +5,15 @@
 **Scope:** production local-private Kubona. One trusted host; no demo paths;
 no invented measurements, claims, or scientific results.
 
+> ⚑ **Correction pass (2026-11-09):** a follow-up audit found and fixed a
+> water reaction sign error, a spin-hardware Pauli-order defect, a ZNE
+> `claimable:true` path, a below-anchor claim leak, exact-state hardware
+> admission at the Go layer, H2O hardware admission drift, missing source-job
+> status/type checks, a missing source id in VQE/QAOA parent bindings, and
+> several UI/result-projection gaps. The full finding register and updated plan
+> are in [`production-audit-2026-11-09.md`](production-audit-2026-11-09.md).
+> These corrections do not upgrade any historical result.
+
 ## 1. Executive verdict
 
 Kubona is currently a **quantum-chemistry and combinatorial-optimization runner
@@ -263,11 +272,19 @@ Implemented and locally tested:
   `excited_state`, `reaction`, `spin_chain`, `spin_chain_hardware`, and
   `conjecture`; console launcher controls cover the new simulator kinds.
 
-Still queued:
+Still queued after the correction pass:
 
 - no live hardware spin-chain *accuracy* claim: the live VQE run was executed
   but missed the exact anchor, and exact-state hardware is refused by design;
-- broader reaction families beyond H2/H2O and accuracy claims for the
-  active-space excited/reaction paths;
-- literature/catalog novelty boundary for discovered laws (SC-09);
-- full browser launch UI for governed hardware spin-chain and protocol runs.
+- broader reaction families beyond H2/H2O, geometry optimization, and general
+  molecule input;
+- 2D lattice/Hubbard quantum experiments, time evolution, and DMRG cross-checks;
+- external literature/catalog novelty search and a counterexample search beyond
+  the holdout falsifier (SC-09 remains an external-validation gap);
+- PES/hardware mitigation per point, repeated-run variance, and calibration-
+  aware spin runs;
+- manual VoiceOver/NVDA evidence remains human-only.
+
+The governed hardware launch UI, protocol history, generic experiment
+report/export, and measured-experiment visibility before a molecular notebook
+were completed in the correction pass.

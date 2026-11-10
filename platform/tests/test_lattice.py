@@ -74,3 +74,14 @@ def test_pauli_terms_are_consistent_with_hamiltonian():
             mat = np.kron(mat, pauli[char])
         rebuilt += coeff * mat
     assert np.max(np.abs(rebuilt - h)) < 1e-12
+
+
+def test_observables_use_the_supplied_state_not_the_ground_state():
+    model = SpinChainModel("tfim", n_sites=2, coupling=0.0, field=1.0, periodic=False)
+    excited = np.zeros(4, dtype=complex)
+    excited[1] = 1.0
+    obs = model.observables(excited)
+    assert obs.magnetization_z == pytest.approx([-1.0, 1.0])
+    assert obs.gap == pytest.approx(2.0)
+    with pytest.raises(ValueError, match="expected 4"):
+        model.observables(np.zeros(3, dtype=complex))

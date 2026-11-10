@@ -211,6 +211,8 @@ def test_hardware_vqe_zne_extrapolates_energy_from_measured_terms(monkeypatch):
     assert res["mitigation"]["method"] == "ZNE"
     assert res["mitigation"]["scales"] == [1, 3, 5]
     assert res["mitigation"]["mitigated_measured"] is False
+    assert res["claimable"] is False
+    assert res["chemical_accuracy"] is False
     assert res["energy"] == pytest.approx(-0.75)
     assert len(calls) == 1
     assert len(calls[0][0]) == 6
@@ -353,3 +355,31 @@ def test_lih_active_space_excited_state_reports_full_and_active_anchors():
     assert res["fci_exact_energy"] < res["active_space_fci_energy"] < 0
     assert len(res["spectrum"]) >= 2
     assert res["measured"] is True
+
+
+def test_water_reaction_subtracts_products_and_scopes_the_anchor(monkeypatch):
+    import experiments
+
+    monkeypatch.setattr(experiments, "_molecule_atom", lambda spec, r: "fake-water")
+    monkeypatch.setattr(experiments, "_full_fci_and_casci", lambda atom, ncas, nelecas: (-76.0, -75.9))
+    monkeypatch.setattr(experiments, "_oxygen_atom_fci", lambda: -74.0)
+    monkeypatch.setattr(experiments, "h2_hamiltonian", lambda r: (None, -1.1, -1.0))
+    calls = []
+
+    def fake_vqe(molecule, bond_distance, layers, shots, seed, max_iterations):
+        calls.append((molecule, layers))
+        if molecule == "H2O":
+            return {"success": True, "energy": -75.8, "uncertainty": 0.001,
+                    "active_space_chemical_accuracy": True, "claimable": False}
+        return {"success": True, "energy": -1.0, "uncertainty": 0.001, "claimable": True}
+
+    monkeypatch.setattr(experiments, "run_vqe", fake_vqe)
+    res = experiments.run_reaction_energy("H2O", 0.96, shots=128, layers=3, max_iterations=1)
+    assert res["success"] is True
+    assert res["reaction_energy"] == pytest.approx(-0.8)
+    assert res["reaction_energy_exact"] == pytest.approx(-0.8)
+    assert res["reactant_energy_exact"] == pytest.approx(-75.9)
+    assert res["reaction_energy_exact_full"] == pytest.approx(-0.9)
+    assert res["claimable"] is True
+    assert res["claimability_scope"].startswith("H2O active-space")
+    assert calls == [("H2O", 3), ("H2", 3)]

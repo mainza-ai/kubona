@@ -49,9 +49,14 @@ def test_exact_rational_inputs_and_holdout_required():
 
 
 def test_bad_input_refuses():
-    with pytest.raises(ValueError, match="3 sequence"):
+    with pytest.raises(ValueError, match="4 sequence"):
         discover_sequence_laws([1, 2])
     with pytest.raises(ValueError, match="holdout"):
         discover_sequence_laws([1, 2, 3, 4, 5], holdout=4)
     with pytest.raises(ValueError, match="finite"):
         discover_sequence_laws([1, 2, float("nan")])
+
+
+def test_three_terms_refuse_instead_of_claiming_an_unvalidated_law():
+    with pytest.raises(ValueError, match="4 sequence"):
+        discover_sequence_laws([1, 1, 2])
