@@ -16,13 +16,19 @@
   <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
   <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-156%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
+  <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
 </div>
 
 ---
 
-**Kubona** (from Chitonga *ku-bona*, "to see, observe, perceive") is a local-first platform that pairs a sovereign Go orchestrator and hash-chained SQLite provenance ledger with a Python quantum/chemistry compute bridge (PySCF, Qiskit Aer, PennyLane), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools over stdio), and a Next.js operator console.
+**Kubona** (from Chitonga *ku-bona*, *"to see, observe, perceive"*) is an open-source, local-first quantum and scientific discovery platform built around a single rule: **no claim without a classical anchor, no execution without a budget hold, and no result without a cryptographic receipt.**
+
+It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools over `stdio`), and a Next.js 3D operator console.
+
+> [!NOTE]
+> **Active Development:** A platform like this is never finished on day one; it compounds. **Kubona is in active development and becoming more capable every week** — tightening the feedback loop between what an agent proposes, what physics permits, and what the ledger can prove. Follow phased milestones in [`wiki/roadmap.md`](wiki/roadmap.md) and [`wiki/log.md`](wiki/log.md).
 
 > [!IMPORTANT]
 > **Deployment Target — Local-Private Production:** Kubona is engineered for single-host local-private operation (`127.0.0.1` bindings for API `:8080` and Console `:3000`, Unix Domain Socket bridge transport, Ed25519 mandate/session signing, and fail-closed budget/fidelity gates). All simulators, classical anchors, and local LLMs run offline at `$0.00`; cloud QPU dispatch and cloud LLMs (BYOK) are explicit opt-ins. See [`docs/local-deployment.md`](docs/local-deployment.md).
@@ -41,31 +47,38 @@
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
 
-### Core Principles
+---
 
-1. **Receipts Don't Lie:** Every spend reservation, calibration check, experiment result, and agent action is recorded in a hash-chained SQLite WAL ledger with SHA-256 result receipts.
-2. **Fail-Closed Refusal:** No fabricated metrics, silent fallbacks, or unanchored quantum advantage claims. Missing credentials, stale calibration (>24h), or unconfigured sandboxes refuse explicitly.
-3. **Classical Anchoring:** Every quantum experiment computes or binds an explicit classical reference (PySCF RHF/CASCI/FCI, exact diagonalization, or MPS/DMRG) alongside measured outputs.
+## Current Capabilities by Category
+
+### 1. Quantum Chemistry, Lattice Physics & Many-Body Simulation
+- **Ab Initio & Variational Chemistry:** Run shot-sampled `VQE` alongside live `PySCF` reference baselines (`RHF`, `CASCI`, `FCI`) across `H₂`, `LiH`, `BeH₂`, `H₂O`, and custom closed-shell `STO-3G` molecular geometries.
+- **Potential Energy Surfaces & Geometry Optimization:** Execute bond-distance `PES` scans, `BFGS` equilibrium geometry optimization, multi-seed statistical `VQE` repeats, overlap-deflated excited states, and reactant-to-product reaction energies ($\Delta E$).
+- **Condensed-Matter & Tensor Networks:** Simulate 1D Heisenberg, anisotropic `XXZ` ($\Delta$), and `TFIM` spin chains (`COBYLA` + multi-start `L-BFGS-B`), compute `quimb` `MPS`/`DMRG` finite-size scaling to the thermodynamic limit ($1/N \to 0$), and evolve exact 2D `TFIM` quench dynamics via sparse Krylov `expm_multiply`.
+- **Combinatorial, Subspace & Error-Mitigated Workflows:** Run MaxCut `QAOA` (simulator and hardware loops), Quantum Krylov subspace diagonalization, Zero-Noise Extrapolation (`ZNE`) with measurement readout mitigation, and exact finite-scope mathematical conjecture verification.
+
+### 2. Autonomous Discovery & Epistemic Governance
+- **Closed-Loop Research Campaigns:** Plan, dispatch, evaluate, and automatically replan multi-step scientific campaigns from natural-language research goals (`then` / `->` / `;` pipelines via `/api/discovery/{plan,run}`).
+- **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) — never claiming quantum advantage by assertion.
+- **Persistent Scientific Memory:** Hybrid full-text and structured memory graph linking hypotheses, OpenAlex/literature citations, artifacts, and experimental lineage across sessions.
+
+### 3. Cryptographic Provenance & Spend Settlement
+- **Signed, Hash-Chained Receipts:** Every run emits a schema-validated `experiment-result-v1` payload sealed into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger.
+- **Pre-Dispatch Fidelity Gate:** Evaluates hardware `T₁`/`T₂`, two-qubit gate error, and calibration freshness (<24h) before a circuit is admitted to a QPU.
+- **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement across IBM Quantum, IonQ, AWS Braket, and local private runtimes.
+
+### 4. Polyglot Core & MCP-Native Architecture
+- **6-Server MCP Surface (38 Tools over `stdio`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
+- **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), Rust native `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
+
+### 5. The Sovereign Observatory Console
+- **Real-Time 3D Workbench:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), interactive **Results Studio** charts, and the unified **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`).
 
 ---
 
-## System Topology
+## Governed Experiment Matrix
 
-| Path | Layer | Role |
-|---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
-| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, and PennyLane compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
-| [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 stdio MCP servers (38 tools: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
-| [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
-| [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
-| [`wiki/`](wiki/) | **Blueprint Wiki** | 156 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
-
----
-
-## Scientific Capabilities
-
-All 13 experiment kinds execute through the governed Go job rail, validate against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), fold into campaign state, and render in the Console's **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`) and **Results Studio**:
+All 13 experiment kinds execute through the governed Go job rail, validate against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), fold into campaign state, and render in the Console's **Experiment & Discovery Lab** and **Results Studio**:
 
 | Capability | Kind | Measurement | Classical Anchor |
 |---|---|---|---|
@@ -82,6 +95,20 @@ All 13 experiment kinds execute through the governed Go job rail, validate again
 | **MaxCut QAOA** | `qaoa` (`qaoa_run`) | Shot-sampled cut value and approximation ratio | Exact brute-force MaxCut |
 | **Math Conjecture** | `conjecture` | Exact symbolic/rational search + holdout verification | Finite-scope holdout certificate + known-law registry |
 | **Discovery Protocol** | `/api/discovery/{plan,run}` | 1–5 sequential governed jobs (`then` / `->` / `;` pipelines) | Deterministic planner + ledger-linked job summaries |
+
+---
+
+## System Topology
+
+| Path | Layer | Role |
+|---|---|---|
+| [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
+| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
+| [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 stdio MCP servers (38 tools: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
+| [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
+| [`wiki/`](wiki/) | **Blueprint Wiki** | 156 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
 
 ---
 
