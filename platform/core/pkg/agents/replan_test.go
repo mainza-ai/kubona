@@ -729,3 +729,47 @@ func TestReplanReactionEnergyRecordsDifference(t *testing.T) {
 		t.Errorf("reaction note wrong: %q", last)
 	}
 }
+
+func TestReplanPreservesCanonicalReceiptReference(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := ReplanWithJobResult(raw, "job-receipt-1", "spin_chain",
+		[]byte(`{"success":true,"kind":"spin_chain","result_version":"experiment-result-v1","model":"tfim","n_sites":4,"energy":-3.2,"energy_exact":-3.21,"uncertainty":0.004,"gap":0.8,"claimable":false,"result_receipt":{"algorithm":"ed25519","ledger_entry_hash":"ledger-1","result_sha256":"result-1","signature":"sig","signed":true}}`), "")
+	if !changed {
+		t.Fatalf("receipt-bearing result must fold: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	if len(after.ResultReceipts) != 1 {
+		t.Fatalf("expected one canonical receipt ref, got %+v", after.ResultReceipts)
+	}
+	ref := after.ResultReceipts[0]
+	if ref.JobID != "job-receipt-1" || ref.ResultVersion != "experiment-result-v1" ||
+		ref.Receipt == nil || !ref.Receipt.Signed || ref.Receipt.LedgerEntryHash != "ledger-1" {
+		t.Fatalf("receipt projection wrong: %+v", ref)
+	}
+	if after.Experiments[0].ResultVersion != "experiment-result-v1" {
+		t.Fatalf("experiment version not preserved: %+v", after.Experiments[0])
+	}
+}
+
+func TestRecordJobFailureCreatesNegativeResultWithoutClaim(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, note := RecordJobFailure(raw, "job-failed-1", "spin_chain", "bridge unavailable")
+	if !changed {
+		t.Fatalf("failure must be recorded: %s", note)
+	}
+	after := decodeReplan(t, updated)
+	if len(after.Experiments) != 1 {
+		t.Fatalf("expected one negative result, got %+v", after.Experiments)
+	}
+	exp := after.Experiments[0]
+	if exp.JobID != "job-failed-1" || exp.Status != "failed" || exp.Error != "bridge unavailable" ||
+		exp.Measured || exp.Claimable {
+		t.Fatalf("negative result projection wrong: %+v", exp)
+	}
+	if after.Notebook == nil || !strings.Contains(after.Notebook.Sections[len(after.Notebook.Sections)-1], "FAILED") {
+		t.Fatalf("failure must be visible in the notebook: %+v", after.Notebook)
+	}
+	if _, again, _ := RecordJobFailure(updated, "job-failed-1", "spin_chain", "duplicate"); again {
+		t.Fatal("duplicate failure must be idempotent")
+	}
+}

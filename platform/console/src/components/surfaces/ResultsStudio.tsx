@@ -17,7 +17,7 @@ import {
   
   
 } from 'lucide-react';
-import { CampaignExperiment, CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
+import { CampaignExperiment, CampaignResultRef, CampaignState, PesPoint, SystematicNotebook, Job } from '@/types';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
@@ -127,6 +127,43 @@ function PesTable({ points }: { points: PesPoint[] }) {
   );
 }
 
+function ResultReceiptTable({ receipts }: { receipts: CampaignResultRef[] }) {
+  return (
+    <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
+        <span className="text-[12px] font-semibold text-white">Result receipts</span>
+        <span className="text-[11px] text-[var(--color-muted)]">job → result SHA-256 → ledger receipt</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead className="text-[var(--color-muted)]">
+            <tr className="border-b border-white/10">
+              <th className="px-2 py-1 text-left">Job</th>
+              <th className="px-2 py-1 text-left">Kind</th>
+              <th className="px-2 py-1 text-left">Version</th>
+              <th className="px-2 py-1 text-left">Signed</th>
+              <th className="px-2 py-1 text-left">Ledger entry</th>
+              <th className="px-2 py-1 text-left">Result SHA-256</th>
+            </tr>
+          </thead>
+          <tbody>
+            {receipts.map((row) => (
+              <tr key={row.job_id} className="border-b border-white/[0.06] last:border-0">
+                <td className="px-2 py-1 font-code">{row.job_id.slice(0, 8)}</td>
+                <td className="px-2 py-1 font-code">{row.kind}</td>
+                <td className="px-2 py-1 font-code">{row.result_version || 'unversioned'}</td>
+                <td className="px-2 py-1">{row.result_receipt?.signed ? 'signed' : 'hash-chained'}</td>
+                <td className="px-2 py-1 font-code">{row.result_receipt?.ledger_entry_hash?.slice(0, 16) || 'missing'}</td>
+                <td className="px-2 py-1 font-code">{row.result_receipt?.result_sha256?.slice(0, 16) || 'missing'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }) {
   return (
     <div className="rounded-xl border border-white/10 overflow-hidden">
@@ -163,10 +200,12 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
                   <td className="px-2 py-1 text-right font-code">{typeof gap === 'number' ? gap.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right font-code">{typeof exp.uncertainty === 'number' ? exp.uncertainty.toFixed(6) : '—'}</td>
                   <td className="px-2 py-1 text-right">
-                    {exp.kind === 'conjecture_run'
-                      ? `${exp.novelty_status || 'unclassified'}${exp.laws?.length ? ` · ${exp.laws[0]}` : ''}`
-                      : exp.claimable ? 'claimable' : 'not claimable'}
-                    {exp.hardware ? ' · hardware' : ''}
+                    {exp.status === 'failed'
+                      ? `failed${exp.error ? ` · ${exp.error}` : ''}`
+                      : exp.kind === 'conjecture_run'
+                        ? `${exp.novelty_status || 'unclassified'}${exp.laws?.length ? ` · ${exp.laws[0]}` : ''}`
+                        : exp.claimable ? 'claimable' : 'not claimable'}
+                    {exp.hardware && exp.status !== 'failed' ? ' · hardware' : ''}
                   </td>
                   <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>
                 </tr>
@@ -580,6 +619,8 @@ ${bibtex}
       if (typeof exp.reaction_energy_exact_full === 'number') lines.push(`- full-molecule reaction anchor: ${exp.reaction_energy_exact_full} Ha`);
       if (typeof exp.uncertainty === 'number') lines.push(`- uncertainty: ${exp.uncertainty} Ha`);
       if (typeof exp.delta === 'number') lines.push(`- delta: ${exp.delta} Ha`);
+      if (exp.status) lines.push(`- status: ${exp.status}`);
+      if (exp.error) lines.push(`- error: ${exp.error}`);
       lines.push(`- measured: ${exp.measured ? 'yes' : 'no'}`);
       lines.push(`- claimable: ${exp.claimable ? 'yes' : 'no'}`);
       if (exp.kind === 'conjecture_run') {
@@ -587,6 +628,14 @@ ${bibtex}
         if (exp.laws?.length) lines.push(`- laws: ${exp.laws.join('; ')}`);
         if (exp.known_as?.length) lines.push(`- known as: ${exp.known_as.join('; ')}`);
         lines.push('- proof_status: not-a-proof');
+      }
+      lines.push('');
+    }
+    const receipts = campaign?.result_receipts ?? [];
+    if (receipts.length > 0) {
+      lines.push('## Result receipts');
+      for (const row of receipts) {
+        lines.push(`- ${row.job_id} (${row.kind}): ${row.result_receipt?.signed ? 'signed' : 'hash-chained'} · ledger ${row.result_receipt?.ledger_entry_hash || 'missing'} · result ${row.result_receipt?.result_sha256 || 'missing'}`);
       }
       lines.push('');
     }
@@ -606,6 +655,7 @@ ${bibtex}
       target,
       result_version: 'experiment-result-v1',
       experiments: campaign?.experiments ?? [],
+      result_receipts: campaign?.result_receipts ?? [],
     };
     downloadText(`kubona-experiments-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`,
       JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8');
@@ -626,6 +676,9 @@ ${bibtex}
         <MeasuredOutputs sessionId={sessionId ?? null} />
         {(campaign?.pes_points?.length ?? 0) > 0 && (
           <PesTable points={campaign!.pes_points!} />
+        )}
+        {(campaign?.result_receipts?.length ?? 0) > 0 && (
+          <ResultReceiptTable receipts={campaign!.result_receipts!} />
         )}
         {(campaign?.experiments?.length ?? 0) > 0 && (
           <>
@@ -771,6 +824,9 @@ ${bibtex}
               )}
               {(campaign?.experiments?.length ?? 0) > 0 && (
                 <ExperimentsTable experiments={campaign!.experiments!} />
+              )}
+              {(campaign?.result_receipts?.length ?? 0) > 0 && (
+                <ResultReceiptTable receipts={campaign!.result_receipts!} />
               )}
               {/* Paper Title & Metadata */}
               <div

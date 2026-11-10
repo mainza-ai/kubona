@@ -395,6 +395,7 @@ func NewServer(
 		s.recordMandateSettlement(j)
 		replan(j)
 	})
+	jr.SetFailureHook(s.recordFailedJobResult)
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.

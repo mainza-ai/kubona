@@ -581,3 +581,46 @@ func TestCampaignSynthesizeRefusesToOverwriteMeasurement(t *testing.T) {
 		t.Errorf("refusal must name measured evidence: %s", rec.Body.String())
 	}
 }
+
+func TestFailureHookRecordsNegativeResultInCampaign(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_failure_hook.db")
+	defer cleanup()
+
+	sess, err := srv.sessionMgr.CreateSession("failure drill", 50, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes, _ := json.Marshal(state)
+	if err := l.SaveCampaignStateWithTrigger(sess.ID, stateBytes, "session-create"); err != nil {
+		t.Fatal(err)
+	}
+
+	srv.recordFailedJobResult(&jobs.Job{
+		ID: "job-failure-123", SessionID: sess.ID, JobType: "spin_chain",
+		ResultJSON: json.RawMessage(`{"error":"bridge unavailable: no compute plane"}`),
+	})
+
+	raw, err := l.GetCampaignState(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var folded agents.CampaignState
+	if err := json.Unmarshal(raw, &folded); err != nil {
+		t.Fatal(err)
+	}
+	if len(folded.Experiments) != 1 {
+		t.Fatalf("expected one negative result, got %+v", folded.Experiments)
+	}
+	exp := folded.Experiments[0]
+	if exp.JobID != "job-failure-123" || exp.Status != "failed" || exp.Error == "" || exp.Measured || exp.Claimable {
+		t.Fatalf("negative-result projection wrong: %+v", exp)
+	}
+	versions, err := l.GetCampaignVersions(sess.ID, 10)
+	if err != nil || len(versions) != 2 {
+		t.Fatalf("negative result must land as one new campaign version, got %d err=%v", len(versions), err)
+	}
+}

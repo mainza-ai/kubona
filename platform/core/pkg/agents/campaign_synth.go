@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/experimentresult"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -222,6 +223,18 @@ type CampaignExperiment struct {
 	KnownAs             []string `json:"known_as,omitempty"`
 	ResultVersion       string   `json:"result_version,omitempty"`
 	Status              string   `json:"status,omitempty"`
+	Error               string   `json:"error,omitempty"`
+}
+
+// CampaignResultRef is the canonical receipt/provenance reference for one
+// settled experiment job. It carries the shared result version and the
+// ledger-backed receipt so campaign, export, and UI do not have to
+// reconstruct provenance from prose.
+type CampaignResultRef struct {
+	JobID         string                    `json:"job_id"`
+	Kind          string                    `json:"kind"`
+	ResultVersion string                    `json:"result_version,omitempty"`
+	Receipt       *experimentresult.Receipt `json:"result_receipt,omitempty"`
 }
 
 type CampaignState struct {
@@ -239,6 +252,7 @@ type CampaignState struct {
 	ADMET           any                  `json:"admet,omitempty"`
 	Notebook        *SystematicNotebook  `json:"notebook"`
 	Experiments     []CampaignExperiment `json:"experiments,omitempty"`
+	ResultReceipts  []CampaignResultRef  `json:"result_receipts,omitempty"`
 	UpdatedAt       time.Time            `json:"updated_at"`
 }
 

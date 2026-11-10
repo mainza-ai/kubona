@@ -5173,3 +5173,19 @@ skipped is the exact failure this incident is about:
   plus the host secret env; health/ready/console responded. A separate host
   `next-server` listener on `*:3000` makes `local-deployment-check.sh` report a
   public console until that non-compose process is stopped.
+
+## [2026-11-09] implementation | canonical results and custom-geometry VQE
+
+- Added the dependency-free Go `experimentresult` decoder and wired it into the
+  job boundary: version, job-kind match, per-kind required fields, finite
+  numbers, and receipt shape are enforced before a citable result is persisted.
+- Campaign folds now store `result_receipts` (job, kind, result version, ledger
+  receipt); the console renders ledger/result hashes.
+- Failed experiment jobs now fold as negative campaign results with
+  `measured=false`, `claimable=false`, and the recorded reason.
+- Added caller-supplied PySCF geometry VQE (`atom`, `ncas`, `nelecas`,
+  closed-shell STO-3G, 8-spatial-orbital full-FCI cap, 12 active qubits) with
+  CASCI/full-FCI anchors and console controls.
+- Added the canonical result envelope fields for generic geometry and receipt
+  visibility; tests cover decoder refusals, receipt projection, negative folds,
+  and custom VQE.

@@ -246,7 +246,12 @@ describe('ResultsStudio non-molecular experiment visibility', () => {
       experiments: [
         { job_id: 'job-spin-early', kind: 'spin_chain', model: 'tfim', n_sites: 4, energy: -3.19, energy_exact: -3.21, gap: 0.8, uncertainty: 0.004, claimable: false, measured: true, hardware: false },
         { job_id: 'job-conj-early', kind: 'conjecture_run', candidate_count: 1, novelty_status: 'known', laws: ['a(n) = a(n-1) + a(n-2) [conjecture]'], claimable: false, measured: false, hardware: false },
+        { job_id: 'job-failed-early', kind: 'spin_chain', status: 'failed', error: 'bridge unavailable', claimable: false, measured: false, hardware: false },
       ],
+      result_receipts: [{
+        job_id: 'job-spin-early', kind: 'spin_chain', result_version: 'experiment-result-v1',
+        result_receipt: { algorithm: 'ed25519', ledger_entry_hash: 'ledger-hash-1', result_sha256: 'result-hash-1', signed: true, signature: 'sig' },
+      }],
     } as unknown as CampaignState;
     let tree!: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<ResultsStudio campaign={projected} sessionId={null} />); });
@@ -255,5 +260,10 @@ describe('ResultsStudio non-molecular experiment visibility', () => {
     expect(text).toContain('spin_chain');
     expect(text).toContain('conjecture_run');
     expect(text).toContain('Download experiment report');
+    expect(text).toContain('failed');
+    expect(text).toContain('bridge unavailable');
+    expect(text).toContain('Result receipts');
+    expect(text).toContain('ledger-hash-1');
+    expect(text).toContain('signed');
   });
 });

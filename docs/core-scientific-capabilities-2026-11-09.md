@@ -68,7 +68,7 @@ or operations.
 | Full-space CEO/ UCCSD ADAPT | live simulator | `platform/bridge/adapt.py` | working |
 | QAOA MaxCut | simulator + governed hardware | `run_qaoa*` | working, fixed graph |
 | Exact classical anchors | PySCF live for curated molecules | `platform/bridge/chemistry.py` | working |
-| Chemistry breadth | H2/LiH/BeH2 only (VQE); H2O/N2/CO/HF/etc. anchors only | `solve_classical_anchor` | **gap** |
+| Chemistry breadth | H2/LiH/BeH2/H2O curated plus caller-supplied closed-shell STO-3G geometry (bounded active space) | `experiments.py::run_generic_vqe` | **working, bounded** |
 | Excited states / reaction paths / geometry optimization | absent | no code | **gap** |
 | Physics lattice simulation | **missing module** referenced by pack | `domain_packs/materials.../pack.yaml`; `test_domain_packs.py` | **P0 gap** |
 | Spectral gaps / magnetization / correlations | absent as experiments | no code | **gap** |
@@ -283,7 +283,8 @@ Still queued after the correction pass:
   the holdout falsifier (SC-09 remains an external-validation gap);
 - PES/hardware mitigation per point, repeated-run variance, and calibration-
   aware spin runs;
-- manual VoiceOver/NVDA evidence remains human-only.
+- manual VoiceOver/NVDA evidence remains human-only;
+- external literature novelty and theorem proofs remain out of scope.
 
 The governed hardware launch UI, protocol history, generic experiment
 report/export, and measured-experiment visibility before a molecular notebook

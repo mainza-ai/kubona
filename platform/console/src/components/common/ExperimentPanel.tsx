@@ -23,6 +23,9 @@ function resultRecord(job: Job | null): Record<string, unknown> | null {
 export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | null; tenantId?: string | null }) {
   const [kind, setKind] = useState<Kind>('vqe');
   const [molecule, setMolecule] = useState('H2');
+  const [customAtom, setCustomAtom] = useState('H 0 0 0; H 0 0 0.7414');
+  const [ncas, setNcas] = useState('2');
+  const [nelecas, setNelecas] = useState('2');
   const [bond, setBond] = useState('0.7414');
   const [rMin, setRMin] = useState('0.6');
   const [rMax, setRMax] = useState('0.9');
@@ -84,6 +87,22 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.holdout = Number(holdout);
       spec.max_order = 6;
       spec.max_degree = 6;
+    } else if (molecule === 'custom') {
+      if (kind !== 'vqe') {
+        setError('custom geometry is supported for VQE only');
+        setBusy(false);
+        return;
+      }
+      spec.molecule = 'custom';
+      spec.atom = customAtom.trim();
+      spec.ncas = Number(ncas);
+      spec.nelecas = Number(nelecas);
+      spec.basis = 'sto-3g';
+      spec.charge = 0;
+      spec.spin = 0;
+      spec.shots = Number(shots);
+      spec.layers = Number(layers);
+      spec.max_iterations = Number(iterations);
     } else {
       spec.molecule = molecule;
       spec.bond_distance = Number(bond);
@@ -188,11 +207,27 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             <label className="space-y-1">Molecule
               <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); if (next === 'H2') { setRMin('0.6'); setRMax('0.9'); } else if (next === 'H2O') { setRMin('0.8'); setRMax('1.2'); } else { setRMin('1.2'); setRMax('2.0'); } }} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40">
                 <option value="H2">H2</option><option value="LiH">LiH</option><option value="BeH2">BeH2</option><option value="H2O">H2O</option>
+                <option value="custom">Custom PySCF geometry</option>
               </select>
             </label>
-            <label className="space-y-1">Bond distance (Å)
-              <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
-            </label>
+            {molecule !== 'custom' && (
+              <label className="space-y-1">Bond distance (Å)
+                <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1 disabled:opacity-40" />
+              </label>
+            )}
+            {molecule === 'custom' && kind === 'vqe' && (
+              <>
+                <label className="col-span-2 space-y-1">PySCF atom geometry
+                  <textarea aria-label="Custom atom geometry" value={customAtom} onChange={(e) => setCustomAtom(e.target.value)} rows={2} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+                </label>
+                <label className="space-y-1">Active orbitals (ncas)
+                  <input aria-label="Active orbitals" value={ncas} onChange={(e) => setNcas(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+                </label>
+                <label className="space-y-1">Active electrons (nelecas)
+                  <input aria-label="Active electrons" value={nelecas} onChange={(e) => setNelecas(e.target.value)} className="w-full rounded bg-black/60 border border-white/10 px-2 py-1" />
+                </label>
+              </>
+            )}
             {kind === 'pes' && (
               <>
                 <label className="space-y-1">PES r min (Å)
@@ -203,7 +238,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
                 </label>
               </>
             )}
-            {(kind === 'vqe' || kind === 'pes') && (
+            {(kind === 'vqe' || kind === 'pes') && molecule !== 'custom' && (
               <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
                 <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
                 Full orbital space (LiH/BeH2/H2O; slower, refuses above the CPU qubit cap)

@@ -247,7 +247,7 @@ def mitigate_circuit(
         mitigated = max(-1.0, min(1.0, mitigated_raw))
 
         return {
-            "success": True, "result_version": "experiment-result-v1",
+            "success": True, "kind": "mitigate", "result_version": "experiment-result-v1",
             "unmitigated_value": float(raw_z0),
             "unmitigated_measured": True,
             "mitigated_value": mitigated,
@@ -309,7 +309,7 @@ def mitigate_circuit(
         mitigated = max(-1.0, min(1.0, mitigated_raw))
 
         return {
-            "success": True, "result_version": "experiment-result-v1",
+            "success": True, "kind": "mitigate", "result_version": "experiment-result-v1",
             "unmitigated_value": float(raw_z0),
             "unmitigated_measured": True,
             "mitigated_value": mitigated,
@@ -390,7 +390,7 @@ def mitigate_circuit(
         mitigated = max(-1.0, min(1.0, mitigated_raw))
 
         return {
-            "success": True, "result_version": "experiment-result-v1",
+            "success": True, "kind": "mitigate", "result_version": "experiment-result-v1",
             "unmitigated_value": float(raw_z0),
             "unmitigated_measured": True,
             "mitigated_value": mitigated,

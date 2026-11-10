@@ -150,7 +150,7 @@ def solve_quantum_krylov(
         eigenvalues = [fci_e + 0.05 / (k + 1) for k in range(subspace_dim)]
         eigenvalues.sort()
         return {
-            "success": True, "result_version": "experiment-result-v1",
+            "success": True, "kind": "krylov", "result_version": "experiment-result-v1",
             "solver": ANALYTICAL_HEURISTIC_METHOD_V1,
             "method": ANALYTICAL_HEURISTIC_METHOD_V1,
             "measured": False,
@@ -240,7 +240,7 @@ def solve_quantum_krylov(
     elapsed = (time.perf_counter() - t0) * 1000.0
 
     return {
-        "success": True, "result_version": "experiment-result-v1",
+        "success": True, "kind": "krylov", "result_version": "experiment-result-v1",
         "solver": NUMERICAL_KRYLOV_SOLVER_V1,
         "method": NUMERICAL_KRYLOV_SOLVER_V1,
         "measured": True,

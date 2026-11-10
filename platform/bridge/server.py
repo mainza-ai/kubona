@@ -876,6 +876,12 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 120)),
                     full_space=bool(spec.get("full_space", False)),
                     full_space_pool=str(spec.get("full_space_pool") or "ceo"),
+                    atom=spec.get("atom") or None,
+                    basis=str(spec.get("basis") or "sto-3g"),
+                    charge=int(spec.get("charge", 0)),
+                    spin=int(spec.get("spin", 0)),
+                    ncas=spec.get("ncas"),
+                    nelecas=spec.get("nelecas"),
                 )
             elif kind == "pes":
                 from experiments import run_pes

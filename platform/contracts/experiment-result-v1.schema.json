@@ -13,6 +13,11 @@
       "enum": ["vqe", "pes", "qaoa", "krylov", "mitigate", "vqe_hardware", "qaoa_hardware", "vqe_hardware_loop", "qaoa_hardware_loop", "excited_state", "reaction", "spin_chain", "spin_chain_hardware", "conjecture"]
     },
     "molecule": { "type": ["string", "null"] },
+    "generic": { "type": "boolean" },
+    "atom": { "type": "string" },
+    "basis": { "type": "string" },
+    "charge": { "type": "integer" },
+    "spin": { "type": "integer" },
     "model": { "type": "string" },
     "n_sites": { "type": "integer", "minimum": 2, "maximum": 14 },
     "coupling": { "type": "number" },
