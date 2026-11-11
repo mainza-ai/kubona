@@ -2,7 +2,7 @@
 type: concept
 name: MCP & Context Flooding
 date: 2026-08-16
-updated: 2026-10-09
+updated: 2026-11-10
 tags: [mcp, agent-integration]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-agent-protocol-landscape-2026]
 status: adopted
@@ -51,6 +51,12 @@ Four **federated, scoped** servers — compiler, execution, cost-governance, eva
 mounted behind a unified gateway. Per [[protocol-strategy]], the servers are thin adapters
 delegating to Kubona's protocol-neutral Capability Core; capability functions accept and return
 native Python data structures uncoupled from MCP SDK types.
+
+> ⚑ Implementation update (2026-11-10, `119749e` / `de3428c`): `platform/kubona/mcp/servers/_mount.py`
+> and `platform/contracts/mcp-catalog.json` now mount **6** servers (`control`, `compiler`,
+> `execution`, `cost`, `provenance`, `world`) exposing **38** tools (`docs/repo-counts.md`),
+> and Go SSE (`/api/events/stream`) supports `Last-Event-ID` cursor replay + live Console
+> campaign/job invalidation beyond `useTelemetry` fleet radar.
 
 ## Target revision & extension policy (Q-29, closed 2026-10-09)
 

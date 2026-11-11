@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Error Mitigation
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-11-10
 tags: [error-mitigation, noise]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -59,5 +59,21 @@ path on Premium/Flex plans. Integration verdict:
   approval. Nothing in the API is exercisable credential-free (even
   `validate` needs an account), so no code ships until the credentials
   exist — a stub would be untestable theater.
+
+## Hardware ZNE status (2026-11-10, prototype register)
+
+- **No silent ZNE claimability (`A-03`):** `docs/production-audit-2026-11-09.md`
+  enforces that extrapolated ZNE estimates are always marked `measured:false`,
+  `claimable:false`, and `chemical_accuracy:false` even when the Richardson fit
+  lands within 1.6 mHa of the PySCF anchor.
+- **No ambiguous loop + mitigation requests (`A-15`):** `HardwareLaunchPanel.tsx`
+  exposes explicit VQE ZNE controls, and both Go admission (`hardware_experiment.go`)
+  and Console UI explicitly refuse requesting closed-loop optimization and ZNE
+  mitigation simultaneously.
+- **Live IBM hardware ZNE & batched PES:** A governed ZNE VQE run executed on
+  IBM `ibm_fez` (`5f0064eb`, Open Plan `$0.00`, `docs/live-qpu-2026-11-09.md`).
+  `hardware_pes` (one QPU batch across source PES points with optional per-point
+  ZNE and per-point FCI comparisons) is implemented and covered in Go/Console
+  tests, awaiting its first live QPU run.
 
 Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]]

@@ -2,7 +2,7 @@
 type: concept
 name: Observatory Spatial Representation Layer
 date: 2026-10-22
-updated: 2026-10-23
+updated: 2026-11-10
 status: adopted
 tags: [ux, spatial-canvas, observatory, world-model, atlas, representation-layer, calm-technology]
 sources:
@@ -225,6 +225,13 @@ Agents navigate the same world as humans using dedicated MCP tools:
 > text `annotation` in the ledger — no `llm_spend_estimated` field is
 > recorded. Pre-registration events (`prediction_sealed/evaluated`) exist in
 > the contract taxonomy but the lens path emits only `annotation`.
+>
+> > ⚑ Update (2026-11-10, `119749e` / `de3428c`): canvas layout state now
+> > persists and restores the 3D camera position and orbit target, cached Atlas
+> > assets and the same-origin GCS image proxy operate cleanly in production
+> > compose (`kubona-live`), and `ResultsStudio` renders measured experiment
+> > series via native SVG `<Chart>` visualizations alongside pre-claim tables
+> > and signed receipts (`docs/ui-gap-audit-2026-11-09.md`).
 
 ### 10.3 Ledger Contract Conformance (`platform/contracts/event-types.json`)
 - **Closed Set-Identity:** Both Go and Python rails enforce contract set-identity via `events_contract_test.go`.

@@ -174,11 +174,11 @@ Revisit only with a concrete claim that fits nowhere.
 |---|---|
 | [[protocol-strategy]] | Decoupling the Capability Core from peripheral edge adapters (MCP, A2A); code mode vs tool calls |
 | [[spend-mandates-and-delegation]] | AP2-style signed mandates for QPU spend authorization and A2A inter-agent delegation |
-| [[mcp-and-context-flooding]] | Model Context Protocol; Tools/Resources/Prompts; code-execution mode |
-| [[qir-mlir-compilation]] | Hardware-agnostic intermediate representation & LLVM-based pipeline |
-| [[vqa-vqe]] | Variational algorithms; hybrid classical–quantum training loops |
+| [[mcp-and-context-flooding]] | Model Context Protocol; Tools/Resources/Prompts; 6 mounted servers / 38 tools; SSE `Last-Event-ID` & code-execution mode |
+| [[qir-mlir-compilation]] | Hardware-agnostic intermediate representation: Rust `qir-core` (OpenQASM 2.0/3.0 subset → QIR LLVM/JSON, bundled in `kubonad`) & refused multi-dialect MLIR |
+| [[vqa-vqe]] | Variational algorithms: H2/LiH/BeH2/H2O/custom geometry, PES, excited/reaction, SPSA HILO VQE & QAOA on `ibm_fez` |
 | [[barren-plateau]] | Vanishing-gradient phenomenon; WBP detection; GQE alternative |
-| [[error-mitigation]] | ZNE / PEC / CDR; Mitiq's toolkit |
+| [[error-mitigation]] | ZNE / PEC / CDR (`ZNEResult` refit, `measured:false` / `claimable:false` invariant, live `ibm_fez` ZNE VQE, batched `hardware_pes`) |
 | [[circuit-cutting]] | Partitioning large circuits; ILP cut placement; overhead math |
 | [[nisq-and-hybrid-orchestration]] | Noisy intermediate-scale reality; Qiskit Serverless / Pilot-Quantum |
 | [[cost-governance]] | Pre-flight, budget ceilings, approval gate, burn-rate telemetry |
@@ -198,20 +198,20 @@ Revisit only with a concrete claim that fits nowhere.
 | [[science-discovery]] | Kubona as an AI-enhanced science discovery platform: the 7-stage discovery loop, self-experimentation, systematic results |
 | [[user-identity-and-profiles]] | Every actor (human or agent) is a keypair identity: profiles, labs, delegable+revocable authority |
 | [[workflows-and-agent-authoring]] | User- and agent-created workflows & agents; triggers, gates, registry, safety rail |
-| [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex, MPDS, …) as governed MCP resources |
+| [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex `external_novelty`, PySCF classical anchors; MPDS/EPO OPS gated) as governed MCP resources |
 | [[market-intelligence-capability]] | Gather→curate→store ecosystem intelligence (TQI-model report, 2026-10-11): entity schema, ER, tiered validation, versioned snapshots — `candidate` |
-| [[ui-ux-vision]] | The full console/UX specification: personas, 8 surfaces, visual language, mobile, acceptance criteria |
+| [[ui-ux-vision]] | Console/UX specification & measured science surfaces (`Cmd+E` Lab, `ResultsStudio` SVG charts, native `<dialog>`, 610 Console tests; manual AT pending) |
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
-| [[risks]] | Risk register with mitigations and sequencing decisions |
+| [[risks]] | Risk register synced 2026-11-10 (public DCO/rulesets, export routing, calibration & anti-overclaim gates, scrubbed history) |
 | [[quantum-advantage-realism]] | The anti-quantum-washing policy: never claim advantage; backend, classical anchor and interval travel with every artefact |
 | [[five-ring-research-loop]] | The outer discovery loop as five rings (Observe → Hypothesise → Compute → Audit → Communicate) plus Ring 0's watchdog discipline |
 | [[claim-credibility-wavefunctions]] | Claims as amplitude vectors: credibility scored from source diversity + engagement + priors, collapsed by verification, audited by a tribunal |
 | [[epistemic-curvature]] | Curvature of the belief manifold as the signal for where research effort is actually informative |
-| [[fidelity-accounting]] | Every result carries a noise/fidelity budget; classical anchors and simulators before any real-QPU spend |
+| [[fidelity-accounting]] | Fidelity budget rail (`EvaluateAdmissionFloorOnly`, live `FidelityGate` sharing, calibration freshness & age checks, pre-QPU refusal) |
 | [[autonomous-ansatz-optimization]] | Ansatz genomes searched as data (catalogs, MEW scores, noise-aware selection) by an `ansatz-scout` role |
 | [[differentiable-quantum-stack]] | PennyLane as the differentiable engine: workflow, noise, circuit cutting, resource specs — wrapped, never forked |
 | [[agentic-qir-compilation]] | QIR/MLIR compilation driven by agents: capability-aware lowering, resource passes, cost from the same compiler |
-| [[quantum-domain-packs]] | Domain science as versioned, schema-pinned packs (recipes + evidence requirements + classical anchors) |
+| [[quantum-domain-packs]] | Domain science as versioned, schema-pinned packs (`kubona.science.lattice.HubbardModel` / `dmrg.py` now implemented; `kubona.*` allowlist) |
 | [[multi-agent-research-collective]] | Roles, signed events, trust ladders and watchdogs: how many agents share one research ledger safely |
 | [[agentic-memory-and-observability]] | Memory lifecycle (type, decay, consolidation) and the observability that makes agent claims checkable |
 | [[confidentiality-lattice-provenance]] | Labels that flow with data: information-flow control as part of the provenance record |
@@ -245,6 +245,6 @@ Revisit only with a concrete claim that fits nowhere.
 | [[failure-budget-and-frontier]] | Failure-budget design + TQ frontier + domain packs order + magic-state bridge (`adopted`) |
 | [[circuit-codesign-ux-plan]] | Backend→frontend inclusive plan: landed slice 1 + queued slices 2-5, threat model (`adopted`) |
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
-| [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked) (`living`) |
-| [[full-system-test-plan]] | Diagram-complete test plan: per-node batteries basic → complex, LLM-assisted scenarios, entry/exit criteria (`candidate` — awaiting approval) |
-| [[observatory-spatial-representation-layer]] | Optional game-like spatial representation layer (Surfaces 1 & 9); two-tier architecture, Atlas beta lens, pre-registration Vault, calm attention director |
+| [[audit-topology-map]] | Deployment topology verified 2026-11-10 (`kubona-live` Compose stack, UDS bridge rails, F-006 closed, F-001 narrowed to `codesign`) (`living`) |
+| [[full-system-test-plan]] | Diagram-complete test plan synced 2026-11-10 (public repo + live IBM runs noted; per-node batteries) (`candidate` — awaiting Phase-2 approval) |
+| [[observatory-spatial-representation-layer]] | Spatial representation layer (Surfaces 1 & 9): Two-Tier Atlas beta lens, camera restore, GCS image proxy, `ResultsStudio` SVG `<Chart>` views |

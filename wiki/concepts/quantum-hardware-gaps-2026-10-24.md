@@ -2,7 +2,7 @@
 type: concept
 name: Quantum hardware completeness audit (Oct 2026)
 date: 2026-10-24
-updated: 2026-10-25
+updated: 2026-11-10
 status: tracked
 tags: [qpu, providers, provisioning, audit, gaps, billing, frontend]
 sources:
@@ -55,3 +55,8 @@ with the exact missing piece named.
 ## Live-proof ledger (this audit)
 
 Hermetic, by constraint: Go full suite green (29 pkgs), console 54 files/266 tests + lint + tsc clean, Python fast lane 767 + bridge 40 green, wiki-lint clean, provision-check exit 0 advisory. Live re-verification checklist for the day keys exist: IBM Runtime submit + cancel, Quantinuum submit + qnexus cancel, Leap hybrid sample, per-vendor rate cards, fleet canary proxy against live backends, end-to-end human dispatch (estimate→mandate→dispatch→status→cancel) with session caps.
+
+> ⚑ Live-proof & gap closure update (2026-11-10, `119749e` / `de3428c`):
+> - **IBM Runtime live runs:** Paid `ibm_marrakesh` (`2` s / `$3.20`, `docs/paid-e2e-readiness-2026-10-31.md`), `ibm_fez` Open Plan `$0.00` Bell cancel/settle (`dbha28pq260s73busu70`), and the `2026-11-09` science suite (`docs/live-qpu-2026-11-09.md`: SPSA VQE `da0b1703`, ZNE VQE `5f0064eb`, LiH `1b6bb0ec`, HILO QAOA `7014cd0c`, `spin_chain_hardware` `1ad0e5fb`).
+> - **Fleet telemetry, calibration & rate cards:** `/api/quantum/backends` exposes live vendor queue depth + `calibration_age_hours` / `calibration_fresh` (`/api/quantum/backends/refresh` + opt-in scheduled refresh); `platform/contracts/rate-cards.json` (`docs/rate-cards.md`) provides reviewed vendor pricing and explicit `Open Plan free` / `unavailable` hardware-prepare previews.
+> - **v1 boundary:** `hardware_pes` is implemented/tested awaiting live QPU dispatch; `quantinuum`/`dwave` live-key execution, live-invoice discounts (optional), and non-v1 backends (`rigetti`, `ionq`, `aws-braket`, `pulser`, `strawberry`) remain fail-closed.

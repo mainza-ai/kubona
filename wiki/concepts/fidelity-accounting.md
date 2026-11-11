@@ -3,7 +3,7 @@ name: Fidelity Accounting
 type: concept
 tags: [frontier, noise, mitigation, governance, hardware]
 date: 2026-09-27
-updated: 2026-10-10
+updated: 2026-11-10
 status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
@@ -78,6 +78,17 @@ older than `device_refresh_interval`, mirroring `cloud_provider_api_configs` in
 > the design: `calibration_age` is `profile_source: builtin-bootstrap`
 > (profiles are hardcoded — no calibration clock exists yet), and the drift
 > curve itself (querying the series) is still open work.
+>
+> > ⚑ Update (2026-11-10, `119749e` / `de3428c`): `F-006` is closed —
+> > `/api/fidelity` (`server.go:handleFidelity`) routes through
+> > `s.fidelityGate.EvaluateAdmissionFloorOnly` with `probe_run:false` (sharing
+> > the live `FidelityGate` pointer between `api.Server` and `jobs.Runner`,
+> > removing the hardcoded `0.94` empty probe). Live vendor calibration snapshots
+> > now expose `calibration_age_hours` and `calibration_fresh` against
+> > `fidelity.MaxCalibrationAgeHours()` on `/api/fleet` and `/api/quantum/backends`,
+> > with on-demand `/api/quantum/backends/refresh` and opt-in scheduled refresh;
+> > hardware results carry snapshot freshness and withhold `claimable` when stale.
+> > Full longitudinal drift curves across series remain future work.
 2. **Refusal with receipts.** "Refused, floor unreachable at price P, with mitigation set M"
    is a *reusable negative result* feeding [[science-discovery]], not a rejected request.
 3. **Mitigation selection becomes a searchable harness.** Which of {ZNE, PEC, cutting,

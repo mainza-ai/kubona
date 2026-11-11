@@ -2,7 +2,7 @@
 type: concept
 name: Optional enhancement plan (2026-11-01)
 date: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-10
 tags: [plan, api, accessibility, operations, production]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -27,6 +27,20 @@ status: tracked
   84 OpenAPI paths.
 - Axe WCAG 2 A/AA passes Arena, Labs, Settings, and Circuit Codesign.
 - CI is the 20-job push gate plus Console E2E; run IDs live in `AGENTS.md`.
+
+> ⚑ Progress update (2026-11-10, `119749e` / `de3428c`):
+> - **Contracts & `/api/v1` parity (`E1`):** Console contract inventory expanded
+>   from `89 / 40 / 0` to **142 modeled / 14 client-only / 0 unmodeled** (`121`
+>   schemas, `130` OpenAPI paths) with `api_v1_alias_test.go` gating `/api/v1/...`
+>   parity alongside `Kubona-API-Version: 1`; per-version OpenAPI document split
+>   remains optional.
+> - **Webhook alert dispatcher (`E2`):** `platform/core/pkg/alerts/alerts.go`
+>   (`Notify` via `KUBONA_ALERT_WEBHOOK_URL`) extends operational alerting beyond
+>   preflight/backup to disk-guard, settlement-skipped, and cooldown-limited
+>   conditions (marked landed in `docs/remaining-todos.md`).
+> - **AT & Deferred (`E3`, `E4`):** Automated axe/keyboard/reduced-motion/200%-zoom
+>   E2E checks remain green; manual VoiceOver/NVDA sign-off (`E3`) and OTel/Sentry
+>   exporters / encrypted-at-rest ledger / API token overlap (`E4`) stay open.
 
 ## E1 — API versioning (highest compatibility value)
 

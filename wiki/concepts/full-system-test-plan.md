@@ -2,7 +2,7 @@
 type: concept
 name: Full-System Test Plan (diagram-complete)
 date: 2026-10-21
-updated: 2026-10-21
+updated: 2026-11-10
 tags: [testing, audit, plan, coverage, scenarios]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-llm-circuit-codesign-2026]
 status: candidate
@@ -203,11 +203,17 @@ error vs loading states distinguished, then the surface-specific battery:
 ## Explicitly out of scope (with reason)
 
 - Real QPU execution (no credentials; fail-closed paths covered instead).
+  *(Superseded in part 2026-10-31 / 2026-11-09: controlled `ibm_marrakesh`
+  paid run and `ibm_fez` Open Plan SPSA VQE / ZNE / QAOA / spin-chain runs
+  executed live — see `docs/live-qpu-2026-11-09.md`; non-IBM backends still
+  exercise fail-closed refusal without external creds.)*
 - Paid endpoints / x402 live rail (dormant by design, Phase 5+).
 - Third-party security review (human gate, P3).
 - Full-loop load/chaos and real disk-fill (destructive; env-threshold
   simulation covers the logic).
 - Public-repo / outside-contributor flows (private by decision, Q-25).
+  *(Superseded 2026-10-26 by Q-27: repo flipped **public**; `CONTRIBUTING.md`,
+  DCO 1.1 CI check, `Kubona-protect-1` ruleset, and branch protection active.)*
 
 ## Phase 2 — queued, not approved (do not execute yet)
 

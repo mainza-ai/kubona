@@ -2,7 +2,7 @@
 type: concept
 name: Provider Capability Schema
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-11-10
 tags: [providers, schema, routing]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -56,3 +56,11 @@ Yes — where measurement is possible, and honestly unknown where it is not
 - **Unknown stays unknown**: unmeasurable plugins and undeclared fields yield
   `None` — never a pass, never a fail. Pricing and queue depth remain
   declared-until-metered (only qubit capacity and calibration are attested).
+
+> ⚑ Update (2026-11-10, `119749e` / `de3428c`): `GET /api/quantum/backends` now
+> surfaces live vendor queue depth alongside `calibration_age_hours` and
+> `calibration_fresh` (checked against `fidelity.MaxCalibrationAgeHours()`, with
+> `/api/quantum/backends/refresh` and opt-in scheduled refresh). Reviewed
+> vendor-list pricing lives in `platform/contracts/rate-cards.json` (backing
+> explicit Open Plan `$0.00` or `unavailable` QPU price previews; `dispatch_ready`
+> enforces v1 executable providers while planned backends fail closed).

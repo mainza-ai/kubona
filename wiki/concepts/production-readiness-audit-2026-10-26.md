@@ -2,7 +2,7 @@
 type: concept
 name: Production Readiness Audit — Round 2 (2026-10-26)
 date: 2026-10-26
-updated: 2026-10-29
+updated: 2026-11-10
 tags: [audit, production, security, money, honesty, ci, plan]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -812,6 +812,22 @@ correction below).
 > - **Gate:** the 20-job push gate is green (run `40914979580`); the nightly
 >   thesis-scale gate is red (runs `40854405074`, `40666624246`,
 >   `40478035440`). Do not read "full gate green" as covering nightly.
+
+> ⚑ Post-Oct-29 resolution (2026-11-10, `119749e` / `de3428c`):
+> - **Counts & Docs:** Counts are generated in `docs/repo-counts.md` (`140` HTTP
+>   routes, `37` Go packages / `862` tests, `183` Python test files, `120` console
+>   test files / `610` cases, `32` Rust tests, `6` MCP servers / `38` tools, `156`
+>   wiki pages).
+> - **Nightly & Paid QPU:** The thesis-scale nightly gate passed at `c7d98f6`
+>   (run `41041244412`, `docs/remaining-todos.md`), a controlled paid run settled
+>   on `ibm_marrakesh` (2 QPU s / `$3.20`, `docs/paid-e2e-readiness-2026-10-31.md`),
+>   and `2026-11-09` Open Plan `ibm_fez` science runs completed end-to-end
+>   (`docs/live-qpu-2026-11-09.md`).
+> - **Additional hardening at `de3428c`:** Shared live `FidelityGate` pointer
+>   between `api.Server` and `jobs.Runner`, fail-closed `obligation.go` locking
+>   and `sandbox/docker.go` image check, `/usr/local/bin/qir-core` bundled in
+>   `kubonad`, and `de3428c` full-stack audit fixes (`docs/production-audit-2026-11-09.md`).
+>   Always verify CI on the exact shipped HEAD before citing live green status.
 
 ---
 

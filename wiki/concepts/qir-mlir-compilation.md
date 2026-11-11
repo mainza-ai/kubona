@@ -2,7 +2,7 @@
 type: concept
 name: QIR / MLIR Compilation
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-11-10
 tags: [compiler, qir, mlir]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -13,12 +13,22 @@ status: adopted
 The hardware-agnostic compilation core that lets one algorithm run on any provider.
 
 > **Register note (design vs. prototype):** Sections below describe the target compilation
-> architecture from the architecture paper and gap-analysis plan. In the prototype today,
-> `platform/crates/qir-core` is a standalone Rust CLI that parses the locked OpenQASM 2.0
-> subset (`OPENQASM 3` is refused per Q-18/W0) and emits QIR `BaseProfile` LLVM text IR;
-> MLIR (`QUIR`/`Pulse` dialects), `qubit linearity` borrow-checking, WASM builds, and PyO3
-> bindings are blueprint targets (see [[agentic-qir-compilation]] and
-> [[deep-implementation-audit-2026-10-12]]).
+> architecture from the architecture paper and gap-analysis plan. In the prototype at
+> `2026-10-17`, `platform/crates/qir-core` was reported as parsing only an OpenQASM 2.0
+> subset (`OPENQASM 3` refused); MLIR (`QUIR`/`Pulse` dialects), `qubit linearity`
+> borrow-checking, WASM builds, and PyO3 bindings remain blueprint targets (see
+> [[agentic-qir-compilation]] and [[deep-implementation-audit-2026-10-12]]).
+>
+> > ⚑ Update (2026-11-10, `119749e` / `de3428c`): `platform/crates/qir-core` (`23` Rust unit
+> > tests; `32` total across `qir-core` + `ifc-core`) now parses both **OpenQASM 2.0**
+> > (`qreg`/`creg`) and an **OpenQASM 3.0 subset** (`OPENQASM 3.0;`, `qubit[...]`,
+> > `bit[...]`, `reset`; tested in `parses_openqasm3_subset`), decomposes compound gates
+> > (`ccx`/`toffoli`) while refusing unsupported control flow (`opaque`/`if`), and emits QIR
+> > `BaseProfile` LLVM text IR (`--llvm`) or JSON (`--json`). `Dockerfile.kubonad` builds and
+> > bundles `/usr/local/bin/qir-core` (`KUBONA_QIR_CORE_BIN`); the Python package keeps
+> > `kubona/qir/pipeline.py` explicitly labelled as `python-reference` (never compiler-verified)
+> > when the Rust binary is absent. Multi-dialect MLIR lowering remains formally rejected
+> > (`Q-43`).
 
 ## Quantum Intermediate Representation (QIR)
 

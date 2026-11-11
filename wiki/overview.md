@@ -303,6 +303,11 @@ blueprint milestone.
 as completion: six settled policies against 62 adopted mechanisms and zero open
 questions means the blueprint is fully settled and contributor-ready.
 
+> ⚑ Census update (2026-11-10, `scripts/wiki-lint.py --strict`): **156 pages** —
+> `settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 49 ·
+> `reference` 9 · `source` 10 · `living` 7 (`48` entities · `93` concepts · `10`
+> sources · `5` meta).
+
 ### What the prototype has empirically answered
 
 `platform/` — Python tests across 178 files (`pytest platform/tests/`; exact case count generated in `docs/repo-counts.md`) + bridge

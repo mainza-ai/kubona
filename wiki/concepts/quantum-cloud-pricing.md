@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Cloud Pricing & Financial Telemetry
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-11-10
 tags: [pricing, cost, cloud, telemetry]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -57,3 +57,16 @@ Operator checklist (smallest receipt first — Bell pair, low shots):
 3. Confirm backend (`ibm_brisbane` vs Heron/Nighthawk).
 4. Mint grant (`kubonad grants mint --scope qpu/submit --budget <USD> --ttl …`), sign mandate (`POST /api/mandates/sign`), submit with `MandateRef` + `MaxCostUSD`.
 5. Record backend that ran + receipt hash + classical anchor per [[quantum-advantage-realism]] before claiming anything.
+
+> ⚑ Execution update (2026-11-10, `119749e` / `de3428c`):
+> - **Rate cards & price preview:** Reviewed list prices default from
+>   `platform/contracts/rate-cards.json` (`docs/rate-cards.md`, `verified`/`source`
+>   fields). Hardware prepare responses show a reviewed QPU price preview (explicit
+>   Open Plan `$0.00` or explicit `unavailable` otherwise — never guessed from shots),
+>   keeping the signed operator `MaxCostUSD` cap as spend authority.
+> - **Live IBM executions recorded:** Paid `ibm_marrakesh` (`$3.20` for 2 QPU s,
+>   `docs/paid-e2e-readiness-2026-10-31.md`) and `ibm_fez` Open Plan `$0.00`
+>   science suite (`docs/live-qpu-2026-11-09.md`: SPSA HILO VQE `da0b1703`, ZNE VQE
+>   `5f0064eb`, active-space LiH `1b6bb0ec`, HILO QAOA `7014cd0c`,
+>   `spin_chain_hardware` `1ad0e5fb`, full settle + receipt). `hardware_pes`
+>   is implemented and ready for its first live QPU run.

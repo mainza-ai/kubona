@@ -1,7 +1,7 @@
 ---
 type: log
 date: 2026-08-16
-updated: 2026-10-26
+updated: 2026-11-10
 tags: [log]
 status: living
 ---
@@ -5322,3 +5322,37 @@ skipped is the exact failure this incident is about:
   scrub, and synced `index.md` census to `156` pages (`tracked=49`, `10` sources)
   against `docs/repo-counts.md` (`140` HTTP routes) and contract inventory (`142`
   modeled / `14` client-only / `0` unmodeled).
+
+## [2026-11-10] verification | deep wiki synchronization across domain, compiler, hardware, risk & UX pages
+
+- Synchronized remaining blueprint and tracking pages with HEAD `119749e` /
+  `de3428c` and `35a1f89` (append-only GitHub history under active
+  `Kubona-protect-1` ruleset; DCO 1.1 `Signed-off-by` enforced):
+  - `overview.md` (updated `2026-11-10` mechanical census: `156` pages),
+    `entities/kubona.md` (`6` MCP servers / `38` tools, `140` HTTP routes,
+    `142` modeled console contracts), `questions.md` (`Q-01` 19 experiment
+    kinds, `Q-25` superseded by `Q-27`), and `concepts/risks.md` (public repo
+    governance, DCO CI, export routing, scientific anti-overclaim gates).
+  - Domain & compiler pages: `quantum-domain-packs.md`
+    (`kubona.science.lattice.HubbardModel`, `SpinChainModel`,
+    `SquareLatticeModel`, and `dmrg.py` now implemented),
+    `qir-mlir-compilation.md` (`qir-core` 23 Rust tests, OpenQASM 2.0/3.0
+    subset lowering, bundled in `kubonad` at `/usr/local/bin/qir-core`),
+    `error-mitigation.md` (`A-03` ZNE `claimable:false`, `A-15` loop+ZNE refusal,
+    live `ibm_fez` ZNE VQE `5f0064eb`, batched `hardware_pes`), `vqa-vqe.md`
+    (custom STO-3G/BFGS geometry, active-space/full-space chemistry, `ibm_fez`
+    SPSA VQE `da0b1703` & HILO QAOA `7014cd0c`), `fidelity-accounting.md`
+    (shared `FidelityGate`, live `calibration_age_hours`/`calibration_fresh` &
+    `/api/quantum/backends/refresh`), `mcp-and-context-flooding.md` (6 mounted
+    servers / 38 tools, SSE `Last-Event-ID` replay), `provider-capability-schema.md`
+    & `science-data-integrations.md` (opt-in OpenAlex `external_novelty`, PySCF
+    anchors).
+  - Hardware, UX & test tracking: `quantum-cloud-pricing.md`,
+    `quantum-hardware-gaps-2026-10-24.md`, `ui-ux-vision.md` (§15 `Cmd+E` Lab,
+    `ResultsStudio` SVG `<Chart>`, native `<dialog>`, `startViewTransition`,
+    `610` Console tests), `observatory-spatial-representation-layer.md` (camera
+    restore, GCS image proxy), `optional-enhancement-plan-2026-11-01.md`
+    (`142 / 14 / 0` contracts, `api_v1_alias_test.go`, `pkg/alerts`),
+    `production-readiness-audit-2026-10-26.md` (`c7d98f6` nightly green
+    `41041244412`, `ibm_marrakesh` `$3.20` paid run), and
+    `full-system-test-plan.md`.

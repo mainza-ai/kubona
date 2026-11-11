@@ -3,7 +3,7 @@ name: Quantum Domain Packs
 type: concept
 tags: [frontier, plugins, domain-packs, vqe, qml, workflows, dft]
 date: 2026-09-27
-updated: 2026-10-10
+updated: 2026-11-10
 status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
@@ -142,8 +142,16 @@ must round-trip losslessly through JSON or every pack edit silently corrupts
 - **Trust boundary**: `resolve_generator` allowlists `kubona.*` only — packs
   declare capabilities, never supply chains. Unresolvable generators refuse at
   resolve time (this caught the materials pack's phantom
-  `kubona.science.lattice.HubbardModel`, which does not exist: its manifest
-  data stays valid, but nothing can execute it until implemented).
+  `kubona.science.lattice.HubbardModel`, which did not exist on `2026-10-10`:
+  its manifest data stays valid, and nothing unresolvable executes).
+
+> ⚑ Update (2026-11-10, `119749e` / `de3428c`): `platform/kubona/science/lattice.py`
+> now implements `HubbardModel` (exact 1D Fermi-Hubbard in the fermionic occupation
+> basis), `SpinChainModel` (1D TFIM / Heisenberg / XXZ), and `SquareLatticeModel`
+> (2D TFIM quench dynamics), paired with `platform/kubona/science/dmrg.py` (`quimb`
+> DMRG2 with `TNLinearOperator` `N>=12` fix verified at `N=16`). `resolve_generator`
+> continues to enforce strict `kubona.*` allowlisting and fail-closed refusal on
+> unresolvable paths.
 - **Revocation**: `PackRegistry` with a `revoked.json` file (`revoke(pack_id,
   reason)` requires a non-blank reason); `load_all` refuses revoked packs
   everywhere. Revocation lives in the registry, never in the pack.

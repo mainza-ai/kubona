@@ -2,7 +2,7 @@
 type: concept
 name: Science Data Integrations
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-11-10
 tags: [data, science, literature, apis]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -65,3 +65,16 @@ only from env). Non-commercial or unclear sources stay out until reviewed.
 **Hugging Face** (model hub + inference), **Jina AI** (embeddings/reranking for grounded
 RAG), **Groq** (fast inference) — operational choices for grounding pipelines and
 [[unsloth]]-served models, not dependencies.
+
+## Prototype status update (2026-11-10)
+
+- **Literature & novelty lookup:** `ground_literature` enforces the arXiv (1 req / 3 s)
+  and OpenAlex polite-pool rules above with `license` + `freshness` metadata in the
+  ledger. Conjecture discovery (`platform/kubona/science/conjecture.py`) supports an
+  opt-in OpenAlex lookup (`external_novelty`) returning matching titles/DOIs or explicit
+  `unavailable`, while preserving `novelty: "unclassified"` until full external literature
+  validation lands.
+- **Classical chemistry anchors:** Live **PySCF** CASCI/FCI anchors run in the bridge/science
+  layer (`H2`, `LiH`, `BeH2`, `H2O`, and custom closed-shell STO-3G geometries).
+- **Still unintegrated or operator-gated:** Semantic Scholar, EPO OPS (registration keys),
+  MPDS, and GPU-DFT trial services remain outside shipped v1 defaults.

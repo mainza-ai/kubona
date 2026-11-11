@@ -2,7 +2,7 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-10-11
+updated: 2026-11-10
 tags: [ux, ui, control-plane, console, report]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-openai-math-corpus]
 status: adopted
@@ -279,6 +279,26 @@ materializing switches to the arena; widget state clears on session switch.
 Shell de-worded to icon-only affordances (avatar menu, icon canvas entry).
 Verified: `pnpm build` + 26 vitest green + eslint zero-warning + served-200
 smoke (zero widget markup in default SSR — the stage is truly empty).
+
+## 15. Measured Science & Console Refinement (built 2026-11-09/10, prototype register)
+
+- **Experiment & Discovery Lab (`Cmd+E` / `Ctrl+E`):** Unified launcher and result
+  surfaces covering **19** `experiment-result-v1` kinds (`ExperimentPanel.tsx`,
+  `HardwareLaunchPanel.tsx`, `DiscoveryProtocolPanel.tsx`), backed by real API/SSE
+  endpoints rather than mock fixtures (`de3428c`, `docs/ui-gap-audit-2026-11-09.md`).
+- **ResultsStudio & Visualizations (`ResultsStudio.tsx`, `MeasuredOutputs.tsx`):**
+  Pre-claim experiment tables, negative/failed experiment folding, signed Ed25519
+  `experiment-export-v1` downloads, result receipt verification tables, calibration
+  freshness warnings, and crisp SVG `<Chart>` plots across PES, VQE repeat variance,
+  BFGS geometry convergence, excited-state gaps, 1D/2D spin correlations, and
+  conjecture holdouts.
+- **Native Shell Polish & Contract Parity:** Native HTML `<dialog>` Escape/backdrop
+  dismissal (`Overlays.tsx`), `startViewTransition`, `IME` composition guards (`Composer.tsx`),
+  canvas camera/orbit-target restoration, **142 modeled / 14 client-only / 0 unmodeled**
+  contracts (`121` schemas, `130` OpenAPI paths), and **610** Console tests across
+  `120` test files (`docs/repo-counts.md`). Automated WCAG 2 A/AA axe, keyboard,
+  reduced-motion, and 200%-zoom checks pass; manual VoiceOver/NVDA walkthrough and
+  generalized non-chemistry manuscript paper templates remain open.
 
 Related: [[agent-ux-control-plane]] · [[science-discovery]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[user-identity-and-profiles]] ·
