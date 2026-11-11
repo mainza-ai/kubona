@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Atom, Sliders } from 'lucide-react';
+import { Atom, Box, Sliders } from 'lucide-react';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 
 interface MolecularActiveSpaceWidgetProps {
@@ -10,6 +10,7 @@ interface MolecularActiveSpaceWidgetProps {
   numOrbitals?: number;
   homoLumoGapHa?: number;
   onActiveSpaceChange?: (activeElectrons: number, activeOrbitals: number) => void;
+  onOpenObservatory?: () => void;
 }
 
 /**
@@ -23,6 +24,7 @@ export function MolecularActiveSpaceWidget({
   numOrbitals,
   homoLumoGapHa,
   onActiveSpaceChange,
+  onOpenObservatory,
 }: MolecularActiveSpaceWidgetProps) {
   const backed =
     typeof moleculeName === 'string' && moleculeName.trim() !== '' &&
@@ -84,7 +86,7 @@ export function MolecularActiveSpaceWidget({
 
   return (
     <div data-provenance="proposed" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-3">
         <div className="flex items-center space-x-3">
           <div className="p-2 rounded-xl bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)]">
             <Atom className="w-5 h-5" />
@@ -94,7 +96,19 @@ export function MolecularActiveSpaceWidget({
             <p className="text-xs text-[var(--color-muted)]">{`${moleculeName} • CASSCF(${activeElectrons}e, ${activeOrbitals}o)`}</p>
           </div>
         </div>
-        <ProvenanceBadge kind="proposed" detail="Active-space counts come from the campaign proposal." />
+        <div className="flex items-center gap-2">
+          {onOpenObservatory && (
+            <button
+              type="button"
+              onClick={onOpenObservatory}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-fill)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-xs font-medium text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            >
+              <Box className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+              <span>Open 3D Observatory</span>
+            </button>
+          )}
+          <ProvenanceBadge kind="proposed" detail="Active-space counts come from the campaign proposal." />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

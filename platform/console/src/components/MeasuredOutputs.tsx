@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { fetchJobs, jobStatusLabel } from '@/lib/api';
 import { asRecord } from '@/lib/guards';
+import { classifyJobTargetScope, type CampaignTargetScope } from '@/lib/target-scope';
 import { JobProgress } from './common/JobProgress';
 import { ProvenanceBadge } from './common/ProvenanceBadge';
 import type { Job } from '@/types';
@@ -198,20 +199,46 @@ function summarize(job: Job): string | null {
 // MeasuredOutputs: the job-result wiring. Notebook energies describe the
 // plan; this table describes what actually ran, latest completed job per
 // type, each figure bound to its job id. Empty sessions say so.
-export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
+export interface MeasuredOutputsProps {
+  sessionId: string | null;
+  targetScope?: CampaignTargetScope;
+}
+
+export function MeasuredOutputs({ sessionId, targetScope }: MeasuredOutputsProps) {
   const [rows, setRows] = useState<Array<{ type: string; text: string; at: string }> | null>(null);
+  const [excludedCount, setExcludedCount] = useState(0);
   // S8b/c: in-flight jobs render live progress (JobProgress polls the
   // record); completed jobs keep the measured table below. Active IDs
   // derive from the same fetch — one source, no second listing.
   const [activeIds, setActiveIds] = useState<string[] | null>(null);
 
-  // Reset during render on session change (same key-change pattern):
-  // measured rows belong to exactly one session — stale rows must not
+  const scopeKey = useMemo(
+    () =>
+      JSON.stringify([
+        targetScope?.targetMolecule ?? null,
+        targetScope?.molecularFormula ?? null,
+        targetScope?.targetSystem ?? null,
+        targetScope?.researchGoal ?? null,
+        targetScope?.anchorFci ?? null,
+      ]),
+    [
+      targetScope?.targetMolecule,
+      targetScope?.molecularFormula,
+      targetScope?.targetSystem,
+      targetScope?.researchGoal,
+      targetScope?.anchorFci,
+    ]
+  );
+
+  // Reset during render on session or scope change (same key-change pattern):
+  // measured rows belong to exactly one scoped session — stale rows must not
   // render while the new session's jobs load.
-  const [prevSessionId, setPrevSessionId] = useState<string | null>(sessionId);
-  if (prevSessionId !== sessionId) {
-    setPrevSessionId(sessionId);
+  const [prevSessionKey, setPrevSessionKey] = useState<string>(`${sessionId ?? ''}::${scopeKey}`);
+  const currentSessionKey = `${sessionId ?? ''}::${scopeKey}`;
+  if (prevSessionKey !== currentSessionKey) {
+    setPrevSessionKey(currentSessionKey);
     setRows(null);
+    setExcludedCount(0);
     setActiveIds(null);
   }
 
@@ -231,15 +258,21 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
         jobs
           .filter((j) => {
             const st = jobStatusLabel(j.status);
-            return st === 'QUEUED' || st === 'RUNNING';
+            if (st !== 'QUEUED' && st !== 'RUNNING') return false;
+            return classifyJobTargetScope(j, targetScope).matches;
           })
           .map((j) => j.id)
       );
       const latest = new Map<string, Job>();
+      let offTarget = 0;
       for (const j of jobs) {
         // R7: status is the gate, not timestamp presence — FAILED jobs
         // carry completed_at too and must never render as measured.
         if (jobStatusLabel(j.status) !== 'COMPLETED' || !j.result_json) continue;
+        if (!classifyJobTargetScope(j, targetScope).matches) {
+          offTarget += 1;
+          continue;
+        }
         const prev = latest.get(j.job_type);
         if (!prev || (prev.completed_at ?? '') < (j.completed_at ?? '')) latest.set(j.job_type, j);
       }
@@ -249,6 +282,7 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
         if (text) out.push({ type, text, at: job.completed_at ?? '' });
       }
       out.sort((a, b) => a.type.localeCompare(b.type));
+      setExcludedCount(offTarget);
       setRows(out);
       timer = setTimeout(load, 5000);
     };
@@ -257,7 +291,7 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [sessionId]);
+  }, [sessionId, scopeKey, targetScope]);
 
   if (!sessionId) return null;
 
@@ -266,6 +300,11 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       <div className="flex items-center gap-2">
         <div className="text-xs font-semibold text-[var(--color-text)]">Measured outputs</div>
         <ProvenanceBadge kind="measured" detail="Latest completed job per type." />
+        {excludedCount > 0 && (
+          <span className="ml-auto rounded-[var(--radius-inset)] border border-[var(--color-border)] bg-[var(--color-fill)] px-2 py-0.5 text-[11px] font-code text-[var(--color-muted)]">
+            {`${excludedCount} off-target job${excludedCount === 1 ? '' : 's'} excluded`}
+          </span>
+        )}
       </div>
       <p className="text-[12px] text-[var(--color-muted)]">
         Latest completed job per type — what ran, not what was planned. Notebook energies describe the plan.

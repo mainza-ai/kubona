@@ -23,7 +23,15 @@ import {
 
 type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifold' | 'mandate';
 
-export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: CampaignState | null; tenantId?: string }) {
+export function GenerativeUIStudio({
+  campaign,
+  tenantId,
+  onOpenObservatory,
+}: {
+  campaign?: CampaignState | null;
+  tenantId?: string;
+  onOpenObservatory?: () => void;
+}) {
   const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
   const hasLive = campaign?.quantum_factors != null &&
     (campaign.notebook != null || campaign.epistemics != null || (campaign.trajectory?.length ?? 0) > 0);
@@ -98,6 +106,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
             moleculeName={qf?.target_molecule || campaign?.target_system || undefined}
             numElectrons={qf?.active_electrons}
             numOrbitals={qf?.active_orbitals}
+            onOpenObservatory={onOpenObservatory}
           />
         )}
 

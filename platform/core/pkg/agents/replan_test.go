@@ -687,7 +687,7 @@ func TestReplanVQERejectsCrossMoleculeAndIncompatibleFCI(t *testing.T) {
 }
 
 func TestReplanPesHonorsExplicitUnclaimablePoint(t *testing.T) {
-	raw := replanTestState(t, "H2 ground state VQE")
+	raw := replanTestState(t, "LiH ground state VQE")
 	updated, changed, _ := ReplanWithJobResult(raw, "job-sweep-claim", "vqe_pes",
 		[]byte(`{"success":true,"molecule":"LiH","points":[
 			{"bond_distance":1.5,"energy":-7.8816,"energy_exact":-7.8821,"fci_exact_energy":-7.88236,"delta_mha":0.7,"uncertainty":0.0005,"claimable":false,"theta":[0.1]}
@@ -701,6 +701,87 @@ func TestReplanPesHonorsExplicitUnclaimablePoint(t *testing.T) {
 	}
 	if state.PesPoints[0].ChemicalAccuracy {
 		t.Fatal("claimable:false must not become chemical accuracy from delta alone")
+	}
+}
+
+func TestReplanMolecularJobsRejectCrossMoleculeAndIncompatibleFCI(t *testing.T) {
+	anchored, err := BuildCampaignProposal(context.Background(), "sess-h2-scope", "H2 ground state VQE", "", stubAnchorBridge{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(anchored)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name    string
+		jobType string
+		payload string
+		want    string
+	}{
+		{
+			name:    "vqe_pes explicit wrong molecule",
+			jobType: "vqe_pes",
+			payload: `{"success":true,"molecule":"LiH","points":[{"bond_distance":1.5,"energy":-7.8816,"fci_exact_energy":-7.88236,"delta_mha":0.7}]}`,
+			want:    "pes molecule mismatch",
+		},
+		{
+			name:    "vqe_pes unattributed incompatible FCI",
+			jobType: "vqe_pes",
+			payload: `{"success":true,"points":[{"bond_distance":1.5,"energy":-7.8816,"fci_exact_energy":-7.88236,"delta_mha":0.7}]}`,
+			want:    "pes fci anchor mismatch",
+		},
+		{
+			name:    "hardware_pes explicit wrong molecule",
+			jobType: "hardware_pes",
+			payload: `{"success":true,"molecule":"LiH","backend":"ibm_fez","points":[{"bond_distance":1.5,"energy":-7.85,"fci_exact_energy":-7.88236,"delta_mha":32.0,"claimable":false}]}`,
+			want:    "hardware_pes molecule mismatch",
+		},
+		{
+			name:    "hardware_pes unattributed incompatible FCI",
+			jobType: "hardware_pes",
+			payload: `{"success":true,"backend":"ibm_fez","points":[{"bond_distance":1.5,"energy":-7.85,"fci_exact_energy":-7.88236,"delta_mha":32.0,"claimable":false}]}`,
+			want:    "hardware_pes fci anchor mismatch",
+		},
+		{
+			name:    "krylov explicit wrong molecule",
+			jobType: "krylov_solve",
+			payload: `{"success":true,"molecule":"LiH","ground_state_energy":-7.881,"classical_fci_energy":-7.88236}`,
+			want:    "krylov molecule mismatch",
+		},
+		{
+			name:    "krylov unattributed incompatible FCI",
+			jobType: "krylov_solve",
+			payload: `{"success":true,"ground_state_energy":-7.881,"classical_fci_energy":-7.88236}`,
+			want:    "krylov fci anchor mismatch",
+		},
+		{
+			name:    "reaction explicit wrong molecule",
+			jobType: "reaction",
+			payload: `{"success":true,"molecule":"LiH","reaction_energy":0.1971,"reaction_energy_exact":0.2041}`,
+			want:    "reaction molecule mismatch",
+		},
+		{
+			name:    "excited_state explicit wrong molecule",
+			jobType: "excited_state",
+			payload: `{"success":true,"molecule":"LiH","ground_energy":-7.85,"ground_energy_exact":-7.88236,"excited_energy":-7.41,"gap":0.44}`,
+			want:    "excited_state molecule mismatch",
+		},
+		{
+			name:    "excited_state unattributed incompatible FCI",
+			jobType: "excited_state",
+			payload: `{"success":true,"ground_energy":-7.85,"ground_energy_exact":-7.88236,"excited_energy":-7.41,"gap":0.44}`,
+			want:    "excited_state fci anchor mismatch",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, changed, note := ReplanWithJobResult(raw, "job-scope-"+tc.jobType, tc.jobType, []byte(tc.payload), ""); changed || note != tc.want {
+				t.Fatalf("expected changed=false note=%q, got changed=%v note=%q", tc.want, changed, note)
+			}
+		})
 	}
 }
 

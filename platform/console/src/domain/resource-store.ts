@@ -75,6 +75,7 @@ export function createPollingStore<T>(
   let baseIntervalMs = intervalMs;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = false;
+  let pendingRefresh = false;
   let active = false;
   let generation = 0;
 
@@ -136,7 +137,14 @@ export function createPollingStore<T>(
       if (baseIntervalMs > 0) schedule(next);
       else clearTimer();
     } finally {
-      if (gen === generation) inFlight = false;
+      if (gen === generation) {
+        inFlight = false;
+        if (pendingRefresh && active) {
+          pendingRefresh = false;
+          clearTimer();
+          void tick();
+        }
+      }
     }
   };
 
@@ -154,6 +162,7 @@ export function createPollingStore<T>(
     if (active) return;
     generation += 1;
     inFlight = false;
+    pendingRefresh = false;
     active = true;
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
     void tick();
@@ -161,6 +170,7 @@ export function createPollingStore<T>(
   const stop = () => {
     generation += 1;
     inFlight = false;
+    pendingRefresh = false;
     active = false;
     clearTimer();
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
@@ -196,6 +206,11 @@ export function createPollingStore<T>(
     },
     refresh: () => {
       if (!active) return;
+      if (inFlight) {
+        pendingRefresh = true;
+        return;
+      }
+      pendingRefresh = false;
       clearTimer();
       void tick();
     },

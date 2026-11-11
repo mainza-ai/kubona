@@ -1,21 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignState } from '@/types';
 import {
+  AUTO_CLUSTER_THRESHOLD,
+  MAX_WORKBENCH_ZOOM,
+  MIN_WORKBENCH_ZOOM,
   alignSelectedPositions,
   arrangeSelectedPositions,
   boardPin,
+  buildDefaultClusterAreas,
   buildWorkbench,
   buildWorkbenchLinks,
+  cameraShowsAnyObject,
+  computeFitCamera,
   distributeSelectedPositions,
   dropSpot,
   factKeyOverlapRatio,
   filterWorkbenchObjects,
   freeSpot,
+  getNodeRenderSize,
+  hasExplicitCameraRecord,
   nextZoomTier,
   readCamera,
   readPositions,
   readWorkbenchDocument,
   readWorkbenchView,
+  reflowUnpinnedObjects,
   resolveFocusObjectId,
   routeOrthogonalBusEdges,
   selectFocusedLinks,
@@ -23,6 +32,7 @@ import {
   workbenchDocument,
   workbenchPayload,
   workbenchViewDocument,
+  zoomCameraAtPoint,
 } from './workbench-model';
 
 function campaign(overrides: Partial<CampaignState> = {}): CampaignState {
@@ -311,8 +321,49 @@ describe('workbench model', () => {
     expect(jobs[0].detail).toContain('+1 older runs');
 
     const withPin = buildWorkbench(base, [], repeatJobs, [], [], undefined, { 'job-td-4': true });
-    expect(withPin.filter((o) => o.kind === 'job')).toHaveLength(2);
-    expect(withPin.some((o) => o.id === 'job-td-4')).toBe(true);
+    expect(withPin.filter((o) => o.kind === 'job')).toHaveLength(1);
+    expect(resolveFocusObjectId('td-4', withPin)).toBe('job-td-1');
+
+    // Heterogeneous param conventions ({}, { target: 'H2' }, { campaign_id: 's1' }) fold into one canonical group,
+    // while distinct molecules ({ molecule: 'LiH' }) remain distinct.
+    const mixedRuns = [
+      { id: 'cr-1', session_id: 's1', status: 'COMPLETED', job_type: 'circuit_run', params_json: {}, result_json: { energy: -1.1 }, created_at: '2026-11-01T00:00:00Z' },
+      { id: 'cr-2', session_id: 's1', status: 'COMPLETED', job_type: 'circuit_run', params_json: { target: 'H2' }, result_json: { energy: -1.12 }, created_at: '2026-11-01T00:01:00Z' },
+      { id: 'cr-3', session_id: 's1', status: 'COMPLETED', job_type: 'circuit_run', params_json: { campaign_id: 's1' }, result_json: { energy: -1.13 }, created_at: '2026-11-01T00:02:00Z' },
+      { id: 'cr-4', session_id: 's1', status: 'COMPLETED', job_type: 'circuit_run', params_json: { molecule: 'LiH' }, result_json: { energy: -7.88 }, created_at: '2026-11-01T00:03:00Z' },
+    ];
+    const mixedObjects = buildWorkbench(base, [], mixedRuns);
+    expect(mixedObjects.filter((o) => o.kind === 'job')).toHaveLength(2);
+    expect(resolveFocusObjectId('cr-3', mixedObjects)).toBe('job-cr-1');
+    expect(resolveFocusObjectId('cr-4', mixedObjects)).toBe('job-cr-4');
+  });
+
+  it('deduplicates Hypothesis, Evidence, and Table cards without losing truth-verdict or source contracts', () => {
+    const sentinel = campaign({
+      epistemics: {
+        alpha_corroborated: -1,
+        beta_contested: -1,
+        gamma_unverified: -1,
+        p_correlated: -1,
+        status: 'CONTESTED',
+        literature_drift_mha: -1,
+        statement: 'VQE measured -1.115 Ha vs FCI -1.137 Ha.',
+        sources: ['bridge:vqe_repeats:6183b5db-e351-4657-b07c-3e99e2523bd5'],
+      },
+    });
+    const objects = buildWorkbench(sentinel);
+    const hyp = objects.find((o) => o.id === 'hypothesis')!;
+    const ev = objects.find((o) => o.id === 'evidence')!;
+    const table = objects.find((o) => o.id === 'quantum-factors')!;
+
+    expect(hyp.facts.some((f) => f.label === 'Amplitudes (α/β/γ)')).toBe(true);
+    expect(hyp.facts.filter((f) => f.value === 'not evaluated')).toHaveLength(0);
+    expect(hyp.meta?.callout?.summary).toContain('Tribunal amplitudes pending');
+    expect(ev.facts.some((f) => /Corroborated α|Contested β|Unverified γ/i.test(f.label))).toBe(false);
+    expect(ev.title).toContain('Attribution ledger');
+    expect(ev.basis).toContain('not a truth verdict');
+    expect(table.facts.some((f) => f.label === 'Mapping' || f.label === 'Bond distance')).toBe(false);
+    expect(table.meta?.comparison?.rows.some((r) => r.label === 'RHF mean-field')).toBe(true);
   });
 
   it('fuses >=50% overlapping chart factors, folds comparison tables, and weaves evidence into claim prose', () => {
@@ -459,5 +510,106 @@ describe('energyChart outlier framing', () => {
     expect(spec.y?.min).toBeGreaterThan(-1.2);
     expect(spec.y?.max).toBeLessThan(-1.0);
     expect(spec.basis).toContain('1 off-scale step flagged');
+  });
+});
+
+describe('getNodeRenderSize, overview reflow, and auto-clustering', () => {
+  it('accounts for OpenQASM code height and avoids overlap across standard and overview tiers', () => {
+    const qasm = Array.from({ length: 14 }, (_, i) => `rz(0.${i}) q[${i % 2}];`).join('\n');
+    const base = campaign();
+    const c = campaign({ quantum_factors: { ...base.quantum_factors!, qasm } });
+    const objects = buildWorkbench(c);
+    const circuit = objects.find((object) => object.id === 'circuit');
+    expect(circuit).toBeDefined();
+    expect(circuit!.size.height).toBeGreaterThan(280);
+    expect(totalOverlapArea(objects)).toBe(0);
+
+    const overviewSized = objects.map((object) => ({
+      ...object,
+      size: getNodeRenderSize(object, 'overview'),
+    }));
+    const overviewLayout = reflowUnpinnedObjects(overviewSized, {}, {}, 20, 'overview', {});
+    expect(totalOverlapArea(overviewLayout)).toBe(0);
+    const overviewCircuit = overviewLayout.find((object) => object.id === 'circuit');
+    expect(overviewCircuit!.size.height).toBeLessThan(circuit!.size.height);
+  });
+
+  it('builds a Jobs & Runs auto-cluster area only above AUTO_CLUSTER_THRESHOLD', () => {
+    const small = buildWorkbench(campaign());
+    expect(buildDefaultClusterAreas(small).areas).toHaveLength(0);
+
+    const manyJobs = Array.from({ length: AUTO_CLUSTER_THRESHOLD }, (_, i) => ({
+      id: `vqe-${i}`,
+      session_id: 's1',
+      status: 'COMPLETED',
+      job_type: 'vqe',
+      params_json: { step: i },
+      result_json: { energy: -1.1 },
+      created_at: '2026-11-11T00:00:00Z',
+    }));
+    const large = buildWorkbench(campaign(), [], manyJobs);
+    expect(large.length).toBeGreaterThan(AUTO_CLUSTER_THRESHOLD);
+    const cluster = buildDefaultClusterAreas(large);
+    expect(cluster.areas).toHaveLength(1);
+    expect(cluster.areas[0]?.id).toBe('auto-jobs-runs');
+    expect(cluster.areas[0]?.title).toBe('Jobs & Runs');
+    expect(Object.keys(cluster.assignments).length).toBe(AUTO_CLUSTER_THRESHOLD);
+  });
+});
+
+describe('computeFitCamera, cameraShowsAnyObject, and zoomCameraAtPoint', () => {
+  it('detects explicit camera records across view and workbench documents', () => {
+    expect(hasExplicitCameraRecord(null)).toBe(false);
+    expect(hasExplicitCameraRecord({})).toBe(false);
+    expect(hasExplicitCameraRecord({ camera: { x: 'bad', y: 0, zoom: 1 } })).toBe(false);
+    expect(hasExplicitCameraRecord({ camera: { x: 10, y: -20, zoom: 0.75 } })).toBe(true);
+    expect(hasExplicitCameraRecord({ workbench: { camera: { x: 0, y: 0, zoom: 1 } } })).toBe(true);
+  });
+
+  it('reports false when a camera strands all cards outside the visible viewport', () => {
+    const objs = [
+      { position: { x: -208, y: -176 }, size: { width: 356, height: 220 } },
+      { position: { x: 440, y: 120 }, size: { width: 356, height: 260 } },
+    ];
+    const viewport = { width: 960, height: 520 };
+    expect(cameraShowsAnyObject({ x: -3000, y: -3000, zoom: 0.82 }, viewport, objs)).toBe(false);
+    expect(cameraShowsAnyObject({ x: 96.72, y: -698.72, zoom: 0.607 }, viewport, objs)).toBe(false);
+    expect(cameraShowsAnyObject({ x: 250, y: 200, zoom: 0.82 }, viewport, objs)).toBe(true);
+    expect(cameraShowsAnyObject({ x: -3000, y: -3000, zoom: 1 }, viewport, [])).toBe(true);
+    expect(cameraShowsAnyObject({ x: -3000, y: -3000, zoom: 1 }, { width: 0, height: 0 }, objs)).toBe(true);
+  });
+
+  it('anchors top/left cards inside viewport padding even when tall graphs hit min zoom', () => {
+    const box = { x: -208, y: -272, width: 1992, height: 2600 };
+    const viewport = { width: 1024, height: 520 };
+    const fitClosed = computeFitCamera(box, viewport, { minimapOpen: false });
+    expect(fitClosed.zoom).toBe(MIN_WORKBENCH_ZOOM);
+    expect(fitClosed.zoom).toBeLessThanOrEqual(MAX_WORKBENCH_ZOOM);
+    // Top edge of topmost card (`box.y * zoom + y`) must stay >= padTop (28px).
+    expect(box.y * fitClosed.zoom + fitClosed.y).toBeGreaterThanOrEqual(27);
+    expect(box.x * fitClosed.zoom + fitClosed.x).toBeGreaterThanOrEqual(35);
+
+    const fitCompact = computeFitCamera({ x: 40, y: 40, width: 800, height: 320 }, viewport);
+    expect(fitCompact.zoom).toBeGreaterThan(0.8);
+    expect(fitCompact.zoom).toBeLessThanOrEqual(1.15);
+
+    const fitReadableSpine = computeFitCamera({ x: 40, y: 40, width: 1500, height: 740 }, { width: 1200, height: 420 }, { minZoom: 0.68 });
+    expect(fitReadableSpine.zoom).toBe(0.68);
+    expect(40 * fitReadableSpine.zoom + fitReadableSpine.y).toBeGreaterThanOrEqual(27);
+  });
+
+  it('zooms around the focal point while staying inside server zoom bounds', () => {
+    const focal = { x: 480, y: 300 };
+    const start = { x: 100, y: 40, zoom: 0.8 };
+    const worldBeforeX = (focal.x - start.x) / start.zoom;
+    const worldBeforeY = (focal.y - start.y) / start.zoom;
+
+    const zoomedIn = zoomCameraAtPoint(start, 1.6, focal);
+    expect(zoomedIn.zoom).toBe(1.6);
+    expect((focal.x - zoomedIn.x) / zoomedIn.zoom).toBeCloseTo(worldBeforeX, 1);
+    expect((focal.y - zoomedIn.y) / zoomedIn.zoom).toBeCloseTo(worldBeforeY, 1);
+
+    expect(zoomCameraAtPoint(start, 9, focal).zoom).toBe(MAX_WORKBENCH_ZOOM);
+    expect(zoomCameraAtPoint(start, 0.05, focal).zoom).toBe(MIN_WORKBENCH_ZOOM);
   });
 });

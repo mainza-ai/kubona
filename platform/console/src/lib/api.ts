@@ -1,6 +1,6 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 import { contract, setContractDriftHandler, type ContractName } from './responseContract';
-import { setAuthPhase } from '@/domain/auth-state';
+import { setAuthPhase, setMultiLabAuthRequired } from '@/domain/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
 import { OperationError, failedResult, type ApiFailure } from './api-errors';
 
@@ -549,6 +549,7 @@ export async function fetchAccess(): Promise<AccessState | null> {
     if (!res.ok) return null;
     const data = contract('access', (await res.json()) as Record<string, unknown>) as unknown as AccessState;
     if (data.mode !== 'local_private' && data.mode !== 'multi_lab') return null;
+    setMultiLabAuthRequired(data.mode === 'multi_lab');
     return data;
   } catch (err) {
     console.error('Failed to fetch access posture:', err);

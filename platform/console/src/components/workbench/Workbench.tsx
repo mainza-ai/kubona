@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
+import { Crosshair, LayoutGrid, List, Map as MapIcon, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop, Task } from '@/types';
 import type { AccessState } from '@/lib/api';
-import { fetchCanvasLayout, fetchWorkbenchLayout, fetchWorkbenchView, saveWorkbenchLayout, saveWorkbenchView, type ObligationRow } from '@/lib/api';
+import { fetchCanvasLayout, fetchWorkbenchLayout, fetchWorkbenchView, hasOperatorBearer, saveWorkbenchLayout, saveWorkbenchView, type ObligationRow } from '@/lib/api';
+import { useAuthPhase } from '@/domain/auth-state';
 import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -18,18 +19,24 @@ import {
   type ConfirmGateConfig,
 } from './ConfirmCard';
 import {
+  AUTO_CLUSTER_THRESHOLD,
   WORKBENCH_CLEARANCE,
   alignSelectedPositions,
   arrangeSelectedPositions,
   boardPin,
+  buildDefaultClusterAreas,
   buildWorkbench,
   buildWorkbenchLinks,
+  cameraShowsAnyObject,
   comparisonCsv,
+  computeFitCamera,
   contractPlacement,
   distributeSelectedPositions,
   dropSpot,
   filterWorkbenchObjects,
   freeSpot,
+  getNodeRenderSize,
+  hasExplicitCameraRecord,
   layoutBounds,
   nextZoomTier,
   readPositions,
@@ -46,6 +53,7 @@ import {
   validateManualOverrideValue,
   workbenchDocument,
   workbenchViewDocument,
+  zoomCameraAtPoint,
   type WorkbenchArea,
   type WorkbenchCamera,
   type WorkbenchComparisonData,
@@ -78,6 +86,7 @@ type Props = {
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
   onLiftObject?: (object: WorkbenchObject) => void;
   onAskSelection?: (objects: WorkbenchObject[]) => void;
+  onObjectsChange?: (objects: WorkbenchObject[]) => void;
   onCreateCampaign?: () => void;
   confirmGate?: ConfirmGateConfig | null;
   onGateSettled?: (receipt: AskReceipt) => void;
@@ -122,14 +131,22 @@ function lodForZoom(zoom: number): WorkbenchViewLod {
   return 'detail';
 }
 
-export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authError = false, onSignIn, access,
+export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(function Workbench({
+  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onObjectsChange, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authError = false, onSignIn, access,
 }, ref) {
+  const authPhase = useAuthPhase();
+  const canPersistWorkbench =
+    !multiLab ||
+    authPhase === 'authenticated' ||
+    (typeof hasOperatorBearer === 'function' && hasOperatorBearer());
   const hostRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const viewRevision = useRef(0);
   const loaded = useRef(false);
+  const needsInitialFrameRef = useRef(false);
+  const needsVisibilityCheckRef = useRef(false);
+  const [viewHydrated, setViewHydrated] = useState(0);
   const layoutInFlight = useRef(false);
   const layoutPendingSave = useRef(false);
   const viewInFlight = useRef(false);
@@ -171,9 +188,18 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   const [pins, setPins] = useState<WorkbenchPins>({});
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
-  const [measuredSizes, setMeasuredSizes] = useState<WorkbenchSizes>({});
-  const measuredSizesRef = useRef<WorkbenchSizes>({});
+  const [measuredByTier, setMeasuredByTier] = useState<{ standard: WorkbenchSizes; overview: WorkbenchSizes }>({
+    standard: {},
+    overview: {},
+  });
+  const measuredByTierRef = useRef<{ standard: WorkbenchSizes; overview: WorkbenchSizes }>({
+    standard: {},
+    overview: {},
+  });
   const measureQueuedRef = useRef(false);
+  const [minimapOpen, setMinimapOpen] = useState(false);
+  const [pendingLinkSource, setPendingLinkSource] = useState<string | null>(null);
+  const [collapsedAreas, setCollapsedAreas] = useState<Record<string, boolean>>({});
   const [overrides, setOverrides] = useState<Record<string, Record<string, unknown>>>({});
   const [storedLinks, setStoredLinks] = useState<WorkbenchLink[] | null>(null);
   const [layoutObjects, setLayoutObjects] = useState<{ id: string; kind: WorkbenchObjectKind; ref?: { domain: string; id: string }; position: { x: number; y: number }; size: { width: number; height: number } }[]>([]);
@@ -208,6 +234,9 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     const unavailable: WorkbenchObject[] = [];
     for (const object of layoutObjects) {
       if (!object.ref || absorbed.has(object.id)) continue;
+      if (absorbed.has(object.ref.id) || absorbed.has(`${object.ref.domain}-${object.ref.id}`)) continue;
+      // Do not resurrect folded or pruned transient job records as "Unavailable" ghost cards.
+      if (object.ref.domain === 'job' || object.kind === 'job') continue;
       const box: WorkbenchRect = { ...object.position, ...object.size };
       const overlaps = (object.position.x === 0 && object.position.y === 0)
         || obstacles.some((obs) => rectsOverlap(box, obs, WORKBENCH_CLEARANCE));
@@ -251,33 +280,58 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     if (!campaign) onSelectObject?.(null);
   }, [campaign, onSelectObject]);
 
-  const measureCard = useCallback((id: string, width: number, height: number) => {
-    const prev = measuredSizesRef.current[id];
+  const measureCard = useCallback((id: string, width: number, height: number, tier: 'standard' | 'overview' = 'standard') => {
+    const prev = measuredByTierRef.current[tier][id];
     if (prev && Math.abs(prev.height - height) < 2 && Math.abs(prev.width - width) < 2) return;
-    measuredSizesRef.current = { ...measuredSizesRef.current, [id]: { width, height } };
+    measuredByTierRef.current = {
+      ...measuredByTierRef.current,
+      [tier]: { ...measuredByTierRef.current[tier], [id]: { width, height } },
+    };
     if (measureQueuedRef.current) return;
     measureQueuedRef.current = true;
     queueMicrotask(() => {
       measureQueuedRef.current = false;
-      setMeasuredSizes({ ...measuredSizesRef.current });
+      setMeasuredByTier({
+        standard: { ...measuredByTierRef.current.standard },
+        overview: { ...measuredByTierRef.current.overview },
+      });
     });
   }, []);
 
   const objects = useMemo(() => {
-    const merged = baseObjects.map((object) => ({
-      ...object,
-      position: pins[object.id] && positions[object.id] ? positions[object.id]! : object.position,
-      size: sizes[object.id] ?? object.size,
-    }));
-    return reflowUnpinnedObjects(merged, pins, measuredSizes);
-  }, [baseObjects, pins, positions, sizes, measuredSizes]);
+    const activeMeasured = zoomTier === 'overview' ? measuredByTier.overview : measuredByTier.standard;
+    const merged = baseObjects.map((object) => {
+      let pinnedPos = pins[object.id] && positions[object.id] ? positions[object.id]! : undefined;
+      if (!pinnedPos) {
+        const memberIds = [
+          ...(object.meta?.revises ?? []),
+          ...(object.meta?.runs?.map((run) => run.id) ?? []),
+        ];
+        for (const memberId of memberIds) {
+          const prefixed = `job-${memberId}`;
+          if (pins[prefixed] && positions[prefixed]) {
+            pinnedPos = positions[prefixed];
+            break;
+          }
+        }
+      }
+      const nextSize = getNodeRenderSize(object, zoomTier, sizes[object.id]);
+      return {
+        ...object,
+        position: pinnedPos ?? object.position,
+        size: nextSize,
+      };
+    });
+    return reflowUnpinnedObjects(merged, pins, activeMeasured, 20, zoomTier, sizes);
+  }, [baseObjects, pins, positions, sizes, measuredByTier, zoomTier]);
 
   const lod = lodForZoom(camera.zoom);
   const worldEnvelope = useMemo(() => contractPlacement(objects), [objects]);
   const objectsRef = useRef(objects);
   useEffect(() => {
     objectsRef.current = objects;
-  }, [objects]);
+    onObjectsChange?.(objects);
+  }, [objects, onObjectsChange]);
   const selectObject = useCallback((object: WorkbenchObject, additive = false) => {
     setSelected((previous) => {
       if (!additive) return [object.id];
@@ -289,7 +343,20 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   }, [onSelectObject]);
 
   const visibleObjects = useMemo(() => objects.filter((object) => !hidden.includes(object.id)), [objects, hidden]);
-  const filteredObjects = useMemo(() => filterWorkbenchObjects(visibleObjects, filter), [visibleObjects, filter]);
+  const autoCluster = useMemo(
+    () => (areas.length === 0 && visibleObjects.length > AUTO_CLUSTER_THRESHOLD ? buildDefaultClusterAreas(visibleObjects) : { areas: [], assignments: {} }),
+    [areas.length, visibleObjects],
+  );
+  const effectiveAreas = areas.length > 0 ? areas : autoCluster.areas;
+  const effectiveAssignments = areas.length > 0 ? assignments : autoCluster.assignments;
+  const filteredObjects = useMemo(() => {
+    const matched = filterWorkbenchObjects(visibleObjects, filter);
+    if (filter !== 'all') return matched;
+    return matched.filter((object) => {
+      const areaId = effectiveAssignments[object.id];
+      return !areaId || !collapsedAreas[areaId];
+    });
+  }, [visibleObjects, filter, effectiveAssignments, collapsedAreas]);
   const filterCounts = useMemo(() => ({
     all: visibleObjects.length,
     spine: filterWorkbenchObjects(visibleObjects, 'spine').length,
@@ -311,16 +378,16 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       heldTimer.current = null;
     }
   }, []);
-  const areaById = useMemo(() => new Map(areas.map((area) => [area.id, area])), [areas]);
+  const areaById = useMemo(() => new Map(effectiveAreas.map((area) => [area.id, area])), [effectiveAreas]);
   const areaChildCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const object of visibleObjects) {
-      const areaId = assignments[object.id];
+      const areaId = effectiveAssignments[object.id];
       if (areaId) counts[areaId] = (counts[areaId] ?? 0) + 1;
     }
     return counts;
-  }, [visibleObjects, assignments]);
-  const activeArea = areas.find((area) => area.id === activeAreaId) ?? areas[0] ?? null;
+  }, [visibleObjects, effectiveAssignments]);
+  const activeArea = effectiveAreas.find((area) => area.id === activeAreaId) ?? areas[0] ?? null;
 
   const captureSnapshot = useCallback((): WorkbenchSnapshot => ({
     positions: { ...positions },
@@ -357,7 +424,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       setOverrides(snap.overrides);
       return previous.slice(0, -1);
     });
-  }, []);
+  }, [setAssignments]);
 
   const updateCardOverride = useCallback((objectId: string, cellKey: string, nextValue: string | null) => {
     pushUndo('override', 'Undo edit', 'Undo manual table override (Z)', captureSnapshot());
@@ -394,14 +461,18 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     onSelectObject?.(null);
   }, [selected, onSelectObject, pushUndo, captureSnapshot]);
 
-  const customLink = useCallback(() => {
-    if (selected.length !== 2) return;
-    const [source, target] = selected;
+  const createDirectLink = useCallback((source: string, target: string) => {
+    if (!source || !target || source === target) return;
     const current = storedLinks ?? buildWorkbenchLinks(baseObjects);
     if (current.some((link) => link.source === source && link.target === target && link.kind === linkKind)) return;
     pushUndo('link', 'Undo link', 'Undo link edit (Z)', captureSnapshot());
     setStoredLinks([...current, { id: `${source}-${target}-${linkKind}`, source, target, kind: linkKind }]);
-  }, [selected, linkKind, baseObjects, storedLinks, pushUndo, captureSnapshot]);
+  }, [linkKind, baseObjects, storedLinks, pushUndo, captureSnapshot]);
+
+  const customLink = useCallback(() => {
+    if (selected.length !== 2) return;
+    createDirectLink(selected[0], selected[1]);
+  }, [selected, createDirectLink]);
 
   const removeLink = useCallback((id: string) => {
     pushUndo('link', 'Undo link', 'Undo link removal (Z)', captureSnapshot());
@@ -427,6 +498,34 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     setZoomTier((curr) => nextZoomTier(next.zoom, curr));
   }, []);
 
+  const centerCameraOnObject = useCallback((object: WorkbenchObject, minZoom = 0.25) => {
+    const host = hostRef.current;
+    if (!host) return;
+    const zoom = Math.min(1.5, Math.max(minZoom, cameraRef.current.zoom));
+    commitCameraNext({
+      x: host.clientWidth / 2 - (object.position.x + object.size.width / 2) * zoom,
+      y: host.clientHeight / 2 - (object.position.y + object.size.height / 2) * zoom,
+      zoom,
+    });
+  }, [commitCameraNext]);
+
+  const focusCard = useCallback((object: WorkbenchObject) => {
+    setFilter('all');
+    setHidden((previous) => previous.filter((item) => item !== object.id));
+    selectObject(object, false);
+    centerCameraOnObject(object, 0.85);
+  }, [selectObject, centerCameraOnObject]);
+
+  const toggleAreaCollapse = useCallback((areaId: string) => {
+    needsVisibilityCheckRef.current = true;
+    setCollapsedAreas((previous) => ({ ...previous, [areaId]: !previous[areaId] }));
+  }, []);
+
+  const selectFilter = useCallback((nextFilter: WorkbenchFilter) => {
+    needsVisibilityCheckRef.current = true;
+    setFilter(nextFilter);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     focusObject: (id: string) => {
       const resolvedId = resolveFocusObjectId(id, objects) ?? id;
@@ -435,14 +534,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       setFilter('all');
       setHidden((previous) => previous.filter((item) => item !== object.id));
       selectObject(object, false);
-      const host = hostRef.current;
-      if (!host) return;
-      const zoom = Math.min(1.5, Math.max(0.25, camera.zoom));
-      commitCameraNext({
-        x: host.clientWidth / 2 - (object.position.x + object.size.width / 2) * zoom,
-        y: host.clientHeight / 2 - (object.position.y + object.size.height / 2) * zoom,
-        zoom,
-      });
+      centerCameraOnObject(object, 0.25);
     },
     removeObject: (id: string) => {
       pushUndo('remove', 'Undo remove', 'Restore the last removed card', captureSnapshot());
@@ -450,7 +542,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       setSelected((previous) => previous.filter((item) => item !== id));
       onSelectObject?.(null);
     },
-  }), [objects, camera.zoom, selectObject, onSelectObject, pushUndo, captureSnapshot, commitCameraNext]);
+  }), [objects, selectObject, onSelectObject, pushUndo, captureSnapshot, centerCameraOnObject]);
 
   const applyCamera = useCallback((next: WorkbenchCamera) => {
     cameraRef.current = next;
@@ -471,30 +563,44 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     }
   }, [camera]);
 
-  const fitRect = useCallback((box: WorkbenchRect) => {
+  const zoomCentered = useCallback((targetZoom: number) => {
+    holdCanvas();
+    const host = hostRef.current;
+    const focal = {
+      x: (host?.clientWidth || viewport.width || 960) / 2,
+      y: (host?.clientHeight || viewport.height || 640) / 2,
+    };
+    commitCameraNext(zoomCameraAtPoint(cameraRef.current, targetZoom, focal));
+  }, [holdCanvas, viewport.width, viewport.height, commitCameraNext]);
+
+  const fitRect = useCallback((box: WorkbenchRect, minZoom?: number) => {
     const host = hostRef.current;
     if (!host) return;
     const width = host.clientWidth;
     const height = host.clientHeight;
     if (!width || !height) return;
-    const padLeft = 48;
-    const padRight = width > 640 ? 212 : 48;
-    const padTop = height > 320 ? 32 : 20;
-    const padBottom = height > 420 ? 148 : 36;
-    const usableW = Math.max(120, width - padLeft - padRight);
-    const usableH = Math.max(120, height - padTop - padBottom);
-    const zoom = Math.min(1.15, Math.max(0.25, Math.min(usableW / Math.max(1, box.width), usableH / Math.max(1, box.height))));
-    commitCameraNext({
-      x: Math.round(padLeft + (usableW - box.width * zoom) / 2 - box.x * zoom),
-      y: Math.round(padTop + (usableH - box.height * zoom) / 2 - box.y * zoom),
-      zoom,
-    });
-  }, [commitCameraNext]);
+    commitCameraNext(computeFitCamera(box, { width, height }, { minimapOpen, minZoom }));
+  }, [commitCameraNext, minimapOpen]);
 
   const fit = useCallback(() => {
-    const box = layoutBounds(objectsRef.current.filter((item) => !hidden.includes(item.id)));
+    const active = filteredObjects.length > 0 ? filteredObjects : visibleObjects;
+    if (active.length === 0) return;
+    const box = layoutBounds(active);
     fitRect(box);
-  }, [hidden, fitRect]);
+  }, [filteredObjects, visibleObjects, fitRect]);
+
+  const frameInitialOrRecover = useCallback(() => {
+    const active = filteredObjects.length > 0 ? filteredObjects : visibleObjects;
+    if (active.length === 0) return;
+    if (filter === 'all') {
+      const spine = filterWorkbenchObjects(active, 'spine');
+      if (spine.length > 0) {
+        fitRect(layoutBounds(spine), 0.68);
+        return;
+      }
+    }
+    fitRect(layoutBounds(active));
+  }, [filteredObjects, visibleObjects, filter, fitRect]);
 
   const firstRecenterRef = useRef(recenterSignal);
   useEffect(() => {
@@ -502,6 +608,21 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     firstRecenterRef.current = recenterSignal;
     fit();
   }, [recenterSignal, fit]);
+
+  const hydratedForSessionRef = useRef<string | null>(null);
+  const armInitialFraming = useCallback((
+    savedViewRev: number,
+    savedViewRaw: Record<string, unknown> | null | undefined,
+    fallbackLayoutRaw: Record<string, unknown> | null | undefined,
+    hydratedSession: string | null,
+  ) => {
+    const hasSavedCamera = (savedViewRev > 0 && hasExplicitCameraRecord(savedViewRaw))
+      || hasExplicitCameraRecord(fallbackLayoutRaw);
+    needsInitialFrameRef.current = !hasSavedCamera;
+    needsVisibilityCheckRef.current = true;
+    hydratedForSessionRef.current = hydratedSession;
+    setViewHydrated((value) => value + 1);
+  }, []);
 
   const applySaved = useCallback((
     saved: { revision: number; document: Record<string, unknown> },
@@ -551,14 +672,19 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       }),
     );
     loaded.current = true;
-  }, [sessionId]);
+    armInitialFraming(savedView?.view_revision ?? 0, savedView?.view ?? null, saved.document, sessionId ?? null);
+  }, [sessionId, commitCameraNext, setAssignments, armInitialFraming]);
 
   useEffect(() => {
     loaded.current = false;
+    needsInitialFrameRef.current = false;
+    needsVisibilityCheckRef.current = false;
     if (!sessionId) {
+      hydratedForSessionRef.current = null;
       lastSavedDocument.current = '';
       lastSavedView.current = '';
       loaded.current = true;
+      needsVisibilityCheckRef.current = true;
       return;
     }
     let live = true;
@@ -593,7 +719,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       setOverrides({});
       setStoredLinks(null);
       setLayoutObjects([]);
-      setCamera(view.camera);
+      commitCameraNext(view.camera);
       setSelected(view.selected);
       setViewMode(view.view_mode);
       setConflictRevision(null);
@@ -610,12 +736,33 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         }),
       );
       loaded.current = true;
+      armInitialFraming(savedView?.view_revision ?? 0, savedView?.view ?? null, legacy, sessionId);
     })();
     return () => {
       live = false;
       clearTimeout(hydrateTimer);
     };
-  }, [sessionId, applySaved]);
+  }, [sessionId, applySaved, commitCameraNext, armInitialFraming]);
+
+  useEffect(() => {
+    if (!loaded.current || viewMode !== 'canvas') return;
+    if (sessionId && (viewHydrated === 0 || hydratedForSessionRef.current !== sessionId)) return;
+    if (viewport.width <= 0 || viewport.height <= 0 || filteredObjects.length === 0) return;
+    const mustInitial = needsInitialFrameRef.current;
+    const mustRecover = needsVisibilityCheckRef.current
+      && !cameraShowsAnyObject(cameraRef.current, viewport, filteredObjects);
+    if (!mustInitial && !mustRecover) {
+      needsVisibilityCheckRef.current = false;
+      return;
+    }
+    const rafId = requestAnimationFrame(() => {
+      if (heldRef.current || drag.current || cardDrag.current) return;
+      needsInitialFrameRef.current = false;
+      needsVisibilityCheckRef.current = false;
+      frameInitialOrRecover();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [sessionId, viewHydrated, viewMode, viewport, filteredObjects, frameInitialOrRecover]);
 
   const reloadLatest = useCallback(async () => {
     if (!sessionId) return;
@@ -629,7 +776,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   // Semantic layout save channel (D1): single-flight, CAS-guarded, never carries camera or unpinned derived cards.
   const flushLayoutSaveRef = useRef<() => void>(() => {});
   const flushLayoutSave = useCallback(() => {
-    if (!sessionId || !loaded.current) return;
+    if (!sessionId || !loaded.current || !canPersistWorkbench) return;
     const doc = workbenchDocument(
       sessionId,
       baseObjectsRef.current,
@@ -675,14 +822,14 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           flushLayoutSaveRef.current();
         }
       });
-  }, [sessionId, positions, sizes, pins, storedLinks, areas, assignments, hidden, overrides]);
+  }, [sessionId, canPersistWorkbench, positions, sizes, pins, storedLinks, areas, assignments, hidden, overrides]);
 
   useEffect(() => {
     flushLayoutSaveRef.current = flushLayoutSave;
   }, [flushLayoutSave]);
 
   useEffect(() => {
-    if (!sessionId || !loaded.current) return;
+    if (!sessionId || !loaded.current || !canPersistWorkbench) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       flushLayoutSave();
@@ -690,12 +837,12 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [sessionId, positions, sizes, pins, storedLinks, areas, assignments, hidden, overrides, baseObjects, flushLayoutSave]);
+  }, [sessionId, canPersistWorkbench, positions, sizes, pins, storedLinks, areas, assignments, hidden, overrides, baseObjects, flushLayoutSave]);
 
   // Ephemeral view save channel (D1): camera, selection, mode, LOD -> /api/workbench/view only.
   const flushViewSaveRef = useRef<() => void>(() => {});
   const flushViewSave = useCallback(() => {
-    if (!sessionId || !loaded.current || typeof saveWorkbenchView !== 'function') return;
+    if (!sessionId || !loaded.current || !canPersistWorkbench || typeof saveWorkbenchView !== 'function') return;
     const view = workbenchViewDocument({ camera, selected, view_mode: viewMode, lod }) as unknown as Record<string, unknown>;
     const serialized = JSON.stringify(view);
     if (serialized === lastSavedView.current) return;
@@ -724,14 +871,14 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           flushViewSaveRef.current();
         }
       });
-  }, [sessionId, camera, selected, viewMode, lod]);
+  }, [sessionId, canPersistWorkbench, camera, selected, viewMode, lod]);
 
   useEffect(() => {
     flushViewSaveRef.current = flushViewSave;
   }, [flushViewSave]);
 
   useEffect(() => {
-    if (!sessionId || !loaded.current) return;
+    if (!sessionId || !loaded.current || !canPersistWorkbench) return;
     if (viewSaveTimer.current) clearTimeout(viewSaveTimer.current);
     viewSaveTimer.current = setTimeout(() => {
       flushViewSave();
@@ -739,7 +886,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     return () => {
       if (viewSaveTimer.current) clearTimeout(viewSaveTimer.current);
     };
-  }, [sessionId, camera, selected, viewMode, lod, flushViewSave]);
+  }, [sessionId, canPersistWorkbench, camera, selected, viewMode, lod, flushViewSave]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -753,7 +900,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
 
   const visibleIds = useMemo(() => {
     if (filteredObjects.length <= 24 || viewport.width === 0) return null;
-    const margin = 160;
+    const margin = 48;
     const left = -camera.x / camera.zoom - margin;
     const top = -camera.y / camera.zoom - margin;
     const right = left + viewport.width / camera.zoom + margin * 2;
@@ -831,20 +978,41 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     const host = hostRef.current;
     if (!host) return;
     const onWheel = (event: WheelEvent) => {
+      const isPinchOrMetaZoom = event.ctrlKey || event.metaKey;
+      if (!isPinchOrMetaZoom) {
+        const scrollable = (event.target as HTMLElement | null)?.closest?.(
+          '.k-workbench-code pre, .k-workbench-compare-wrap, .k-workbench-list',
+        ) as HTMLElement | null;
+        if (scrollable) {
+          const canScrollY = scrollable.scrollHeight > scrollable.clientHeight + 1 && (
+            (event.deltaY < 0 && scrollable.scrollTop > 0) ||
+            (event.deltaY > 0 && scrollable.scrollTop + scrollable.clientHeight < scrollable.scrollHeight - 1)
+          );
+          const canScrollX = scrollable.scrollWidth > scrollable.clientWidth + 1 && (
+            (event.deltaX < 0 && scrollable.scrollLeft > 0) ||
+            (event.deltaX > 0 && scrollable.scrollLeft + scrollable.clientWidth < scrollable.scrollWidth - 1)
+          );
+          if (canScrollY || canScrollX) return;
+        }
+      }
       event.preventDefault();
       holdCanvas();
       setFollowLive(false);
-      const rect = host.getBoundingClientRect();
-      const px = event.clientX - rect.left;
-      const py = event.clientY - rect.top;
-      const factor = Math.exp(-event.deltaY * 0.0015);
       const current = cameraRef.current;
-      const zoom = Math.min(2.5, Math.max(0.25, current.zoom * factor));
-      applyCamera({
-        x: px - ((px - current.x) / current.zoom) * zoom,
-        y: py - ((py - current.y) / current.zoom) * zoom,
-        zoom,
-      });
+      if (isPinchOrMetaZoom) {
+        const rect = host.getBoundingClientRect();
+        const px = event.clientX - rect.left;
+        const py = event.clientY - rect.top;
+        const factor = Math.exp(-event.deltaY * 0.006);
+        applyCamera(zoomCameraAtPoint(current, current.zoom * factor, { x: px, y: py }));
+      } else {
+        // Two-axis trackpad / mouse wheel panning without axis lock.
+        applyCamera({
+          ...current,
+          x: Math.round((current.x - event.deltaX) * 100) / 100,
+          y: Math.round((current.y - event.deltaY) * 100) / 100,
+        });
+      }
       if (zoomCommit.current) clearTimeout(zoomCommit.current);
       zoomCommit.current = setTimeout(commitCamera, 120);
     };
@@ -949,6 +1117,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     const wasMoved = drag.current.moved;
     drag.current = null;
     if (!wasMoved && event && (event.target === event.currentTarget || event.target === worldRef.current) && !event.shiftKey) {
+      setPendingLinkSource(null);
       setSelected([]);
       onSelectObject?.(null);
     } else if (wasMoved) {
@@ -1025,6 +1194,32 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         .map((item) => ({ x: item.position.x, y: item.position.y, width: item.size.width, height: item.size.height }));
       setPositions((previous) => {
         const next = { ...previous };
+        if (activeDrag.ids.length > 1) {
+          // Preserve relative spacing for multi-card group moves using one snapped group delta when collision-free.
+          const firstId = activeDrag.ids[0];
+          const firstItem = visibleObjects.find((candidate) => candidate.id === firstId);
+          const firstOrigin = activeDrag.origins[firstId];
+          const firstCur = (firstId && next[firstId]) ?? firstItem?.position;
+          if (firstOrigin && firstCur) {
+            const gdx = snapToGrid(firstCur.x - firstOrigin.x);
+            const gdy = snapToGrid(firstCur.y - firstOrigin.y);
+            const snappedBoxes = activeDrag.ids
+              .map((id) => {
+                const item = visibleObjects.find((candidate) => candidate.id === id);
+                const origin = activeDrag.origins[id];
+                if (!item || !origin) return null;
+                return { id, rect: { x: snapToGrid(origin.x + gdx), y: snapToGrid(origin.y + gdy), width: item.size.width, height: item.size.height } };
+              })
+              .filter((entry): entry is { id: string; rect: WorkbenchRect } => entry !== null);
+            const groupClear = snappedBoxes.every(
+              (entry) => !stationary.some((obs) => rectsOverlap(entry.rect, obs, WORKBENCH_CLEARANCE)),
+            );
+            if (groupClear && snappedBoxes.length > 0) {
+              for (const entry of snappedBoxes) next[entry.id] = { x: entry.rect.x, y: entry.rect.y };
+              return next;
+            }
+          }
+        }
         const placedObstacles = [...stationary];
         for (const id of activeDrag.ids) {
           const item = visibleObjects.find((candidate) => candidate.id === id);
@@ -1157,7 +1352,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       });
     }
     setActiveAreaId(id);
-  }, [pushUndo, captureSnapshot]);
+  }, [pushUndo, captureSnapshot, setAssignments]);
 
   const deleteArea = useCallback((id: string) => {
     pushUndo('area', 'Undo area', 'Undo area removal (Z)', captureSnapshot());
@@ -1165,7 +1360,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     setAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([, areaId]) => areaId !== id)));
     setActiveAreaId(areas.find((area) => area.id !== id)?.id ?? null);
     setRenamingAreaId((curr) => (curr === id ? null : curr));
-  }, [areas, pushUndo, captureSnapshot]);
+  }, [areas, pushUndo, captureSnapshot, setAssignments]);
 
   const groupSelected = useCallback(() => {
     const items = visibleObjects.filter((object) => selected.includes(object.id));
@@ -1264,7 +1459,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   }, [minimapBounds, viewport.width, viewport.height, holdCanvas, commitCameraNext]);
 
   useEffect(() => {
-    if (viewMode !== 'canvas' || filteredObjects.length === 0) return;
+    if (viewMode !== 'canvas' || !minimapOpen || filteredObjects.length === 0) return;
     const canvas = minimapCanvasRef.current;
     if (!canvas || typeof canvas.getContext !== 'function') return;
     const ctx = canvas.getContext('2d');
@@ -1329,10 +1524,10 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     ctx.lineWidth = 1.25;
     ctx.strokeStyle = infoColor;
     ctx.strokeRect(vx, vy, vw, vh);
-  }, [viewMode, filteredObjects, selected, camera, viewport.width, viewport.height, minimapBounds]);
+  }, [viewMode, minimapOpen, filteredObjects, selected, camera, viewport.width, viewport.height, minimapBounds]);
 
   const selectionBarStyle = useMemo(() => {
-    if (viewMode !== 'canvas' || selectedObjects.length === 0) return null;
+    if (viewMode !== 'canvas' || selectedObjects.length < 2) return null;
     const vw = viewport.width || 1280;
     const vh = viewport.height || 720;
     const minX = Math.min(...selectedObjects.map((o) => o.position.x)) * camera.zoom + camera.x;
@@ -1361,7 +1556,12 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           undoLast();
           return;
         }
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if ((event.metaKey || event.ctrlKey || event.altKey)) return;
+        if (event.key === 'Escape' && pendingLinkSource) {
+          event.preventDefault();
+          setPendingLinkSource(null);
+          return;
+        }
         if (event.key.toLowerCase() === 'z' && !editing && undoStack.length > 0) {
           event.preventDefault();
           undoLast();
@@ -1372,8 +1572,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         }
         if (event.key === '1') {
           event.preventDefault();
-          holdCanvas();
-          commitCameraNext({ ...cameraRef.current, zoom: 1 });
+          zoomCentered(1);
         }
         if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0 && !editing) {
           event.preventDefault();
@@ -1382,44 +1581,15 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       }}
     >
       <div className="k-workbench-bar" aria-label="Workbench controls">
-        <Button type="button" variant="ghost" size="compact" onClick={fit} title="Fit the whole workbench (0)">
-          <Maximize2 size={14} /> Fit
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label="Zoom out"
-          onClick={() => {
-            holdCanvas();
-            const current = cameraRef.current;
-            commitCameraNext({ ...current, zoom: Math.max(0.25, current.zoom / 1.2) });
-          }}
-          title="Zoom out"
-        >
-          <Minus size={14} />
-        </Button>
-        <span className="k-workbench-zoom">{Math.round(camera.zoom * 100)}%</span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          aria-label="Zoom in"
-          onClick={() => {
-            holdCanvas();
-            const current = cameraRef.current;
-            commitCameraNext({ ...current, zoom: Math.min(2, current.zoom * 1.2) });
-          }}
-          title="Zoom in"
-        >
-          <Plus size={14} />
-        </Button>
         <Button
           type="button"
           variant="ghost"
           size="compact"
           aria-pressed={viewMode === 'list'}
-          onClick={() => setViewMode((current) => (current === 'canvas' ? 'list' : 'canvas'))}
+          onClick={() => {
+            needsVisibilityCheckRef.current = true;
+            setViewMode((current) => (current === 'canvas' ? 'list' : 'canvas'));
+          }}
           title="Switch between canvas and list (text equivalent)"
         >
           {viewMode === 'canvas' ? <List size={14} /> : <LayoutGrid size={14} />}
@@ -1438,7 +1608,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
               className="k-workbench-filter-chip"
               data-filter={key}
               aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
+              onClick={() => selectFilter(key)}
             >
               {`${label} ${count}`}
             </button>
@@ -1486,25 +1656,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         >
           Group selected
         </Button>
-        {selected.length === 2 && (
-          <span className="flex items-center gap-1">
-            <select
-              aria-label="Link kind"
-              value={linkKind}
-              onChange={(event) => setLinkKind(event.target.value as WorkbenchLink['kind'])}
-              className="h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-1 text-[12px] text-[var(--color-label-secondary)]"
-            >
-              <option value="supports">supports</option>
-              <option value="uses">uses</option>
-              <option value="depends_on">depends on</option>
-              <option value="contradicts">contradicts</option>
-              <option value="same_as">same as</option>
-              <option value="thread">thread</option>
-            </select>
-            <Button type="button" variant="ghost" size="compact" onClick={customLink} title="Link the two selected cards">Link</Button>
-          </span>
-        )}
-        {activeArea && (
+        {activeArea && areas.some((area) => area.id === activeArea.id) && (
           <Button
             type="button"
             variant="ghost"
@@ -1515,7 +1667,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
             Delete area
           </Button>
         )}
-        {activeArea && (
+        {activeArea && areas.some((area) => area.id === activeArea.id) && (
           <input
             className="k-workbench-area-title"
             aria-label="Area title"
@@ -1523,29 +1675,10 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
             onChange={(event) => setAreas((previous) => previous.map((area) => area.id === activeArea.id ? { ...area, title: event.target.value } : area))}
           />
         )}
-        {selected.length > 0 && activeArea && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => setAssignments((previous) => {
-              const next = { ...previous };
-              const areaId = activeArea.id;
-              const allAssigned = selected.every((id) => previous[id] === areaId);
-              for (const id of selected) {
-                if (allAssigned) delete next[id];
-                else next[id] = areaId;
-              }
-              return next;
-            })}
-          >
-            {selected.every((id) => assignments[id] === activeArea.id) ? 'Unassign' : 'Assign to area'}
-          </Button>
-        )}
-        {selected.length > 0 && (
-          <Button type="button" variant="ghost" size="compact" onClick={removeSelected} title="Remove the selected cards from the canvas; records are not deleted">
-            {selected.length > 1 ? `Remove (${selected.length})` : 'Remove'}
-          </Button>
+        {pendingLinkSource && (
+          <span className="k-workbench-link-banner" role="status">
+            Click target card to link · Esc cancels
+          </span>
         )}
         {topUndo && (
           <Button type="button" variant="ghost" size="compact" onClick={undoLast} title={topUndo.title}>
@@ -1695,16 +1828,27 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
             transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`,
           }}
         >
-          {areas.map((area) => {
+          {effectiveAreas.map((area) => {
             const count = areaChildCounts[area.id] ?? 0;
             const isRenaming = renamingAreaId === area.id;
+            const isAutoCluster = area.id === 'auto-jobs-runs';
+            const isCollapsed = Boolean(collapsedAreas[area.id]);
             return (
               <div
                 key={area.id}
                 className="k-workbench-area"
                 data-selected={activeArea?.id === area.id ? 'true' : undefined}
-                style={{ left: area.rect.x, top: area.rect.y, width: area.rect.width, height: area.rect.height }}
-                onPointerDown={(event) => onAreaPointerDown(event, area)}
+                data-cluster={isAutoCluster ? 'true' : undefined}
+                data-collapsed={isCollapsed ? 'true' : undefined}
+                style={{
+                  left: area.rect.x,
+                  top: area.rect.y,
+                  width: area.rect.width,
+                  height: isCollapsed ? 42 : area.rect.height,
+                }}
+                onPointerDown={(event) => {
+                  if (!isAutoCluster) onAreaPointerDown(event, area);
+                }}
                 onPointerMove={onAreaPointerMove}
                 onPointerUp={() => { areaDrag.current = null; }}
                 onPointerCancel={() => { areaDrag.current = null; }}
@@ -1712,7 +1856,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                 <span>{area.title}</span>
                 <div className="k-workbench-area-chrome">
                   <span className="k-workbench-area-count" aria-label={`${count} cards`}>{count}</span>
-                  {isRenaming ? (
+                  {isRenaming && !isAutoCluster ? (
                     <input
                       className="k-workbench-area-inline-input"
                       aria-label={`Rename ${area.title}`}
@@ -1731,38 +1875,53 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                   ) : null}
                   <button
                     type="button"
+                    aria-expanded={!isCollapsed}
+                    title={isCollapsed ? `Expand ${area.title}` : `Collapse ${area.title}`}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => { event.stopPropagation(); toggleAreaCollapse(area.id); }}
+                  >
+                    {isCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
+                  <button
+                    type="button"
                     title="Zoom to fit this area"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => { event.stopPropagation(); fitRect(area.rect); }}
                   >
                     Fit
                   </button>
-                  <button
-                    type="button"
-                    title="Rename this area"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => { event.stopPropagation(); setActiveAreaId(area.id); setRenamingAreaId((curr) => (curr === area.id ? null : area.id)); }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    title="Remove this area; cards stay on the canvas"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => { event.stopPropagation(); deleteArea(area.id); }}
-                  >
-                    Remove
-                  </button>
+                  {!isAutoCluster && (
+                    <>
+                      <button
+                        type="button"
+                        title="Rename this area"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => { event.stopPropagation(); setActiveAreaId(area.id); setRenamingAreaId((curr) => (curr === area.id ? null : area.id)); }}
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        title="Remove this area; cards stay on the canvas"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => { event.stopPropagation(); deleteArea(area.id); }}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  )}
                 </div>
-                <span
-                  className="k-workbench-area-resize"
-                  data-resize="area"
-                  aria-hidden="true"
-                  onPointerDown={(event) => onAreaResizePointerDown(event, area)}
-                  onPointerMove={onAreaResizePointerMove}
-                  onPointerUp={() => { areaResize.current = null; }}
-                  onPointerCancel={() => { areaResize.current = null; }}
-                />
+                {!isAutoCluster && !isCollapsed && (
+                  <span
+                    className="k-workbench-area-resize"
+                    data-resize="area"
+                    aria-hidden="true"
+                    onPointerDown={(event) => onAreaResizePointerDown(event, area)}
+                    onPointerMove={onAreaResizePointerMove}
+                    onPointerUp={() => { areaResize.current = null; }}
+                    onPointerCancel={() => { areaResize.current = null; }}
+                  />
+                )}
               </div>
             );
           })}
@@ -1779,7 +1938,9 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           </svg>
           {filteredObjects.map((object) => {
             if (viewport && visibleIds && !visibleIds.has(object.id)) return null;
-            const assignedArea = assignments[object.id] ? areaById.get(assignments[object.id]) : undefined;
+            const assignedArea = effectiveAssignments[object.id] ? areaById.get(effectiveAssignments[object.id]) : undefined;
+            const userActiveArea = activeArea && areas.some((area) => area.id === activeArea.id) ? activeArea : null;
+            const isAssignedToActive = Boolean(userActiveArea && assignments[object.id] === userActiveArea.id);
             const sessionGateKey = sessionId || 'default';
             const obId = object.kind === 'approval' && object.ref ? object.ref.id : '';
             return (
@@ -1789,12 +1950,43 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                 explicitSize={Boolean(sizes[object.id])}
                 overview={zoomTier === 'overview'}
                 selected={selected.includes(object.id)}
+                selectedCount={selected.length}
+                isDragging={draggingIds.has(object.id)}
+                isLinkSource={pendingLinkSource === object.id}
                 assignedAreaTitle={assignedArea?.title}
                 cardOverrides={overrides[object.id]}
                 onUpdateOverride={(cellKey, nextValue) => updateCardOverride(object.id, cellKey, nextValue)}
                 onHoverChange={(hovering) => setHoveredId(hovering ? object.id : (curr) => (curr === object.id ? null : curr))}
                 onMeasure={measureCard}
-                onSelect={(additive) => selectObject(object, additive)}
+                onSelect={(additive) => {
+                  if (pendingLinkSource) {
+                    if (pendingLinkSource !== object.id) createDirectLink(pendingLinkSource, object.id);
+                    setPendingLinkSource(null);
+                    return;
+                  }
+                  selectObject(object, additive);
+                }}
+                onFocusCard={() => focusCard(object)}
+                onStartLink={() => {
+                  selectObject(object, false);
+                  setPendingLinkSource((curr) => (curr === object.id ? null : object.id));
+                }}
+                onRemoveCard={() => {
+                  pushUndo('remove', 'Undo remove', 'Restore the last removed card', captureSnapshot());
+                  setHidden((previous) => previous.includes(object.id) ? previous : [...previous, object.id]);
+                  setSelected((previous) => previous.filter((item) => item !== object.id));
+                  onSelectObject?.(null);
+                }}
+                onAskCard={onAskSelection ? () => onAskSelection([object]) : undefined}
+                isAssignedToActiveArea={isAssignedToActive}
+                onToggleAreaAssign={userActiveArea ? () => {
+                  setAssignments((previous) => {
+                    const next = { ...previous };
+                    if (previous[object.id] === userActiveArea.id) delete next[object.id];
+                    else next[object.id] = userActiveArea.id;
+                    return next;
+                  });
+                } : undefined}
                 onPointerDown={(event) => onCardPointerDown(event, object)}
                 onPointerMove={onCardPointerMove}
                 onPointerUp={onCardPointerUp}
@@ -1838,6 +2030,11 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                   const task = tasks.find((item) => item.id === object.ref!.id);
                   if (task) onTaskStatus(task.id, task.status === 'done' ? 'open' : 'done');
                 } : undefined}
+                onRemoveStale={object.label === 'Unavailable' ? () => {
+                  pushUndo('remove', 'Undo remove', 'Restore the last removed card', captureSnapshot());
+                  setHidden((previous) => previous.includes(object.id) ? previous : [...previous, object.id]);
+                  setSelected((previous) => previous.filter((item) => item !== object.id));
+                } : undefined}
                 onNudge={(dx, dy) => {
                   pushUndo('move', 'Undo move', 'Undo card nudge (Z)', captureSnapshot());
                   setPins((previous) => ({ ...previous, [object.id]: true }));
@@ -1871,23 +2068,59 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           onPointerDown={(event) => event.stopPropagation()}
         >
           <span className="k-workbench-selection-count">{selectedObjects.length} selected</span>
-          {selectedObjects.length >= 2 && (
-            <>
-              <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(alignSelectedPositions(selectedObjects, 'left'))}>
-                Align
-              </Button>
-              {selectedObjects.length >= 3 && (
-                <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(distributeSelectedPositions(selectedObjects))}>
-                  Distribute
-                </Button>
-              )}
-              <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(arrangeSelectedPositions(selectedObjects))}>
-                Arrange
-              </Button>
-            </>
+          <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(alignSelectedPositions(selectedObjects, 'left'))}>
+            Align
+          </Button>
+          {selectedObjects.length >= 3 && (
+            <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(distributeSelectedPositions(selectedObjects))}>
+              Distribute
+            </Button>
           )}
+          <Button type="button" variant="ghost" size="compact" onClick={() => applySelectionTransform(arrangeSelectedPositions(selectedObjects))}>
+            Arrange
+          </Button>
           <Button type="button" variant="ghost" size="compact" onClick={groupSelected}>
             Group area
+          </Button>
+          {activeArea && areas.some((area) => area.id === activeArea.id) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setAssignments((previous) => {
+                const next = { ...previous };
+                const areaId = activeArea.id;
+                const allAssigned = selected.every((id) => previous[id] === areaId);
+                for (const id of selected) {
+                  if (allAssigned) delete next[id];
+                  else next[id] = areaId;
+                }
+                return next;
+              })}
+            >
+              {selected.every((id) => assignments[id] === activeArea.id) ? 'Unassign' : 'Assign to area'}
+            </Button>
+          )}
+          {selectedObjects.length === 2 && (
+            <span className="flex items-center gap-1">
+              <select
+                aria-label="Link kind"
+                value={linkKind}
+                onChange={(event) => setLinkKind(event.target.value as WorkbenchLink['kind'])}
+                className="h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-1 text-[12px] text-[var(--color-label-secondary)]"
+              >
+                <option value="supports">supports</option>
+                <option value="uses">uses</option>
+                <option value="depends_on">depends on</option>
+                <option value="contradicts">contradicts</option>
+                <option value="same_as">same as</option>
+                <option value="thread">thread</option>
+              </select>
+              <Button type="button" variant="ghost" size="compact" onClick={customLink} title="Link the two selected cards">Link</Button>
+            </span>
+          )}
+          <Button type="button" variant="ghost" size="compact" onClick={removeSelected} title="Remove the selected cards from the canvas; records are not deleted">
+            {`Remove (${selectedObjects.length})`}
           </Button>
           {onAskSelection && (
             <Button type="button" size="compact" onClick={() => onAskSelection(selectedObjects)}>
@@ -1897,50 +2130,113 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         </div>
       )}
       </div>
-      {viewMode === 'canvas' && filteredObjects.length > 0 && (
-        <canvas
-          ref={minimapCanvasRef}
-          className="k-workbench-minimap"
-          data-testid="workbench-minimap"
-          role="region"
-          aria-label="Workbench minimap"
-          width={176}
-          height={118}
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            minimapDrag.current = true;
-            event.currentTarget.setPointerCapture?.(event.pointerId);
-            panFromMinimap(event.clientX, event.clientY, event.currentTarget);
-          }}
-          onPointerMove={(event) => {
-            if (!minimapDrag.current) return;
-            event.stopPropagation();
-            panFromMinimap(event.clientX, event.clientY, event.currentTarget);
-          }}
-          onPointerUp={(event) => {
-            minimapDrag.current = false;
-            event.stopPropagation();
-          }}
-          onPointerCancel={() => { minimapDrag.current = false; }}
-          onClick={(event) => event.stopPropagation()}
-        />
+      {viewMode === 'canvas' && (
+        <div className="k-workbench-controls-stack" onPointerDown={(event) => event.stopPropagation()}>
+          {minimapOpen && filteredObjects.length > 0 && (
+            <canvas
+              ref={minimapCanvasRef}
+              className="k-workbench-minimap"
+              data-testid="workbench-minimap"
+              role="region"
+              aria-label="Workbench minimap"
+              width={176}
+              height={118}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                minimapDrag.current = true;
+                event.currentTarget.setPointerCapture?.(event.pointerId);
+                panFromMinimap(event.clientX, event.clientY, event.currentTarget);
+              }}
+              onPointerMove={(event) => {
+                if (!minimapDrag.current) return;
+                event.stopPropagation();
+                panFromMinimap(event.clientX, event.clientY, event.currentTarget);
+              }}
+              onPointerUp={(event) => {
+                minimapDrag.current = false;
+                event.stopPropagation();
+              }}
+              onPointerCancel={() => { minimapDrag.current = false; }}
+              onClick={(event) => event.stopPropagation()}
+            />
+          )}
+          <div className="k-workbench-controls" data-testid="workbench-canvas-controls" role="toolbar" aria-label="Canvas viewport controls">
+            <Button type="button" variant="ghost" size="compact" onClick={fit} title="Fit the whole workbench (0)">
+              <Maximize2 size={14} /> Fit
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              aria-label="Zoom out"
+              onClick={() => zoomCentered(cameraRef.current.zoom / 1.2)}
+              title="Zoom out"
+            >
+              <Minus size={14} />
+            </Button>
+            <span className="k-workbench-zoom">{Math.round(camera.zoom * 100)}%</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              aria-label="Zoom in"
+              onClick={() => zoomCentered(Math.min(2, cameraRef.current.zoom * 1.2))}
+              title="Zoom in"
+            >
+              <Plus size={14} />
+            </Button>
+            {filteredObjects.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                data-testid="workbench-minimap-toggle"
+                aria-pressed={minimapOpen}
+                aria-expanded={minimapOpen}
+                aria-label={minimapOpen ? 'Hide minimap' : 'Show minimap'}
+                title={minimapOpen ? 'Hide minimap' : 'Show minimap'}
+                onClick={() => setMinimapOpen((open) => !open)}
+              >
+                <MapIcon size={14} />
+              </Button>
+            )}
+          </div>
+        </div>
       )}
       </div>
     </section>
   );
-});
+}));
+
+function formatSourceChipLabel(label: string): string {
+  if (label.length <= 32) return label;
+  const colonIdx = label.lastIndexOf(':');
+  if (colonIdx > 0 && colonIdx < label.length - 8) {
+    return `${label.slice(0, colonIdx + 9)}…`;
+  }
+  return `${label.slice(0, 22)}…${label.slice(-6)}`;
+}
 
 function WorkCard({
   object,
   explicitSize,
   overview = false,
   selected,
+  selectedCount = 0,
+  isDragging = false,
+  isLinkSource = false,
   assignedAreaTitle,
+  isAssignedToActiveArea = false,
   cardOverrides,
   onUpdateOverride,
   onHoverChange,
   onMeasure,
   onSelect,
+  onFocusCard,
+  onStartLink,
+  onRemoveCard,
+  onAskCard,
+  onToggleAreaAssign,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -1956,6 +2252,7 @@ function WorkCard({
   approvalReceipt = null,
   approvalError = null,
   onTaskStatus,
+  onRemoveStale,
   onCloseApproval,
   onNudge,
 }: {
@@ -1963,12 +2260,21 @@ function WorkCard({
   explicitSize: boolean;
   overview?: boolean;
   selected: boolean;
+  selectedCount?: number;
+  isDragging?: boolean;
+  isLinkSource?: boolean;
   assignedAreaTitle?: string;
+  isAssignedToActiveArea?: boolean;
   cardOverrides?: Record<string, unknown>;
   onUpdateOverride?: (cellKey: string, nextValue: string | null) => void;
   onHoverChange: (hovering: boolean) => void;
-  onMeasure: (id: string, width: number, height: number) => void;
+  onMeasure: (id: string, width: number, height: number, tier?: 'standard' | 'overview') => void;
   onSelect: (additive: boolean) => void;
+  onFocusCard: () => void;
+  onStartLink: () => void;
+  onRemoveCard: () => void;
+  onAskCard?: () => void;
+  onToggleAreaAssign?: () => void;
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerUp: () => void;
@@ -1984,11 +2290,15 @@ function WorkCard({
   approvalReceipt?: AskReceipt | null;
   approvalError?: string | null;
   onTaskStatus?: () => void;
+  onRemoveStale?: () => void;
   onCloseApproval?: () => void;
   onNudge: (dx: number, dy: number) => void;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const [factsExpanded, setFactsExpanded] = useState(false);
+  const [pointerInside, setPointerInside] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const showQuickHandles = !isDragging && (pointerInside || focusInside || isLinkSource);
 
   useEffect(() => {
     const node = cardRef.current;
@@ -1996,11 +2306,16 @@ function WorkCard({
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       if (!rect) return;
-      onMeasure(object.id, rect.width, Math.max(node.offsetHeight, node.scrollHeight, rect.height));
+      onMeasure(
+        object.id,
+        rect.width,
+        Math.max(node.offsetHeight, node.scrollHeight, rect.height),
+        overview ? 'overview' : 'standard',
+      );
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [object.id, onMeasure]);
+  }, [object.id, overview, onMeasure]);
 
   const maxCollapsedFacts = 6;
   const visibleFacts = factsExpanded || object.facts.length <= maxCollapsedFacts
@@ -2017,16 +2332,34 @@ function WorkCard({
       data-provenance={object.provenance ?? 'catalog'}
       data-contested={contested ? 'true' : undefined}
       data-selected={selected ? 'true' : undefined}
+      data-held={isDragging ? 'true' : undefined}
+      data-link-source={isLinkSource ? 'true' : undefined}
       style={{
         left: object.position.x,
         top: object.position.y,
         width: object.size.width,
-        ...(explicitSize ? { height: object.size.height } : { minHeight: object.size.height }),
+        ...(explicitSize
+          ? { height: object.size.height }
+          : object.chart && !overview
+            ? { minHeight: Math.min(object.size.height, 256) }
+            : {}),
       }}
       tabIndex={0}
       aria-label={`${object.label}: ${object.title}`}
-      onPointerEnter={() => onHoverChange(true)}
-      onPointerLeave={() => onHoverChange(false)}
+      onPointerEnter={() => {
+        setPointerInside(true);
+        onHoverChange(true);
+      }}
+      onPointerLeave={() => {
+        setPointerInside(false);
+        onHoverChange(false);
+      }}
+      onFocus={() => setFocusInside(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setFocusInside(false);
+        }
+      }}
       onClick={(event) => onSelect(Boolean(event?.metaKey || event?.ctrlKey || event?.shiftKey))}
       onKeyDown={(event) => {
         const step = event.shiftKey ? 50 : 10;
@@ -2048,6 +2381,96 @@ function WorkCard({
         }
       }}
     >
+      {selected && selectedCount === 1 && !isDragging && (
+        <div
+          className="k-workbench-node-toolbar"
+          role="toolbar"
+          aria-label={`${object.title} actions`}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {onOpen && (
+            <Button
+              type="button"
+              size="compact"
+              className="k-workbench-open"
+              onClick={onOpen}
+            >
+              {object.kind === 'approval' ? 'Review approval' : 'Open'}
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="compact" onClick={onFocusCard} title="Center canvas on card">
+            Focus
+          </Button>
+          <Button type="button" variant="ghost" size="compact" aria-pressed={isLinkSource} onClick={onStartLink} title="Connect link to another card">
+            {isLinkSource ? 'Linking…' : 'Link'}
+          </Button>
+          {onToggleAreaAssign && (
+            <Button type="button" variant="ghost" size="compact" onClick={onToggleAreaAssign}>
+              {isAssignedToActiveArea ? 'Unassign' : 'Assign to area'}
+            </Button>
+          )}
+          {onCloseApproval && approvalReady && !approvalReceipt && (
+            <Button type="button" size="compact" data-testid="close-approval" onClick={onCloseApproval}>
+              Close approval
+            </Button>
+          )}
+          {onTaskStatus && (
+            <Button type="button" variant="ghost" size="compact" onClick={onTaskStatus}>
+              {taskStatus === 'done' ? 'Reopen task' : 'Mark done'}
+            </Button>
+          )}
+          {onAskCard && (
+            <Button type="button" variant="ghost" size="compact" onClick={onAskCard}>
+              Ask
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="compact" onClick={onRemoveCard} title="Remove card from canvas (records stay safe)">
+            Remove
+          </Button>
+        </div>
+      )}
+      {showQuickHandles && !(selected && selectedCount === 1) && (
+        <div
+          className="k-workbench-hover-actions"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="k-workbench-hover-btn"
+            aria-label={`Focus ${object.title}`}
+            title="Focus card"
+            onClick={onFocusCard}
+          >
+            <Crosshair size={13} />
+          </button>
+          {onOpen && (
+            <button
+              type="button"
+              className="k-workbench-hover-btn"
+              aria-label={`Open ${object.title}`}
+              title="Open details"
+              onClick={onOpen}
+            >
+              {object.kind === 'approval' ? 'Review' : 'Open'}
+            </button>
+          )}
+        </div>
+      )}
+      {showQuickHandles && (
+        <button
+          type="button"
+          className="k-workbench-link-handle"
+          aria-label={`Connect link from ${object.title}`}
+          title="Connect link from this card"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStartLink();
+          }}
+        />
+      )}
       <header
         className="k-workbench-drag"
         onPointerDown={onPointerDown}
@@ -2135,10 +2558,10 @@ function WorkCard({
       {object.sources?.length ? (
         <ul className="k-workbench-sources" aria-label={`Sources for ${object.title}`}>
           {object.sources.map((source) => (
-            <li key={source.label}>
+            <li key={source.label} title={source.label}>
               {source.url
-                ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
-                : <span>{source.label}</span>}
+                ? <a href={source.url} target="_blank" rel="noreferrer">{formatSourceChipLabel(source.label)}</a>
+                : <span>{formatSourceChipLabel(source.label)}</span>}
             </li>
           ))}
         </ul>
@@ -2155,47 +2578,19 @@ function WorkCard({
         <div role="alert" className="k-confirm-error">{approvalError}</div>
       )}
       {approvalReceipt && <AskReceiptBanner receipt={approvalReceipt} />}
-      {selected && (onOpen || onTaskStatus || (onCloseApproval && approvalReady && !approvalReceipt)) && (
+      {onRemoveStale && (
         <div className="k-workbench-actions">
-          {onOpen && (
-            <Button
-              type="button"
-              size="compact"
-              className="k-workbench-open"
-              onClick={(event) => {
-                event.stopPropagation();
-                onOpen();
-              }}
-            >
-              {object.kind === 'approval' ? 'Review approval' : 'Open'}
-            </Button>
-          )}
-          {onCloseApproval && approvalReady && !approvalReceipt && (
-            <Button
-              type="button"
-              size="compact"
-              data-testid="close-approval"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCloseApproval();
-              }}
-            >
-              Close approval
-            </Button>
-          )}
-          {onTaskStatus && (
-            <Button
-              type="button"
-              size="compact"
-              variant="ghost"
-              onClick={(event) => {
-                event.stopPropagation();
-                onTaskStatus();
-              }}
-            >
-              {taskStatus === 'done' ? 'Reopen task' : 'Mark done'}
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveStale();
+            }}
+          >
+            Remove stale ref
+          </Button>
         </div>
       )}
       {selected && (

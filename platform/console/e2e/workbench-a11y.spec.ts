@@ -209,3 +209,45 @@ test('Light theme inversion, hover opacity invariance, zero card overlap, and zo
   expect(moleculeBondInfo.height).toBeGreaterThan(0);
   expect(pageErrors).toEqual([]);
 });
+
+test('Workbench auto-frames off-screen saved cameras and Fit keeps top cards inside viewport', async ({ page }) => {
+  await mockApi(page, {
+    loops: 4,
+    jobs: 12,
+    obligations: 2,
+    workbenchView: {
+      view_revision: 5,
+      view: { camera: { x: -4500, y: -4500, zoom: 0.82 }, selected: [], view_mode: 'canvas' },
+    },
+  });
+  await page.goto('/');
+  const workbench = page.getByTestId('workbench');
+  await expect(workbench).toBeVisible();
+
+  await expect.poll(async () => workbench.evaluate((root) => {
+    const vp = root.querySelector<HTMLElement>('.k-workbench-viewport');
+    if (!vp) return 0;
+    const vr = vp.getBoundingClientRect();
+    return Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card')).filter((el) => {
+      const r = el.getBoundingClientRect();
+      const ix = Math.max(0, Math.min(vr.right, r.right) - Math.max(vr.left, r.left));
+      const iy = Math.max(0, Math.min(vr.bottom, r.bottom) - Math.max(vr.top, r.top));
+      return ix >= 20 && iy >= 20;
+    }).length;
+  }), { timeout: 15_000 }).toBeGreaterThanOrEqual(4);
+
+  await workbench.getByTestId('workbench-canvas-controls').getByRole('button', { name: 'Fit' }).click();
+  await page.waitForTimeout(120);
+  const topClipCheck = await workbench.evaluate((root) => {
+    const vp = root.querySelector<HTMLElement>('.k-workbench-viewport');
+    if (!vp) return { count: 0, minTopOffset: -999, minLeftOffset: -999 };
+    const vr = vp.getBoundingClientRect();
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card')).map((el) => el.getBoundingClientRect());
+    const minTopOffset = Math.min(...cards.map((r) => r.top - vr.top));
+    const minLeftOffset = Math.min(...cards.map((r) => r.left - vr.left));
+    return { count: cards.length, minTopOffset, minLeftOffset };
+  });
+  expect(topClipCheck.count).toBeGreaterThanOrEqual(4);
+  expect(topClipCheck.minTopOffset).toBeGreaterThanOrEqual(0);
+  expect(topClipCheck.minLeftOffset).toBeGreaterThanOrEqual(0);
+});

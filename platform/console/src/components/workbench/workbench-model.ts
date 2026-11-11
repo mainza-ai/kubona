@@ -94,6 +94,8 @@ export type WorkbenchRect = { x: number; y: number; width: number; height: numbe
 
 export const WORKBENCH_GRID = 8;
 export const WORKBENCH_CLEARANCE = 16;
+export const MIN_WORKBENCH_ZOOM = 0.25;
+export const MAX_WORKBENCH_ZOOM = 2.5;
 export const DEFAULT_CAMERA: WorkbenchCamera = { x: 36, y: 36, zoom: 0.82 };
 export const WORKBENCH_BOUNDS = { width: 1800, height: 1500 };
 
@@ -222,15 +224,103 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-export function readCamera(raw: Record<string, unknown> | null): WorkbenchCamera {
+function extractCameraRecord(raw: Record<string, unknown> | null | undefined): WorkbenchCamera | null {
   const workbench = raw?.workbench;
   const source = workbench && typeof workbench === 'object' ? workbench : raw;
-  if (!source || typeof source !== 'object') return DEFAULT_CAMERA;
+  if (!source || typeof source !== 'object') return null;
   const camera = (source as { camera?: unknown }).camera;
-  if (!camera || typeof camera !== 'object') return DEFAULT_CAMERA;
+  if (!camera || typeof camera !== 'object') return null;
   const { x, y, zoom } = camera as Record<string, unknown>;
-  if (!finite(x) || !finite(y) || !finite(zoom)) return DEFAULT_CAMERA;
-  return { x, y, zoom: Math.min(2.5, Math.max(0.25, zoom)) };
+  if (!finite(x) || !finite(y) || !finite(zoom)) return null;
+  return { x, y, zoom: Math.min(MAX_WORKBENCH_ZOOM, Math.max(MIN_WORKBENCH_ZOOM, zoom)) };
+}
+
+/** True when a legacy or view document explicitly specifies finite numeric camera coordinates. */
+export function hasExplicitCameraRecord(raw: Record<string, unknown> | null | undefined): boolean {
+  return extractCameraRecord(raw) !== null;
+}
+
+export function readCamera(raw: Record<string, unknown> | null): WorkbenchCamera {
+  return extractCameraRecord(raw) ?? DEFAULT_CAMERA;
+}
+
+/**
+ * Returns true if at least one workbench object materially intersects the visible viewport,
+ * or when there are no objects or the host viewport has not yet been measured.
+ */
+export function cameraShowsAnyObject(
+  camera: WorkbenchCamera,
+  viewport: { width: number; height: number },
+  objects: readonly Pick<WorkbenchObject, 'position' | 'size'>[],
+  minVisiblePx = 36,
+): boolean {
+  if (objects.length === 0 || viewport.width <= 0 || viewport.height <= 0) return true;
+  const zoom = finite(camera.zoom) && camera.zoom > 0 ? camera.zoom : DEFAULT_CAMERA.zoom;
+  for (const obj of objects) {
+    const scaledW = Math.max(1, obj.size.width * zoom);
+    const scaledH = Math.max(1, obj.size.height * zoom);
+    const left = obj.position.x * zoom + camera.x;
+    const top = obj.position.y * zoom + camera.y;
+    const right = left + scaledW;
+    const bottom = top + scaledH;
+    const visibleW = Math.min(viewport.width, right) - Math.max(0, left);
+    const visibleH = Math.min(viewport.height, bottom) - Math.max(0, top);
+    if (visibleW >= Math.min(minVisiblePx, scaledW) && visibleH >= Math.min(minVisiblePx, scaledH)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Computes a Fit camera within server-enforced [0.25, 2.5] zoom bounds while keeping
+ * top/left objects inside viewport padding even when tall graphs clamp at min zoom.
+ */
+export function computeFitCamera(
+  box: WorkbenchRect,
+  viewport: { width: number; height: number },
+  options?: { minimapOpen?: boolean; minZoom?: number },
+): WorkbenchCamera {
+  const width = Math.max(120, viewport.width);
+  const height = Math.max(120, viewport.height);
+  const minimapOpen = options?.minimapOpen ?? false;
+  const padLeft = 36;
+  const padRight = minimapOpen && width > 640 ? 208 : 36;
+  const padTop = height > 320 ? 28 : 20;
+  const padBottom = minimapOpen && height > 420 ? 156 : 24;
+  const usableW = Math.max(120, width - padLeft - padRight);
+  const usableH = Math.max(120, height - padTop - padBottom);
+  const fitWidthZoom = usableW / Math.max(1, box.width);
+  const fitHeightZoom = usableH / Math.max(1, box.height);
+  const fitZoom = Math.min(fitWidthZoom, fitHeightZoom);
+  const readableFloor = options?.minZoom ? Math.min(options.minZoom, fitWidthZoom) : MIN_WORKBENCH_ZOOM;
+  const zoom = Math.min(1.15, Math.max(MIN_WORKBENCH_ZOOM, Math.round(Math.max(fitZoom, readableFloor) * 1000) / 1000));
+  const scaledW = box.width * zoom;
+  const scaledH = box.height * zoom;
+  const offsetX = scaledW <= usableW ? (usableW - scaledW) / 2 : 0;
+  const offsetY = scaledH <= usableH ? (usableH - scaledH) / 2 : 0;
+  return {
+    x: Math.round(padLeft + offsetX - box.x * zoom),
+    y: Math.round(padTop + offsetY - box.y * zoom),
+    zoom,
+  };
+}
+
+/** Scales camera zoom around a viewport focal point within [MIN_WORKBENCH_ZOOM, MAX_WORKBENCH_ZOOM]. */
+export function zoomCameraAtPoint(
+  camera: WorkbenchCamera,
+  targetZoom: number,
+  focalPoint: { x: number; y: number },
+): WorkbenchCamera {
+  const curZoom = finite(camera.zoom) && camera.zoom > 0 ? camera.zoom : DEFAULT_CAMERA.zoom;
+  const zoom = Math.min(MAX_WORKBENCH_ZOOM, Math.max(MIN_WORKBENCH_ZOOM, targetZoom));
+  const worldX = (focalPoint.x - camera.x) / curZoom;
+  const worldY = (focalPoint.y - camera.y) / curZoom;
+  return {
+    x: Math.round((focalPoint.x - worldX * zoom) * 100) / 100,
+    y: Math.round((focalPoint.y - worldY * zoom) * 100) / 100,
+    zoom,
+  };
 }
 
 export function readPositions(raw: Record<string, unknown> | null): WorkbenchPositions {
@@ -334,6 +424,28 @@ function notEvaluated(raw: unknown, digits: number): string {
     : 'not evaluated';
 }
 
+function hasEvaluatedNumber(raw: unknown): raw is number {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0;
+}
+
+function compactIsoTimestamp(raw: unknown): string {
+  if (typeof raw !== 'string') return 'not recorded';
+  const trimmed = raw.trim();
+  if (!trimmed) return 'not recorded';
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})?$/);
+  if (match) return `${match[1]} ${match[2]}${match[3] ?? 'Z'}`;
+  return trimmed.length > 24 ? `${trimmed.slice(0, 21)}…` : trimmed;
+}
+
+function compactSourceCiteLabel(label: string): string {
+  if (label.length <= 28) return label;
+  const colonIdx = label.lastIndexOf(':');
+  if (colonIdx > 0 && colonIdx < label.length - 8) {
+    return `${label.slice(0, colonIdx + 9)}…`;
+  }
+  return `${label.slice(0, 18)}…${label.slice(-6)}`;
+}
+
 function recordedSources(sources: string[] | undefined): { label: string; url?: string }[] {
   return (sources ?? [])
     .filter((source) => typeof source === 'string' && source.trim().length > 0)
@@ -399,6 +511,7 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
 }
 
 export function estimateCardHeight({
+  title = '',
   detail = '',
   factsCount,
   basis = '',
@@ -406,10 +519,12 @@ export function estimateCardHeight({
   hasChart = false,
   hasHero = false,
   hasCode = false,
+  codeLines = 0,
   comparisonRows = 0,
   runsCount = 0,
-  minHeight = 160,
+  minHeight = 136,
 }: {
+  title?: string;
   detail?: string;
   factsCount: number;
   basis?: string;
@@ -417,25 +532,54 @@ export function estimateCardHeight({
   hasChart?: boolean;
   hasHero?: boolean;
   hasCode?: boolean;
+  codeLines?: number;
   comparisonRows?: number;
   runsCount?: number;
   minHeight?: number;
 }): number {
-  const detailLines = Math.max(1, Math.ceil(detail.length / 42));
+  const titleLines = Math.max(1, Math.ceil(title.length / 26));
+  const detailLines = detail ? Math.max(1, Math.ceil(detail.length / 44)) : 0;
   const visibleFacts = Math.min(factsCount, 6);
-  const expandRow = factsCount > 6 ? 26 : 0;
-  const factsHeight = visibleFacts > 0 ? visibleFacts * 24 + 10 + expandRow : 0;
-  const basisHeight = basis ? Math.ceil(basis.length / 44) * 18 + 10 : 0;
-  const sourcesHeight = sourcesCount > 0 ? Math.min(sourcesCount, 4) * 18 + 8 : 0;
-  const chartHeight = hasChart ? 260 : 0;
+  const expandRow = factsCount > 6 ? 24 : 0;
+  const factsHeight = visibleFacts > 0 ? visibleFacts * 22 + 8 + expandRow : 0;
+  const basisHeight = basis ? Math.ceil(basis.length / 46) * 18 + 8 : 0;
+  const sourcesHeight = sourcesCount > 0 ? Math.min(sourcesCount, 4) * 18 + 6 : 0;
+  const chartHeight = hasChart ? 256 : 0;
   const heroHeight = hasHero ? 56 : 0;
-  const codeHeight = hasCode ? 168 : 0;
-  const comparisonHeight = comparisonRows > 0 ? 48 + Math.min(comparisonRows, 5) * 28 : 0;
-  const runsHeight = runsCount > 0 ? Math.min(runsCount, 4) * 26 + 18 : 0;
+  const cappedCodeLines = hasCode ? Math.min(Math.max(codeLines || 10, 4), 16) : 0;
+  const codeHeight = hasCode ? cappedCodeLines * 19 + 64 : 0;
+  const comparisonHeight = comparisonRows > 0 ? 44 + Math.min(comparisonRows, 5) * 26 : 0;
+  const runsHeight = runsCount > 0 ? Math.min(runsCount, 4) * 25 + 14 : 0;
   return snapToGrid(Math.max(
     minHeight,
-    68 + detailLines * 19 + heroHeight + factsHeight + basisHeight + sourcesHeight + chartHeight + codeHeight + comparisonHeight + runsHeight + 24,
+    46 + titleLines * 22 + detailLines * 18 + heroHeight + factsHeight + basisHeight + sourcesHeight + chartHeight + codeHeight + comparisonHeight + runsHeight + 16,
   ));
+}
+
+export function getNodeRenderSize(
+  object: Pick<WorkbenchObject, 'title' | 'detail' | 'facts' | 'size' | 'chart' | 'meta'>,
+  zoomTier: WorkbenchZoomTier = 'standard',
+  explicitSize?: { width: number; height: number } | null,
+): { width: number; height: number } {
+  if (explicitSize && explicitSize.width > 0 && explicitSize.height > 0) {
+    return { width: explicitSize.width, height: explicitSize.height };
+  }
+  if (zoomTier === 'overview') {
+    const titleLines = Math.min(3, Math.max(1, Math.ceil(object.title.length / 24)));
+    const detailLines = object.detail ? Math.min(2, Math.max(1, Math.ceil(object.detail.length / 42))) : 0;
+    const overviewFacts = Math.min(object.facts.length, 2);
+    const height = snapToGrid(Math.max(
+      112,
+      46
+      + titleLines * 22
+      + detailLines * 18
+      + (object.meta?.hero ? 48 : 0)
+      + (overviewFacts > 0 ? overviewFacts * 21 + 8 : 0)
+      + (object.chart ? 156 : 0),
+    ));
+    return { width: object.size.width, height };
+  }
+  return object.size;
 }
 
 export function reflowUnpinnedObjects(
@@ -443,17 +587,36 @@ export function reflowUnpinnedObjects(
   pins: WorkbenchPins,
   measuredSizes: WorkbenchSizes,
   gap = 20,
+  zoomTier: WorkbenchZoomTier = 'standard',
+  explicitSizes: WorkbenchSizes = {},
 ): WorkbenchObject[] {
-  if (objects.length <= 1) return [...objects];
+  if (objects.length <= 1) {
+    return objects.map((object) => {
+      const renderSize = getNodeRenderSize(object, zoomTier, explicitSizes[object.id]);
+      const measured = explicitSizes[object.id] ? undefined : measuredSizes[object.id];
+      const height = measured
+        ? (zoomTier === 'overview' ? snapToGrid(measured.height) : Math.max(renderSize.height, snapToGrid(measured.height)))
+        : renderSize.height;
+      return height !== object.size.height || renderSize.width !== object.size.width
+        ? { ...object, size: { width: renderSize.width, height } }
+        : object;
+    });
+  }
   const byId = new Map<string, WorkbenchObject>();
   for (const object of objects) {
-    const measured = measuredSizes[object.id];
-    const effectiveHeight = !pins[object.id] && measured
-      ? Math.max(object.size.height, snapToGrid(measured.height))
-      : object.size.height;
-    byId.set(object.id, effectiveHeight !== object.size.height
-      ? { ...object, size: { ...object.size, height: effectiveHeight } }
-      : object);
+    const renderSize = getNodeRenderSize(object, zoomTier, explicitSizes[object.id]);
+    const measured = !explicitSizes[object.id] && !pins[object.id] ? measuredSizes[object.id] : undefined;
+    const effectiveHeight = measured
+      ? (zoomTier === 'overview'
+          ? Math.max(96, snapToGrid(measured.height))
+          : Math.max(renderSize.height, snapToGrid(measured.height)))
+      : renderSize.height;
+    byId.set(
+      object.id,
+      effectiveHeight !== object.size.height || renderSize.width !== object.size.width
+        ? { ...object, size: { width: renderSize.width, height: effectiveHeight } }
+        : object,
+    );
   }
   const obstacles: WorkbenchRect[] = [];
   const unpinned: WorkbenchObject[] = [];
@@ -491,7 +654,7 @@ export function reflowUnpinnedObjects(
     if (y !== item.position.y) shifted.set(item.id, { x, y });
     obstacles.push({ x, y, width, height });
   }
-  if (shifted.size === 0 && Object.keys(measuredSizes).length === 0) return [...objects];
+  if (shifted.size === 0 && Object.keys(measuredSizes).length === 0 && zoomTier !== 'overview') return [...objects];
   return objects.map((object) => {
     const current = byId.get(object.id) ?? object;
     const pos = shifted.get(object.id);
@@ -499,11 +662,52 @@ export function reflowUnpinnedObjects(
   });
 }
 
-const REPEATABLE_JOB_TYPES = new Set([
+export const AUTO_CLUSTER_THRESHOLD = 24;
+
+export function buildDefaultClusterAreas(
+  objects: readonly WorkbenchObject[],
+): { areas: WorkbenchArea[]; assignments: Record<string, string> } {
+  if (objects.length <= AUTO_CLUSTER_THRESHOLD) return { areas: [], assignments: {} };
+  const members = objects.filter((object) =>
+    object.kind === 'job' || object.kind === 'agent_run' || object.kind === 'approval' || object.kind === 'task',
+  );
+  if (members.length < 4) return { areas: [], assignments: {} };
+  const minX = Math.min(...members.map((m) => m.position.x)) - 24;
+  const minY = Math.min(...members.map((m) => m.position.y)) - 44;
+  const maxX = Math.max(...members.map((m) => m.position.x + m.size.width)) + 24;
+  const maxY = Math.max(...members.map((m) => m.position.y + m.size.height)) + 24;
+  const areaId = 'auto-jobs-runs';
+  const assignments: Record<string, string> = {};
+  for (const member of members) assignments[member.id] = areaId;
+  return {
+    areas: [{
+      id: areaId,
+      title: 'Jobs & Runs',
+      rect: { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+    }],
+    assignments,
+  };
+}
+
+export const REPEATABLE_JOB_TYPES = new Set([
   'thermodynamic_limit',
   'circuit_run',
   'spin_chain',
   'vqe_repeats',
+  'vqe_run',
+  'hardware_experiment',
+  'qaoa_hardware',
+  'spin_chain_hardware',
+  'qaoa_run',
+  'geometry_optimization',
+  'lattice_dynamics',
+  'conjecture_run',
+  'reaction',
+  'excited_state',
+  'vqe_pes',
+  'hardware_pes',
+  'krylov_solve',
+  'krylov_json',
 ]);
 
 const RUN_HISTORY_CAP = 3;
@@ -607,9 +811,11 @@ export function buildWorkbench(
   obligations: ObligationRow[] = [],
   tasks: Task[] = [],
   sessionSpendUsd?: number,
-  pins: WorkbenchPins = {},
+  _pins: WorkbenchPins = {},
 ): WorkbenchObject[] {
   if (!campaign) return [];
+  // Retained in signature for 7-arg callers; pin layout overrides are resolved in Workbench.tsx.
+  void _pins;
   const qf = campaign.quantum_factors;
   const anchor = campaign.classical_anchor;
   const epistemics = campaign.epistemics;
@@ -634,6 +840,7 @@ export function buildWorkbench(
   ) => {
     const width = COL_W[col];
     const height = estimateCardHeight({
+      title: spec.title,
       detail: spec.detail,
       factsCount: spec.facts.length,
       basis: spec.basis,
@@ -641,9 +848,10 @@ export function buildWorkbench(
       hasChart: Boolean(spec.chart),
       hasHero: Boolean(spec.meta?.hero),
       hasCode: Boolean(spec.meta?.code),
+      codeLines: spec.meta?.code?.content ? spec.meta.code.content.split(/\r?\n/).length : 0,
       comparisonRows: spec.meta?.comparison?.rows.length ?? 0,
       runsCount: spec.meta?.runs?.length ?? 0,
-      minHeight: spec.minHeight ?? (spec.chart ? 360 : 176),
+      minHeight: spec.minHeight ?? (spec.chart ? 360 : 140),
     });
     objects.push({
       ...spec,
@@ -671,22 +879,32 @@ export function buildWorkbench(
     ],
   });
 
+  const hasEpistemicBreakdown =
+    hasEvaluatedNumber(epistemics?.alpha_corroborated)
+    || hasEvaluatedNumber(epistemics?.beta_contested)
+    || hasEvaluatedNumber(epistemics?.gamma_unverified);
+
   placeSpine(0, {
     id: 'hypothesis',
     kind: 'hypothesis',
     label: 'Hypothesis',
     title: value(epistemics?.statement, 'No evaluated claim yet'),
     detail: evidenceSources.length > 0
-      ? `The claim is a projection of the campaign epistemics, citing ${evidenceSources.length} source${evidenceSources.length === 1 ? '' : 's'} (${evidenceSources.map((s) => s.label).join(', ')}).`
+      ? `The claim is a projection of the campaign epistemics, citing ${evidenceSources.length} source${evidenceSources.length === 1 ? '' : 's'} (${evidenceSources.map((s) => compactSourceCiteLabel(s.label)).join(', ')}).`
       : 'The claim is a projection of the campaign epistemics, not a chat message.',
     basis: 'α, β, and γ are the campaign epistemic fractions. They are not a truth score or a confidence interval.',
     sources: evidenceSources,
-    facts: [
-      { label: 'State', value: value(epistemics?.status) },
-      { label: 'Corroborated α', value: notEvaluated(epistemics?.alpha_corroborated, 3) },
-      { label: 'Contested β', value: notEvaluated(epistemics?.beta_contested, 3) },
-      { label: 'Unverified γ', value: notEvaluated(epistemics?.gamma_unverified, 3) },
-    ],
+    facts: hasEpistemicBreakdown
+      ? [
+          { label: 'State', value: value(epistemics?.status) },
+          { label: 'Corroborated α', value: notEvaluated(epistemics?.alpha_corroborated, 3) },
+          { label: 'Contested β', value: notEvaluated(epistemics?.beta_contested, 3) },
+          { label: 'Unverified γ', value: notEvaluated(epistemics?.gamma_unverified, 3) },
+        ]
+      : [
+          { label: 'State', value: value(epistemics?.status) },
+          { label: 'Amplitudes (α/β/γ)', value: 'not yet evaluated (awaiting Tribunal)' },
+        ],
     ...(epistemics?.status ? {
       meta: {
         status: epistemics.status,
@@ -696,7 +914,9 @@ export function buildWorkbench(
             : /verified/i.test(epistemics.status)
               ? 'supports'
               : 'info',
-          summary: `${epistemics.status} · α=${notEvaluated(epistemics.alpha_corroborated, 2)} · β=${notEvaluated(epistemics.beta_contested, 2)}`,
+          summary: hasEpistemicBreakdown
+            ? `${epistemics.status} · α=${notEvaluated(epistemics.alpha_corroborated, 2)} · β=${notEvaluated(epistemics.beta_contested, 2)}`
+            : `${epistemics.status} · Tribunal amplitudes pending`,
         },
       },
     } : {}),
@@ -864,27 +1084,23 @@ export function buildWorkbench(
     id: 'evidence',
     kind: 'evidence',
     label: 'Evidence',
-    title: value(epistemics?.status, 'No epistemic state'),
+    title: epistemics?.status ? `Attribution ledger (${epistemics.status})` : 'Attribution & drift ledger',
     detail: (epistemics?.sources?.length ?? 0) > 0
-      ? `${epistemics!.sources.length} source reference${epistemics!.sources.length === 1 ? '' : 's'} recorded.`
+      ? `${epistemics!.sources.length} source reference${epistemics!.sources.length === 1 ? '' : 's'} recorded in the campaign ledger.`
       : 'No source references are recorded for this claim.',
     basis: 'P(correlated) is a campaign quantity, not a truth verdict. The source list is a reference index; no quote-level excerpt is stored here.',
     sources: recordedSources(epistemics?.sources),
     facts: [
-      { label: 'Corroborated α', value: notEvaluated(epistemics?.alpha_corroborated, 3) },
-      { label: 'Contested β', value: notEvaluated(epistemics?.beta_contested, 3) },
-      { label: 'Unverified γ', value: notEvaluated(epistemics?.gamma_unverified, 3) },
       { label: 'P(correlated)', value: notEvaluated(epistemics?.p_correlated, 3) },
       { label: 'Literature drift', value: typeof epistemics?.literature_drift_mha === 'number' && epistemics.literature_drift_mha >= 0 ? `${fixed(epistemics.literature_drift_mha, 2)} mHa` : 'not evaluated' },
       { label: 'Sources', value: String(epistemics?.sources?.length ?? 0) },
     ],
+    ...(epistemics?.status ? { meta: { status: epistemics.status } } : {}),
   });
 
+  // Only unique ansatz/trainability metrics belong here; Mapping (Circuit),
+  // Bond distance (Molecule), and VQE/FCI energy summary (Measurement) live on their own cards.
   const qfDiagnostics: { label: string; value: string }[] = [
-    ...(qf?.fermion_mapping ? [{ label: 'Mapping', value: qf.fermion_mapping }] : []),
-    ...(typeof qf?.bond_distance === 'number' && Number.isFinite(qf.bond_distance)
-      ? [{ label: 'Bond distance', value: `${fixed(qf.bond_distance, 4)} Å` }]
-      : []),
     ...(typeof qf?.meyer_wallach_q === 'number' && Number.isFinite(qf.meyer_wallach_q)
       ? [{ label: 'Meyer-Wallach Q', value: fixed(qf.meyer_wallach_q, 3) }]
       : []),
@@ -899,10 +1115,6 @@ export function buildWorkbench(
   ];
 
   const fallbackQfFacts = [
-    { label: 'Mapping', value: value(qf?.fermion_mapping) },
-    { label: 'Qubits', value: value(qf?.qubit_count) },
-    { label: 'Depth', value: value(qf?.circuit_depth) },
-    { label: 'Two-qubit gates', value: value(qf?.two_qubit_gates) },
     { label: 'Backend', value: value(qf?.recommended_backend) },
     { label: 'Estimated spend', value: typeValue(qf?.estimated_spend_usd) },
   ];
@@ -927,7 +1139,7 @@ export function buildWorkbench(
               }]
             : []),
           ...(typeof anchor.fci_exact_energy === 'number'
-            ? [{ label: anchor.method || 'FCI anchor', values: [fixed(anchor.fci_exact_energy, 5), '0.00 mHa (ref)'] }]
+            ? [{ label: 'FCI reference', values: [fixed(anchor.fci_exact_energy, 5), '0.00 mHa (ref)'] }]
             : []),
         ],
       }
@@ -937,11 +1149,11 @@ export function buildWorkbench(
     id: 'quantum-factors',
     kind: 'table',
     label: 'Table',
-    title: qfDiagnostics.length >= 2 ? 'Ansatz & trainability' : 'Quantum factors',
+    title: comparisonSummary && comparisonSummary.rows.length > 0 ? 'Ansatz & benchmark matrix' : 'Ansatz & trainability',
     detail: qfDiagnostics.length >= 2
       ? 'Trainability and parameter metrics deduplicated against Spine cards.'
       : 'Exact campaign fields as recorded; no derived values.',
-    facts: qfDiagnostics.length >= 2 ? qfDiagnostics : fallbackQfFacts,
+    facts: qfDiagnostics.length >= 1 ? qfDiagnostics : fallbackQfFacts,
     ...(comparisonSummary && comparisonSummary.rows.length > 0 ? { meta: { comparison: comparisonSummary } } : {}),
   });
 
@@ -998,6 +1210,7 @@ export function buildWorkbench(
     }
     const width = runColW[col] ?? COL_W[0];
     const height = estimateCardHeight({
+      title: spec.title,
       detail: spec.detail,
       factsCount: spec.facts.length,
       basis: spec.basis,
@@ -1005,9 +1218,10 @@ export function buildWorkbench(
       hasChart: Boolean(spec.chart),
       hasHero: Boolean(spec.meta?.hero),
       hasCode: Boolean(spec.meta?.code),
+      codeLines: spec.meta?.code?.content ? spec.meta.code.content.split(/\r?\n/).length : 0,
       comparisonRows: spec.meta?.comparison?.rows.length ?? 0,
       runsCount: spec.meta?.runs?.length ?? 0,
-      minHeight: spec.minHeight ?? 176,
+      minHeight: spec.minHeight ?? 140,
     });
     const x = runColX[col] ?? COL_X[0];
     let y = runColY[col] ?? runsTop;
@@ -1078,9 +1292,9 @@ export function buildWorkbench(
 
   const chartCard = objects.find((object) => object.id === 'chart');
   const jobGroups = new Map<string, ParsedJob[]>();
+  const campaignTargetScope = campaignHeadline.toLowerCase();
   for (const entry of parsedJobs) {
     const { job, params, result } = entry;
-    const isPinned = pins[`job-${job.id}`] === true;
 
     const factorSource = parseJsonRecord(result.factors ?? result.parameters);
     const factorFacts = Object.entries(factorSource).map(([k, v]) => ({ label: k, value: value(v) }));
@@ -1089,6 +1303,7 @@ export function buildWorkbench(
       chartCard.size = {
         ...chartCard.size,
         height: estimateCardHeight({
+          title: chartCard.title,
           detail: chartCard.detail,
           factsCount: chartCard.facts.length,
           basis: chartCard.basis,
@@ -1101,7 +1316,7 @@ export function buildWorkbench(
 
     const comp = extractComparisonRows(result);
     const isComparison = (job.job_type === 'comparison' || result.kind === 'comparison') && comp !== null;
-    if (isComparison && !isPinned) {
+    if (isComparison) {
       const holderId = String(params.holder ?? params.target_card ?? result.holder ?? 'measurement');
       const holder = objects.find((object) => object.id === holderId);
       if (holder) {
@@ -1112,26 +1327,32 @@ export function buildWorkbench(
         holder.size = {
           ...holder.size,
           height: estimateCardHeight({
+            title: holder.title,
             detail: holder.detail,
             factsCount: holder.facts.length,
             basis: holder.basis,
             sourcesCount: holder.sources?.length ?? 0,
             hasChart: Boolean(holder.chart),
+            comparisonRows: comp.rows.length,
           }),
         };
         continue;
       }
     }
 
+    // Repeatable & revision-chained jobs always fold under a canonical group key.
+    // Never mint `pin:${job.id}` or moving/pinning a member splits one run history into duplicate cards.
     let groupKey: string;
     const chainRoot = rootOfChain(entry);
     const explicitSeries = params.root_job_id ?? params.series_id ?? params.hypothesis_id ?? params.campaign_id;
-    if (isPinned) {
-      groupKey = `pin:${job.id}`;
-    } else if (chainRoot) {
+    if (chainRoot) {
       groupKey = `chain:${chainRoot}`;
     } else if (REPEATABLE_JOB_TYPES.has(job.job_type)) {
-      const scope = String(params.hypothesis_id ?? params.campaign_id ?? params.model ?? params.molecule ?? params.target ?? '');
+      const rawHyp = typeof params.hypothesis_id === 'string' ? params.hypothesis_id.trim() : '';
+      const hypScope = rawHyp && rawHyp !== campaign.hypothesis_id ? rawHyp : '';
+      const modelScope = String(params.model ?? '').trim().toLowerCase();
+      const molScope = String(params.molecule ?? params.target ?? campaignTargetScope).trim().toLowerCase();
+      const scope = [hypScope, modelScope, molScope].filter(Boolean).join(':') || 'default';
       groupKey = `repeat:${job.job_type}:${scope}`;
     } else if (typeof explicitSeries === 'string' && explicitSeries.trim()) {
       groupKey = `series:${job.job_type}:${explicitSeries.trim()}`;
@@ -1172,8 +1393,8 @@ export function buildWorkbench(
           { label: 'Status', value: latestStatus },
           { label: 'Backend', value: backend },
           { label: 'Shots', value: shots },
-          { label: 'Created', value: root.job.created_at || 'not recorded' },
-          { label: 'Completed', value: root.job.completed_at || 'not yet' },
+          { label: 'Created', value: compactIsoTimestamp(root.job.created_at) },
+          { label: 'Completed', value: root.job.completed_at ? compactIsoTimestamp(root.job.completed_at) : 'not yet' },
           { label: 'Result', value: root.job.result_json ? 'recorded' : 'not recorded' },
         ],
         meta: { jobId: root.job.id, status: latestStatus, activeFlow: latestStatus === 'RUNNING' },
@@ -1222,7 +1443,7 @@ export function buildWorkbench(
       facts: [
         { label: 'Status', value: latestStatus },
         { label: 'Runs', value: `${group.length} (${group.length - 1} folded)` },
-        { label: 'Updated', value: latest.job.completed_at || latest.job.created_at || 'not recorded' },
+        { label: 'Updated', value: compactIsoTimestamp(latest.job.completed_at || latest.job.created_at) },
         ...(measuredDelta ? [{ label: 'Delta', value: measuredDelta }] : []),
         { label: 'Backend', value: backend },
         { label: 'Shots', value: shots },
@@ -1366,7 +1587,7 @@ function roundSize(size: { width: number; height: number }): { width: number; he
 
 export function workbenchViewDocument(view: Partial<WorkbenchViewState>): WorkbenchViewState {
   const camera = view.camera ?? DEFAULT_CAMERA;
-  const zoom = finite(camera.zoom) ? Math.min(2.5, Math.max(0.25, camera.zoom)) : DEFAULT_CAMERA.zoom;
+  const zoom = finite(camera.zoom) ? Math.min(MAX_WORKBENCH_ZOOM, Math.max(MIN_WORKBENCH_ZOOM, camera.zoom)) : DEFAULT_CAMERA.zoom;
   return {
     camera: {
       x: finite(camera.x) ? Math.round(camera.x * 100) / 100 : DEFAULT_CAMERA.x,

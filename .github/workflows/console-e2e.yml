@@ -74,6 +74,17 @@ jobs:
         working-directory: platform/console
         run: pnpm test:e2e
 
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: console-e2e-artifacts
+          path: |
+            platform/console/test-results/
+            platform/console/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Stack logs on failure
         if: failure()
         run: docker compose -f platform/docker/compose.prod.yml logs --no-color

@@ -32,7 +32,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Inspector({
+export const Inspector = React.memo(function Inspector({
   open, tab, onTab, onClose, campaign, selectedObject, jobs, tasks = [], jobsStatus = 'ready', jobsError = null, onRefreshJobs, onCreateTask, onTaskStatus, copilot, expanded = false, onOpenObject, onFocusObject, onFocusJob, onRemoveObject,
 }: {
   open: boolean;
@@ -111,8 +111,8 @@ export function Inspector({
           }}
           className="absolute inset-y-0 left-0 hidden w-1 cursor-col-resize bg-transparent hover:bg-[var(--color-accent)]/40 focus-visible:bg-[var(--color-accent)]/60 focus-visible:outline-none lg:block"
         />
-        <header className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-          <div role="tablist" aria-label="Inspector sections" className="flex gap-1">
+        <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2 min-w-0">
+          <div role="tablist" aria-label="Inspector sections" className="flex flex-wrap sm:flex-nowrap min-w-0 gap-1">
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -120,16 +120,16 @@ export function Inspector({
                 role="tab"
                 aria-selected={tab === item.id}
                 onClick={() => onTab(item.id)}
-                className={`rounded-lg px-2 py-1 text-[12px] font-medium ${tab === item.id ? 'bg-[var(--color-lit-soft)] text-[var(--color-text)]' : 'text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]'}`}
+                className={`rounded-lg px-2 py-1 text-[12px] font-medium whitespace-nowrap ${tab === item.id ? 'bg-[var(--color-lit-soft)] text-[var(--color-text)]' : 'text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]'}`}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close inspector" className="rounded-lg px-2 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]">Close</button>
+          <button type="button" onClick={onClose} aria-label="Close inspector" className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]">Close</button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 text-[var(--color-label-secondary)]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 text-[var(--color-label-secondary)]">
           {tab === 'details' && (
             <section role="tabpanel" aria-label="Details" className="space-y-4">
               {selectedObject ? (
@@ -264,4 +264,4 @@ export function Inspector({
       </aside>
     </>
   );
-}
+});

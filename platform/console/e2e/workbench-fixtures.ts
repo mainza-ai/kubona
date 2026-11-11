@@ -73,7 +73,16 @@ function obligations(count = OBLIGATIONS) {
   }));
 }
 
-export async function mockApi(page: Page, counts: { loops?: number; jobs?: number; obligations?: number; workbench?: boolean } = {}) {
+export async function mockApi(
+  page: Page,
+  counts: {
+    loops?: number;
+    jobs?: number;
+    obligations?: number;
+    workbench?: boolean;
+    workbenchView?: { view_revision: number; view: Record<string, unknown> };
+  } = {},
+) {
   await page.route('**/api/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -105,7 +114,11 @@ export async function mockApi(page: Page, counts: { loops?: number; jobs?: numbe
       if (route.request().method() === 'PUT' || route.request().method() === 'POST') {
         return json({ status: 'saved', session_id: 'perf-session', view_revision: 1 });
       }
-      return json({ session_id: 'perf-session', view_revision: 0, view: {} });
+      return json({
+        session_id: 'perf-session',
+        view_revision: counts.workbenchView?.view_revision ?? 0,
+        view: counts.workbenchView?.view ?? {},
+      });
     }
     if (path === '/api/canvas/layout') return json({});
     if (path === '/api/health' || path === '/api/ready') return json({ ok: true, status: 'ready', ready: true });

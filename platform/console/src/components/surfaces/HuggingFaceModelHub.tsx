@@ -28,11 +28,19 @@ import {
   startHFDownload,
   listHFDownloads,
   cancelHFDownload,
+  hasOperatorBearer,
 } from '@/lib/api';
+import { useAuthPhase, useMultiLabAuthRequired } from '@/domain/auth-state';
 import { HFModelSummary,  HFDownloadTask } from '@/types';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 
 export function HuggingFaceModelHub() {
+  const authPhase = useAuthPhase();
+  const multiLabRequired = useMultiLabAuthRequired();
+  const deferredAuth =
+    multiLabRequired &&
+    authPhase !== 'authenticated' &&
+    !(typeof hasOperatorBearer === 'function' && hasOperatorBearer());
   const [query, setQuery] = useState('qwen2.5-coder');
   const [library, setLibrary] = useState('gguf');
   const [models, setModels] = useState<HFModelSummary[]>([]);
@@ -92,6 +100,7 @@ export function HuggingFaceModelHub() {
   }, []);
 
   useEffect(() => {
+    if (deferredAuth) return;
     let mounted = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     searchHFModels('qwen2.5-coder', 'gguf', 16)
@@ -141,7 +150,7 @@ export function HuggingFaceModelHub() {
       mounted = false;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [deferredAuth]);
 
   const handleSelectModel = async (model: HFModelSummary) => {
     setSelectedModel(model);
@@ -244,6 +253,11 @@ export function HuggingFaceModelHub() {
       </div>
 
       {/* Toast Alert */}
+      {deferredAuth && (
+        <div className="p-3 rounded-xl border border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] text-xs text-[var(--color-warning-ink)]">
+          Sign in to search HuggingFace models or stream weights in multi-lab mode.
+        </div>
+      )}
       {toastMessage && (
         <div className={`p-3 rounded-xl border text-xs flex items-center justify-between animate-fade-in shadow-md ${toastTone === 'error' ? 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]' : 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)]'}`}>
           <div className="flex items-center space-x-2">

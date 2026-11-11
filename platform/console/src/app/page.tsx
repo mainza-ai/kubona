@@ -40,7 +40,6 @@ import { Button } from '@/components/ui/Button';
 import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
-import { FlightRecorderCard } from '@/components/FlightRecorderCard';
 import { CodeBlock, CompareMatrix, Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
 import { BannerStack, describeCreateFailure } from '@/components/shell/Banners';
@@ -72,27 +71,27 @@ const VaultLeasePanel = dynamic(() => import('@/components/common/VaultLeasePane
 const SystemReadinessPanel = dynamic(() => import('@/components/common/SystemReadinessPanel').then((mod) => ({ default: mod.SystemReadinessPanel })), { ssr: false, loading: () => <SurfaceLoading label="readiness" /> });
 const WidgetStage = dynamic(() => import('@/components/sovereign/WidgetStage').then((mod) => ({ default: mod.WidgetStage })), { ssr: false, loading: () => <SurfaceLoading label="widget" /> });
 
-function formatElapsed(createdAt: string): string {
-  const ms = Date.now() - new Date(createdAt).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return '00:00:00';
-  const s = Math.floor(ms / 1000);
-  const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-  const mm = String(Math.floor((s % 60) / 60)).padStart(2, '0');
-  const ss = String(s % 60).padStart(2, '0');
-  return `${hh}:${mm}:${ss}`;
-}
-
 export default function Home() {
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const authPhase = useAuthPhase();
+  const authPhaseRef = useRef(authPhase);
+  useEffect(() => {
+    authPhaseRef.current = authPhase;
+  }, [authPhase]);
+  const bearerConfigured = typeof hasOperatorBearer === 'function' && hasOperatorBearer();
+  const canReadObligations =
+    access !== null &&
+    (access.mode !== 'multi_lab' || authPhase === 'authenticated' || bearerConfigured);
+
   const { sessions, setSessions, upsert: upsertSession } = useSessionsProjection();
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
   const { jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = useJobsProjection(currentSessionId || null);
-  const { obligations, refresh: refreshObligations } = useObligationsProjection();
+  const { obligations, refresh: refreshObligations } = useObligationsProjection(canReadObligations);
   const { tasks, refresh: refreshTasks } = useTasksProjection(currentSessionId || null);
   const { campaign, setCampaign, reload: reloadCampaign, failure: campaignFailure } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
-  const [nowTick, setNowTick] = useState(0);
 
   // Sovereign shell state
   const [surface, setSurface] = useState<DockSurface>('arena');
@@ -101,8 +100,8 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
-  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'experiments' | 'vault' | 'readiness' | 'appearance'>('models');
-  const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'vault' | 'readiness' | 'appearance'>('models');
+  const [moleculeObjectViewOpen, setMoleculeObjectViewOpen] = useState(false);
   const [inlineGateOwned, setInlineGateOwned] = useState(false);
   const [liftedObject, setLiftedObject] = useState<WorkbenchObject | null>(null);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
@@ -116,18 +115,7 @@ export default function Home() {
   const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const authPhase = useAuthPhase();
-  const authPhaseRef = useRef(authPhase);
-  useEffect(() => {
-    authPhaseRef.current = authPhase;
-  }, [authPhase]);
   const loopsAuthHaltedRef = useRef(false);
-  useEffect(() => {
-    setAuthPhase('checking');
-    void authWhoami().then((session) => {
-      if (!session) setAuthPhase('anonymous');
-    });
-  }, []);
 
   const localFailure = useCallback((result: { ok: false; failure: { kind: string }; error: string }) => {
     if (result.failure.kind === 'auth') return null;
@@ -167,7 +155,6 @@ export default function Home() {
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [access, setAccess] = useState<AccessState | null>(null);
   const campaignAuthError = campaignFailure?.status === 401 || campaignFailure?.status === 403;
 
   const refreshData = useCallback(async () => {
@@ -235,19 +222,57 @@ export default function Home() {
     refreshData();
   }, [switchSession, refreshData, setCampaign]);
 
+  const currentSessionIdRef = useRef(currentSessionId);
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  const prevSessionIdRef = useRef('');
+  useEffect(() => {
+    const previous = prevSessionIdRef.current;
+    prevSessionIdRef.current = currentSessionId;
+    if (previous && currentSessionId && previous !== currentSessionId) {
+      void refreshData();
+    }
+  }, [currentSessionId, refreshData]);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       // Runtime backend URL first (M5): same image, any backend.
       await configureApiBase();
-      const accessState = await fetchAccess();
-      if (mounted) setAccess(accessState);
+      if (!mounted) return;
+      setAuthPhase('checking');
+      const [accessState, whoami] = await Promise.all([
+        fetchAccess(),
+        authWhoami(),
+      ]);
+      if (!mounted) return;
+      if (!whoami) setAuthPhase('anonymous');
+      setAccess(accessState);
       const workbenchOn = CONSOLE_WORKBENCH_ENABLED;
       setWorkbenchEnabled(workbenchOn);
       if (!workbenchOn) setArenaView((current) => (current === 'workbench' ? 'orbital' : current));
+      const multiLabAnon =
+        accessState?.mode === 'multi_lab' &&
+        whoami?.authenticated !== true &&
+        !hasOperatorBearer();
+      if (multiLabAnon) loopsAuthHaltedRef.current = true;
       const [sessResult, loopResult] = await Promise.all([
         fetchSessionsResult(),
-        fetchLoopsResult(),
+        multiLabAnon
+          ? Promise.resolve({
+              ok: false as const,
+              error: 'Sign in required for multi-lab loops.',
+              failure: {
+                path: '/api/loops',
+                status: 401,
+                kind: 'auth' as const,
+                message: 'Sign in required for multi-lab loops.',
+                at: Date.now(),
+              },
+            })
+          : fetchLoopsResult(),
       ]);
       if (!mounted) return;
       if (!sessResult.ok) {
@@ -273,9 +298,9 @@ export default function Home() {
         setDataError(null);
       }
       const sessList = sessResult.sessions;
-      let targetSessionId = currentSessionId;
+      let targetSessionId = currentSessionIdRef.current;
       setSessions(sessList);
-      if (sessList.length > 0 && !currentSessionId) {
+      if (sessList.length > 0 && !targetSessionId) {
         targetSessionId = sessList[0].id;
         switchSession(sessList[0].id);
       }
@@ -288,7 +313,13 @@ export default function Home() {
         });
       }
     })();
+    return () => {
+      mounted = false;
+    };
+  }, [localFailure, setLoops, setSessions, switchSession]);
 
+  useEffect(() => {
+    let mounted = true;
     // D4 (2.5b): aggregate heartbeat toasts (one per poll, never per event),
     // skip fetch work while the tab is hidden, back off to 15s at rest.
     // Hardened: serialized (no overlapping ticks — a slow backend cannot
@@ -381,16 +412,19 @@ export default function Home() {
       }
     };
     tickTimer = setTimeout(tick, 3500);
-    const clock = setInterval(() => {
-      setNowTick((t) => t + 1);
-      if (runPhaseRef.current !== 'idle') setRunElapsedSec((s) => s + 1);
-    }, 1000);
     return () => {
       mounted = false;
       clearTimeout(tickTimer);
-      clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, reloadCampaign, localFailure, setLoops, setSessions, upsertSession]);
+  }, [currentSessionId, runPhase, streamLive, reloadCampaign, localFailure, setLoops, upsertSession]);
+
+  useEffect(() => {
+    if (runPhase === 'idle') return;
+    const clock = setInterval(() => {
+      setRunElapsedSec((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(clock);
+  }, [runPhase]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
@@ -559,7 +593,21 @@ export default function Home() {
 
   const handleSelectDockSurface = useCallback((s: DockSurface) => {
     setSurface(s);
-    if (s === 'arena') setShowLegacyCanvas(false);
+    if (s === 'arena') setMoleculeObjectViewOpen(false);
+    else setIsExperimentLabOpen(false);
+  }, []);
+
+  const openInspector = useCallback((tab?: InspectorTab) => {
+    setIsExperimentLabOpen(false);
+    if (tab) setInspectorTab(tab);
+    setInspectorOpen(true);
+  }, []);
+
+  const toggleExperimentLab = useCallback((mode: 'open' | 'close' | 'toggle' = 'open') => {
+    setInspectorOpen(false);
+    setSurface('arena');
+    setMoleculeObjectViewOpen(false);
+    setIsExperimentLabOpen((prev) => (mode === 'toggle' ? !prev : mode === 'open'));
   }, []);
 
   const activeMode: ShellMode = surface === 'proofs'
@@ -575,9 +623,10 @@ export default function Home() {
       if (mode === 'workbench') {
         setSurface('arena');
         setArenaView('workbench');
-        setShowLegacyCanvas(false);
+        setMoleculeObjectViewOpen(false);
         return;
       }
+      setIsExperimentLabOpen(false);
       if (mode === 'evidence') {
         setSurface('proofs');
         setProofsTab('manuscripts');
@@ -602,7 +651,7 @@ export default function Home() {
     if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
     else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
     else if (kind === 'evidence') setSurface('manifold');
-    else if (kind === 'molecule') { setSurface('arena'); setShowLegacyCanvas(true); }
+    else if (kind === 'molecule') { setSurface('arena'); setMoleculeObjectViewOpen(true); }
     else if (kind === 'proof' || kind === 'manuscript') {
       setSurface('proofs');
       setProofsTab('manuscripts');
@@ -692,16 +741,21 @@ export default function Home() {
       case 'circuits':
         setSurface('proofs'); setProofsTab('circuits'); break;
       case 'arena-workbench':
-        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('workbench'); break;
+        setSurface('arena'); setMoleculeObjectViewOpen(false); setArenaView('workbench'); break;
       case 'arena-orbital':
-        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('orbital'); break;
+        setSurface('arena'); setMoleculeObjectViewOpen(false); setArenaView('orbital'); break;
       case 'arena-proof-dag':
-        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('proof-dag'); break;
+        setSurface('arena'); setMoleculeObjectViewOpen(false); setArenaView('proof-dag'); break;
+      case 'arena-hardware-qpu':
+        setSurface('arena'); setMoleculeObjectViewOpen(false); setArenaView('hardware-qpu'); break;
+      case 'experiment-lab':
+        toggleExperimentLab(surface === 'arena' ? 'toggle' : 'open');
+        break;
       case 'palette':
         setIsCommandPaletteOpen((v) => !v); break;
       case 'copilot':
-        setInspectorOpen((v) => !v);
-        setInspectorTab('copilot');
+        if (inspectorOpen) setInspectorOpen(false);
+        else openInspector('copilot');
         break;
       case 'about':
         setIsAboutOpen(true); break;
@@ -714,18 +768,12 @@ export default function Home() {
       default:
         break;
     }
-  }, [handleEmergencyAbort, handleSelectDockSurface]);
+  }, [handleEmergencyAbort, handleSelectDockSurface, inspectorOpen, openInspector, surface, toggleExperimentLab]);
 
-  // FleetRadar double-mount fix: FleetRadar owns radar+fleet pollers, so
-  // mounting it in the arena hardware-qpu view AND on the dock fleet
-  // surface polls the backend twice. The arena tab now jumps to the single
-  // dock instance instead of mounting a second one (simplest correct —
-  // no lifted state, no second poller).
+  // FleetRadar subscribes to a shared module resource store (useFleetProjection),
+  // so rendering it inside Arena Hardware QPU shares the single poller cleanly
+  // without redirecting away from Arena.
   const handleArenaViewChange = useCallback((v: ArenaView) => {
-    if (v === 'hardware-qpu') {
-      setSurface('fleet');
-      return;
-    }
     setArenaView(v);
   }, []);
 
@@ -771,16 +819,14 @@ export default function Home() {
   }, [copilotChat]);
 
   const handleAsk = useCallback((text: string) => {
-    setInspectorTab('copilot');
-    setInspectorOpen(true);
+    openInspector('copilot');
     return copilotChatRef.current.send(text);
-  }, []);
+  }, [openInspector]);
 
   const handleTribunalAsk = useCallback((topic: string) => {
-    setInspectorTab('copilot');
-    setInspectorOpen(true);
+    openInspector('copilot');
     return copilotChatRef.current.conveneTribunal(topic);
-  }, []);
+  }, [openInspector]);
 
   // Prompt → probe mapping: the canvas lights the agent being asked.
   const probeForText = useCallback((text: string): ProbeId | null => {
@@ -823,7 +869,7 @@ export default function Home() {
   const focusWorkbenchTarget = useCallback((id: string) => {
     setSurface('arena');
     setArenaView('workbench');
-    setShowLegacyCanvas(false);
+    setMoleculeObjectViewOpen(false);
     if (workbenchRef.current) {
       workbenchRef.current.focusObject(id);
     } else {
@@ -875,9 +921,8 @@ export default function Home() {
         }
         return;
       }
-      if (key === 'e' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !inField) {
-        e.preventDefault();
-        setIsExperimentLabOpen((v) => !v);
+      if (e.key === 'Escape' && isExperimentLabOpen && typeof document !== 'undefined' && !document.querySelector('dialog[open]')) {
+        setIsExperimentLabOpen(false);
         return;
       }
       const shortcutName = KEY_TO_SHORTCUT[key];
@@ -893,44 +938,37 @@ export default function Home() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigateToTarget]);
+  }, [isExperimentLabOpen, navigateToTarget]);
 
   // Deep-link URL sync (Wave-2): read ?surface=&?tab= once on mount (plus
   // back/forward via popstate), and reflect every navigation with
   // replaceState (no reload). Palette/dock clicks all funnel through the
   // surface/tab setters above, so the write effect below covers them.
-  // hardware-qpu is a redirect at runtime (arena view jumps to the dock
-  // fleet surface), so a deep link carrying it lands on fleet.
   const urlReady = useRef(false);
   useEffect(() => {
     if (typeof window === 'undefined' || urlReady.current) return;
     urlReady.current = true;
     const parsed = parseShellParams(window.location?.search ?? '');
-    const landedSurface = parsed.surface === 'arena' && parsed.arenaView === 'hardware-qpu'
-      ? 'fleet'
-      : parsed.surface;
-    setSurface(landedSurface);
+    setSurface(parsed.surface);
     setProofsTab(parsed.proofsTab);
     setMeshTab(parsed.meshTab);
-    setArenaView(parsed.arenaView === 'hardware-qpu' ? 'workbench' : parsed.arenaView);
+    setArenaView(parsed.arenaView);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onPopState = () => {
       const parsed = parseShellParams(window.location?.search ?? '');
-      const landedSurface = parsed.surface === 'arena' && parsed.arenaView === 'hardware-qpu'
-        ? 'fleet'
-        : parsed.surface;
-      setSurface(landedSurface);
+      setSurface(parsed.surface);
       setProofsTab(parsed.proofsTab);
       setMeshTab(parsed.meshTab);
-      setArenaView(parsed.arenaView === 'hardware-qpu' ? 'workbench' : parsed.arenaView);
+      setArenaView(parsed.arenaView);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined' || !urlReady.current) return;
+    if (!window.location?.search && surface === 'arena' && arenaView === 'workbench') return;
     const tab = tabForSurface(surface, { proofsTab, meshTab, arenaView });
     const next = buildShellSearch(surface, tab);
     if (window.location?.search !== next && typeof window.history?.replaceState === 'function') {
@@ -950,12 +988,39 @@ export default function Home() {
   ), [gateOpen, campaign, session, handleAuthorizePulse, handleDenyPulse, handleDowngradePulse]);
   const targetShort = campaign?.quantum_factors?.target_molecule || campaign?.target_system || '';
   const targetLabel = targetShort ? `${targetShort.slice(0, 28)} · Ground State Target` : 'No Target · Idle';
-  void nowTick;
+
+  const [liveWorkbenchSummary, setLiveWorkbenchSummary] = useState<{
+    sessionId: string;
+    items: Array<{ id: string; label: string; title: string; kind: WorkbenchObjectKind }>;
+  } | null>(null);
+  const handleWorkbenchObjectsChange = useCallback((nextObjects: WorkbenchObject[]) => {
+    const items = nextObjects.map((object) => ({ id: object.id, label: object.label, title: object.title, kind: object.kind }));
+    setLiveWorkbenchSummary((prev) => {
+      if (
+        prev &&
+        prev.sessionId === currentSessionId &&
+        prev.items.length === items.length &&
+        prev.items.every((entry, idx) =>
+          entry.id === items[idx]!.id &&
+          entry.label === items[idx]!.label &&
+          entry.title === items[idx]!.title &&
+          entry.kind === items[idx]!.kind
+        )
+      ) {
+        return prev;
+      }
+      return { sessionId: currentSessionId, items };
+    });
+  }, [currentSessionId]);
 
   const paletteObjects = useMemo(
-    () => buildWorkbench(campaign, loops, jobs, obligations, tasks, session?.current_spend_usd)
-      .map((object) => ({ id: object.id, label: object.label, title: object.title, kind: object.kind })),
-    [campaign, loops, jobs, obligations, tasks, session?.current_spend_usd],
+    () => (
+      liveWorkbenchSummary && liveWorkbenchSummary.sessionId === currentSessionId
+        ? liveWorkbenchSummary.items
+        : buildWorkbench(campaign, loops, jobs, obligations, tasks, session?.current_spend_usd)
+          .map((object) => ({ id: object.id, label: object.label, title: object.title, kind: object.kind }))
+    ),
+    [liveWorkbenchSummary, currentSessionId, campaign, loops, jobs, obligations, tasks, session?.current_spend_usd],
   );
 
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
@@ -977,7 +1042,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-screen w-screen bg-[var(--color-canvas)] text-[var(--color-text)] overflow-hidden font-sovereign">
+    <div className="flex h-dvh w-full bg-[var(--color-canvas)] text-[var(--color-text)] overflow-hidden font-sovereign">
       <a href="#kubona-main" className="k-skip-link">Skip to main content</a>
       <AttentionProvider>
       {/* Modals & Dialogs */}
@@ -989,13 +1054,16 @@ export default function Home() {
         onNewCampaign={handleCreateSession}
         onEmergencyAbort={handleEmergencyAbort}
         onOpenAbout={() => setIsAboutOpen(true)}
-        onToggleCopilot={() => { setInspectorOpen(true); setInspectorTab('copilot'); }}
+        onToggleCopilot={() => {
+          if (inspectorOpen) setInspectorOpen(false);
+          else openInspector('copilot');
+        }}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         objects={paletteObjects}
         onOpenObject={(id) => {
           setSurface('arena');
           setArenaView('workbench');
-          setInspectorOpen(true);
+          openInspector('details');
           setTimeout(() => workbenchRef.current?.focusObject(id), 0);
         }}
       />
@@ -1003,21 +1071,6 @@ export default function Home() {
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
       />
-      {isExperimentLabOpen && (
-        <Dialog
-          open={isExperimentLabOpen}
-          onClose={() => setIsExperimentLabOpen(false)}
-          title="Experiment & Discovery Lab"
-        >
-          <div className="space-y-4">
-            <ExperimentPanel
-              sessionId={currentSessionId || null}
-              tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id}
-            />
-            <DiscoveryProtocolPanel sessionId={currentSessionId || null} />
-          </div>
-        </Dialog>
-      )}
       <ConfirmDialog
         open={isAbortOpen}
         title="Emergency abort"
@@ -1236,24 +1289,28 @@ export default function Home() {
           />
         )}
         {surface === 'arena' && (
-          <main id="kubona-main" tabIndex={-1} className="relative flex flex-col min-h-0 flex-1 overflow-hidden">
+          <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <main id="kubona-main" tabIndex={-1} className="relative flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
               view={arenaView}
               onViewChange={handleArenaViewChange}
               showWorkbench={workbenchEnabled}
+              campaignTitle={session?.title}
+              onOpenCampaigns={() => setShowCampaignMenu((v) => !v)}
               spendUsd={session?.current_spend_usd ?? 0}
               spendCapUsd={session?.spend_limit_usd ?? 150}
-              sessionElapsed={session ? formatElapsed(session.created_at) : '00:00:00'}
+              sessionCreatedAt={session?.created_at}
               statusText={runStatusText}
               onRecenter={() => setRecenterSignal((n) => n + 1)}
-              onOpenExperimentLab={!showLegacyCanvas ? () => setIsExperimentLabOpen(true) : undefined}
-              onOpenMoleculeView={!showLegacyCanvas ? () => setShowLegacyCanvas(true) : undefined}
+              experimentLabOpen={isExperimentLabOpen}
+              onOpenExperimentLab={!moleculeObjectViewOpen ? () => toggleExperimentLab('toggle') : undefined}
+              onOpenMoleculeView={!moleculeObjectViewOpen ? () => setMoleculeObjectViewOpen(true) : undefined}
             />
 
             <div className="relative min-h-0 flex-1 overflow-hidden">
-            {arenaView === 'workbench' && !showLegacyCanvas && (
+            {arenaView === 'workbench' && !moleculeObjectViewOpen && (
               <Workbench
                 key={currentSessionId}
                 ref={workbenchRef}
@@ -1277,46 +1334,55 @@ export default function Home() {
                 sessionId={currentSessionId || undefined}
                 confirmGate={confirmGate}
                 onInlineGateVisibility={setInlineGateOwned}
-                onLiftObject={(object) => setLiftedObject(object)}
+                onObjectsChange={handleWorkbenchObjectsChange}
+                onLiftObject={(object) => {
+                  if (object.kind === 'molecule') {
+                    setMoleculeObjectViewOpen(true);
+                    return;
+                  }
+                  setLiftedObject(object);
+                }}
                 onSelectObject={(object) => {
                   setSelectedWorkbenchObject(object);
                   if (object) {
-                    setInspectorTab('details');
-                    setInspectorOpen(true);
+                    openInspector('details');
                   }
                 }}
                 onOpenObject={handleOpenWorkbenchObject}
                 onAskSelection={(selectedObjs) => {
                   const first = selectedObjs[0];
                   if (first) setSelectedWorkbenchObject(first);
-                  setInspectorTab('copilot');
-                  setInspectorOpen(true);
+                  openInspector('copilot');
                 }}
               />
             )}
-            {arenaView === 'orbital' && !showLegacyCanvas && (
+            {arenaView === 'orbital' && !moleculeObjectViewOpen && (
               <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} atRest={runPhase === 'idle'} />
             )}
-            {arenaView === 'proof-dag' && !showLegacyCanvas && (
+            {arenaView === 'proof-dag' && !moleculeObjectViewOpen && (
               <ProofDagView campaign={campaign} />
             )}
-            {/* hardware-qpu intentionally renders no second FleetRadar here:
-                handleArenaViewChange jumps to the dock fleet surface instead
-                (single mount, single poller — see FleetRadar double-mount). */}
-            {showLegacyCanvas && (
+            {arenaView === 'hardware-qpu' && !moleculeObjectViewOpen && (
+              <div className="h-full overflow-y-auto overscroll-contain p-4 sm:p-6">
+                <div className="max-w-6xl mx-auto">
+                  <FleetRadar campaign={campaign} />
+                </div>
+              </div>
+            )}
+            {moleculeObjectViewOpen && (
               <div
                 role="dialog"
                 aria-label="Molecule object view"
                 data-testid="molecule-object-view"
-                className="absolute inset-0 overflow-y-auto pt-6 px-6 pb-6 bg-[var(--color-canvas)]/95"
+                className="absolute inset-0 overflow-y-auto overscroll-contain pt-6 px-6 pb-6 bg-[var(--color-canvas)]/95"
               >
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
                   <button
-                    onClick={() => setShowLegacyCanvas(false)}
+                    onClick={() => setMoleculeObjectViewOpen(false)}
                     aria-label="Close molecule object view"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-fill)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all"
                   >
-                    <X className="w-3.5 h-3.5" /> Back to Universe
+                    <X className="w-3.5 h-3.5" /> Back to Workbench
                   </button>
                 </div>
                 <SpatialCanvas campaign={campaign} />
@@ -1324,7 +1390,7 @@ export default function Home() {
             )}
 
             {/* On-demand canvas widget (co-pilot materialized, single slot) */}
-            {!showLegacyCanvas && (
+            {!moleculeObjectViewOpen && (
               <WidgetStage
                 widget={canvasWidget}
                 campaign={campaign}
@@ -1337,7 +1403,7 @@ export default function Home() {
             )}
 
             {/* Calibrated action gate — fallback when inline workbench circuit card gate is not active */}
-            {gateOpen && !showLegacyCanvas && !(arenaView === 'workbench' && inlineGateOwned) && (
+            {gateOpen && !moleculeObjectViewOpen && !(arenaView === 'workbench' && inlineGateOwned) && (
               <ActionGate
                 campaign={campaign}
                 session={session}
@@ -1363,6 +1429,45 @@ export default function Home() {
             )}
             </div>
           </main>
+          {isExperimentLabOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-30 bg-[var(--color-canvas)]/70 backdrop-blur-[2px] lg:hidden"
+                onClick={() => setIsExperimentLabOpen(false)}
+                aria-hidden="true"
+              />
+              <aside
+                aria-label="Experiment & Discovery Lab"
+                className="fixed inset-y-0 right-0 z-40 w-[min(26rem,100%)] lg:static lg:z-auto lg:w-[420px] shrink-0 flex flex-col bg-[var(--color-surface-elev)] border-l border-[var(--color-border-strong)] shadow-[var(--shadow-float)] lg:shadow-none"
+              >
+                <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Zap className="w-4 h-4 text-[var(--color-accent-ink)] shrink-0" />
+                    <h2 className="text-xs font-code uppercase tracking-wider text-[var(--color-text)] truncate">
+                      Experiment &amp; Discovery Lab
+                    </h2>
+                    <KeyHint>{SHORTCUTS.experimentLab}</KeyHint>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsExperimentLabOpen(false)}
+                    aria-label="Close Experiment & Discovery Lab"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-4">
+                  <ExperimentPanel
+                    sessionId={currentSessionId || null}
+                    tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id}
+                  />
+                  <DiscoveryProtocolPanel sessionId={currentSessionId || null} />
+                </div>
+              </aside>
+            </>
+          )}
+          </div>
         )}
 
         {surface !== 'arena' && (
@@ -1391,28 +1496,34 @@ export default function Home() {
             )}
             <div className="p-6 max-w-6xl mx-auto">
               {surface === 'recorder' && (
-                <>
-                  <FlightRecorder loops={loops} events={events} sessionId={currentSessionId || null} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />
-                  {/* Auditor flight-recorder telemetry (60s gate) with measured
-                      fetch latency — mounted, not dead code. */}
-                  <div className="mt-4">
-                    <FlightRecorderCard sessionId={currentSessionId || null} />
-                  </div>
-                </>
+                <FlightRecorder loops={loops} events={events} sessionId={currentSessionId || null} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />
               )}
               {surface === 'manifold' && <EpistemicManifold campaign={campaign} sessionId={currentSessionId || null} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}
-              {surface === 'proofs' && proofsTab === 'tribunal' && (
-                <EpistemicTribunalRoom
-                  sessionId={session?.id ?? ''}
-                  targetSystem={campaign?.target_system || campaign?.quantum_factors?.target_molecule || 'LiH'}
-                  hypothesisId={campaign?.hypothesis_id || `hyp-qksd-${(campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'LiH').toLowerCase().replace(/[^a-z0-9]/g, '')}-01`}
+              {surface === 'proofs' && proofsTab === 'tribunal' && (() => {
+                const tribunalTarget = campaign?.target_system || campaign?.quantum_factors?.target_molecule || '';
+                const tribunalSlug = tribunalTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
+                return (
+                  <EpistemicTribunalRoom
+                    sessionId={session?.id ?? ''}
+                    targetSystem={tribunalTarget}
+                    hypothesisId={campaign?.hypothesis_id || (tribunalSlug ? `hyp-qksd-${tribunalSlug}-01` : '')}
+                    campaign={campaign}
+                    onCampaignSynthesized={(c) => setCampaign(c)}
+                  />
+                );
+              })()}
+              {surface === 'proofs' && proofsTab === 'gallery' && (
+                <GenerativeUIStudio
                   campaign={campaign}
-                  onCampaignSynthesized={(c) => setCampaign(c)}
+                  tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id}
+                  onOpenObservatory={() => {
+                    setSurface('arena');
+                    setMoleculeObjectViewOpen(true);
+                  }}
                 />
               )}
-              {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
               {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit />}
               {surface === 'mesh' && meshTab === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
@@ -1426,7 +1537,6 @@ export default function Home() {
                       ['models', 'Models'],
                       ['quantum', 'Quantum providers'],
                       ['dispatch', 'Quantum dispatch'],
-                      ['experiments', 'Experiments'],
                       ['vault', 'Vault leases'],
                       ['readiness', 'System readiness'],
                       ['appearance', 'Appearance'],
@@ -1445,7 +1555,6 @@ export default function Home() {
                   {settingsSection === 'models' && <LLMSettings />}
                   {settingsSection === 'quantum' && <QuantumSettings />}
                   {settingsSection === 'dispatch' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
-                  {settingsSection === 'experiments' && (<div className="space-y-4"><ExperimentPanel sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} /><DiscoveryProtocolPanel sessionId={currentSessionId || null} /></div>)}
                   {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
                   {settingsSection === 'readiness' && <SystemReadinessPanel />}
                   {settingsSection === 'appearance' && <AppearanceSettings />}
@@ -1471,8 +1580,7 @@ export default function Home() {
             onStop={copilotChat.stop}
             followUps={copilotChat.followUps}
             onFollowUp={(key) => {
-              setInspectorTab('copilot');
-              setInspectorOpen(true);
+              openInspector('copilot');
               copilotChat.runFollowUp(key);
             }}
             onTribunal={handleTribunalAsk}
@@ -1482,8 +1590,7 @@ export default function Home() {
               refreshData();
             }}
             onOpenInspector={!inspectorOpen ? () => {
-              setInspectorOpen(true);
-              setInspectorTab('details');
+              openInspector('details');
             } : undefined}
             inspectorShortcut={SHORTCUTS.copilot}
           />
@@ -1543,7 +1650,7 @@ export default function Home() {
       />
       {!inspectorOpen && surface !== 'arena' && (
         <button
-          onClick={() => { setInspectorOpen(true); setInspectorTab('details'); }}
+          onClick={() => { openInspector('details'); }}
           className="fixed bottom-12 right-6 z-40 px-4 py-2.5 rounded-full bg-[var(--color-float)] border border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-[var(--shadow-float)] flex items-center space-x-2.5 group transition-colors duration-200"
           title={`Open Inspector (${SHORTCUTS.copilot})`}
         >
@@ -1572,8 +1679,7 @@ export default function Home() {
                   variant="ghost"
                   onClick={() => {
                     setSelectedWorkbenchObject(liftedObject);
-                    setInspectorTab('copilot');
-                    setInspectorOpen(true);
+                    openInspector('copilot');
                     setLiftedObject(null);
                   }}
                 >

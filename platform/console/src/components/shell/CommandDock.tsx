@@ -5,7 +5,7 @@ import { ArrowUp, Brain, ChevronUp, Cpu, Paperclip, Sparkles, X } from 'lucide-r
 import type { ChatAttachment, FollowUpSpec } from '@/domain/useCopilotChat';
 import { fetchLLMModels, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
 import { ContextReadout } from '../common/ContextReadout';
-import { MemoryPanel, type RetainedNoteReceipt } from '../MemoryPanel';
+import { MemoryPanel } from '../MemoryPanel';
 import { OverflowCard } from '../common/OverflowCard';
 
 type MorphPanel = 'actions' | 'memory' | 'model' | null;
@@ -41,7 +41,7 @@ function toneClass(tone: FollowUpSpec['tone']): string {
   return 'text-[var(--color-accent-ink)]';
 }
 
-export function CommandDock({
+export const CommandDock = React.memo(function CommandDock({
   onSubmit,
   contextLabel,
   onClearContext,
@@ -277,7 +277,7 @@ export function CommandDock({
           <MemoryPanel
             sessionId={sessionId}
             defaultOpen
-            onRetained={(_receipt: RetainedNoteReceipt) => setRememberedCount((c) => c + 1)}
+            onRetained={() => setRememberedCount((c) => c + 1)}
           />
         </div>
       )}
@@ -403,8 +403,8 @@ export function CommandDock({
           </div>
         )}
 
-        <div className="flex items-end gap-2.5">
-          <div className="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 focus-within:border-[var(--color-accent-edge)]">
+        <div className="flex flex-wrap sm:flex-nowrap items-end gap-2">
+          <div className="flex min-w-[min(100%,240px)] flex-1 flex-wrap sm:flex-nowrap items-end gap-1.5 sm:gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 focus-within:border-[var(--color-accent-edge)]">
           <input
             ref={fileRef}
             type="file"
@@ -442,9 +442,10 @@ export function CommandDock({
             }}
             aria-label="Ask Kubona"
             placeholder="Ask Kubona about this campaign, or type /tribunal · /launch…"
-            className="max-h-[132px] min-h-6 flex-1 resize-none bg-transparent py-1 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
+            className="max-h-[132px] min-h-6 min-w-[140px] flex-1 resize-none bg-transparent py-1 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
           />
 
+          <div className="flex items-center gap-1 ml-auto sm:ml-0 shrink-0">
           {(onTribunal || followUps.length > 0) && (
             <button
               type="button"
@@ -533,12 +534,13 @@ export function CommandDock({
             </button>
           )}
           </div>
+          </div>
           {onOpenInspector && (
             <button
               type="button"
               onClick={onOpenInspector}
               title={inspectorShortcut ? `Open Inspector (${inspectorShortcut})` : 'Open Inspector'}
-              className="inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-accent-edge)] bg-[var(--color-float)] px-3.5 text-xs font-semibold text-[var(--color-label-secondary)] shadow-[var(--shadow-card)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)] transition-colors"
+              className="ml-auto sm:ml-0 inline-flex h-9 sm:h-12 shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-accent-edge)] bg-[var(--color-float)] px-3.5 text-xs font-semibold text-[var(--color-label-secondary)] shadow-[var(--shadow-card)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)] transition-colors"
             >
               <span className="relative flex h-4 w-4 items-center justify-center">
                 <Sparkles className="h-3.5 w-3.5 text-[var(--color-accent-ink)]" />
@@ -562,4 +564,4 @@ export function CommandDock({
       </form>
     </div>
   );
-}
+});

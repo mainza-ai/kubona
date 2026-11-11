@@ -35,11 +35,13 @@ interface PersonaState {
 
 export function EpistemicTribunalRoom({
   hypothesisId = 'hyp-qksd-01',
-  targetSystem = 'Lithium Hydride (LiH)',
+  targetSystem = '',
   sessionId = '',
   onCommitToLedger,
   onCampaignSynthesized,
 }: TribunalRoomProps) {
+  const effectiveTarget = targetSystem.trim() || 'Active target';
+  const effectiveHypothesisId = hypothesisId.trim() || 'hyp-unassigned';
   const [currentPhase, setCurrentPhase] = useState<number>(0); // 0 = not started; 5 = consensus recorded
   const [quorumPercent, setQuorumPercent] = useState<number | null>(null);
   const [committedReceipt, setCommittedReceipt] = useState<string | null>(null);
@@ -54,13 +56,13 @@ export function EpistemicTribunalRoom({
   // The outer button keeps the exact quorum gating below; it only stages
   // this dialog, which requires typing the target/session short-id.
   const [commitOpen, setCommitOpen] = useState(false);
-  const [topic, setTopic] = useState(`${targetSystem} ground state electronic structure`);
+  const [topic, setTopic] = useState(`${effectiveTarget} ground state electronic structure`);
 
   // Sync topic when targetSystem changes
-  const [prevTarget, setPrevTarget] = useState(targetSystem);
-  if (prevTarget !== targetSystem) {
-    setPrevTarget(targetSystem);
-    setTopic(`${targetSystem} ground state electronic structure`);
+  const [prevTarget, setPrevTarget] = useState(effectiveTarget);
+  if (prevTarget !== effectiveTarget) {
+    setPrevTarget(effectiveTarget);
+    setTopic(`${effectiveTarget} ground state electronic structure`);
   }
 
   // Auto-load existing deliberation turns for the active session
@@ -208,7 +210,7 @@ export function EpistemicTribunalRoom({
       // local models — the button shows honest waiting, not fake phases.
       // runTribunal returns null on transport failure (distinct from an
       // empty-turns success), so the chamber can separate the two.
-      const res = await runTribunal(sessionId, topic.trim() || `${targetSystem} ground state`);
+      const res = await runTribunal(sessionId, topic.trim() || `${effectiveTarget} ground state`);
       if (res == null) {
         setDelibError('Tribunal unreachable (transport failure) — nothing deliberated, nothing recorded.');
       } else if (res?.tribunal?.turns?.length) {
@@ -240,7 +242,7 @@ export function EpistemicTribunalRoom({
     setIsSynthesizing(true);
     setSynthNotice(null);
     try {
-      const state = await synthesizeCampaign(sessionId, topic.trim() || `${targetSystem} ground state`);
+      const state = await synthesizeCampaign(sessionId, topic.trim() || `${effectiveTarget} ground state`);
       if (!state) {
         setSynthNotice('Synthesis refused or failed — campaign unchanged, nothing recorded.');
         return;
@@ -259,7 +261,7 @@ export function EpistemicTribunalRoom({
   // 2dp money rule N/A here — no dollar figure is rendered on this gate.
   const commitRequireText = (sessionId || '').trim()
     ? sessionId.trim().slice(0, 8)
-    : hypothesisId;
+    : effectiveHypothesisId;
 
   const handleCommitLedger = async () => {
     if (!sessionId) {
@@ -272,8 +274,8 @@ export function EpistemicTribunalRoom({
       // Authenticated bridge helper (authHeaders inside) — no raw fetch.
       // Surfaces the backend refusal body; throws only on transport.
       const res = await appendLedgerEvent(sessionId, 'tribunal_commit', {
-        hypothesis_id: hypothesisId,
-        target_system: targetSystem,
+        hypothesis_id: effectiveHypothesisId,
+        target_system: effectiveTarget,
         quorum_percent: quorumPercent,
       });
       if (!res.ok) {
@@ -288,8 +290,8 @@ export function EpistemicTribunalRoom({
         onCommitToLedger({
           receipt_hash: res.record_hash,
           event_id: res.event_id,
-          hypothesis_id: hypothesisId,
-          target_system: targetSystem,
+          hypothesis_id: effectiveHypothesisId,
+          target_system: effectiveTarget,
           quorum_percent: quorumPercent,
           timestamp: new Date().toISOString(),
         });
@@ -436,9 +438,9 @@ export function EpistemicTribunalRoom({
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
-              {hypothesisId}
+              {effectiveHypothesisId}
             </span>
-            <span className="text-xs font-semibold text-[var(--color-text)]">Target: {targetSystem}</span>
+            <span className="text-xs font-semibold text-[var(--color-text)]">Target: {effectiveTarget}</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--color-muted)] font-mono">
             <span>{turns ? `${turns.length} live turns` : 'no deliberation yet'}</span>
@@ -514,8 +516,8 @@ export function EpistemicTribunalRoom({
           title="Commit discovery to Merkle ledger?"
           body={
             <span>
-              Seal hypothesis <strong className="font-mono text-[var(--color-text)]">{hypothesisId}</strong> for target{' '}
-              <strong className="text-[var(--color-text)]">{targetSystem}</strong> at quorum{' '}
+              Seal hypothesis <strong className="font-mono text-[var(--color-text)]">{effectiveHypothesisId}</strong> for target{' '}
+              <strong className="text-[var(--color-text)]">{effectiveTarget}</strong> at quorum{' '}
               {quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'} (session{' '}
               <code className="font-mono">{commitRequireText}</code>). Ledger-sealed and irreversible.
             </span>

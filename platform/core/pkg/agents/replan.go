@@ -155,6 +155,21 @@ func matchesCampaignMolecule(state *CampaignState, mol string) bool {
 	return molTokenMatch(targetUpper, molNorm)
 }
 
+// checkMolecularScope rejects cross-molecule or FCI-anchor-incompatible results
+// before they pollute another campaign's trajectory, PES curve, or epistemics.
+func checkMolecularScope(state *CampaignState, mol string, fci float64, scope string) (string, bool) {
+	if strings.TrimSpace(mol) != "" && !matchesCampaignMolecule(state, mol) {
+		return scope + " molecule mismatch", false
+	}
+	if state != nil && fci != 0 {
+		if anchor := state.ClassicalAnchor.FciExactEnergy; anchor != 0 &&
+			math.Abs(fci-anchor) > math.Max(1.0, 0.5*math.Abs(anchor)) {
+			return scope + " fci anchor mismatch", false
+		}
+	}
+	return "", true
+}
+
 // ReplanWithJobResult folds one settled job into stored campaign JSON.
 // cite carries a claim record ID for the notebook line ("" = no citation).
 func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []byte, cite string) (updated []byte, changed bool, note string) {
@@ -243,6 +258,23 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 	case "krylov_solve", "krylov_json":
 		if !successTrue() {
 			return nil, false, "krylov reported success=false"
+		}
+		var mol string
+		if raw, ok := present("molecule"); ok {
+			_ = json.Unmarshal(raw, &mol)
+		}
+		var krylovFCI float64
+		for _, key := range []string{"fci_exact_energy", "classical_fci_energy"} {
+			if raw, ok := present(key); ok {
+				var v float64
+				if json.Unmarshal(raw, &v) == nil && v != 0 {
+					krylovFCI = v
+					break
+				}
+			}
+		}
+		if reason, ok := checkMolecularScope(&state, mol, krylovFCI, "krylov"); !ok {
+			return nil, false, reason
 		}
 		rawE, ok := present("ground_state_energy")
 		if !ok {
@@ -384,15 +416,12 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if energy == 0 || fci == 0 {
 			return nil, false, "vqe energy/anchor absent"
 		}
+		var mol string
 		if raw, ok := present("molecule"); ok {
-			var mol string
-			if err := json.Unmarshal(raw, &mol); err == nil && strings.TrimSpace(mol) != "" && !matchesCampaignMolecule(&state, mol) {
-				return nil, false, "vqe molecule mismatch"
-			}
+			_ = json.Unmarshal(raw, &mol)
 		}
-		if anchor := state.ClassicalAnchor.FciExactEnergy; anchor != 0 &&
-			math.Abs(fci-anchor) > math.Max(1.0, 0.5*math.Abs(anchor)) {
-			return nil, false, "vqe fci anchor mismatch"
+		if reason, ok := checkMolecularScope(&state, mol, fci, "vqe"); !ok {
+			return nil, false, reason
 		}
 		if raw, ok := present("theta"); ok {
 			_ = json.Unmarshal(raw, &theta)
@@ -582,6 +611,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if !successTrue() {
 			return nil, false, "PES reported success=false"
 		}
+		var mol string
+		if raw, ok := present("molecule"); ok {
+			_ = json.Unmarshal(raw, &mol)
+		}
+		if reason, ok := checkMolecularScope(&state, mol, 0, "pes"); !ok {
+			return nil, false, reason
+		}
 		var points []struct {
 			BondDistance    float64   `json:"bond_distance"`
 			Energy          float64   `json:"energy"`
@@ -600,6 +636,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		rawPoints, ok := present("points")
 		if !ok || json.Unmarshal(rawPoints, &points) != nil || len(points) == 0 {
 			return nil, false, "PES points absent"
+		}
+		for _, p := range points {
+			if reason, ok := checkMolecularScope(&state, "", p.Fci, "pes"); !ok {
+				return nil, false, reason
+			}
 		}
 		best := points[0]
 		bestClaimable := false
@@ -702,6 +743,9 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				_ = json.Unmarshal(raw, dst)
 			}
 		}
+		if reason, ok := checkMolecularScope(&state, molecule, 0, "reaction"); !ok {
+			return nil, false, reason
+		}
 		if raw, ok := present("claimable"); ok {
 			_ = json.Unmarshal(raw, &claimable)
 		}
@@ -744,6 +788,9 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			if raw, ok := present(key); ok {
 				_ = json.Unmarshal(raw, dst)
 			}
+		}
+		if reason, ok := checkMolecularScope(&state, molecule, groundExact, "excited_state"); !ok {
+			return nil, false, reason
 		}
 		if raw, ok := present("claimable"); ok {
 			_ = json.Unmarshal(raw, &claimable)
@@ -864,6 +911,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if !successTrue() {
 			return nil, false, "hardware PES reported success=false"
 		}
+		var mol string
+		if raw, ok := present("molecule"); ok {
+			_ = json.Unmarshal(raw, &mol)
+		}
+		if reason, ok := checkMolecularScope(&state, mol, 0, "hardware_pes"); !ok {
+			return nil, false, reason
+		}
 		rawPoints, ok := present("points")
 		if !ok {
 			return nil, false, "hardware PES points absent"
@@ -880,6 +934,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if json.Unmarshal(rawPoints, &points) != nil || len(points) == 0 {
 			return nil, false, "hardware PES points undecodable"
+		}
+		for _, p := range points {
+			if reason, ok := checkMolecularScope(&state, "", p.FCI, "hardware_pes"); !ok {
+				return nil, false, reason
+			}
 		}
 		var backend, jobRef, version string
 		for key, dst := range map[string]*string{"backend": &backend, "hardware_job_id": &jobRef, "result_version": &version} {

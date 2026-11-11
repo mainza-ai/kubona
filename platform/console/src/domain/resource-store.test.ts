@@ -85,4 +85,29 @@ describe('createPollingStore', () => {
     expect(store.getSnapshot().intervalMs).toBe(1000);
     unsubscribe();
   });
+
+  it('queues a follow-up load when refresh() arrives while an initial load is in flight', async () => {
+    vi.useFakeTimers();
+    let resolveFirst!: (value: { n: number }) => void;
+    const first = new Promise<{ n: number }>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const load = vi
+      .fn<() => Promise<{ n: number }>>()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce({ n: 2 });
+    const store = createPollingStore(load, { intervalMs: 5000 });
+    const unsubscribe = store.subscribe(() => {});
+    expect(load).toHaveBeenCalledTimes(1);
+
+    // An SSE invalidation arrives before the boot fetch finishes.
+    store.refresh();
+    expect(load).toHaveBeenCalledTimes(1);
+
+    resolveFirst({ n: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(store.getSnapshot().data).toEqual({ n: 2 });
+    unsubscribe();
+  });
 });

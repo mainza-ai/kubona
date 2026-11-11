@@ -64,17 +64,17 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
       </span>
       {readOnly && (
-        <span className="truncate text-[var(--color-muted)]" title="Read-only access: sign in through Mesh → Labs for live loops and writes">
-          · read-only · sign in for live loops
+        <span className="hidden sm:inline shrink-0 text-[var(--color-muted)]" title="Read-only access: sign in through Mesh → Labs for live loops and writes">
+          · read-only
         </span>
       )}
       {attention > 0 && (
         <span className="text-[var(--color-danger)] shrink-0">· {attention} need{attention === 1 ? 's' : ''} attention</span>
       )}
       {spend && (
-        <span className="truncate text-[var(--color-muted)]">
+        <span className="hidden sm:inline shrink-0 text-[var(--color-muted)]">
           · LLM ${spend.spent_usd.toFixed(2)}
-          {spend.track_only ? ' · track-only (no cap)' : ` / $${spend.cap_usd.toFixed(0)} cap`}
+          {spend.track_only ? ' · no cap' : ` / $${spend.cap_usd.toFixed(0)} cap`}
           {spend.local_bypass ? ' · local $0' : ''}
           {spend.unmetered_count > 0 ? ` · ${spend.unmetered_count} blind` : ''}
         </span>
@@ -94,7 +94,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
           {alert.duplicates > 0 ? ` (×${alert.duplicates + 1})` : ''}
         </span>
       )}
-      <span className="shrink-0 flex items-center gap-0.5" title="Presence dial: your current degree of presence gates what the Director may surface">
+      <span className="hidden sm:flex shrink-0 items-center gap-0.5" title="Presence dial: your current degree of presence gates what the Director may surface">
         {PRESENCE.map((p) => (
           <button
             key={p.id}

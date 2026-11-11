@@ -21,6 +21,7 @@ import { CampaignExperiment, CampaignResultRef, CampaignState, PesPoint, Systema
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchExperimentExport, fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
+import { classifyJobTargetScope } from '@/lib/target-scope';
 import { numericClaimGuard } from '@/lib/resultNarrative';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { LiteraturePanel } from './LiteraturePanel';
@@ -344,6 +345,13 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
     campaign?.target_system ||
     campaign?.quantum_factors?.target_molecule ||
     'unrecorded target';
+  const targetScope = {
+    targetMolecule: campaign?.quantum_factors?.target_molecule ?? null,
+    molecularFormula: campaign?.quantum_factors?.molecular_formula ?? null,
+    targetSystem: campaign?.target_system ?? null,
+    researchGoal: campaign?.research_goal ?? null,
+    anchorFci: campaign?.classical_anchor?.fci_exact_energy ?? null,
+  };
   // The campaign payload is the primary source; the results projection is
   // the fallback when a session has a notebook but the campaign read did not
   // carry it. Never synthesize a notebook locally.
@@ -363,7 +371,7 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const measuredCounts = (() => {
     if (!sessionId) return null;
     const completed = sessionJobs
-      .filter((job) => jobStatusLabel(job.status) === 'COMPLETED')
+      .filter((job) => jobStatusLabel(job.status) === 'COMPLETED' && classifyJobTargetScope(job, targetScope).matches)
       .sort((a, b) => String(b.completed_at ?? b.created_at).localeCompare(String(a.completed_at ?? a.created_at)));
     for (const job of completed) {
       const counts = readCounts(job);
@@ -794,7 +802,7 @@ ${bibtex}
             <p className="text-xs text-[var(--color-muted)] mt-0.5">No citable result is recorded for this campaign.</p>
           </div>
         </div>
-        <MeasuredOutputs sessionId={sessionId ?? null} />
+        <MeasuredOutputs sessionId={sessionId ?? null} targetScope={targetScope} />
         {(campaign?.pes_points?.length ?? 0) > 0 && (
           <PesTable points={campaign!.pes_points!} />
         )}
@@ -958,7 +966,7 @@ ${bibtex}
           {activeTab === 'manuscript' && (
             <div className="space-y-6">
               {/* Measured job outputs: what ran, bound to job ids */}
-              <MeasuredOutputs sessionId={sessionId ?? null} />
+              <MeasuredOutputs sessionId={sessionId ?? null} targetScope={targetScope} />
               {(campaign?.pes_points?.length ?? 0) > 0 && (
                 <PesTable points={campaign!.pes_points!} />
               )}

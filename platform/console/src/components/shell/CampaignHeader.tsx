@@ -4,7 +4,7 @@ import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { CampaignState, Session } from '@/types';
 
-export function CampaignHeader({
+export const CampaignHeader = React.memo(function CampaignHeader({
   campaign,
   session,
   statusText,
@@ -43,4 +43,4 @@ export function CampaignHeader({
       <button type="button" className="k-campaign-account" onClick={onOpenCampaigns}>Campaigns</button>
     </header>
   );
-}
+});

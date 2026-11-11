@@ -162,8 +162,14 @@ export function CommandPalette({
       icon: GitBranch,
       action: () => onSelectSurface('arena-proof-dag'),
     },
-    // No Hardware-QPU entry: that arena tab jumps to the dock Fleet Radar
-    // surface instead of mounting a second live instance (see page.tsx).
+    {
+      id: 'arena-hardware-qpu',
+      title: 'Hardware QPU (Arena View)',
+      category: 'Arena Views',
+      shortcut: undefined,
+      icon: Radio,
+      action: () => onSelectSurface('arena-hardware-qpu'),
+    },
     {
       id: 'mesh',
       title: 'Local Sovereign Mesh (MLX · Ollama · Air-Gap)',
@@ -216,6 +222,14 @@ export function CommandPalette({
           },
         ]
       : []),
+    {
+      id: 'experiment-lab',
+      title: 'Experiment & Discovery Lab',
+      category: 'Actions',
+      shortcut: SHORTCUTS.experimentLab,
+      icon: FlaskConical,
+      action: () => onSelectSurface('experiment-lab'),
+    },
     ...(onOpenShortcuts
       ? [
           {

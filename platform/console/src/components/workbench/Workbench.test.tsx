@@ -9,6 +9,7 @@ vi.mock('@/lib/api', () => ({
   fetchWorkbenchLayout: vi.fn(async () => null),
   fetchWorkbenchView: vi.fn(async () => null),
   fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
+  hasOperatorBearer: vi.fn(() => false),
   saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
   saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
 }));
@@ -471,7 +472,10 @@ describe('Workbench', () => {
         document: {
           version: 2,
           session_id: 's1',
-          objects: [{ id: 'missing-loop', kind: 'agent_run', ref: { domain: 'loop', id: 'l-missing' }, position: { x: 0, y: 0 }, pinned: true }],
+          objects: [
+            { id: 'missing-loop', kind: 'agent_run', ref: { domain: 'loop', id: 'l-missing' }, position: { x: 0, y: 0 }, pinned: true },
+            { id: 'stale-job', kind: 'job', ref: { domain: 'job', id: '9001d28a-b88' }, position: { x: 400, y: 0 }, pinned: true },
+          ],
           links: [],
           areas: [],
           hidden: [],
@@ -487,7 +491,15 @@ describe('Workbench', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
       });
-      expect(JSON.stringify(tree!.toJSON())).toContain('Unavailable');
+      const afterHydrate = JSON.stringify(tree!.toJSON());
+      expect(afterHydrate).toContain('Unavailable');
+      expect(afterHydrate).not.toContain('9001d28a-b88');
+      const removeStaleBtn = tree!.root.findAllByType('button').find((b) => b.props.children === 'Remove stale ref');
+      expect(removeStaleBtn).toBeDefined();
+      await act(async () => {
+        removeStaleBtn!.props.onClick({ stopPropagation: () => {} });
+      });
+      expect(JSON.stringify(tree!.toJSON())).not.toContain('Unavailable');
     } finally {
       vi.useRealTimers();
     }
@@ -693,7 +705,13 @@ describe('Workbench', () => {
     const allFilter = tree!.root.findByProps({ 'data-filter': 'all' });
     await act(async () => { allFilter.props.onClick(); });
 
-    // Corner minimap + Follow live toggle on canvas view.
+    // Bottom-right CanvasControls with collapsible minimap + Follow live toggle on canvas view.
+    expect(tree!.root.findByProps({ 'data-testid': 'workbench-canvas-controls' })).toBeTruthy();
+    expect(tree!.root.findAllByProps({ 'data-testid': 'workbench-minimap' })).toHaveLength(0);
+    const minimapToggle = tree!.root.findByProps({ 'data-testid': 'workbench-minimap-toggle' });
+    expect(minimapToggle.props['aria-expanded']).toBe(false);
+    await act(async () => { minimapToggle.props.onClick(); });
+    expect(tree!.root.findByProps({ 'data-testid': 'workbench-minimap-toggle' }).props['aria-expanded']).toBe(true);
     expect(tree!.root.findByProps({ 'data-testid': 'workbench-minimap' })).toBeTruthy();
     const followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
     await act(async () => { followBtn.props.onClick(); });
@@ -715,5 +733,57 @@ describe('Workbench', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('renders single-select NodeToolbar vs multi-select SelectionBar cleanly', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" onLiftObject={vi.fn()} onAskSelection={vi.fn()} />);
+    });
+    const first = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    const second = tree!.root.findAllByProps({ 'data-kind': 'hypothesis' })[0];
+
+    await act(async () => { first.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-node-toolbar' })).toHaveLength(1);
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-selection-bar' })).toHaveLength(0);
+
+    await act(async () => { second.props.onClick({ metaKey: true, ctrlKey: false, shiftKey: false }); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-node-toolbar' })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-selection-bar' })).toHaveLength(1);
+  });
+
+  it('auto-clusters >24 jobs into a collapsible Jobs & Runs region without dropping filtered views', async () => {
+    const manyJobs = Array.from({ length: 22 }, (_, i) => ({
+      id: `job-${i + 1}`,
+      session_id: 's1',
+      status: 'COMPLETED',
+      job_type: 'vqe',
+      params_json: { step: i + 1 },
+      result_json: { energy: -1.1 },
+      created_at: '2026-11-11T00:00:00Z',
+    }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" jobs={manyJobs} />);
+    });
+    const cluster = tree!.root.findAllByProps({ className: 'k-workbench-area' }).find((node) => node.props['data-cluster'] === 'true');
+    expect(cluster).toBeTruthy();
+    const totalCardsBefore = tree!.root.findAllByProps({ className: 'k-workbench-card' }).length;
+    expect(totalCardsBefore).toBeGreaterThan(24);
+
+    const collapseBtn = cluster!.findAllByType('button').find((button) => button.props.children === 'Collapse');
+    await act(async () => { collapseBtn!.props.onClick({ stopPropagation: vi.fn() }); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-card' }).length).toBeLessThan(totalCardsBefore);
+
+    // Filter chip 'Jobs' bypasses cluster hiding so jobs remain individually inspectable.
+    await act(async () => { tree!.root.findByProps({ 'data-filter': 'jobs' }).props.onClick(); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-card' }).length).toBe(22);
+
+    await act(async () => { tree!.root.findByProps({ 'data-filter': 'all' }).props.onClick(); });
+    const expandBtn = tree!.root.findAllByProps({ className: 'k-workbench-area' })[0]
+      .findAllByType('button')
+      .find((button) => button.props.children === 'Expand');
+    await act(async () => { expandBtn!.props.onClick({ stopPropagation: vi.fn() }); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-card' }).length).toBe(totalCardsBefore);
   });
 });

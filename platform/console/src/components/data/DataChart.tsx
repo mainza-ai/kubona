@@ -46,15 +46,30 @@ export function Chart({ spec, className = '', embedded = false }: { spec: ChartS
   const compact = !!spec.compact || spec.detail === 'tile';
   const overview = spec.detail === 'overview';
   const horizontal = useMemo(() => shouldFlipHorizontal(spec, keys), [spec, keys]);
+  const hasHorizontalValueLabels = horizontal && !compact && spec.series.length === 1 && rows.length <= 14;
+  const maxKeyChars = useMemo(() => keys.reduce((m, k) => Math.max(m, k.length), 0), [keys]);
+  const maxValChars = useMemo(
+    () =>
+      hasHorizontalValueLabels
+        ? rows.reduce((m, r) => {
+            const pt = r.points[0];
+            return pt && pt.y != null ? Math.max(m, formatValue(pt.y, spec.y).length) : m;
+          }, 0)
+        : 0,
+    [hasHorizontalValueLabels, rows, spec.y]
+  );
   const svgHeight = horizontal ? Math.max(HEIGHT, M.top + M.bottom + keys.length * 28) : HEIGHT;
-  const plotLeft = horizontal ? H_LEFT : M.left;
-  const plotW = WIDTH - plotLeft - M.right;
+  const plotLeft = horizontal ? Math.min(220, Math.max(H_LEFT, Math.ceil(maxKeyChars * 7.2 + 20))) : M.left;
+  const plotRight = hasHorizontalValueLabels ? Math.max(M.right, Math.min(112, Math.ceil(maxValChars * 7 + 16))) : M.right;
+  const plotW = Math.max(160, WIDTH - plotLeft - plotRight);
   const plotH = svgHeight - M.top - M.bottom;
+  const maxHorizontalLabelChars = Math.max(16, Math.floor((plotLeft - 18) / 7.2));
 
+  const zeroAnchored = spec.kind === 'bars' || spec.kind === 'stacked' || spec.kind === 'area' || spec.kind === 'range';
   const rawLow = range.low ?? 0;
   const rawHigh = range.high ?? 1;
-  const safeLow = rawLow === rawHigh ? rawLow - 1 : rawLow;
-  const safeHigh = rawLow === rawHigh ? rawHigh + 1 : rawHigh;
+  const safeLow = rawLow === rawHigh ? (zeroAnchored && rawLow === 0 ? 0 : rawLow - 1) : rawLow;
+  const safeHigh = rawLow === rawHigh ? (zeroAnchored && rawLow === 0 ? 1 : rawHigh + 1) : rawHigh;
   const ticksY = useMemo(() => ticks(safeLow, safeHigh, compact ? 3 : 4), [safeLow, safeHigh, compact]);
   const yLow = ticksY[0] ?? safeLow;
   const yHigh = ticksY[ticksY.length - 1] ?? safeHigh;
@@ -249,7 +264,7 @@ export function Chart({ spec, className = '', embedded = false }: { spec: ChartS
                   textAnchor="end"
                   className="k-chart-tick"
                 >
-                  {key.length > 16 ? `${key.slice(0, 15)}…` : key}
+                  {key.length > maxHorizontalLabelChars ? `${key.slice(0, maxHorizontalLabelChars - 1)}…` : key}
                 </text>
               ))}
             </g>
@@ -267,7 +282,7 @@ export function Chart({ spec, className = '', embedded = false }: { spec: ChartS
                     textAnchor="middle"
                     className="k-chart-tick"
                   >
-                    {key.length > 16 ? `${key.slice(0, 15)}…` : key}
+                    {key.length > maxHorizontalLabelChars ? `${key.slice(0, maxHorizontalLabelChars - 1)}…` : key}
                   </text>
                 );
               })}

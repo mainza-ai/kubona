@@ -102,6 +102,40 @@ describe('Chart', () => {
     expect(renderedKeys.length).toBeLessThanOrEqual(8);
   });
 
+  it('anchors zero-only bars on [0, 1] and expands horizontal gutters for long labels', () => {
+    const zeroBars: ChartSpec = {
+      kind: 'bars',
+      title: 'Zero counts',
+      series: [{ name: 'Shots', points: [{ x: '00', y: 0 }, { x: '11', y: 0 }] }],
+    };
+    let zeroTree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      zeroTree = TestRenderer.create(<Chart spec={zeroBars} />);
+    });
+    const yTicks = zeroTree!.root
+      .findByType('svg')
+      .findAllByProps({ className: 'k-chart-tick' })
+      .map((n) => n.children.join(''));
+    expect(yTicks).toContain('0');
+    expect(yTicks).not.toContain('-1');
+
+    const longBarSpec: ChartSpec = {
+      kind: 'bars',
+      title: 'Backend error',
+      series: [{ name: 'Error', points: [{ x: 'ibm_marrakesh_heron_v2', y: 0.012 }] }],
+    };
+    let longTree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      longTree = TestRenderer.create(<Chart spec={longBarSpec} />);
+    });
+    const svg = longTree!.root.findByType('svg');
+    const tickStrings = svg.findAllByProps({ className: 'k-chart-tick' }).map((n) => n.children.join(''));
+    expect(tickStrings).toContain('ibm_marrakesh_heron_v2');
+    const valNode = svg.findAllByProps({ className: 'k-chart-tick' }).find((n) => n.children.join('') === '0.012');
+    expect(valNode).toBeDefined();
+    expect(Number(valNode!.props.x)).toBeLessThan(640);
+  });
+
   it('shows pointer/focus hover tooltip and hides it after 160ms Hover.hide grace', () => {
     vi.useFakeTimers();
     const barSpec: ChartSpec = {

@@ -174,6 +174,31 @@ describe('MeasuredOutputs', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('QAOA hardware cut 0.7500');
   });
 
+  it('excludes wrong-molecule, FCI-incompatible, and off-domain jobs when targetScope is set', async () => {
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: JOBS }) }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <MeasuredOutputs
+          sessionId="s"
+          targetScope={{
+            targetMolecule: 'Hydrogen Molecule (H2)',
+            molecularFormula: 'H2',
+            researchGoal: 'Live QPU loop acceptance',
+            anchorFci: -1.13727,
+          }}
+        />
+      );
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('VQE -1.136800 Ha');
+    expect(text).toContain('reaction H2 -> 2 H');
+    expect(text).toContain('off-target jobs excluded');
+    expect(text).not.toContain('spin_chain');
+    expect(text).not.toContain('conjecture_run');
+    expect(text).not.toContain('qaoa_run');
+  });
+
   it('stays silent when the backend is unreachable', async () => {
     vi.stubGlobal('fetch', async () => ({ ok: false }));
     let tree: TestRenderer.ReactTestRenderer;

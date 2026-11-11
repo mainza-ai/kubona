@@ -93,4 +93,23 @@ describe('MolecularActiveSpaceWidget', () => {
 
     expect(onChange).toHaveBeenCalled();
   });
+
+  it('invokes onOpenObservatory CTA when provided on a backed widget', async () => {
+    const onOpenObservatory = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <MolecularActiveSpaceWidget
+          moleculeName="H2"
+          numElectrons={2}
+          numOrbitals={2}
+          onOpenObservatory={onOpenObservatory}
+        />
+      );
+    });
+    const cta = tree!.root.findAllByType('button').find((b) => textOf(b).includes('Open 3D Observatory'));
+    expect(cta).toBeDefined();
+    act(() => { cta!.props.onClick(); });
+    expect(onOpenObservatory).toHaveBeenCalledTimes(1);
+  });
 });

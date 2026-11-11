@@ -331,8 +331,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   return (
     <div className="flex flex-col h-full w-full bg-[var(--color-chrome)] text-[var(--color-text)] font-sovereign overflow-hidden">
       {/* Header: Kubona Copilot identity */}
-      <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-2 shrink-0 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+      <div className="px-3.5 sm:px-5 py-3 sm:py-4 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-[11rem]">
           <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-accent-ink)] shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-[var(--color-text)] tracking-wide flex flex-wrap items-center gap-1.5">
@@ -347,7 +347,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1.5 shrink-0">
+        <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
           <Tip label="Search conversation" sub="Filter + jump between matches" position="bottom">
             <button
               onClick={() => setSearchOpen((v) => !v)}
@@ -401,7 +401,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               onClick={handleToggleExpand}
               aria-label={isExpanded ? 'Contract to Side Dock' : 'Expand to Spatial Salon'}
-              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              className="hidden lg:inline-flex p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
             >
               {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />}
             </button>
@@ -528,42 +528,48 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           </div>
         )}
 
-        {messages.length === 0 && campaign && (
+        {messages.length === 0 && campaign && (() => {
+          const starterTarget = campaign.quantum_factors?.target_molecule || campaign.target_system || '';
+          const starterSubject = starterTarget || 'target system';
+          return (
           <div className="pt-1 space-y-2 text-left">
             <button
-              onClick={() => void chat.send('Map H2 ground state potential energy surface across nuclear coordinates')}
+              onClick={() => void chat.send(`Map ${starterSubject} ground state potential energy surface across nuclear coordinates`)}
               className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
             >
-              <div className="flex items-center space-x-2.5">
-                <span className="text-[var(--color-warning)] text-[12px]">✦</span>
-                <span className="font-medium">H₂ Potential Energy Surface</span>
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="text-[var(--color-warning)] text-[12px] shrink-0">✦</span>
+                <span className="font-medium truncate">
+                  {starterTarget ? `${starterTarget} Potential Energy Surface` : 'Potential Energy Surface'}
+                </span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
             </button>
 
             <button
-              onClick={() => void chat.conveneTribunal('Lithium Hydride (LiH) ground state electronic structure')}
+              onClick={() => void chat.conveneTribunal(`${starterSubject} ground state electronic structure`)}
               className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-success-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
             >
-              <div className="flex items-center space-x-2.5">
-                <span className="text-[var(--color-success)] text-[12px]">✦</span>
-                <span className="font-medium">Convene Tribunal for LiH</span>
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="text-[var(--color-success)] text-[12px] shrink-0">✦</span>
+                <span className="font-medium truncate">Convene Tribunal for {starterSubject}</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-success)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-success)] group-hover:translate-x-0.5 transition-all" />
             </button>
 
             <button
-              onClick={() => void chat.send('Verify our variational ansatz on the IBM Heron QPU noise model with Clifford canary')}
+              onClick={() => void chat.send('Verify our variational ansatz on the configured QPU backend with Clifford canary')}
               className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
             >
-              <div className="flex items-center space-x-2.5">
-                <span className="text-[var(--color-accent-ink)] text-[12px]">✦</span>
-                <span className="font-medium">Probe IBM Heron Noise Model</span>
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="text-[var(--color-accent-ink)] text-[12px] shrink-0">✦</span>
+                <span className="font-medium truncate">Run Clifford Canary Check</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
             </button>
           </div>
-        )}
+          );
+        })()}
 
         {messages.map((m) => {
           const isUser = m.role === 'user';
@@ -1086,7 +1092,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
           <button
             type="button"
-            onClick={() => void chat.conveneTribunal(input.trim() || `${targetSystem} ground state electronic structure`)}
+            onClick={() => void chat.conveneTribunal(input.trim() || `${targetSystem || targetDisplayName || 'Active campaign'} ground state electronic structure`)}
             disabled={loading || runningTribunal}
             className="w-full py-2 px-3 rounded-2xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-40 active:scale-[0.99]"
           >

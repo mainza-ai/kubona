@@ -13,6 +13,7 @@ vi.mock('@/lib/api', () => ({
   fetchWorkbenchLayout: vi.fn(async () => null),
   fetchWorkbenchView: vi.fn(async () => null),
   fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
+  hasOperatorBearer: vi.fn(() => false),
   saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
   saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
 }));

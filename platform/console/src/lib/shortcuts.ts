@@ -22,6 +22,7 @@ export const SHORTCUTS = {
   tribunalRoom: '⌘T',
   commandPalette: '⌘K',
   copilot: '⌘J',
+  experimentLab: '⌘E',
   about: '⌘I',
   newCampaign: '⌘N',
   emergencyAbort: '⌘.',
@@ -56,6 +57,7 @@ export const SHORTCUT_TARGETS: Record<ShortcutKey, string> = {
   copilot: 'copilot',
   about: 'about',
   newCampaign: 'new',
+  experimentLab: 'experiment-lab',
   emergencyAbort: 'abort',
   help: 'help',
   dismiss: 'dismiss',
@@ -83,6 +85,7 @@ export const KEY_TO_SHORTCUT: Record<string, ShortcutKey> = {
   j: 'copilot',
   i: 'about',
   n: 'newCampaign',
+  e: 'experimentLab',
   '.': 'emergencyAbort',
   '?': 'help',
 };

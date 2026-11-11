@@ -58,6 +58,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
       shortcuts: [
         { key: SHORTCUTS.commandPalette, description: 'Open Command Palette / Quick Jump' },
         { key: SHORTCUTS.copilot, description: 'Toggle Kubona Copilot' },
+        { key: SHORTCUTS.experimentLab, description: 'Toggle Experiment & Discovery Lab' },
         { key: SHORTCUTS.about, description: 'About Kubona Scientific Laboratory' },
         { key: SHORTCUTS.newCampaign, description: 'Create New Research Campaign' },
         { key: SHORTCUTS.emergencyAbort, description: 'Emergency Abort (Ring 0 Intercept)' },
