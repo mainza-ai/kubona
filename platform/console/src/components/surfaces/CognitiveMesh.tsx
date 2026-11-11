@@ -4,8 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Network,
   RefreshCw,
-  Lock,
-  Globe,
   Terminal,
   Users,
   Plus,
@@ -17,7 +15,6 @@ import { CampaignState, CustomAgentManifest, RoutingDecision, ModalityType, Rada
 import {
   fetchRadar,
   fetchLLMSettings,
-  saveLLMSettings,
   fetchCostSummary,
   fetchCustomAgents,
   fetchSystemAgents,
@@ -29,6 +26,9 @@ import { fmtFixed } from '@/lib/guards';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
+import { AirGapToggleButton, useAirGapControl } from '@/components/common/AirGapControl';
+import { BudgetSummaryStrip } from '@/components/common/BudgetSummaryStrip';
+import { subscribeInvalidation } from '@/domain/invalidation';
 import type { CostSummary } from '@/lib/api';
 
 interface CognitiveMeshProps {
@@ -39,7 +39,13 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [endpoints, setEndpoints] = useState<RadarEndpoint[]>([]);
   const [radarRefused, setRadarRefused] = useState<string | null>(null);
   // Unknown until the daemon answers; never assume ENGAGED from a default.
-  const [airGapped, setAirGapped] = useState<boolean | null>(null);
+  const {
+    airGap: airGapped,
+    setAirGap: setAirGapped,
+    error: airGapError,
+    settlementLabel: airGapSettlementLabel,
+    toggle: toggleAirGap,
+  } = useAirGapControl();
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<CustomAgentManifest[]>([]);
   const [systemAgents, setSystemAgents] = useState<Array<{ role: string; description: string }>>([]);
@@ -48,8 +54,6 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   useFocusTrap(isCreatingAgent, createAgentPanelRef);
   const [meshError, setMeshError] = useState<string | null>(null);
   const agentWrite = useWriteSettlement();
-  const [airGapError, setAirGapError] = useState<string | null>(null);
-  const airGapWrite = useWriteSettlement();
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
   const [costRefused, setCostRefused] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -98,36 +102,6 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       setMeshError(err instanceof Error ? err.message : String(err));
     }
   }, []);
-
-  // Fetch-merge-save: never wipe unrelated settings with a partial toggle
-  // write. Revert + banner on failure so the switch cannot lie.
-  const toggleAirGap = async () => {
-    if (airGapped === null) {
-      setAirGapError('Air-gap state unknown — reload settings before changing it.');
-      return;
-    }
-    const prev = airGapped;
-    const nextVal = !airGapped;
-    const requestId = airGapWrite.begin(`air-gap ${nextVal ? 'engage' : 'release'}`);
-    setAirGapped(nextVal);
-    setAirGapError(null);
-    try {
-      const current = await fetchLLMSettings();
-      if (!current) throw new Error('settings unreachable — nothing changed');
-      const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: nextVal });
-      if (!res.ok) {
-        airGapWrite[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
-        setAirGapped(prev);
-        setAirGapError(`Air-gap save refused — reverted (${res.error || 'no reason'}).`);
-      } else {
-        airGapWrite.applied(requestId, `air-gap ${nextVal ? 'engaged' : 'released'}`);
-      }
-    } catch (err) {
-      airGapWrite.unknown(requestId, err instanceof Error ? err.message : String(err));
-      setAirGapped(prev);
-      setAirGapError(`Air-gap save failed — reverted (${err instanceof Error ? err.message : String(err)}).`);
-    }
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -190,7 +164,19 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [setAirGapped]);
+
+  useEffect(() => {
+    return subscribeInvalidation(['llm'], () => {
+      void fetchLLMSettings()
+        .then((data) => {
+          if (data?.air_gapped !== undefined) {
+            setAirGapped(Boolean(data.air_gapped));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [setAirGapped]);
 
   const handleSaveCustomAgent = async () => {
     if (!newAgentName.trim() || !newAgentPrompt.trim()) return;
@@ -308,9 +294,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           {airGapError}
         </div>
       )}
-      {writeSettlementLabel(airGapWrite.write) && (
+      {airGapSettlementLabel && (
         <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
-          {writeSettlementLabel(airGapWrite.write)}
+          {airGapSettlementLabel}
         </p>
       )}
       {/* Serene Header */}
@@ -342,68 +328,12 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           </button>
 
           {/* Sovereign Air-Gap Toggle */}
-          <button
-            onClick={toggleAirGap}
-            disabled={airGapped === null}
-            title={airGapped === null ? 'Air-gap state unknown — settings unreachable' : 'Toggle sovereign air-gap'}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 disabled:opacity-50 ${
-              airGapped === true
-                ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
-                : airGapped === false
-                  ? 'bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
-                  : 'bg-[var(--color-tile)] border-[var(--color-border)] text-[var(--color-muted)]'
-            }`}
-          >
-            {airGapped === true ? (
-              <>
-                <Lock className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
-                <span>Air-Gap: ENGAGED</span>
-              </>
-            ) : airGapped === false ? (
-              <>
-                <Globe className="w-3.5 h-3.5 text-[var(--color-muted)]" />
-                <span>Air-Gap: OFF</span>
-              </>
-            ) : (
-              <>
-                <Globe className="w-3.5 h-3.5 text-[var(--color-faint)]" />
-                <span>Air-Gap: UNKNOWN</span>
-              </>
-            )}
-          </button>
+          <AirGapToggleButton value={airGapped} onToggle={() => void toggleAirGap()} />
         </div>
       </div>
 
       {/* LLM spend (server-sealed aggregates, heuristic estimates) */}
-      <div className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
-        <div className="text-[12px] font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono flex items-center space-x-2">
-          <span>LLM spend — server-sealed</span>
-          {costSummary?.local_bypass && (
-            <span className="text-[var(--color-success-ink)] normal-case font-sans">{`local inference $0 · unmetered (active: ${costSummary.active_provider})`}</span>
-          )}
-        </div>
-        {costRefused && (
-          <div className="mt-2 p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
-            Spend refused — {costRefused.slice(0, 200)}. Nothing spent, nothing assumed.
-          </div>
-        )}
-        {!costRefused && !costSummary && (
-          <div className="mt-2 text-[12px] text-[var(--color-muted)] font-code">Loading spend…</div>
-        )}
-        {costSummary && (
-          <div className="mt-1 text-xs text-[var(--color-label-secondary)] font-mono">
-            spent ${fmtFixed(costSummary.spent_usd, 4)}
-            {costSummary.track_only ? (
-              <span className="text-[var(--color-muted)]"> · no cap (track-only)</span>
-            ) : (
-              <span> / ${fmtFixed(costSummary.cap_usd, 2)} cap · ${fmtFixed(costSummary.remaining_usd ?? 0, 2)} left</span>
-            )}
-            {costSummary.unmetered_count > 0 && (
-              <span className="text-[var(--color-warning-ink)]"> · {costSummary.unmetered_count} blind-stream record{costSummary.unmetered_count === 1 ? '' : 's'} (gate-relevant)</span>
-            )}
-          </div>
-        )}
-      </div>
+      <BudgetSummaryStrip summary={costSummary} refused={costRefused} />
 
       {/* Host Port Radar Discovery */}
       <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">

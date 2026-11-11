@@ -35,8 +35,12 @@ var embedded []byte
 var ErrStale = errors.New("rate card is stale")
 
 type ModelRate struct {
-	InputPer1KUSD  float64 `json:"input_per_1k_usd"`
-	OutputPer1KUSD float64 `json:"output_per_1k_usd"`
+	InputPer1KUSD       float64 `json:"input_per_1k_usd"`
+	OutputPer1KUSD      float64 `json:"output_per_1k_usd"`
+	CachedInputPer1KUSD float64 `json:"cached_input_per_1k_usd,omitempty"`
+	CacheWritePer1KUSD  float64 `json:"cache_write_per_1k_usd,omitempty"`
+	ContextWindow       int     `json:"context_window,omitempty"`
+	MaxOutputTokens     int     `json:"max_output_tokens,omitempty"`
 	// Provider is the provider namespace this rate applies to (for example
 	// "opencode" or "nvidia"). A provider-qualified key wins over a bare
 	// model key when both exist.
@@ -47,6 +51,9 @@ type ModelRate struct {
 	// Aliases are alternate model IDs accepted by the provider (for example
 	// legacy names that route to the current model).
 	Aliases []string `json:"aliases,omitempty"`
+	// Capabilities declares known model features (e.g. tools, vision,
+	// reasoning, structured_output, streaming).
+	Capabilities []string `json:"capabilities,omitempty"`
 	// Source and RetrievedAt are evidence for this row; never secrets.
 	Source      string `json:"source,omitempty"`
 	RetrievedAt string `json:"retrieved_at,omitempty"`
@@ -304,8 +311,11 @@ func validateCard(c *Card, now time.Time) error {
 		return fmt.Errorf("%w: effective %s, stale after %d days; update the runtime card", ErrStale, c.EffectiveDate, c.StaleAfterDays)
 	}
 	for model, r := range c.Models {
-		if r.InputPer1KUSD < 0 || r.OutputPer1KUSD < 0 {
+		if r.InputPer1KUSD < 0 || r.OutputPer1KUSD < 0 || r.CachedInputPer1KUSD < 0 || r.CacheWritePer1KUSD < 0 {
 			return fmt.Errorf("rate card model %q has a negative rate", model)
+		}
+		if r.ContextWindow < 0 || r.MaxOutputTokens < 0 {
+			return fmt.Errorf("rate card model %q has negative token bounds", model)
 		}
 	}
 	for name, r := range c.QPU {

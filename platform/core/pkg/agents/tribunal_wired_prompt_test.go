@@ -69,3 +69,70 @@ func TestWiredTurnPromptsNameSessionID(t *testing.T) {
 		}
 	}
 }
+
+func TestTribunalPopulatesInvocationMetaProvenance(t *testing.T) {
+	l, sid := mustOpenTribunalLedger(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message":       map[string]any{"content": "seen: benchmark verified for turn provenance; inferred: candidate convergence."},
+				"finish_reason": "stop",
+			}},
+			"usage": map[string]any{"prompt_tokens": 12, "completion_tokens": 24, "total_tokens": 36},
+		})
+	}))
+	defer srv.Close()
+
+	t.Setenv("KUBONA_LLM_PROVIDER", "strata")
+	t.Setenv("STRATA_MODEL", "stub-model")
+	s := llm.DefaultSettings()
+	snap := s.GetSnapshot()
+	snap.AirGapped = false
+	pc := snap.Providers[llm.ProviderStrata]
+	pc.BaseURL = srv.URL
+	snap.Providers[llm.ProviderStrata] = pc
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	client := llm.NewClient(s)
+
+	ac := agents.NewAgentCollective()
+	ac.Ledger = l
+	res, err := ac.ExecuteTribunalWithSession(context.Background(), client, nil, nil, sid, "Investigate H2 ground state")
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(res.Turns) != 4 {
+		t.Fatalf("expected 4 turns, got %d", len(res.Turns))
+	}
+	for i, turn := range res.Turns {
+		if turn.LLM == nil {
+			t.Fatalf("turn %d (%s) missing InvocationMeta provenance", i+1, turn.Role)
+		}
+		if turn.LLM.Provider != "strata" || turn.LLM.Model != "stub-model" || turn.LLM.Wire == "" || turn.LLM.AttemptCount != 1 {
+			t.Fatalf("unexpected InvocationMeta on turn %d: %+v", i+1, turn.LLM)
+		}
+	}
+	turns := tribunalTurnEvents(t, l, sid)
+	if len(turns) != 4 {
+		t.Fatalf("expected 4 sealed tribunal_turn events, got %d", len(turns))
+	}
+	for _, ev := range turns {
+		var p struct {
+			TurnIndex int `json:"turn_index"`
+			LLMMeta   *struct {
+				Provider     string `json:"provider"`
+				Model        string `json:"model"`
+				Wire         string `json:"wire"`
+				AttemptCount int    `json:"attempt_count"`
+			} `json:"llm_meta"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			t.Fatalf("decode turn payload: %v", err)
+		}
+		if p.LLMMeta == nil || p.LLMMeta.Provider != "strata" || p.LLMMeta.Model != "stub-model" || p.LLMMeta.Wire == "" || p.LLMMeta.AttemptCount != 1 {
+			t.Fatalf("sealed turn %d missing llm_meta provenance: %+v raw=%s", p.TurnIndex, p.LLMMeta, string(ev.Payload))
+		}
+	}
+}

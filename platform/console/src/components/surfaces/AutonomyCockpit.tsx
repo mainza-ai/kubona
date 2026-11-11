@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
-import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
+import { emergencyAbort, launchProposal, fetchLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
+import { AirGapSwitchRow, useAirGapControl } from '@/components/common/AirGapControl';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
@@ -14,6 +15,7 @@ import { AutoresearchPanel } from '@/components/common/AutoresearchPanel';
 import { WorkflowPanel } from '@/components/common/WorkflowPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 import { authorizeSpend } from '@/lib/authorizeSpend';
+import { subscribeInvalidation } from '@/domain/invalidation';
 import { fmtFixed } from '@/lib/guards';
 
 interface AutonomyCockpitProps {
@@ -40,16 +42,22 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   // airGap starts UNKNOWN (null) and is set only by live settings; backend
   // starts unloaded (null) and is set only by the readiness probe. The
   // badge derives from these — no predicate, no assurance.
-  const [airGap, setAirGap] = useState<boolean | null>(null);
   const [backend, setBackend] = useState<BackendStatus | null>(null);
-  // Per-dispatch receipt: set only when authorizeSpend verifies a mandate
-  // in this mount. The attestation sheet derives from it — no receipt, no
-  // "verified" claim.
   const [lastReceipt, setLastReceipt] = useState<{ sigPreview: string; verifiedAt: string; tenant: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const airGapWrite = useWriteSettlement();
+  const {
+    airGap,
+    setAirGap,
+    settlementLabel: airGapSettlementLabel,
+    toggle: handleToggleAirGap,
+  } = useAirGapControl({
+    onStatusMessage: (msg) => {
+      setActionMessage(msg);
+      if (msg) setTimeout(() => setActionMessage(null), 4000);
+    },
+  });
 
   // No stale budget: resync planning view whenever the session changes.
   // Reset during render (key-change pattern, not in the effect below):
@@ -75,10 +83,20 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         }
       })
       .catch(() => {});
+    const unsub = subscribeInvalidation(['llm'], () => {
+      void fetchLLMSettings()
+        .then((d) => {
+          if (mounted && d && typeof (d as { air_gapped?: boolean }).air_gapped === 'boolean') {
+            setAirGap((d as { air_gapped: boolean }).air_gapped);
+          }
+        })
+        .catch(() => {});
+    });
     return () => {
       mounted = false;
+      unsub();
     };
-  }, []);
+  }, [setAirGap]);
 
   // Backend readiness probe (same /api/health + /api/ready as the status
   // bar): the second Sentinel predicate. Transport failure leaves backend
@@ -192,40 +210,8 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     }
   };
 
-  // Air-gap switch: Wave-2 staging decision — this surface keeps
-  // IMMEDIATE persist with revert-on-failure (fetch-merge-save below) and
-  // does NOT add a "staged — Save to apply" pending state. Why: the toggle
-  // is a single boolean mirrored from live intelligence settings (same
-  // control as Cognitive Mesh); a staged Save would add pending/dirty +
-  // Save/discard plumbing for one bit with no safety gain — the current
-  // path is already fail-closed (revert + banner, nothing silently kept).
-  // NOTE: no DSML toggle lives on this surface; DisableDSMLFallback lives
-  // in LLMSettings (out of scope), so only the Sovereign Air-Gap toggle is
-  // governed here.
-  const handleToggleAirGap = async () => {
-    const next = !airGap;
-    const prev = airGap;
-    const requestId = airGapWrite.begin(`air-gap ${next ? 'engage' : 'release'}`);
-    setAirGap(next);
-    try {
-      const current = await fetchLLMSettings();
-      if (!current) throw new Error('settings unreachable');
-      const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
-      if (res.ok) {
-        airGapWrite.applied(requestId, `air-gap ${next ? 'engaged' : 'released'}`);
-        setActionMessage(`Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).`);
-      } else {
-        airGapWrite[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
-        setAirGap(prev);
-        setActionMessage(`Air-gap save refused — switch reverted (${res.error || 'no reason'}). Nothing changed.`);
-      }
-    } catch (e) {
-      airGapWrite.unknown(requestId, e instanceof Error ? e.message : String(e));
-      setAirGap(prev);
-      setActionMessage(`Air-gap save failed — switch reverted, nothing changed (${e instanceof Error ? e.message : String(e)}).`);
-    }
-    setTimeout(() => setActionMessage(null), 4000);
-  };
+  // Air-gap toggle is delegated to useAirGapControl + <AirGapSwitchRow />
+  // for shared optimistic persist + revert-on-failure behavior.
 
   const handleEmergencyStop = async () => {    const sid = session?.id || campaign?.session_id || '';
     if (!sid) {
@@ -341,9 +327,9 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             {actionMessage}
           </div>
         )}
-        {writeSettlementLabel(airGapWrite.write) && (
+        {airGapSettlementLabel && (
           <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
-            {writeSettlementLabel(airGapWrite.write)}
+            {airGapSettlementLabel}
           </p>
         )}
         {writeSettlementLabel(abortWrite.write) && (
@@ -436,28 +422,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         </div>
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
-        <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
-          <div className="flex items-center space-x-3">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${airGap === true ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]' : 'bg-[var(--color-tile)] text-[var(--color-muted)] border border-[var(--color-border)]'}`}>
-              <Lock className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-[var(--color-text)]">Sovereign Air-Gap Mode</div>
-              <div className="text-[12px] text-[var(--color-muted)]">
-                {airGap === null ? 'State unknown — settings unreachable' : 'Strictly keep computations on local Mac hardware'}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleToggleAirGap}
-            disabled={airGap === null}
-            title={airGap === null ? 'Air-gap state unknown — settings unreachable' : 'Persists to intelligence settings (same control as Cognitive Mesh)'}
-            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${airGap === true ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-tile)] border border-[var(--color-border-strong)]'} disabled:opacity-40`}
-          >
-            <div className={`w-5 h-5 rounded-full bg-[var(--color-on-accent)] shadow-md transform transition-transform ${airGap === true ? 'translate-x-5' : 'translate-x-0'}`} />
-          </button>
-        </div>
+        <AirGapSwitchRow value={airGap} onToggle={() => void handleToggleAirGap()} />
 
         {/* U1-d: meta-search strategy proposals — the human-approval half
             of the autonomy loop. Approve/reject/apply are bearer-gated;

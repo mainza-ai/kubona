@@ -2389,6 +2389,216 @@ func TestLLMSettingsReadRedactsKeys(t *testing.T) {
 	if strings.Contains(body3, "rotated-key-2") {
 		t.Fatal("stored key must never appear on the read rail")
 	}
+
+	// Explicit key removal via DELETE /api/llm/providers/{provider}/key
+	// requires bearer auth and removes the stored key without fallback.
+	anonDel := httptest.NewRequest(http.MethodDelete, "/api/llm/providers/nvidia/key", nil)
+	anonW := httptest.NewRecorder()
+	h.ServeHTTP(anonW, anonDel)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous key delete must 401, got %d", anonW.Code)
+	}
+	authDel := httptest.NewRequest(http.MethodDelete, "/api/llm/providers/nvidia/key", nil)
+	authDel.Header.Set("Authorization", "Bearer op-token")
+	authW := httptest.NewRecorder()
+	h.ServeHTTP(authW, authDel)
+	if authW.Code != http.StatusOK {
+		t.Fatalf("authenticated key delete must succeed, got %d: %s", authW.Code, authW.Body.String())
+	}
+	_, body4 := getBody()
+	var snap4 struct {
+		Providers map[string]struct {
+			HasKey       bool   `json:"has_key"`
+			SecretSource string `json:"secret_source"`
+			KeyStatus    string `json:"key_status"`
+			Enabled      bool   `json:"enabled"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(body4), &snap4); err != nil {
+		t.Fatalf("settings body must be JSON: %v", err)
+	}
+	nv4 := snap4.Providers["nvidia"]
+	if nv4.HasKey || nv4.SecretSource != "none" || nv4.KeyStatus != "missing" || nv4.Enabled {
+		t.Fatalf("cleared provider must report missing/none/disabled, got %+v", nv4)
+	}
+}
+
+func TestLLMProviderVerifyAndExplicitTestRoutes(t *testing.T) {
+	var completionHits int
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/models"):
+			auth := r.Header.Get("Authorization")
+			if auth == "Bearer sk-good" {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"data": []any{map[string]any{"id": "gpt-4.1-mini"}},
+				})
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{"message": "bad key"}})
+		case r.Method == http.MethodPost && (strings.HasSuffix(r.URL.Path, "/chat/completions") || strings.HasSuffix(r.URL.Path, "/responses")):
+			completionHits++
+			w.Header().Set("Content-Type", "application/json")
+			if strings.HasSuffix(r.URL.Path, "/responses") {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":    "resp_test",
+					"model": "gpt-4.1-mini",
+					"output": []any{map[string]any{
+						"type":    "message",
+						"content": []any{map[string]any{"type": "output_text", "text": "override ok"}},
+					}},
+					"usage": map[string]any{"input_tokens": 5, "output_tokens": 2, "total_tokens": 7},
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"model": "gpt-4.1-mini",
+				"choices": []any{map[string]any{
+					"message":       map[string]any{"role": "assistant", "content": "override ok"},
+					"finish_reason": "stop",
+				}},
+				"usage": map[string]any{"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer mockOpenAI.Close()
+
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	// Disable air-gap and set local mock URL for openai with a stored key.
+	getSettings := func() map[string]any {
+		req := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET settings: %d %s", w.Code, w.Body.String())
+		}
+		var out map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode settings: %v", err)
+		}
+		return out
+	}
+	snap := getSettings()
+	snap["air_gapped"] = false
+	provs := snap["providers"].(map[string]any)
+	oa := provs["openai"].(map[string]any)
+	oa["base_url"] = mockOpenAI.URL + "/v1"
+	oa["api_key"] = "sk-good"
+	oa["enabled"] = true
+	rawPut, _ := json.Marshal(snap)
+	putReq := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(rawPut))
+	putReq.Header.Set("Authorization", "Bearer op-token")
+	putW := httptest.NewRecorder()
+	h.ServeHTTP(putW, putReq)
+	if putW.Code != http.StatusOK {
+		t.Fatalf("PUT settings: %d %s", putW.Code, putW.Body.String())
+	}
+
+	// Anonymous POST /api/llm/providers/openai/verify must fail closed (401).
+	anonReq := httptest.NewRequest(http.MethodPost, "/api/llm/providers/openai/verify", strings.NewReader(`{}`))
+	anonW := httptest.NewRecorder()
+	h.ServeHTTP(anonW, anonReq)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous verify must 401, got %d", anonW.Code)
+	}
+
+	// Authenticated verify hits /models only (0 completionHits) and sets key_status=valid.
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/llm/providers/openai/verify", strings.NewReader(`{"check_generation":7}`))
+	verifyReq.Header.Set("Authorization", "Bearer op-token")
+	verifyW := httptest.NewRecorder()
+	h.ServeHTTP(verifyW, verifyReq)
+	if verifyW.Code != http.StatusOK {
+		t.Fatalf("authenticated verify failed: %d %s", verifyW.Code, verifyW.Body.String())
+	}
+	if completionHits != 0 {
+		t.Fatalf("verify must use free /models metadata without completion tokens, hits=%d", completionHits)
+	}
+	var vwrap struct {
+		Verification struct {
+			OK              bool   `json:"ok"`
+			KeyStatus       string `json:"key_status"`
+			CheckGeneration uint64 `json:"check_generation"`
+			Models          []any  `json:"models"`
+		} `json:"verification"`
+	}
+	if err := json.Unmarshal(verifyW.Body.Bytes(), &vwrap); err != nil {
+		t.Fatalf("decode verify result: %v", err)
+	}
+	vres := vwrap.Verification
+	if !vres.OK || vres.KeyStatus != "valid" || vres.CheckGeneration != 7 || len(vres.Models) != 1 {
+		t.Fatalf("unexpected verify response: %+v (%s)", vres, verifyW.Body.String())
+	}
+	afterGood := getSettings()
+	if ks := afterGood["providers"].(map[string]any)["openai"].(map[string]any)["key_status"]; ks != "valid" {
+		t.Fatalf("expected persisted key_status=valid, got %v", ks)
+	}
+
+	// Bad transient key returns wrong_key without clobbering stored standing.
+	badReq := httptest.NewRequest(http.MethodPost, "/api/llm/providers/openai/verify", strings.NewReader(`{"api_key":"sk-bad"}`))
+	badReq.Header.Set("Authorization", "Bearer op-token")
+	badW := httptest.NewRecorder()
+	h.ServeHTTP(badW, badReq)
+	if badW.Code != http.StatusOK {
+		t.Fatalf("verify bad transient key status=%d body=%s", badW.Code, badW.Body.String())
+	}
+	var bwrap struct {
+		Verification struct {
+			OK    bool   `json:"ok"`
+			Fault string `json:"fault"`
+		} `json:"verification"`
+	}
+	_ = json.Unmarshal(badW.Body.Bytes(), &bwrap)
+	bres := bwrap.Verification
+	if bres.OK || bres.Fault != "wrong_key" {
+		t.Fatalf("expected ok=false fault=wrong_key, got %+v (%s)", bres, badW.Body.String())
+	}
+	afterBad := getSettings()
+	if ks := afterBad["providers"].(map[string]any)["openai"].(map[string]any)["key_status"]; ks != "valid" {
+		t.Fatalf("transient verify must not clobber stored standing, got %v", ks)
+	}
+
+	// POST /api/llm/test with explicit provider+model override targets openai even when active_provider differs.
+	testReq := httptest.NewRequest(http.MethodPost, "/api/llm/test", strings.NewReader(`{"provider":"openai","model":"gpt-4.1-mini"}`))
+	testReq.Header.Set("Authorization", "Bearer op-token")
+	testW := httptest.NewRecorder()
+	h.ServeHTTP(testW, testReq)
+	if testW.Code != http.StatusOK {
+		t.Fatalf("explicit POST /api/llm/test failed: %d %s", testW.Code, testW.Body.String())
+	}
+	var tres struct {
+		Success      bool    `json:"success"`
+		Provider     string  `json:"provider"`
+		Wire         string  `json:"wire"`
+		Model        string  `json:"model"`
+		Reply        string  `json:"reply"`
+		AttemptCount int     `json:"attempt_count"`
+		CostUSD      float64 `json:"cost_usd"`
+	}
+	_ = json.Unmarshal(testW.Body.Bytes(), &tres)
+	if !tres.Success || tres.Provider != "openai" || tres.Model != "gpt-4.1-mini" || tres.Reply != "override ok" || tres.Wire == "" || tres.AttemptCount != 1 || completionHits != 1 {
+		t.Fatalf("unexpected explicit /api/llm/test response: %+v completionHits=%d body=%s", tres, completionHits, testW.Body.String())
+	}
+
+	// Global LLM telemetry events (llm_settings_updated + llm_provider_verified) reach GetEventsSinceWithGlobalTypes.
+	evs, err := srv.Ledger().GetEventsSinceWithGlobalTypes("other-session", []string{"llm_settings_updated", "llm_provider_verified"}, 0, 50)
+	if err != nil {
+		t.Fatalf("GetEventsSinceWithGlobalTypes: %v", err)
+	}
+	seenTypes := map[string]bool{}
+	for _, ev := range evs {
+		seenTypes[ev.EventType] = true
+	}
+	if !seenTypes["llm_settings_updated"] || !seenTypes["llm_provider_verified"] {
+		t.Fatalf("expected llm_settings_updated and llm_provider_verified events in global stream, got %+v", seenTypes)
+	}
 }
 
 // Phase 1 migration: Go proxies for the stateless console_api compute
@@ -2763,5 +2973,39 @@ func TestCodesignPacksRegistryLive(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("packs PUT must 405, got %d", w.Code)
+	}
+}
+
+func TestLLMDiscoverRoute(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/llm/discover", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/llm/discover must return 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		Servers      []map[string]any `json:"servers"`
+		PortsScanned []int            `json:"ports_scanned"`
+		CheckedAt    string           `json:"checked_at"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode discover payload: %v body=%s", err, w.Body.String())
+	}
+	if payload.Servers == nil {
+		t.Fatalf("servers must serialize as non-null JSON array, body=%s", w.Body.String())
+	}
+	if len(payload.PortsScanned) == 0 || payload.CheckedAt == "" {
+		t.Fatalf("ports_scanned and checked_at must be populated, got %+v", payload)
+	}
+
+	postReq := httptest.NewRequest(http.MethodPost, "/api/llm/discover", nil)
+	postW := httptest.NewRecorder()
+	h.ServeHTTP(postW, postReq)
+	if postW.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /api/llm/discover must return 405, got %d", postW.Code)
 	}
 }

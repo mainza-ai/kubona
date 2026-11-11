@@ -10,6 +10,7 @@ from .openai_compat import OpenAICompatLLM
 
 MODEL_SOURCES = {
     "ollama": lambda base, model, key: OllamaLLM(base_url=base, default_model=model),
+    "lmstudio": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="lmstudio", api_key=key),
     "lm-studio": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="lm-studio", api_key=key),
     "mlx": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="mlx", api_key=key),
     "omlx": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="omlx", api_key=key),

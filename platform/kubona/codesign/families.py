@@ -19,7 +19,7 @@ import httpx
 
 from .frontier import MapElitesFrontier
 
-PARKED_PROVIDERS = frozenset({"omlx", "opencode", "ollama", "lm-studio", "mlx", "llama.cpp"})
+PARKED_PROVIDERS = frozenset({"omlx", "opencode", "ollama", "lmstudio", "lm-studio", "mlx", "llama.cpp"})
 
 
 class FamilySearch:

@@ -69,6 +69,8 @@ var KnownEventTypes = map[string]bool{
 	"job_started":                       true,
 	"lease_issued":                      true,
 	"lease_revoked":                     true,
+	"llm_provider_verified":             true,
+	"llm_settings_updated":              true,
 	"llm_spend_estimated":               true,
 	"loop_completed":                    true,
 	"loop_diverged":                     true,

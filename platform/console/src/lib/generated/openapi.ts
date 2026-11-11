@@ -97,7 +97,23 @@ export type ObligationsOpen = {
 }[];
 };
 
-export type LlmSettings = Record<string, unknown>;
+export type LlmSettings = {
+  "schema_version"?: number;
+  "active_provider"?: string;
+  "active_model"?: string;
+  "air_gapped": boolean;
+  "temperature"?: number;
+  "max_tokens"?: number;
+  "disable_dsml_fallback"?: boolean;
+  "providers"?: Record<string, unknown>;
+  "role_assignments"?: Record<string, unknown>;
+  "role_catalog"?: {
+  "role": string;
+  "group": string;
+  "label": string;
+  "description": string;
+}[];
+};
 
 export type QuantumSettings = Record<string, unknown>;
 
@@ -227,7 +243,30 @@ export type CodesignRerun = {
 };
 
 export type LlmModels = {
-  "models": unknown[];
+  "provider"?: string;
+  "models": {
+  "id": string;
+  "owned_by"?: string;
+  "max_model_len"?: number;
+  "context_window"?: number;
+  "max_output_tokens"?: number;
+  "provider"?: string;
+  "is_default"?: boolean;
+  "capabilities"?: {
+  "vision"?: boolean;
+  "tools"?: boolean;
+  "reasoning"?: boolean;
+  "structured_output"?: boolean;
+  "streaming"?: boolean;
+};
+  "priced"?: boolean;
+  "price_source"?: string;
+  "input_per_1k_usd"?: number;
+  "output_per_1k_usd"?: number;
+  "cached_input_per_1k_usd"?: number;
+  "cache_write_per_1k_usd"?: number;
+}[];
+  "error"?: string;
 };
 
 export type HfSearch = {
@@ -342,7 +381,19 @@ export type Literature = {
   "cached": boolean;
 };
 
-export type LlmTest = Record<string, unknown>;
+export type LlmTest = {
+  "success": boolean;
+  "provider"?: string;
+  "wire"?: string;
+  "reply"?: string;
+  "model"?: string;
+  "duration_ms"?: number;
+  "gen_tok_per_sec"?: number;
+  "prompt_tok_per_sec"?: number;
+  "attempt_count"?: number;
+  "cost_usd"?: number;
+  "error"?: string;
+};
 
 export type LensAsset = {
   "ok": boolean;
@@ -744,6 +795,79 @@ export type QuantumBackends = {
 }[];
 };
 
+export type LlmVerify = {
+  "verification": {
+  "ok": boolean;
+  "provider": string;
+  "wire": string;
+  "key_status": string;
+  "fault"?: string;
+  "error"?: string;
+  "latency_ms": number;
+  "models": {
+  "id": string;
+  "owned_by"?: string;
+  "max_model_len"?: number;
+  "context_window"?: number;
+  "max_output_tokens"?: number;
+  "provider"?: string;
+  "is_default"?: boolean;
+  "capabilities"?: {
+  "vision"?: boolean;
+  "tools"?: boolean;
+  "reasoning"?: boolean;
+  "structured_output"?: boolean;
+  "streaming"?: boolean;
+};
+  "priced"?: boolean;
+  "price_source"?: string;
+  "input_per_1k_usd"?: number;
+  "output_per_1k_usd"?: number;
+  "cached_input_per_1k_usd"?: number;
+  "cache_write_per_1k_usd"?: number;
+}[];
+  "check_generation": number;
+};
+  "settings"?: {
+  "schema_version"?: number;
+  "active_provider"?: string;
+  "active_model"?: string;
+  "air_gapped": boolean;
+  "providers": Record<string, unknown>;
+  "role_assignments": Record<string, unknown>;
+};
+};
+
+export type LlmDiscover = {
+  "servers": {
+  "provider": string;
+  "name": string;
+  "wire": string;
+  "base_url": string;
+  "port": number;
+  "models": string[];
+  "context_window"?: number;
+  "context_warning"?: string;
+  "source": string;
+}[];
+  "ports_scanned": number[];
+  "checked_at": string;
+};
+
+export type LlmKeyDelete = {
+  "status"?: string;
+  "provider"?: string;
+  "ok"?: boolean;
+  "settings": {
+  "schema_version"?: number;
+  "active_provider"?: string;
+  "active_model"?: string;
+  "air_gapped": boolean;
+  "providers": Record<string, unknown>;
+  "role_assignments": Record<string, unknown>;
+};
+};
+
 export type ApiOperationResponse = {
   appendLedgerEvent: LedgerAppend;
   applyMetasearchProposal: MetasearchChange;
@@ -758,6 +882,7 @@ export type ApiOperationResponse = {
   authWhoami: AuthWhoami;
   cancelHFDownload: HfCancel;
   cancelQuantumJob: QuantumCancel;
+  clearLLMProviderKey: LlmKeyDelete;
   clearMessages: MessagesClear;
   closeObligation: ObligationsClose;
   createCustomAgent: AgentOne;
@@ -766,6 +891,7 @@ export type ApiOperationResponse = {
   createTask: Task;
   deleteCustomAgent: AgentsCustomDelete;
   deleteSession: SessionDelete;
+  discoverLocalLLMProviders: LlmDiscover;
   emergencyAbort: Abort;
   evaluateCodesignArtifact: CodesignEvaluate;
   evaluateCodesignBatch: CodesignBatch;
@@ -887,6 +1013,7 @@ export type ApiOperationResponse = {
   testLLM: LlmTest;
   updateTaskStatus: Task;
   uploadObservatoryAsset: LensAsset;
+  verifyLLMProvider: LlmVerify;
   verifyLedger: LedgerVerify;
   verifySpendMandate: MandateVerify;
 };
@@ -905,6 +1032,7 @@ export const API_OPERATIONS = {
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
   cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
   cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
+  clearLLMProviderKey: { method: "delete", path: "/api/llm/providers/${encodeURIComponent}(provider)/key", response: "llm.key.delete" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
   closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
@@ -913,6 +1041,7 @@ export const API_OPERATIONS = {
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
+  discoverLocalLLMProviders: { method: "get", path: "/api/llm/discover", response: "llm.discover" },
   emergencyAbort: { method: "post", path: "/api/supervisor/abort", response: "abort" },
   evaluateCodesignArtifact: { method: "post", path: "/api/codesign/evaluate", response: "codesign.evaluate" },
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
@@ -1034,6 +1163,7 @@ export const API_OPERATIONS = {
   testLLM: { method: "post", path: "/api/llm/test", response: "llm.test" },
   updateTaskStatus: { method: "post", path: "/api/tasks/{id}", response: "task" },
   uploadObservatoryAsset: { method: "post", path: "/api/observatory/assets", response: "lens.asset" },
+  verifyLLMProvider: { method: "post", path: "/api/llm/providers/${encodeURIComponent}(provider)/verify", response: "llm.verify" },
   verifyLedger: { method: "get", path: "/api/ledger/verify", response: "ledger.verify" },
   verifySpendMandate: { method: "post", path: "/api/mandates/verify", response: "mandate.verify" },
 } as const;

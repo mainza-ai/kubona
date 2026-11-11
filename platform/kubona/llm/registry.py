@@ -23,7 +23,7 @@ DEFAULT_PORTS = [11434, 8787, 1234, 8080, 8000, 8899, 8081, 5000, 3000, 9000, 99
 # Provider hint by default port (W2.21, SINGLE shared const): only a hint —
 # the endpoint response is authoritative. available_models()/pick_default()
 # derive from this; no second or third copy may exist.
-PORT_PROVIDERS = {11434: "ollama", 8787: "omlx", 1234: "lm-studio", 8080: "mlx",
+PORT_PROVIDERS = {11434: "ollama", 8787: "omlx", 1234: "lmstudio", 8080: "mlx",
                   8081: "llama.cpp", 8000: "local", 8899: "omlx"}
 
 

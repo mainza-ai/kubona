@@ -12,7 +12,7 @@ class LLMUnavailable(RuntimeError):
 
 @dataclass(frozen=True)
 class ModelInfo:
-    provider: str       # "ollama" | "lm-studio" | "mlx" | "llama.cpp" | "openai-compat"
+    provider: str       # "ollama" | "lmstudio" | "lm-studio" | "mlx" | "llama.cpp" | "openai-compat"
     model_id: str       # e.g. "llama3.2", "qwen2.5-coder", "mlx-community/..." , ...
     base_url: str
 

@@ -125,6 +125,17 @@ export async function mockApi(
     if (path === '/api/cost/summary') return json({ cap_usd: 100, spent_usd: 0, remaining_usd: 100, unmetered_count: 0, by_provider: {}, active_provider: 'local', local_bypass: true, heuristic: false, currency: 'USD', track_only: false });
     if (path === '/api/llm/settings') return json({ active_provider: 'local', active_model: '', providers: {}, role_assignments: {}, air_gapped: false, disable_dsml_fallback: false, temperature: 0, max_tokens: 0 });
     if (path === '/api/llm/models') return json({ models: [] });
+    if (path === '/api/llm/discover') return json({ servers: [], ports_scanned: [8000, 11434, 1234], checked_at: '2026-11-11T00:00:00Z' });
+    if (path.startsWith('/api/llm/providers/') && path.endsWith('/verify')) {
+      const provider = decodeURIComponent(path.split('/')[4] || 'local');
+      return json({
+        verification: { ok: true, provider, wire: 'openai_chat', key_status: 'not_required', latency_ms: 12, models: [], check_generation: 1 },
+        settings: { active_provider: 'local', active_model: '', providers: {}, role_assignments: {}, air_gapped: false, disable_dsml_fallback: false, temperature: 0, max_tokens: 0 },
+      });
+    }
+    if (path.startsWith('/api/llm/providers/') && path.endsWith('/key') && route.request().method() === 'DELETE') {
+      return json({ ok: true });
+    }
     if (path === '/api/quantum/backends') return json({ backends: [] });
     if (path === '/api/quantum/settings') return json({ default_backend: 'local-simulator', harness_backends: {} });
     if (path === '/api/access') {

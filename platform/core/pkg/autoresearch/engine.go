@@ -27,23 +27,24 @@ const (
 
 // IterationRecord tracks an individual experiment step
 type IterationRecord struct {
-	Iteration         int               `json:"iteration"`
-	Timestamp         time.Time         `json:"timestamp"`
-	Decision          IterationDecision `json:"decision"`
-	Metric            float64           `json:"metric"`
-	MetricDelta       float64           `json:"metric_delta"` // Negative means improvement for loss
-	CircuitDepth      int               `json:"circuit_depth"`
-	NumQubits         int               `json:"num_qubits"`
-	TwoQubitGateCount int               `json:"two_qubit_gate_count"`
-	EntanglementScore float64           `json:"entanglement_score"`
-	PhysicalValue     float64           `json:"physical_value"`
-	MutatedArtifact   string            `json:"mutated_artifact"`
-	UnifiedDiff       string            `json:"unified_diff"`
-	Rationale         string            `json:"rationale"`
-	DurationMs        int64             `json:"duration_ms"`
-	Sandboxed         bool              `json:"sandboxed"`
-	IsolationTag      string            `json:"isolation_tag"`
-	Error             string            `json:"error,omitempty"`
+	Iteration         int                 `json:"iteration"`
+	Timestamp         time.Time           `json:"timestamp"`
+	Decision          IterationDecision   `json:"decision"`
+	Metric            float64             `json:"metric"`
+	MetricDelta       float64             `json:"metric_delta"` // Negative means improvement for loss
+	CircuitDepth      int                 `json:"circuit_depth"`
+	NumQubits         int                 `json:"num_qubits"`
+	TwoQubitGateCount int                 `json:"two_qubit_gate_count"`
+	EntanglementScore float64             `json:"entanglement_score"`
+	PhysicalValue     float64             `json:"physical_value"`
+	MutatedArtifact   string              `json:"mutated_artifact"`
+	UnifiedDiff       string              `json:"unified_diff"`
+	Rationale         string              `json:"rationale"`
+	DurationMs        int64               `json:"duration_ms"`
+	Sandboxed         bool                `json:"sandboxed"`
+	IsolationTag      string              `json:"isolation_tag"`
+	Error             string              `json:"error,omitempty"`
+	LLMMeta           *llm.InvocationMeta `json:"llm_meta,omitempty"`
 }
 
 // ParetoPoint tracks the multi-objective trade-off
@@ -455,7 +456,7 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 	e.mu.Unlock()
 
 	// 1. Propose mutation via LLM or algorithmic mutation operator
-	mutatedCode, rationale := e.proposeMutation(ctx, iterNum, currentChampion)
+	mutatedCode, rationale, proposeMeta := e.proposeMutation(ctx, iterNum, currentChampion)
 
 	// 1b. Stage on ephemeral git experiment branch if BranchManager is configured
 	var branchName string
@@ -514,7 +515,8 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 				}
 				return "docker:" + sandbox.DefaultRunnerImage
 			}(),
-			Error: errStr,
+			Error:   errStr,
+			LLMMeta: proposeMeta,
 		}
 		e.state.Iterations = append(e.state.Iterations, record)
 		e.checkStagnationLocked()
@@ -569,6 +571,7 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 		DurationMs:        duration.Milliseconds(),
 		Sandboxed:         harnessRes.Sandboxed,
 		IsolationTag:      harnessRes.IsolationTag,
+		LLMMeta:           proposeMeta,
 	}
 
 	e.state.Iterations = append(e.state.Iterations, record)
@@ -655,7 +658,7 @@ func (e *LoopEngine) TriggerAutonomousReflection(ctx context.Context, memoryStor
 }
 
 // proposeMutation generates a code modification via LLM or deterministic genetic operator
-func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion string) (string, string) {
+func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion string) (string, string, *llm.InvocationMeta) {
 	// Try LLM if client is available
 	if e.llmClient != nil {
 		prompt := fmt.Sprintf(`You are the Kubona Quantum Autonomous Researcher.
@@ -680,18 +683,21 @@ Output only the mutated Python code inside triple backticks.`, e.programMd, cham
 			// requireMeteredUsage refuses unreported metered calls at
 			// the client, so a success carries local-free or measured
 			// tokens — never blind spend).
+			var meta *llm.InvocationMeta
 			if resp != nil {
 				e.recordSpend("coder", resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+				meta = resp.Meta
 			}
 			code := extractCodeBlock(content)
 			if code != "" {
-				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement"
+				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement", meta
 			}
 		}
 	}
 
 	// Algorithmic mutation operator fallback (resilient and deterministic)
-	return algorithmicMutate(e.harness.ID(), iter, champion)
+	code, rationale := algorithmicMutate(e.harness.ID(), iter, champion)
+	return code, rationale, nil
 }
 
 func extractCodeBlock(text string) string {

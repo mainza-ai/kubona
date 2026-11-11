@@ -1,12 +1,9 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -15,9 +12,10 @@ import (
 // ToolCall is one model-requested function invocation (OpenAI-compatible
 // function-calling dialect, spoken by oMLX, Ollama, and cloud endpoints).
 type ToolCall struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Arguments        string `json:"arguments"`
+	ThoughtSignature string `json:"thought_signature,omitempty"`
 }
 
 // toolCallWire mirrors the wire shape {id, type, function:{name,arguments}}.
@@ -51,114 +49,11 @@ func fromWireCalls(in []toolCallWire) []ToolCall {
 	return out
 }
 
-// CompleteWithTools executes a chat completion advertising function tools.
-// Returns the assistant text and any requested tool calls (finish_reason
-// "tool_calls"). A nil/empty tools slice behaves exactly like Complete.
+// CompleteWithTools executes a chat completion advertising function tools,
+// applying per-role parameter overrides and ordered failover hops.
+// A nil/empty tools slice behaves identically to Complete.
 func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []ChatMessage, tools []map[string]any) (string, []ToolCall, *ChatCompletionResponse, time.Duration, error) {
-	providerType, model, err := c.settings.GetModelForRole(role)
-	if err != nil {
-		return "", nil, nil, 0, err
-	}
-
-	snap := c.settings.GetSnapshot()
-	provConfig, ok := snap.Providers[providerType]
-	if !ok {
-		return "", nil, nil, 0, fmt.Errorf("provider configuration not found for %s", providerType)
-	}
-
-	body := map[string]any{
-		"model":       model,
-		"messages":    withToolMessages(messages),
-		"temperature": snap.Temperature,
-	}
-	if snap.MaxTokens > 0 {
-		body["max_tokens"] = snap.MaxTokens
-	}
-	if len(tools) > 0 {
-		body["tools"] = tools
-		body["tool_choice"] = "auto"
-	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return "", nil, nil, 0, err
-	}
-
-	endpoint := fmt.Sprintf("%s/chat/completions", provConfig.BaseURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", nil, nil, 0, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if provConfig.APIKey != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", provConfig.APIKey))
-	}
-
-	start := time.Now()
-	resp, err := c.httpCli.Do(req)
-	duration := time.Since(start)
-	if err != nil {
-		return "", nil, nil, duration, fmt.Errorf("HTTP request to %s failed: %w", endpoint, err)
-	}
-	defer resp.Body.Close()
-
-	// W2.20: bounded read — same cap as Complete; a runaway tool-call
-	// body refuses instead of buffering forever.
-	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes+1))
-	if err != nil {
-		return "", nil, nil, duration, err
-	}
-	if len(respBytes) > maxLLMResponseBytes {
-		return "", nil, nil, duration, fmt.Errorf("provider response exceeds %d-byte cap: refusing unbounded body", maxLLMResponseBytes)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slurp := string(respBytes)
-		if len(slurp) > 1024 {
-			slurp = slurp[:1024]
-		}
-		return "", nil, nil, duration, fmt.Errorf("API error (%d) from %s: %s", resp.StatusCode, endpoint, slurp)
-	}
-
-	var parsed struct {
-		Choices []struct {
-			Message struct {
-				Content   string         `json:"content"`
-				ToolCalls []toolCallWire `json:"tool_calls"`
-			} `json:"message"`
-			FinishReason string `json:"finish_reason"`
-		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-			TotalTokens      int `json:"total_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(respBytes, &parsed); err != nil {
-		return "", nil, nil, duration, fmt.Errorf("failed to parse JSON response: %w", err)
-	}
-	if len(parsed.Choices) == 0 {
-		return "", nil, nil, duration, fmt.Errorf("no completion choices returned by model")
-	}
-	ch := parsed.Choices[0]
-	chatResp := &ChatCompletionResponse{}
-	chatResp.Usage.PromptTokens = parsed.Usage.PromptTokens
-	chatResp.Usage.CompletionTokens = parsed.Usage.CompletionTokens
-	chatResp.Usage.TotalTokens = parsed.Usage.TotalTokens
-	// W0.19: same metered-usage rule as Complete — the tool loop is the
-	// highest-volume cloud path; leaving it ungated would scope-dodge.
-	usageOK := (parsed.Usage.PromptTokens >= 0 && parsed.Usage.CompletionTokens >= 0 && (parsed.Usage.PromptTokens+parsed.Usage.CompletionTokens) > 0) || parsed.Usage.TotalTokens > 0
-	if parsed.Usage.PromptTokens == 0 && parsed.Usage.CompletionTokens == 0 && parsed.Usage.TotalTokens > 0 {
-		parsed.Usage.PromptTokens = parsed.Usage.TotalTokens
-		chatResp.Usage.PromptTokens = parsed.Usage.TotalTokens
-	}
-	if err := c.requireMeteredUsage(providerType, model, usageOK, 0); err != nil {
-		return "", nil, nil, duration, err
-	}
-	if usageOK {
-		c.reportSpend(providerType, model,
-			parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens, true)
-	}
-	c.settings.RecordSuccess(providerType)
-	return ch.Message.Content, fromWireCalls(ch.Message.ToolCalls), chatResp, duration, nil
+	return c.executeRoleHops(ctx, role, messages, tools, -1)
 }
 
 // withToolMessages serializes messages including tool_calls / tool results.

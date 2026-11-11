@@ -1,16 +1,23 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Brain, ChevronUp, Cpu, Paperclip, Sparkles, X } from 'lucide-react';
 import type { ChatAttachment, FollowUpSpec } from '@/domain/useCopilotChat';
+import { subscribeInvalidation } from '@/domain/invalidation';
 import { fetchLLMModels, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
 import { ContextReadout } from '../common/ContextReadout';
 import { MemoryPanel } from '../MemoryPanel';
 import { OverflowCard } from '../common/OverflowCard';
+import {
+  ModelPicker,
+  type PickerModelItem,
+  type PickerProviderConfig,
+  type PickerRoleSampling,
+} from './ModelPicker';
 
 type MorphPanel = 'actions' | 'memory' | 'model' | null;
 
-type LlmModelItem = { id: string; owned_by?: string; provider?: string; is_default?: boolean };
+type LlmModelItem = PickerModelItem;
 
 export interface CommandDockProps {
   onSubmit: (text: string) => Promise<void> | void;
@@ -20,6 +27,7 @@ export interface CommandDockProps {
   onDetach?: (name: string) => void;
   attachments?: ChatAttachment[];
   onOpenModel?: () => void;
+  onOpenDownloadHub?: () => void;
   modelLabel?: string;
   sessionId?: string | null;
   messageCount?: number;
@@ -49,6 +57,7 @@ export const CommandDock = React.memo(function CommandDock({
   onDetach,
   attachments: controlledAttachments,
   onOpenModel,
+  onOpenDownloadHub,
   modelLabel = 'Model Hub',
   sessionId = null,
   messageCount = 0,
@@ -71,9 +80,14 @@ export const CommandDock = React.memo(function CommandDock({
   const [tribunalTopic, setTribunalTopic] = useState('');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
-  const [modelList, setModelList] = useState<LlmModelItem[]>([]);
+  const [airGapped, setAirGapped] = useState(false);
+  const [providersMap, setProvidersMap] = useState<Record<string, PickerProviderConfig>>({});
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, LlmModelItem[]>>({});
+  const [modelErrorsByProvider, setModelErrorsByProvider] = useState<Record<string, string | null>>({});
+  const [copilotSampling, setCopilotSampling] = useState<PickerRoleSampling>({});
   const [modelStatus, setModelStatus] = useState<string | null>(null);
-  const [loadingModels, setLoadingModels] = useState(false);
+  const [syncMatchingRoles, setSyncMatchingRoles] = useState(false);
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [savingModel, setSavingModel] = useState(false);
   const [rememberedCount, setRememberedCount] = useState(0);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
@@ -84,6 +98,54 @@ export const CommandDock = React.memo(function CommandDock({
 
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const quickModelRef = useRef<HTMLButtonElement>(null);
+
+  const hydrateLLMState = useCallback((settings: Record<string, unknown> | null | undefined) => {
+    if (!settings) return null;
+    const roles = (settings.role_assignments as Record<string, { provider?: string; model?: string; temperature?: number; seed?: number; reasoning_effort?: string }> | undefined) ?? {};
+    const copilot = roles.copilot;
+    const provider =
+      (typeof copilot?.provider === 'string' && copilot.provider) ||
+      (typeof settings.active_provider === 'string' && settings.active_provider) ||
+      null;
+    const model =
+      (typeof copilot?.model === 'string' && copilot.model) ||
+      (typeof settings.active_model === 'string' && settings.active_model) ||
+      null;
+    if (provider) setActiveProvider(provider);
+    if (model) setActiveModelName(model);
+    if (typeof settings.air_gapped === 'boolean') setAirGapped(settings.air_gapped);
+    if (settings.providers && typeof settings.providers === 'object') {
+      setProvidersMap(settings.providers as Record<string, PickerProviderConfig>);
+    }
+    setCopilotSampling({
+      temperature: typeof copilot?.temperature === 'number' ? copilot.temperature : undefined,
+      seed: typeof copilot?.seed === 'number' ? copilot.seed : undefined,
+      reasoning_effort: typeof copilot?.reasoning_effort === 'string' ? copilot.reasoning_effort : undefined,
+    });
+    return { provider: provider || 'omlx', model };
+  }, []);
+
+  const loadModelsForProvider = useCallback(async (provider: string) => {
+    setLoadingProvider(provider);
+    setModelErrorsByProvider((prev) => ({ ...prev, [provider]: null }));
+    try {
+      const resp = await fetchLLMModels(provider);
+      const list = Array.isArray(resp?.models) ? (resp.models as LlmModelItem[]) : [];
+      setModelsByProvider((prev) => ({ ...prev, [provider]: list }));
+      const errMsg = typeof resp?.error === 'string' && resp.error.trim() ? resp.error : '';
+      if (errMsg) {
+        setModelErrorsByProvider((prev) => ({ ...prev, [provider]: errMsg }));
+      }
+    } catch (err) {
+      setModelErrorsByProvider((prev) => ({
+        ...prev,
+        [provider]: err instanceof Error ? err.message : 'Could not inspect active models.',
+      }));
+    } finally {
+      setLoadingProvider((cur) => (cur === provider ? null : cur));
+    }
+  }, []);
 
   const attachments = controlledAttachments
     ? controlledAttachments.map((item) => ({ name: item.name }))
@@ -98,32 +160,45 @@ export const CommandDock = React.memo(function CommandDock({
   };
 
   useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      void fetchLLMSettings()
+        .then((settings) => {
+          if (alive) hydrateLLMState(settings as Record<string, unknown> | null);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const unsub = subscribeInvalidation(['llm'], refresh);
+    return () => {
+      alive = false;
+      unsub();
+    };
+  }, [hydrateLLMState]);
+
+  useEffect(() => {
     if (morph !== 'model') return;
     let alive = true;
     void (async () => {
       try {
         const settings = await fetchLLMSettings();
         if (!alive) return;
-        const provider = typeof settings?.active_provider === 'string' && settings.active_provider
-          ? settings.active_provider
-          : 'omlx';
-        const model = typeof settings?.active_model === 'string' ? settings.active_model : null;
-        setActiveProvider(provider);
-        setActiveModelName(model);
-        const resp = await fetchLLMModels(provider);
-        if (!alive) return;
-        const list = Array.isArray(resp?.models) ? (resp.models as LlmModelItem[]) : [];
-        setModelList(list);
-      } catch {
-        if (alive) setModelStatus('Could not inspect active models.');
-      } finally {
-        if (alive) setLoadingModels(false);
+        const hydrated = hydrateLLMState(settings as Record<string, unknown> | null);
+        const targetProvider = hydrated?.provider || 'omlx';
+        await loadModelsForProvider(targetProvider);
+      } catch (err) {
+        if (alive) {
+          setModelErrorsByProvider((prev) => ({
+            ...prev,
+            omlx: err instanceof Error ? err.message : 'Could not inspect active models.',
+          }));
+        }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [morph]);
+  }, [morph, hydrateLLMState, loadModelsForProvider]);
 
   const send = async () => {
     const value = text.trim();
@@ -164,7 +239,7 @@ export const CommandDock = React.memo(function CommandDock({
     onDetach?.(name);
   };
 
-  const switchQuickModel = async (modelId: string) => {
+  const switchQuickModel = async (modelId: string, providerOverride?: string, sampling?: PickerRoleSampling) => {
     if (savingModel) return;
     setSavingModel(true);
     setModelStatus(null);
@@ -174,10 +249,101 @@ export const CommandDock = React.memo(function CommandDock({
         setModelStatus('Settings unreachable — nothing changed.');
         return;
       }
-      const res = await saveLLMSettings({ ...current, active_model: modelId });
+      const existingRoles =
+        (current.role_assignments as Record<string, { role: string; provider: string; model: string; temperature?: number; seed?: number; reasoning_effort?: string }> | undefined) ?? {};
+      const prevCopilot = existingRoles.copilot;
+      const targetProvider =
+        providerOverride ||
+        activeProvider ||
+        prevCopilot?.provider ||
+        (typeof current.active_provider === 'string' && current.active_provider) ||
+        'omlx';
+      const prevProvider = prevCopilot?.provider || (typeof current.active_provider === 'string' ? current.active_provider : '');
+      const prevModel = prevCopilot?.model || (typeof current.active_model === 'string' ? current.active_model : '');
+
+      const mergedCopilot = {
+        ...(prevCopilot ?? { role: 'copilot', provider: targetProvider, model: modelId }),
+        role: 'copilot',
+        provider: targetProvider,
+        model: modelId,
+      };
+      if (sampling?.temperature !== undefined) mergedCopilot.temperature = sampling.temperature;
+      if (sampling?.seed !== undefined) mergedCopilot.seed = sampling.seed;
+      if (sampling?.reasoning_effort !== undefined && sampling.reasoning_effort !== '') {
+        mergedCopilot.reasoning_effort = sampling.reasoning_effort;
+      }
+
+      const nextRoles: Record<string, typeof mergedCopilot> = {
+        ...existingRoles,
+        copilot: mergedCopilot,
+      };
+      if (syncMatchingRoles) {
+        for (const [role, assign] of Object.entries(existingRoles)) {
+          if (role === 'copilot') continue;
+          const matchesPrev = assign.provider === prevProvider && assign.model === prevModel;
+          const isUnassigned = !assign.model;
+          if (matchesPrev || isUnassigned) {
+            nextRoles[role] = { ...assign, provider: targetProvider, model: modelId };
+          }
+        }
+      }
+
+      const res = await saveLLMSettings({
+        ...current,
+        active_provider: targetProvider,
+        active_model: modelId,
+        role_assignments: nextRoles,
+      });
       if (res.ok) {
+        setActiveProvider(targetProvider);
         setActiveModelName(modelId);
-        setModelStatus(`Switched active model to ${modelId}.`);
+        if (sampling) setCopilotSampling(sampling);
+        setModelStatus(
+          syncMatchingRoles
+            ? `Switched copilot & matching default roles to ${targetProvider}:${modelId}.`
+            : `Switched copilot & active model to ${targetProvider}:${modelId}.`,
+        );
+      } else {
+        setModelStatus(`Refused: ${res.error || 'save not confirmed'}.`);
+      }
+    } finally {
+      setSavingModel(false);
+    }
+  };
+
+  const applyCopilotSampling = async (sampling: PickerRoleSampling) => {
+    if (savingModel) return;
+    setSavingModel(true);
+    setModelStatus(null);
+    try {
+      const current = await fetchLLMSettings();
+      if (!current) {
+        setModelStatus('Settings unreachable — nothing changed.');
+        return;
+      }
+      const existingRoles =
+        (current.role_assignments as Record<string, { role: string; provider: string; model: string; temperature?: number; seed?: number; reasoning_effort?: string }> | undefined) ?? {};
+      const prevCopilot = existingRoles.copilot ?? {
+        role: 'copilot',
+        provider: activeProvider || (typeof current.active_provider === 'string' ? current.active_provider : 'omlx'),
+        model: activeModelName || (typeof current.active_model === 'string' ? current.active_model : ''),
+      };
+      const updatedCopilot: typeof prevCopilot = {
+        role: 'copilot',
+        provider: prevCopilot.provider,
+        model: prevCopilot.model,
+      };
+      if (sampling.temperature !== undefined) updatedCopilot.temperature = sampling.temperature;
+      if (sampling.seed !== undefined) updatedCopilot.seed = sampling.seed;
+      if (sampling.reasoning_effort) updatedCopilot.reasoning_effort = sampling.reasoning_effort;
+
+      const res = await saveLLMSettings({
+        ...current,
+        role_assignments: { ...existingRoles, copilot: updatedCopilot },
+      });
+      if (res.ok) {
+        setCopilotSampling(sampling);
+        setModelStatus('Saved Copilot sampling overrides.');
       } else {
         setModelStatus(`Refused: ${res.error || 'save not confirmed'}.`);
       }
@@ -283,68 +449,33 @@ export const CommandDock = React.memo(function CommandDock({
       )}
 
       {morph === 'model' && (
-        <div
-          role="region"
-          aria-label="Quick model switcher"
-          className="mb-2.5 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-float)] p-3 shadow-[var(--shadow-float)] space-y-2"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
-              Active Model {activeProvider ? `· ${activeProvider}` : ''}
-            </span>
-            <div className="flex items-center gap-2">
-              {onOpenModel && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMorph(null);
-                    onOpenModel();
-                  }}
-                  className="text-[12px] text-[var(--color-accent-ink)] hover:underline"
-                >
-                  Open full Model Hub →
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setMorph(null)}
-                aria-label="Close model switcher"
-                className="rounded-md p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill)]"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-          {loadingModels ? (
-            <p className="text-xs text-[var(--color-muted)] font-code">Loading configured models…</p>
-          ) : modelList.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {modelList.slice(0, 8).map((item) => {
-                const selected = item.id === activeModelName;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled={savingModel}
-                    onClick={() => void switchQuickModel(item.id)}
-                    className={`rounded-xl border px-2.5 py-1 text-[12px] font-code transition-colors ${
-                      selected
-                        ? 'border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)] font-semibold'
-                        : 'border-[var(--color-border)] bg-[var(--color-fill)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    {item.id}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--color-muted)]">
-              No models listed for {activeProvider || 'the active provider'}. Open full Model Hub to configure one.
-            </p>
-          )}
-          {modelStatus && <p className="text-[12px] font-code text-[var(--color-label-secondary)]">{modelStatus}</p>}
-        </div>
+        <ModelPicker
+          activeProvider={activeProvider || 'omlx'}
+          activeModel={activeModelName}
+          airGapped={airGapped}
+          providers={providersMap}
+          modelsByProvider={modelsByProvider}
+          errorsByProvider={modelErrorsByProvider}
+          loadingProvider={loadingProvider}
+          saving={savingModel}
+          statusMessage={modelStatus}
+          syncMatchingRoles={syncMatchingRoles}
+          copilotSampling={copilotSampling}
+          onToggleSyncMatchingRoles={() => setSyncMatchingRoles((v) => !v)}
+          onSelectProviderTab={(prov) => {
+            if (!modelsByProvider[prov]) {
+              void loadModelsForProvider(prov);
+            }
+          }}
+          onSelectModel={(provider, modelId, sampling) =>
+            switchQuickModel(modelId, provider, sampling)
+          }
+          onApplySampling={applyCopilotSampling}
+          onClose={() => setMorph(null)}
+          onOpenSettings={onOpenModel}
+          onOpenDownloadHub={onOpenDownloadHub}
+          restoreFocusEl={quickModelRef.current}
+        />
       )}
 
       <form
@@ -484,14 +615,22 @@ export const CommandDock = React.memo(function CommandDock({
             <button
               type="button"
               aria-label="Open Model Hub"
-              title="Open Model Hub"
-              onClick={onOpenModel}
+              title="Switch active Copilot model or open LLM Settings"
+              onClick={() => {
+                if (morph === 'model') {
+                  setMorph(null);
+                  return;
+                }
+                setModelStatus(null);
+                setMorph('model');
+              }}
               className="inline-flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-xl px-2 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]"
             >
               <Cpu className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{effectiveModelLabel}</span>
             </button>
             <button
+              ref={quickModelRef}
               type="button"
               aria-label="Quick switch model"
               aria-expanded={morph === 'model'}
@@ -501,7 +640,6 @@ export const CommandDock = React.memo(function CommandDock({
                   setMorph(null);
                   return;
                 }
-                setLoadingModels(true);
                 setModelStatus(null);
                 setMorph('model');
               }}

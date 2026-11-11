@@ -260,3 +260,56 @@ func TestCompleteCappedSendsMaxTokens(t *testing.T) {
 		t.Errorf("plain Complete with MaxTokens=0 must omit max_tokens, got body %v", gotBody)
 	}
 }
+
+func TestEstimateCostUSDWithCacheAndLocalCustomSettings(t *testing.T) {
+	// OpenAI cached input: total prompt=2000 (1000 uncached + 1000 cached), completion=500.
+	openAICost, ok := llm.EstimateCostUSDWithCache(llm.ProviderOpenAI, "gpt-5.4", 2000, 500, 1000, 0)
+	if !ok {
+		t.Fatal("gpt-5.4 with cached input must price")
+	}
+	wantOpenAI := 0.0025*1000.0/1000.0 + 0.000625*1000.0/1000.0 + 0.015*500.0/1000.0
+	if math.Abs(openAICost-wantOpenAI) > 1e-12 {
+		t.Fatalf("OpenAI cached cost = %v, want %v", openAICost, wantOpenAI)
+	}
+
+	// Anthropic cache read + write: total prompt=3000 (1000 uncached + 1200 read + 800 write), completion=400.
+	anthCost, ok := llm.EstimateCostUSDWithCache(llm.ProviderAnthropic, "claude-opus-4-6", 3000, 400, 1200, 800)
+	if !ok {
+		t.Fatal("claude-opus-4-6 with cache read/write must price")
+	}
+	wantAnth := 0.005*1000.0/1000.0 + 0.0005*1200.0/1000.0 + 0.00625*800.0/1000.0 + 0.025*400.0/1000.0
+	if math.Abs(anthCost-wantAnth) > 1e-12 {
+		t.Fatalf("Anthropic cache read/write cost = %v, want %v", anthCost, wantAnth)
+	}
+
+	// Local Custom endpoint costs $0 (not priced); remote Custom endpoint attempts pricing.
+	s := llm.DefaultSettings()
+	snap := s.GetSnapshot()
+	cust := snap.Providers[llm.ProviderCustom]
+	cust.BaseURL = "http://127.0.0.1:8080/v1"
+	cust.Enabled = true
+	snap.Providers[llm.ProviderCustom] = cust
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatalf("update local custom: %v", err)
+	}
+	if cost, ok := llm.EstimateCostUSDForSettings(s, llm.ProviderCustom, "gpt-5.4", 1000, 500, 0, 0); ok || cost != 0 {
+		t.Fatalf("local custom endpoint must not price, got %v,%v", cost, ok)
+	}
+
+	cust.BaseURL = "https://gateway.example.com/v1"
+	snap.Providers[llm.ProviderCustom] = cust
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatalf("update remote custom: %v", err)
+	}
+	if !s.IsProviderLocal(llm.ProviderCustom) {
+		// Remote Custom with known rate model prices when lookup hits; unknown refuses cleanly.
+		if cost, ok := llm.EstimateCostUSDForSettings(s, llm.ProviderCustom, "mystery-remote-model", 1000, 500, 0, 0); ok || cost != 0 {
+			t.Fatalf("unknown remote custom model must refuse pricing, got %v,%v", cost, ok)
+		}
+		if cost, ok := llm.EstimateCostUSDForSettings(s, llm.ProviderCustom, "gpt-5.4", 1000, 500, 0, 0); !ok || cost <= 0 {
+			t.Fatalf("remote custom with known rate must price, got %v,%v", cost, ok)
+		}
+	} else {
+		t.Fatal("https://gateway.example.com/v1 must not be classified local")
+	}
+}

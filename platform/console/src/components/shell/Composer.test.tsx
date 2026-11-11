@@ -40,6 +40,10 @@ describe('Composer', () => {
     act(() => { remove.props.onClick(); });
     expect(onDetach).toHaveBeenCalledWith('notes.txt');
     act(() => { tree!.root.findByProps({ 'aria-label': 'Open Model Hub' }).props.onClick(); });
+    expect(onOpenModel).not.toHaveBeenCalled();
+    const settingsBtn = tree!.root.findAllByType('button').find((b) => String(b.props.children).includes('Open LLM Settings'));
+    expect(settingsBtn).toBeTruthy();
+    act(() => { settingsBtn!.props.onClick(); });
     expect(onOpenModel).toHaveBeenCalled();
   });
 

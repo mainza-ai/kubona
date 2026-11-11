@@ -172,7 +172,17 @@ describe('response contracts', () => {
   });
 
   it('accepts settings and quantum job envelopes', () => {
-    expect(validateResponse('llm.settings', { provider: 'omlx' })).toEqual([]);
+    expect(
+      validateResponse('llm.settings', {
+        active_provider: 'omlx',
+        air_gapped: false,
+        providers: {},
+        role_assignments: {},
+      }),
+    ).toEqual([]);
+    expect(validateResponse('llm.settings', { active_provider: 'omlx' })).toEqual([
+      { path: 'llm.settings.air_gapped', message: 'missing required field' },
+    ]);
     expect(validateResponse('quantum.settings', { mode: 'auto' })).toEqual([]);
     expect(validateResponse('quantum.job', { job_id: 'j1', status: 'QUEUED' })).toEqual([]);
     expect(validateResponse('quantum.submit', { ok: true, job_id: 'j1' })).toEqual([]);

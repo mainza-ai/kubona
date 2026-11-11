@@ -21,6 +21,13 @@ import (
 // an existing dev database is not bricked; production should set the key.
 const sealedPrefix = "enc:v1:"
 
+// HasSecretKey reports whether KUBONA_SECRET_KEY is configured and valid for
+// AES-256-GCM credential sealing at rest. Never returns key bytes.
+func HasSecretKey() bool {
+	key, err := secretKey()
+	return err == nil && key != nil
+}
+
 func secretKey() ([]byte, error) {
 	raw := strings.TrimSpace(os.Getenv("KUBONA_SECRET_KEY"))
 	if raw == "" {

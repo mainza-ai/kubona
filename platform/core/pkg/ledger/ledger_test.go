@@ -591,3 +591,38 @@ func TestGetEventsBeforePagesBackwardsWithoutGaps(t *testing.T) {
 		t.Fatalf("older page must be ascending and before the cursor: %+v", older)
 	}
 }
+
+func TestGetEventsSinceWithGlobalTypesIncludesAllowlistedGlobalAndExcludesOthers(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/events_global.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+
+	if err := l.AppendEvent("sess-a", "annotation", map[string]string{"k": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AppendEvent("sess-b", "annotation", map[string]string{"k": "other-session"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AppendEvent("global", "llm_settings_updated", map[string]any{"active_provider": "omlx"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AppendEvent("global", "llm_spend_estimated", map[string]any{"amount_usd": 0.1}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := l.GetEventsSinceWithGlobalTypes("sess-a", []string{"llm_settings_updated", "llm_provider_verified"}, 0, 20)
+	if err != nil {
+		t.Fatalf("GetEventsSinceWithGlobalTypes: %v", err)
+	}
+	if len(got) != 2 || got[0].EventType != "annotation" || got[1].EventType != "llm_settings_updated" {
+		t.Fatalf("unexpected filtered global stream batch: %+v", got)
+	}
+
+	// Strict GetEventsSince remains isolated to sess-a only.
+	strict, err := l.GetEventsSince("sess-a", 0, 20)
+	if err != nil || len(strict) != 1 || strict[0].SessionID != "sess-a" {
+		t.Fatalf("strict GetEventsSince leaked non-session rows: %+v err=%v", strict, err)
+	}
+}

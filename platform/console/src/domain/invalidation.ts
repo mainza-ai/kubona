@@ -1,6 +1,6 @@
 'use client';
 
-export type InvalidationDomain = 'campaign' | 'jobs' | 'tasks' | 'obligations' | 'loops' | 'cost';
+export type InvalidationDomain = 'campaign' | 'jobs' | 'tasks' | 'obligations' | 'loops' | 'cost' | 'llm';
 
 const listeners = new Set<(domains: ReadonlySet<InvalidationDomain>) => void>();
 
@@ -13,6 +13,7 @@ export function domainsForEventTypes(eventTypes: readonly string[]): Set<Invalid
     if (type.startsWith('loop_') || type === 'autoresearch_loop_reconciled') out.add('loops');
     if (type.startsWith('obligation_')) out.add('obligations');
     if (type.startsWith('llm_spend_') || type.startsWith('session_spend_')) out.add('cost');
+    if (type === 'llm_settings_updated' || type === 'llm_provider_verified') out.add('llm');
   }
   return out;
 }

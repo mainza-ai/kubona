@@ -4,7 +4,7 @@
   "effective_date": "2026-10-30",
   "stale_after_days": 30,
   "heuristic": false,
-  "notes": "Captured 2026-10-30. OpenAI/Anthropic/DeepSeek/OpenCode from vendor list pages; NVIDIA from CostGoat aggregator (verify before billing). DeepSeek/OpenCode use peak rates as the ceiling. Atlas: 1,500 credits at $1.00/1,250 credits = $1.20. Runtime KUBONA_RATE_CARD_PATH/URL overrides this bootstrap; production cloud pricing refuses the embedded bootstrap.",
+  "notes": "Captured 2026-10-30; extended 2026-11-11 with cache/context/capability metadata and multi-provider reference rows. OpenAI/Anthropic/DeepSeek/OpenCode from vendor list pages; NVIDIA/xAI/Mistral/Groq/Google rows use vendor or reference list pricing. DeepSeek/OpenCode use peak rates as the ceiling. Atlas: 1,500 credits at $1.00/1,250 credits = $1.20. Runtime KUBONA_RATE_CARD_PATH/URL overrides this bootstrap; production cloud pricing refuses the embedded bootstrap.",
   "lens": {
     "atlas-lens": {
       "cost_usd": 1.2,
@@ -20,11 +20,15 @@
     "opencode/deepseek-v4.1-flash": {
       "input_per_1k_usd": 0.0003,
       "output_per_1k_usd": 0.0012,
+      "cached_input_per_1k_usd": 0.000075,
+      "context_window": 128000,
+      "max_output_tokens": 16384,
       "provider": "opencode",
       "status": "active",
       "aliases": [
         "deepseek-v4.1-flash"
       ],
+      "capabilities": ["tools", "reasoning", "structured_output", "streaming"],
       "source": "https://opencode.ai/docs/go",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -32,20 +36,27 @@
     "opencode/deepseek-v4-pro": {
       "input_per_1k_usd": 0.00132,
       "output_per_1k_usd": 0.00396,
+      "cached_input_per_1k_usd": 0.00033,
+      "context_window": 128000,
+      "max_output_tokens": 16384,
       "provider": "opencode",
       "status": "deprecated",
       "aliases": [
         "deepseek-v4-pro"
       ],
+      "capabilities": ["tools", "reasoning", "structured_output", "streaming"],
       "source": "https://opencode.ai/docs/go",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
     },
     "nvidia/nemotron-3.5-super-vl-120b-a12b": {
-      "input_per_1k_usd": 6e-05,
+      "input_per_1k_usd": 0.00006,
       "output_per_1k_usd": 0.00035,
+      "context_window": 131072,
+      "max_output_tokens": 16384,
       "provider": "nvidia",
       "status": "active",
+      "capabilities": ["vision", "tools", "reasoning", "streaming"],
       "source": "https://costgoat.com/pricing/nemotron-api",
       "retrieved_at": "2026-10-30",
       "confidence": "aggregator"
@@ -53,8 +64,12 @@
     "openai/gpt-6-astra": {
       "input_per_1k_usd": 0.01,
       "output_per_1k_usd": 0.05,
+      "cached_input_per_1k_usd": 0.0025,
+      "context_window": 400000,
+      "max_output_tokens": 128000,
       "provider": "openai",
       "status": "active",
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
       "source": "https://openai.com/api/",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -62,8 +77,12 @@
     "openai/gpt-6.1-sol": {
       "input_per_1k_usd": 0.002,
       "output_per_1k_usd": 0.01,
+      "cached_input_per_1k_usd": 0.0005,
+      "context_window": 400000,
+      "max_output_tokens": 64000,
       "provider": "openai",
       "status": "active",
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
       "source": "https://openai.com/api/",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -71,8 +90,12 @@
     "openai/gpt-6.1-terra": {
       "input_per_1k_usd": 0.001,
       "output_per_1k_usd": 0.005,
+      "cached_input_per_1k_usd": 0.00025,
+      "context_window": 400000,
+      "max_output_tokens": 32768,
       "provider": "openai",
       "status": "active",
+      "capabilities": ["vision", "tools", "structured_output", "streaming"],
       "source": "https://openai.com/api/",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -80,17 +103,54 @@
     "openai/gpt-6-luna": {
       "input_per_1k_usd": 0.0001,
       "output_per_1k_usd": 0.0005,
+      "cached_input_per_1k_usd": 0.000025,
+      "context_window": 128000,
+      "max_output_tokens": 16384,
       "provider": "openai",
       "status": "active",
+      "capabilities": ["tools", "structured_output", "streaming"],
       "source": "https://openai.com/api/",
       "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "openai/gpt-5.4": {
+      "input_per_1k_usd": 0.0025,
+      "output_per_1k_usd": 0.015,
+      "cached_input_per_1k_usd": 0.000625,
+      "context_window": 400000,
+      "max_output_tokens": 128000,
+      "provider": "openai",
+      "status": "active",
+      "aliases": ["gpt-5.4"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://openai.com/api/pricing/",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "openai/gpt-5-mini": {
+      "input_per_1k_usd": 0.00025,
+      "output_per_1k_usd": 0.002,
+      "cached_input_per_1k_usd": 0.000025,
+      "context_window": 400000,
+      "max_output_tokens": 128000,
+      "provider": "openai",
+      "status": "active",
+      "aliases": ["gpt-5-mini"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://openai.com/api/pricing/",
+      "retrieved_at": "2026-11-11",
       "confidence": "vendor"
     },
     "anthropic/claude-opus-5-5": {
       "input_per_1k_usd": 0.004,
       "output_per_1k_usd": 0.02,
+      "cached_input_per_1k_usd": 0.0004,
+      "cache_write_per_1k_usd": 0.005,
+      "context_window": 200000,
+      "max_output_tokens": 32768,
       "provider": "anthropic",
       "status": "active",
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
       "source": "https://assets.claude.com/5633dc848caa431115468f31c7085d695bbfb9cc.pdf",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -98,8 +158,13 @@
     "anthropic/claude-sonnet-5-5": {
       "input_per_1k_usd": 0.002,
       "output_per_1k_usd": 0.01,
+      "cached_input_per_1k_usd": 0.0002,
+      "cache_write_per_1k_usd": 0.0025,
+      "context_window": 200000,
+      "max_output_tokens": 64000,
       "provider": "anthropic",
       "status": "active",
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
       "retrieved_at": "2026-10-30",
       "confidence": "vendor"
@@ -107,11 +172,113 @@
     "anthropic/claude-haiku-5-5": {
       "input_per_1k_usd": 0.0001,
       "output_per_1k_usd": 0.0005,
+      "cached_input_per_1k_usd": 0.00001,
+      "cache_write_per_1k_usd": 0.000125,
+      "context_window": 200000,
+      "max_output_tokens": 16384,
       "provider": "anthropic",
       "status": "active",
+      "capabilities": ["vision", "tools", "structured_output", "streaming"],
       "source": "https://standardcompute.com/opencode-pricing",
       "retrieved_at": "2026-10-30",
       "confidence": "aggregator"
+    },
+    "anthropic/claude-opus-4-6": {
+      "input_per_1k_usd": 0.005,
+      "output_per_1k_usd": 0.025,
+      "cached_input_per_1k_usd": 0.0005,
+      "cache_write_per_1k_usd": 0.00625,
+      "context_window": 200000,
+      "max_output_tokens": 64000,
+      "provider": "anthropic",
+      "status": "active",
+      "aliases": ["claude-opus-4-6"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "anthropic/claude-sonnet-4-6": {
+      "input_per_1k_usd": 0.003,
+      "output_per_1k_usd": 0.015,
+      "cached_input_per_1k_usd": 0.0003,
+      "cache_write_per_1k_usd": 0.00375,
+      "context_window": 200000,
+      "max_output_tokens": 64000,
+      "provider": "anthropic",
+      "status": "active",
+      "aliases": ["claude-sonnet-4-6"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "google/gemini-2.5-pro": {
+      "input_per_1k_usd": 0.00125,
+      "output_per_1k_usd": 0.01,
+      "cached_input_per_1k_usd": 0.0003125,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "provider": "google",
+      "status": "active",
+      "aliases": ["gemini-2.5-pro"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "google/gemini-2.5-flash": {
+      "input_per_1k_usd": 0.0003,
+      "output_per_1k_usd": 0.0025,
+      "cached_input_per_1k_usd": 0.000075,
+      "context_window": 1048576,
+      "max_output_tokens": 65536,
+      "provider": "google",
+      "status": "active",
+      "aliases": ["gemini-2.5-flash"],
+      "capabilities": ["vision", "tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "xai/grok-3-mini": {
+      "input_per_1k_usd": 0.0003,
+      "output_per_1k_usd": 0.0005,
+      "context_window": 131072,
+      "max_output_tokens": 16384,
+      "provider": "xai",
+      "status": "active",
+      "aliases": ["grok-3-mini"],
+      "capabilities": ["tools", "reasoning", "structured_output", "streaming"],
+      "source": "https://docs.x.ai/docs/models",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "mistral/mistral-large-latest": {
+      "input_per_1k_usd": 0.002,
+      "output_per_1k_usd": 0.006,
+      "context_window": 128000,
+      "max_output_tokens": 16384,
+      "provider": "mistral",
+      "status": "active",
+      "aliases": ["mistral-large-latest"],
+      "capabilities": ["tools", "structured_output", "streaming"],
+      "source": "https://mistral.ai/pricing",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
+    },
+    "groq/llama-3.3-70b-versatile": {
+      "input_per_1k_usd": 0.00059,
+      "output_per_1k_usd": 0.00079,
+      "context_window": 131072,
+      "max_output_tokens": 32768,
+      "provider": "groq",
+      "status": "active",
+      "aliases": ["llama-3.3-70b-versatile"],
+      "capabilities": ["tools", "structured_output", "streaming"],
+      "source": "https://groq.com/pricing/",
+      "retrieved_at": "2026-11-11",
+      "confidence": "vendor"
     }
   },
   "qpu": {

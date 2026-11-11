@@ -83,7 +83,28 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
-  'llm.settings': obj(),
+  'llm.settings': obj(
+    {
+      schema_version: num,
+      active_provider: str,
+      active_model: str,
+      air_gapped: bool,
+      temperature: num,
+      max_tokens: num,
+      disable_dsml_fallback: bool,
+      providers: obj(),
+      role_assignments: obj(),
+      role_catalog: arr(
+        obj({
+          role: str,
+          group: str,
+          label: str,
+          description: str,
+        }),
+      ),
+    },
+    ['air_gapped'],
+  ),
   'quantum.settings': obj(),
   'quantum.job': obj(),
   'quantum.submit': obj({
@@ -180,9 +201,43 @@ export const RESPONSE_SCHEMAS = {
   'codesign.rerun': obj({
     ok: bool,
   }),
-  'llm.models': obj({
-    models: arr(any),
-  }),
+  'llm.models': obj(
+    {
+      provider: str,
+      models: arr(
+        obj(
+          {
+            id: str,
+            owned_by: str,
+            max_model_len: num,
+            context_window: num,
+            max_output_tokens: num,
+            provider: str,
+            is_default: bool,
+            capabilities: obj(
+              {
+                vision: bool,
+                tools: bool,
+                reasoning: bool,
+                structured_output: bool,
+                streaming: bool,
+              },
+              [],
+            ),
+            priced: bool,
+            price_source: str,
+            input_per_1k_usd: num,
+            output_per_1k_usd: num,
+            cached_input_per_1k_usd: num,
+            cache_write_per_1k_usd: num,
+          },
+          ['id'],
+        ),
+      ),
+      error: str,
+    },
+    ['models'],
+  ),
   'hf.search': obj({
     models: arr(any),
   }),
@@ -213,7 +268,22 @@ export const RESPONSE_SCHEMAS = {
   'tribunal.resume': obj({ tribunal: any, assistant_message: any }),
   'mesh.route': obj({ decision: any }),
   literature: obj({ records: arr(any), cached: bool }),
-  'llm.test': obj(),
+  'llm.test': obj(
+    {
+      success: bool,
+      provider: str,
+      wire: str,
+      reply: str,
+      model: str,
+      duration_ms: num,
+      gen_tok_per_sec: num,
+      prompt_tok_per_sec: num,
+      attempt_count: num,
+      cost_usd: num,
+      error: str,
+    },
+    ['success'],
+  ),
   'lens.asset': obj({ ok: bool }),
   'prediction.evaluate': obj({ ok: bool }),
   'prediction.seal': obj({ ok: bool }),
@@ -535,6 +605,107 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
+  'llm.verify': obj(
+    {
+      verification: obj(
+        {
+          ok: bool,
+          provider: str,
+          wire: str,
+          key_status: str,
+          fault: str,
+          error: str,
+          latency_ms: num,
+          models: arr(
+            obj(
+              {
+                id: str,
+                owned_by: str,
+                max_model_len: num,
+                context_window: num,
+                max_output_tokens: num,
+                provider: str,
+                is_default: bool,
+                capabilities: obj(
+                  {
+                    vision: bool,
+                    tools: bool,
+                    reasoning: bool,
+                    structured_output: bool,
+                    streaming: bool,
+                  },
+                  [],
+                ),
+                priced: bool,
+                price_source: str,
+                input_per_1k_usd: num,
+                output_per_1k_usd: num,
+                cached_input_per_1k_usd: num,
+                cache_write_per_1k_usd: num,
+              },
+              ['id'],
+            ),
+          ),
+          check_generation: num,
+        },
+        ['ok', 'provider', 'wire', 'key_status', 'latency_ms', 'models', 'check_generation'],
+      ),
+      settings: obj(
+        {
+          schema_version: num,
+          active_provider: str,
+          active_model: str,
+          air_gapped: bool,
+          providers: obj(),
+          role_assignments: obj(),
+        },
+        ['air_gapped', 'providers', 'role_assignments'],
+      ),
+    },
+    ['verification'],
+  ),
+  'llm.discover': obj(
+    {
+      servers: arr(
+        obj(
+          {
+            provider: str,
+            name: str,
+            wire: str,
+            base_url: str,
+            port: num,
+            models: arr(str),
+            context_window: num,
+            context_warning: str,
+            source: str,
+          },
+          ['provider', 'name', 'wire', 'base_url', 'port', 'models', 'source'],
+        ),
+      ),
+      ports_scanned: arr(num),
+      checked_at: str,
+    },
+    ['servers', 'ports_scanned', 'checked_at'],
+  ),
+  'llm.key.delete': obj(
+    {
+      status: str,
+      provider: str,
+      ok: bool,
+      settings: obj(
+        {
+          schema_version: num,
+          active_provider: str,
+          active_model: str,
+          air_gapped: bool,
+          providers: obj(),
+          role_assignments: obj(),
+        },
+        ['air_gapped', 'providers', 'role_assignments'],
+      ),
+    },
+    ['settings'],
+  ),
 } satisfies Record<string, ResponseSchema>;
 
 export type ContractName = keyof typeof RESPONSE_SCHEMAS;

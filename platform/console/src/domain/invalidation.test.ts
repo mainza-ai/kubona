@@ -3,9 +3,17 @@ import { domainsForEventTypes, publishInvalidation, subscribeInvalidation } from
 
 describe('domain invalidation', () => {
   it('maps ledger event families to domain keys', () => {
-    expect([...domainsForEventTypes(['job_settled', 'task_created', 'campaign_synthesized', 'loop_completed', 'llm_spend_estimated'])]).toEqual(
-      expect.arrayContaining(['jobs', 'tasks', 'campaign', 'loops', 'cost']),
-    );
+    expect([
+      ...domainsForEventTypes([
+        'job_settled',
+        'task_created',
+        'campaign_synthesized',
+        'loop_completed',
+        'llm_spend_estimated',
+        'llm_settings_updated',
+        'llm_provider_verified',
+      ]),
+    ]).toEqual(expect.arrayContaining(['jobs', 'tasks', 'campaign', 'loops', 'cost', 'llm']));
     expect([...domainsForEventTypes(['chat_message_appended'])]).toEqual([]);
   });
 

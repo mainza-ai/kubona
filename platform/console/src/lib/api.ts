@@ -1657,16 +1657,169 @@ export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<
     return (await requestOperation('fetchLLMModels', { query: { provider } })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch LLM models:', err);
-    return { models: [] };
+    return { models: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-export async function testLLM(prompt: string, role: string = 'copilot'): Promise<Record<string, unknown> | null> {
+export interface DiscoveredLocalServer {
+  provider: string;
+  name: string;
+  wire: string;
+  base_url: string;
+  port: number;
+  models: string[];
+  context_window?: number;
+  context_warning?: string;
+  source: string;
+}
+
+export interface VerifyProviderResult {
+  ok: boolean;
+  provider: string;
+  wire: string;
+  key_status: string;
+  fault?: string;
+  error?: string;
+  latency_ms: number;
+  models: Array<Record<string, unknown>>;
+  check_generation: number;
+}
+
+export async function verifyLLMProvider(
+  provider: string,
+  opts?: { api_key?: string; base_url?: string; wire?: string; check_generation?: number },
+): Promise<{
+  ok: boolean;
+  verification?: VerifyProviderResult;
+  settings?: Record<string, unknown>;
+  error?: string;
+}> {
   try {
-    return (await requestOperation('testLLM', { body: { role, prompt } })) as Record<string, unknown>;
+    const res = await apiFetch(`${API_BASE}/api/llm/providers/${encodeURIComponent(provider)}/verify`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(opts ?? {}),
+      cache: 'no-store',
+    });
+    const text = await res.text();
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    } catch {
+      /* ignore non-JSON body */
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error:
+          (parsed?.message as string | undefined) ||
+          (parsed?.error as string | undefined) ||
+          text ||
+          `HTTP ${res.status}`,
+      };
+    }
+    if (!parsed) {
+      return { ok: false, error: 'empty verify response' };
+    }
+    const checked = contract('llm.verify', parsed) as {
+      verification?: VerifyProviderResult;
+      settings?: Record<string, unknown>;
+    };
+    return {
+      ok: Boolean(checked.verification?.ok),
+      verification: checked.verification,
+      settings: checked.settings,
+      error: checked.verification?.error,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function discoverLocalLLMProviders(): Promise<{
+  servers: DiscoveredLocalServer[];
+  ports_scanned: number[];
+  checked_at: string;
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/llm/discover`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { servers: [], ports_scanned: [], checked_at: '', error: text || `HTTP ${res.status}` };
+    }
+    const data = contract('llm.discover', (await res.json()) as Record<string, unknown>) as {
+      servers?: DiscoveredLocalServer[];
+      ports_scanned?: number[];
+      checked_at?: string;
+    };
+    return {
+      servers: Array.isArray(data.servers) ? data.servers : [],
+      ports_scanned: Array.isArray(data.ports_scanned) ? data.ports_scanned : [],
+      checked_at: typeof data.checked_at === 'string' ? data.checked_at : '',
+    };
+  } catch (err) {
+    return {
+      servers: [],
+      ports_scanned: [],
+      checked_at: '',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function clearLLMProviderKey(
+  provider: string,
+): Promise<{ ok: boolean; settings?: Record<string, unknown>; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/llm/providers/${encodeURIComponent(provider)}/key`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+      cache: 'no-store',
+    });
+    const text = await res.text();
+    let parsed: { message?: string; error?: string; settings?: Record<string, unknown> } | null = null;
+    try {
+      parsed = text ? (JSON.parse(text) as { message?: string; error?: string; settings?: Record<string, unknown> }) : null;
+    } catch {
+      /* ignore non-JSON body */
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: parsed?.message || parsed?.error || text || `HTTP ${res.status}`,
+      };
+    }
+    const checked = parsed ? (contract('llm.key.delete', parsed) as { settings?: Record<string, unknown> }) : null;
+    return { ok: true, settings: checked?.settings };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function testLLM(
+  prompt: string,
+  role: string = 'copilot',
+  opts?: { provider?: string; model?: string },
+): Promise<Record<string, unknown> | null> {
+  try {
+    return (await requestOperation('testLLM', {
+      body: {
+        role,
+        prompt,
+        ...(opts?.provider ? { provider: opts.provider } : {}),
+        ...(opts?.model ? { model: opts.model } : {}),
+      },
+    })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to test LLM:', err);
-    return null;
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

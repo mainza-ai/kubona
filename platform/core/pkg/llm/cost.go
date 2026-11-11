@@ -44,6 +44,12 @@ func IsLocalProvider(p ProviderType) bool {
 // Local providers always return (0, false) — no spend to account.
 // Unknown models return (0, false): refusing to price beats inventing.
 func EstimateCostUSD(provider ProviderType, model string, promptTokens, completionTokens int) (float64, bool) {
+	return EstimateCostUSDWithCache(provider, model, promptTokens, completionTokens, 0, 0)
+}
+
+// EstimateCostUSDWithCache prices measured token counts applying cached-input
+// discounts and cache-write multipliers from the rate card when present.
+func EstimateCostUSDWithCache(provider ProviderType, model string, promptTokens, completionTokens, cachedInputTokens, cacheWriteTokens int) (float64, bool) {
 	if isLocalProvider(provider) {
 		return 0, false
 	}
@@ -57,8 +63,31 @@ func EstimateCostUSD(provider ProviderType, model string, promptTokens, completi
 	if !ok {
 		return 0, false
 	}
-	return rate.InputPer1KUSD*float64(promptTokens)/1000.0 +
+	uncachedIn := promptTokens - cachedInputTokens - cacheWriteTokens
+	if uncachedIn < 0 {
+		uncachedIn = 0
+	}
+	cachedRate := rate.InputPer1KUSD
+	if rate.CachedInputPer1KUSD > 0 {
+		cachedRate = rate.CachedInputPer1KUSD
+	}
+	writeRate := rate.InputPer1KUSD
+	if rate.CacheWritePer1KUSD > 0 {
+		writeRate = rate.CacheWritePer1KUSD
+	}
+	return rate.InputPer1KUSD*float64(uncachedIn)/1000.0 +
+		cachedRate*float64(cachedInputTokens)/1000.0 +
+		writeRate*float64(cacheWriteTokens)/1000.0 +
 		rate.OutputPer1KUSD*float64(completionTokens)/1000.0, true
+}
+
+// EstimateCostUSDForSettings uses the instance's endpoint-aware locality
+// predicate (custom loopback endpoints cost $0; remote custom endpoints price).
+func EstimateCostUSDForSettings(s *Settings, provider ProviderType, model string, promptTokens, completionTokens, cachedInputTokens, cacheWriteTokens int) (float64, bool) {
+	if s != nil && s.IsProviderLocal(provider) {
+		return 0, false
+	}
+	return EstimateCostUSDWithCache(provider, model, promptTokens, completionTokens, cachedInputTokens, cacheWriteTokens)
 }
 
 // productionNeedsExternalRateCard refuses to price cloud spend from the
@@ -71,28 +100,43 @@ func productionNeedsExternalRateCard() bool {
 
 // LoopIterationBound prices one worst-case loop iteration (I3): the sum
 // over roles of ceiling-cost at MaxTurnTokens (output rate — an UPPER
-// bound by construction, never an estimate of the typical). Unassigned,
-// disabled, or local roles contribute zero (their calls fail over to the
-// free algorithmic fallback, spending nothing). An unknown METERED model
-// refuses outright: admitting a loop that cannot be priced would either
-// lock money against a guess or stall at first billing — both are
-// silent failures, so admission fails closed with the model named.
-// Never returns a bound for a model it cannot price.
+// bound by construction, never an estimate of the typical). Each role checks
+// its full ordered chain [primary, ...fallback], taking the maximum callable
+// ceiling across hops so a local primary backed by a metered cloud fallback
+// still reserves for the worst case. Unassigned, disabled, or local roles
+// contribute zero. An unknown METERED model in any callable hop refuses
+// outright: admitting a loop whose fallback or primary cannot be priced would
+// lock money against a guess or stall at billing — fail closed.
 func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallbackRoles []string, err error) {
 	cfg := DefaultBudgetConfig()
+	snap := s.GetSnapshot()
 	for _, role := range roles {
-		prov, model, err := s.GetModelForRole(role)
-		if err != nil {
-			continue
+		plan := s.ResolveRolePlan(role)
+		roleMaxUSD := 0.0
+		for _, hop := range plan.Hops {
+			prov, ok := snap.Providers[hop.Provider]
+			if !ok || !prov.Enabled || strings.TrimSpace(hop.Model) == "" {
+				continue
+			}
+			local := s.IsProviderLocal(hop.Provider)
+			if snap.AirGapped && !local {
+				continue
+			}
+			if productionCloudWithoutOptIn(local) {
+				continue
+			}
+			if local {
+				continue
+			}
+			b, ok := EstimateCeilingCostUSD(hop.Provider, hop.Model, cfg.MaxTurnTokens)
+			if !ok {
+				return 0, nil, fmt.Errorf("role %q model %q has no ceiling rate: pick a priced model in Model Settings before starting metered loops", role, hop.Model)
+			}
+			if b > roleMaxUSD {
+				roleMaxUSD = b
+			}
 		}
-		if isLocalProvider(prov) {
-			continue
-		}
-		b, ok := EstimateCeilingCostUSD(prov, model, cfg.MaxTurnTokens)
-		if !ok {
-			return 0, nil, fmt.Errorf("role %q model %q has no ceiling rate: pick a priced model in Model Settings before starting metered loops", role, model)
-		}
-		perIterUSD += b
+		perIterUSD += roleMaxUSD
 	}
 	return perIterUSD, nil, nil
 }
@@ -124,12 +168,14 @@ func EstimateCeilingCostUSD(provider ProviderType, model string, ceilingTokens i
 // rate as an upper bound); Unmetered marks blind spend with no ceiling
 // (streams only — Complete refuses instead).
 type SpendRecord struct {
-	Provider         string
-	Model            string
-	PromptTokens     int
-	CompletionTokens int
-	UsageReported    bool
-	CeilingApplied   bool
-	CeilingTokens    int
-	Unmetered        bool
+	Provider          string
+	Model             string
+	PromptTokens      int
+	CompletionTokens  int
+	CachedInputTokens int
+	CacheWriteTokens  int
+	UsageReported     bool
+	CeilingApplied    bool
+	CeilingTokens     int
+	Unmetered         bool
 }

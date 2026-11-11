@@ -286,6 +286,36 @@
         }
       }
     },
+    "/api/llm/providers/${encodeURIComponent}(provider)/key": {
+      "delete": {
+        "operationId": "clearLLMProviderKey",
+        "tags": [
+          "llm"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.key.delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.key.delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{id}/messages": {
       "delete": {
         "operationId": "clearMessages",
@@ -607,6 +637,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/session"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/discover": {
+      "get": {
+        "operationId": "discoverLocalLLMProviders",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.discover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.discover"
                 }
               }
             }
@@ -3056,6 +3106,36 @@
         }
       }
     },
+    "/api/llm/providers/${encodeURIComponent}(provider)/verify": {
+      "post": {
+        "operationId": "verifyLLMProvider",
+        "tags": [
+          "llm"
+        ],
+        "parameters": [
+          {
+            "name": "encodeURIComponent",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.verify"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ledger/verify": {
       "get": {
         "operationId": "verifyLedger",
@@ -3448,8 +3528,68 @@
       },
       "llm.settings": {
         "type": "object",
-        "required": [],
-        "properties": {}
+        "required": [
+          "air_gapped"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "number"
+          },
+          "active_provider": {
+            "type": "string"
+          },
+          "active_model": {
+            "type": "string"
+          },
+          "air_gapped": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "max_tokens": {
+            "type": "number"
+          },
+          "disable_dsml_fallback": {
+            "type": "boolean"
+          },
+          "providers": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "role_assignments": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "role_catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "group",
+                "label",
+                "description"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "group": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       },
       "quantum.settings": {
         "type": "object",
@@ -3828,9 +3968,82 @@
           "models"
         ],
         "properties": {
+          "provider": {
+            "type": "string"
+          },
           "models": {
             "type": "array",
-            "items": {}
+            "items": {
+              "type": "object",
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "owned_by": {
+                  "type": "string"
+                },
+                "max_model_len": {
+                  "type": "number"
+                },
+                "context_window": {
+                  "type": "number"
+                },
+                "max_output_tokens": {
+                  "type": "number"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "is_default": {
+                  "type": "boolean"
+                },
+                "capabilities": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "vision": {
+                      "type": "boolean"
+                    },
+                    "tools": {
+                      "type": "boolean"
+                    },
+                    "reasoning": {
+                      "type": "boolean"
+                    },
+                    "structured_output": {
+                      "type": "boolean"
+                    },
+                    "streaming": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "priced": {
+                  "type": "boolean"
+                },
+                "price_source": {
+                  "type": "string"
+                },
+                "input_per_1k_usd": {
+                  "type": "number"
+                },
+                "output_per_1k_usd": {
+                  "type": "number"
+                },
+                "cached_input_per_1k_usd": {
+                  "type": "number"
+                },
+                "cache_write_per_1k_usd": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "string"
           }
         }
       },
@@ -4168,8 +4381,44 @@
       },
       "llm.test": {
         "type": "object",
-        "required": [],
-        "properties": {}
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "wire": {
+            "type": "string"
+          },
+          "reply": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "number"
+          },
+          "gen_tok_per_sec": {
+            "type": "number"
+          },
+          "prompt_tok_per_sec": {
+            "type": "number"
+          },
+          "attempt_count": {
+            "type": "number"
+          },
+          "cost_usd": {
+            "type": "number"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
       },
       "lens.asset": {
         "type": "object",
@@ -5453,6 +5702,270 @@
                 "executable_now": {
                   "type": "boolean"
                 }
+              }
+            }
+          }
+        }
+      },
+      "llm.verify": {
+        "type": "object",
+        "required": [
+          "verification"
+        ],
+        "properties": {
+          "verification": {
+            "type": "object",
+            "required": [
+              "ok",
+              "provider",
+              "wire",
+              "key_status",
+              "latency_ms",
+              "models",
+              "check_generation"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "wire": {
+                "type": "string"
+              },
+              "key_status": {
+                "type": "string"
+              },
+              "fault": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              },
+              "latency_ms": {
+                "type": "number"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "owned_by": {
+                      "type": "string"
+                    },
+                    "max_model_len": {
+                      "type": "number"
+                    },
+                    "context_window": {
+                      "type": "number"
+                    },
+                    "max_output_tokens": {
+                      "type": "number"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "is_default": {
+                      "type": "boolean"
+                    },
+                    "capabilities": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {
+                        "vision": {
+                          "type": "boolean"
+                        },
+                        "tools": {
+                          "type": "boolean"
+                        },
+                        "reasoning": {
+                          "type": "boolean"
+                        },
+                        "structured_output": {
+                          "type": "boolean"
+                        },
+                        "streaming": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "priced": {
+                      "type": "boolean"
+                    },
+                    "price_source": {
+                      "type": "string"
+                    },
+                    "input_per_1k_usd": {
+                      "type": "number"
+                    },
+                    "output_per_1k_usd": {
+                      "type": "number"
+                    },
+                    "cached_input_per_1k_usd": {
+                      "type": "number"
+                    },
+                    "cache_write_per_1k_usd": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "check_generation": {
+                "type": "number"
+              }
+            }
+          },
+          "settings": {
+            "type": "object",
+            "required": [
+              "air_gapped",
+              "providers",
+              "role_assignments"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "number"
+              },
+              "active_provider": {
+                "type": "string"
+              },
+              "active_model": {
+                "type": "string"
+              },
+              "air_gapped": {
+                "type": "boolean"
+              },
+              "providers": {
+                "type": "object",
+                "required": [],
+                "properties": {}
+              },
+              "role_assignments": {
+                "type": "object",
+                "required": [],
+                "properties": {}
+              }
+            }
+          }
+        }
+      },
+      "llm.discover": {
+        "type": "object",
+        "required": [
+          "servers",
+          "ports_scanned",
+          "checked_at"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "provider",
+                "name",
+                "wire",
+                "base_url",
+                "port",
+                "models",
+                "source"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "wire": {
+                  "type": "string"
+                },
+                "base_url": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "number"
+                },
+                "models": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "context_window": {
+                  "type": "number"
+                },
+                "context_warning": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "ports_scanned": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "checked_at": {
+            "type": "string"
+          }
+        }
+      },
+      "llm.key.delete": {
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "settings": {
+            "type": "object",
+            "required": [
+              "air_gapped",
+              "providers",
+              "role_assignments"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "number"
+              },
+              "active_provider": {
+                "type": "string"
+              },
+              "active_model": {
+                "type": "string"
+              },
+              "air_gapped": {
+                "type": "boolean"
+              },
+              "providers": {
+                "type": "object",
+                "required": [],
+                "properties": {}
+              },
+              "role_assignments": {
+                "type": "object",
+                "required": [],
+                "properties": {}
               }
             }
           }

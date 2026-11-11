@@ -140,3 +140,25 @@ func TestQPURateLookup(t *testing.T) {
 		t.Fatal("unknown QPU must not be priced")
 	}
 }
+
+func TestModelRateMetadataAndNegativeCacheValidation(t *testing.T) {
+	restoreEmbedded(t)
+	t.Cleanup(func() { restoreEmbedded(t) })
+
+	r, ok := LookupModelRate("anthropic", "claude-sonnet-4-6")
+	if !ok {
+		t.Fatal("anthropic/claude-sonnet-4-6 missing from enriched rate card")
+	}
+	if r.ContextWindow != 200000 || r.CachedInputPer1KUSD <= 0 || r.CacheWritePer1KUSD <= 0 || len(r.Capabilities) == 0 {
+		t.Fatalf("expected enriched context/cache/capabilities metadata, got %+v", r)
+	}
+
+	badCard := []byte(`{"version":12,"source":"test","effective_date":"2026-10-30","stale_after_days":30,"models":{"p/bad":{"input_per_1k_usd":0.001,"output_per_1k_usd":0.002,"cached_input_per_1k_usd":-0.1}}}`)
+	path := t.TempDir() + "/bad-cache.json"
+	if err := os.WriteFile(path, badCard, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := LoadFile(path); err == nil {
+		t.Fatal("negative cached_input_per_1k_usd must refuse")
+	}
+}

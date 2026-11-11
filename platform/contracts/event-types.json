@@ -646,6 +646,24 @@
       "payload": "Literature source fetched with licence terms.",
       "required": []
     },
+    "llm_provider_verified": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "LLM provider credential and metadata verification completed.",
+      "required": [
+        "provider",
+        "ok",
+        "key_status"
+      ]
+    },
+    "llm_settings_updated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "LLM runtime settings or credentials updated.",
+      "required": []
+    },
     "llm_spend_estimated": {
       "emitters": [
         "go"

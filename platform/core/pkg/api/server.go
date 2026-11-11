@@ -11,12 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"math"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -286,6 +286,7 @@ func NewServer(
 		payload := map[string]any{
 			"provider": rec.Provider, "model": rec.Model,
 			"prompt_tokens": rec.PromptTokens, "completion_tokens": rec.CompletionTokens,
+			"cached_input_tokens": rec.CachedInputTokens, "cache_write_tokens": rec.CacheWriteTokens,
 			"usage_reported": rec.UsageReported, "heuristic": true,
 		}
 		if rec.CeilingApplied {
@@ -304,7 +305,7 @@ func NewServer(
 			payload["unmetered"] = true
 			payload["estimated_usd"] = nil
 		} else {
-			est, ok := llm.EstimateCostUSD(llm.ProviderType(rec.Provider), rec.Model, rec.PromptTokens, rec.CompletionTokens)
+			est, ok := llm.EstimateCostUSDForSettings(llmSet, llm.ProviderType(rec.Provider), rec.Model, rec.PromptTokens, rec.CompletionTokens, rec.CachedInputTokens, rec.CacheWriteTokens)
 			if ok {
 				payload["estimated_usd"] = est
 			} else {
@@ -651,7 +652,9 @@ func (s *Server) registerRoutes() {
 	// bearer-gated HERE at registration — see requireBearerForWrites.
 	s.route("/api/llm/settings", s.requireBearerForWrites(s.handleLLMSettings))
 	s.route("/api/llm/models", s.handleLLMModels)
+	s.route("/api/llm/discover", s.handleLLMDiscover)
 	s.route("/api/llm/test", s.requireBearer(s.handleLLMTest))
+	s.route("/api/llm/providers/", s.requireBearer(s.handleLLMProviderAction))
 	// Quantum provider settings (human selection surface; secrets stay
 	// in env/Bao and are never accepted here). Same mixed posture as LLM
 	// settings: public reads, registration-gated writes.
@@ -3962,9 +3965,11 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: connected\ndata: %s\nretry: 3000\n\n", initData)
 	flusher.Flush()
 
+	llmStreamGlobalEvents := []string{"llm_settings_updated", "llm_provider_verified"}
+
 	// Replay any gap before entering the live loop.
 	if cursorSet {
-		if events, err := s.ledger.GetEventsSince(sessionID, cursor, 200); err == nil && len(events) > 0 {
+		if events, err := s.ledger.GetEventsSinceWithGlobalTypes(sessionID, llmStreamGlobalEvents, cursor, 200); err == nil && len(events) > 0 {
 			writeFrames(events)
 			cursor = events[len(events)-1].ID
 		}
@@ -3979,7 +3984,7 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		case <-notify:
 			return
 		case <-ticker.C:
-			events, err := s.ledger.GetEventsSince(sessionID, cursor, 100)
+			events, err := s.ledger.GetEventsSinceWithGlobalTypes(sessionID, llmStreamGlobalEvents, cursor, 100)
 			if err == nil && len(events) > 0 {
 				writeFrames(events)
 				cursor = events[len(events)-1].ID
@@ -4872,7 +4877,15 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": s.llmSettings.GetPublicSnapshot()})
+		pub := s.llmSettings.GetPublicSnapshot()
+		if s.ledger != nil {
+			_ = s.ledger.AppendEvent("global", "llm_settings_updated", map[string]any{
+				"active_provider": pub.ActiveProvider,
+				"active_model":    pub.ActiveModel,
+				"air_gapped":      pub.AirGapped,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": &pub})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -4880,33 +4893,85 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 
 // validateProviderURLs constrains where prompts may be sent (W0.19): the
 // settings writer could otherwise redirect completions (and API keys) to an
-// attacker endpoint. Loopback http:// is local; anything remote must be
-// https://. The config layer validates values; this route validates
-// destinations — neither is the sole guard.
+// attacker endpoint. Local/loopback http:// is allowed; anything remote must be
+// https://. Delegates to llm.ValidateEndpointURL so core and API share one rule.
 func validateProviderURLs(st *llm.Settings) error {
 	for pt, pc := range st.Providers {
-		u := strings.TrimSpace(pc.BaseURL)
-		if u == "" {
-			continue
-		}
-		parsed, err := url.Parse(u)
-		if err != nil {
-			return fmt.Errorf("provider %s has an unparseable BaseURL: refusing", pt)
-		}
-		switch parsed.Scheme {
-		case "https":
-			continue
-		case "http":
-			host := strings.ToLower(parsed.Hostname())
-			if host == "127.0.0.1" || host == "localhost" || host == "::1" {
-				continue
-			}
-			return fmt.Errorf("provider %s: non-loopback http:// endpoints refuse (credentials would cross plaintext)", pt)
-		default:
-			return fmt.Errorf("provider %s: scheme %q refuses (https or loopback http only)", pt, parsed.Scheme)
+		if _, _, err := llm.ValidateEndpointURL(pt, pc.BaseURL); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// handleLLMProviderAction dispatches /api/llm/providers/{provider}/{action}.
+func (s *Server) handleLLMProviderAction(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/llm/providers/")
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
+		http.NotFound(w, r)
+		return
+	}
+	pt := llm.ProviderType(parts[0])
+	action := parts[1]
+
+	switch action {
+	case "key":
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if err := s.llmSettings.ClearProviderKey(pt, s.ledger.DB()); err != nil {
+			WriteAPIError(w, "bad_request", err.Error(), nil)
+			return
+		}
+		pub := s.llmSettings.GetPublicSnapshot()
+		if s.ledger != nil {
+			_ = s.ledger.AppendEvent("global", "llm_settings_updated", map[string]any{
+				"provider": string(pt),
+				"action":   "key_cleared",
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":   "cleared",
+			"provider": pt,
+			"settings": &pub,
+		})
+	case "verify":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req llm.VerifyRequest
+		if r.Body != nil {
+			if err := json.NewDecoder(io.LimitReader(r.Body, 32*1024)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+				WriteAPIError(w, "bad_request", "invalid JSON request body", nil)
+				return
+			}
+		}
+		result, err := s.llmClient.VerifyProvider(r.Context(), pt, req)
+		if err != nil {
+			WriteAPIError(w, "bad_request", err.Error(), nil)
+			return
+		}
+		if strings.TrimSpace(req.APIKey) == "" && strings.TrimSpace(req.BaseURL) == "" && s.ledger != nil {
+			if s.ledger.DB() != nil {
+				_ = s.llmSettings.Save(s.ledger.DB())
+			}
+			_ = s.ledger.AppendEvent("global", "llm_provider_verified", map[string]any{
+				"provider":   string(pt),
+				"ok":         result.OK,
+				"key_status": result.KeyStatus,
+				"fault":      result.Fault,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"verification": result,
+			"settings":     s.llmSettings.GetPublicSnapshot(),
+		})
+	default:
+		http.NotFound(w, r)
+	}
 }
 
 func (s *Server) handleLLMModels(w http.ResponseWriter, r *http.Request) {
@@ -4932,6 +4997,15 @@ func (s *Server) handleLLMModels(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleLLMDiscover(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	res := llm.DiscoverLocalProviders(r.Context())
+	writeJSON(w, http.StatusOK, res)
+}
+
 func (s *Server) handleLLMTest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -4939,8 +5013,10 @@ func (s *Server) handleLLMTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Role   string `json:"role"`
-		Prompt string `json:"prompt"`
+		Role     string `json:"role"`
+		Prompt   string `json:"prompt"`
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -4956,31 +5032,69 @@ func (s *Server) handleLLMTest(w http.ResponseWriter, r *http.Request) {
 	msgs := []llm.ChatMessage{
 		{Role: "user", Content: req.Prompt},
 	}
-	reply, chatResp, dur, err := s.llmClient.Complete(r.Context(), req.Role, msgs)
+	var (
+		reply        string
+		chatResp     *llm.ChatCompletionResponse
+		dur          time.Duration
+		err          error
+		usedProvider = strings.TrimSpace(req.Provider)
+	)
+	if usedProvider != "" {
+		reply, chatResp, dur, err = s.llmClient.CompleteWithTarget(r.Context(), llm.ProviderType(usedProvider), strings.TrimSpace(req.Model), msgs, -1)
+	} else {
+		if p, _, rerr := s.llmSettings.GetModelForRole(req.Role); rerr == nil {
+			usedProvider = string(p)
+		}
+		reply, chatResp, dur, err = s.llmClient.Complete(r.Context(), req.Role, msgs)
+	}
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success":     false,
+			"provider":    usedProvider,
 			"error":       err.Error(),
 			"duration_ms": dur.Milliseconds(),
 		})
 		return
 	}
 
-	var genRate, promptRate float64
-	var modelName string
+	var (
+		genRate, promptRate, costUSD float64
+		usedWire                     llm.WireType
+		attemptCount                 int
+	)
+	modelName := strings.TrimSpace(req.Model)
 	if chatResp != nil {
 		genRate = chatResp.Usage.GenTokPerSec
 		promptRate = chatResp.Usage.PromptTokPerSec
-		modelName = chatResp.Model
+		if chatResp.Model != "" {
+			modelName = chatResp.Model
+		}
+		if chatResp.Meta != nil {
+			if chatResp.Meta.Provider != "" {
+				usedProvider = chatResp.Meta.Provider
+			}
+			usedWire = chatResp.Meta.Wire
+			attemptCount = chatResp.Meta.AttemptCount
+			costUSD = chatResp.Meta.CostUSD
+		}
+	}
+	if modelName == "" {
+		if _, m, rerr := s.llmSettings.GetModelForRole(req.Role); rerr == nil {
+			modelName = m
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success":            true,
+		"provider":           usedProvider,
+		"wire":               usedWire,
 		"reply":              reply,
 		"model":              modelName,
 		"duration_ms":        dur.Milliseconds(),
 		"gen_tok_per_sec":    genRate,
 		"prompt_tok_per_sec": promptRate,
+		"attempt_count":      attemptCount,
+		"cost_usd":           costUSD,
 	})
 }
 

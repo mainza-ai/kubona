@@ -68,9 +68,12 @@
     "lens.resolve",
     "lens.status",
     "literature",
+    "llm.discover",
+    "llm.key.delete",
     "llm.models",
     "llm.settings",
     "llm.test",
+    "llm.verify",
     "loop.action",
     "loops.list",
     "mandate.sign",
@@ -193,9 +196,12 @@
     "lens.resolve",
     "lens.status",
     "literature",
+    "llm.discover",
+    "llm.key.delete",
     "llm.models",
     "llm.settings",
     "llm.test",
+    "llm.verify",
     "loop.action",
     "loops.list",
     "mandate.sign",
@@ -330,6 +336,12 @@
       "contract": "quantum.cancel"
     },
     {
+      "function": "clearLLMProviderKey",
+      "path": "/api/llm/providers/$:encodeURIComponent(provider)/key",
+      "method": "DELETE",
+      "contract": "llm.key.delete"
+    },
+    {
       "function": "clearMessages",
       "path": "/api/sessions/:id/messages",
       "method": "DELETE",
@@ -376,6 +388,12 @@
       "path": "/api/sessions/:id",
       "method": "DELETE",
       "contract": "session.delete"
+    },
+    {
+      "function": "discoverLocalLLMProviders",
+      "path": "/api/llm/discover",
+      "method": "GET",
+      "contract": "llm.discover"
     },
     {
       "function": "emergencyAbort",
@@ -1102,6 +1120,12 @@
       "path": "/api/observatory/assets",
       "method": "POST",
       "contract": "lens.asset"
+    },
+    {
+      "function": "verifyLLMProvider",
+      "path": "/api/llm/providers/$:encodeURIComponent(provider)/verify",
+      "method": "POST",
+      "contract": "llm.verify"
     },
     {
       "function": "verifyLedger",

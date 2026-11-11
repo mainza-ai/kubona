@@ -264,6 +264,7 @@ type TribunalTurn struct {
 	// fail verdict ("disproven"). The Disconfirmation Officer's recorded
 	// verdict therefore always says which of the two it is.
 	Coverage map[string]CoverageDecl `json:"coverage,omitempty"`
+	LLM      *llm.InvocationMeta     `json:"llm_meta,omitempty"`
 }
 
 // CoverageDecl is one facet's availability declaration.
@@ -371,6 +372,9 @@ func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, a
 	}
 	if evidenceID != "" {
 		payload["evidence_id"] = evidenceID
+	}
+	if turn.LLM != nil {
+		payload["llm_meta"] = turn.LLM
 	}
 	if err := ac.Ledger.AppendEvent(sessionID, "tribunal_turn", payload); err != nil {
 		return fmt.Errorf("seal event: %w", err)
@@ -640,6 +644,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	// Turn 1: Ansatz Scout
 	var obs1 []ObservedCall
 	var authored1 bool
+	var llmMeta1 *llm.InvocationMeta
 	// R4: the turn prompt is a bounded projection (pinned budget,
 	// pre-construction refusal). Breach keeps template content
 	// (authored=false) + records the unknown — never a priced runaway.
@@ -655,8 +660,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn1Prompt},
 		}
 		turnMsgs, obs1 = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
-		reply, _, turnDur1, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
+		reply, resp1, turnDur1, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
 		tCancel()
+		if resp1 != nil {
+			llmMeta1 = resp1.Meta
+		}
 		if err == nil && len(reply) > 20 {
 			authored1 = true
 			scoutContent = reply
@@ -681,6 +689,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		Timestamp: time.Now().UTC(),
 		Observed:  obs1,
 		Coverage:  map[string]CoverageDecl{FacetAnsatz: authoredCoverage(authored1)},
+		LLM:       llmMeta1,
 	}
 	result.Turns = append(result.Turns, t1)
 	if turnCb != nil {
@@ -695,6 +704,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, Summarize(ev1, 1500), fciAnchor),
 	})
 	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
+	var llmMeta2 *llm.InvocationMeta
 	if llmClient != nil && !breached2 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
@@ -702,8 +712,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn2Prompt},
 		}
 		turnMsgs, obs2 = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
-		reply, _, turnDur2, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
+		reply, resp2, turnDur2, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
 		tCancel()
+		if resp2 != nil {
+			llmMeta2 = resp2.Meta
+		}
 		if err == nil && len(reply) > 20 {
 			authored2 = true
 			discContent = reply
@@ -725,6 +738,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		Timestamp: time.Now().UTC(),
 		Observed:  obs2,
 		Coverage:  map[string]CoverageDecl{FacetAnchor: anchorCoverage(authored2, anchorLive)},
+		LLM:       llmMeta2,
 	}
 	result.Turns = append(result.Turns, t2)
 	if turnCb != nil {
@@ -763,6 +777,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status. Do not call tools in this turn; audit the supplied evidence directly.", target, tier, budget),
 		})
 		auditContent := fmt.Sprintf("No device audit was authored for %s (LLM unavailable). T2 <= 2*T1, Clifford canary fidelity, and the %s spend estimate are unverified; no dispatch approval is claimed.", tier, budget)
+		var llmMeta3 *llm.InvocationMeta
 		if llmClient != nil && !breached3 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
@@ -770,8 +785,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn3Prompt},
 			}
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
-			reply, _, turnDur3, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
+			reply, resp3, turnDur3, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
 			tCancel()
+			if resp3 != nil {
+				llmMeta3 = resp3.Meta
+			}
 			if err == nil && len(reply) > 20 {
 				authored3 = true
 				auditContent = reply
@@ -793,6 +811,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			Timestamp: time.Now().UTC(),
 			Observed:  obs3,
 			Coverage:  map[string]CoverageDecl{FacetAudit: authoredCoverage(authored3)},
+			LLM:       llmMeta3,
 		}
 		result.Turns = append(result.Turns, t3)
 		if turnCb != nil {
@@ -811,6 +830,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```. Tag every verdict claim on its own line outside the proposal block: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id), 'inferred:' for conclusions, 'unknown:' for unestablished facts (never assert absence). Do not call tools in this turn; use the supplied evidence.", target, target, mol, budget, tier, fciAnchor, escapedQASM),
 		})
 		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```\nseen: proposal block above (this transcript, template fallback — no turn was LLM-authored).\ninferred: P_corr collapse bookkeeping from template values, not measurement.\nunknown: live ab-initio anchor status; hardware noise on the target backend; whether any future turn will be authored.", target, mol, budget, tier, fciAnchor, escapedQASM)
+		var llmMeta4 *llm.InvocationMeta
 		if llmClient != nil && !breached4 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
@@ -818,8 +838,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn4Prompt},
 			}
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
-			reply, _, turnDur4, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
+			reply, resp4, turnDur4, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
 			tCancel()
+			if resp4 != nil {
+				llmMeta4 = resp4.Meta
+			}
 			if err == nil && len(reply) > 20 {
 				authored4 = true
 				scribeContent = reply
@@ -840,6 +863,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			Verdict:   "COLLAPSED",
 			Timestamp: time.Now().UTC(),
 			Observed:  obs4,
+			LLM:       llmMeta4,
 			// The scribe declares ALL facets (SealTurn enforces): its
 			// verdict is only meaningful against stated coverage.
 			Coverage: map[string]CoverageDecl{

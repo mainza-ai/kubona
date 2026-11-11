@@ -1571,8 +1571,9 @@ export default function Home() {
             onAttach={copilotChat.attach}
             onDetach={copilotChat.detach}
             attachments={copilotChat.attachments}
-            onOpenModel={() => { setSurface('mesh'); setMeshTab('models'); }}
-            modelLabel="Model Hub"
+            onOpenModel={() => { setSurface('mesh'); setMeshTab('settings'); setSettingsSection('models'); }}
+            onOpenDownloadHub={() => { setSurface('mesh'); setMeshTab('models'); }}
+            modelLabel="Model Settings"
             sessionId={currentSessionId || null}
             messageCount={copilotChat.messages.length}
             streaming={Boolean(copilotChat.streamingId)}

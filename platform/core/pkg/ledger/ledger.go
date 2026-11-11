@@ -1260,10 +1260,36 @@ func (l *Ledger) GetEventsBefore(sessionID string, beforeID int64, limit int) ([
 // GetEventsSince returns events with id > afterID in ascending order. SSE
 // reconnect replay uses this cursor; the limit bounds a single frame batch.
 func (l *Ledger) GetEventsSince(sessionID string, afterID int64, limit int) ([]EventRecord, error) {
+	return l.GetEventsSinceWithGlobalTypes(sessionID, nil, afterID, limit)
+}
+
+// GetEventsSinceWithGlobalTypes returns session events plus allowlisted
+// instance-wide control-plane events stored under session_id = "global"
+// (such as llm_settings_updated / llm_provider_verified) with id > afterID.
+func (l *Ledger) GetEventsSinceWithGlobalTypes(sessionID string, globalTypes []string, afterID int64, limit int) ([]EventRecord, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
-	query := `SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain FROM ledger_events WHERE session_id = ? AND id > ? ORDER BY id ASC LIMIT ?`
-	rows, err := l.db.Query(query, sessionID, afterID, limit)
+
+	var rows *sql.Rows
+	var err error
+	if sessionID != "global" && len(globalTypes) > 0 {
+		placeholders := make([]string, len(globalTypes))
+		args := make([]any, 0, 2+len(globalTypes)+2)
+		args = append(args, sessionID, "global")
+		for i, gt := range globalTypes {
+			placeholders[i] = "?"
+			args = append(args, gt)
+		}
+		args = append(args, afterID, limit)
+		query := fmt.Sprintf(
+			`SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain FROM ledger_events WHERE (session_id = ? OR (session_id = ? AND event_type IN (%s))) AND id > ? ORDER BY id ASC LIMIT ?`,
+			strings.Join(placeholders, ","),
+		)
+		rows, err = l.db.Query(query, args...)
+	} else {
+		query := `SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain FROM ledger_events WHERE session_id = ? AND id > ? ORDER BY id ASC LIMIT ?`
+		rows, err = l.db.Query(query, sessionID, afterID, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
