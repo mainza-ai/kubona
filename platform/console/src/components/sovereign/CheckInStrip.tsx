@@ -58,7 +58,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
     <div
       role="status"
       aria-label={`Check-in: ${loops.length} loops, ${running} running${attention > 0 ? `, ${attention} need attention` : ''}${spend ? `, LLM spend $${spend.spent_usd.toFixed(2)}` : ''}`}
-      className={`flex min-w-0 items-center gap-3 text-[12px] font-code text-slate-300 ${compact ? 'py-0' : 'border-b border-white/[0.06] bg-black/30 px-3 py-1'}`}
+      className={`flex min-w-0 items-center gap-3 text-[12px] font-code text-[var(--color-label-secondary)] ${compact ? 'py-0' : 'border-b border-[var(--color-border)] bg-[var(--color-chrome)] px-3 py-1'}`}
     >
       <span className="truncate">
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
@@ -69,10 +69,10 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         </span>
       )}
       {attention > 0 && (
-        <span className="text-rose-300 shrink-0">· {attention} need{attention === 1 ? 's' : ''} attention</span>
+        <span className="text-[var(--color-danger)] shrink-0">· {attention} need{attention === 1 ? 's' : ''} attention</span>
       )}
       {spend && (
-        <span className="truncate text-slate-400">
+        <span className="truncate text-[var(--color-muted)]">
           · LLM ${spend.spent_usd.toFixed(2)}
           {spend.track_only ? ' · track-only (no cap)' : ` / $${spend.cap_usd.toFixed(0)} cap`}
           {spend.local_bypass ? ' · local $0' : ''}
@@ -83,10 +83,10 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         <span
           className={`shrink-0 truncate font-medium ${
             alert.level === 'anomalous'
-              ? 'text-rose-300 animate-pulse'
+              ? 'text-[var(--color-danger)] animate-pulse'
               : alert.level === 'notable'
-                ? 'text-amber-300'
-                : 'text-cyan-300'
+                ? 'text-[var(--color-warning)]'
+                : 'text-[var(--color-info)]'
           }`}
           title={`${alert.source} · ${alert.reason}`}
         >
@@ -98,13 +98,14 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         {PRESENCE.map((p) => (
           <button
             key={p.id}
+            type="button"
             onClick={() => setPresence(p.id)}
             title={p.hint}
             aria-pressed={presence === p.id}
             className={`px-1.5 py-0.5 rounded text-[12px] font-code transition-colors ${
               presence === p.id
-                ? 'bg-cyan-500/20 text-cyan-200'
-                : 'text-[var(--color-muted)] hover:text-slate-300'
+                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] font-medium'
+                : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
             }`}
           >
             {p.label}
@@ -112,9 +113,10 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         ))}
       </span>
       <button
+        type="button"
         onClick={toggleMute}
         title={muted ? 'Unmute ambient laboratory sound' : 'Mute ambient laboratory sound'}
-        className="shrink-0 text-[var(--color-muted)] hover:text-slate-300 transition-colors flex items-center"
+        className="shrink-0 text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors flex items-center"
       >
         {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
       </button>

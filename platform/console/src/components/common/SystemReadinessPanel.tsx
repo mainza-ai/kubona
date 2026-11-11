@@ -31,33 +31,33 @@ export function SystemReadinessPanel() {
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="System readiness">
+    <div className="rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="System readiness">
       <div>
-        <div className="text-xs font-semibold text-white">Capabilities &amp; fidelity</div>
-        <p className="text-[12px] text-slate-500">Runtime discovery plus the dispatch-grade floor assessment (no probe is run here).</p>
+        <div className="text-xs font-semibold text-[var(--color-text)]">Capabilities &amp; fidelity</div>
+        <p className="text-[12px] text-[var(--color-muted)]">Runtime discovery plus the dispatch-grade floor assessment (no probe is run here).</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] font-mono text-slate-300">
-        <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-0.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] font-mono text-[var(--color-text)]">
+        <div className="p-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-0.5">
           <div>catalog {caps?.catalog_digest?.slice(0, 16) ?? '—'}…</div>
           <div>harnesses {caps?.harnesses?.length ?? '—'} · tools {Array.isArray(caps?.tools) ? caps?.tools.length : '—'}</div>
           <div>reviewer {String(caps?.flags?.reviewer_configured ?? 'unknown')} · bridge {String(caps?.flags?.bridge_connected ?? 'unknown')}</div>
           <div>tool rounds {String(caps?.budget?.max_tool_rounds ?? '—')} · observation chars {String(caps?.budget?.max_observation_chars ?? '—')}</div>
         </div>
-        <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1">
+        <div className="p-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
           <div className="flex gap-1">
-            <input aria-label="Fidelity device" value={device} onChange={(e) => setDevice(e.target.value)} className="flex-1 min-w-0 bg-black/60 border border-white/10 rounded px-2 py-1" />
-            <input aria-label="Fidelity depth" value={depth} onChange={(e) => setDepth(e.target.value)} className="w-12 bg-black/60 border border-white/10 rounded px-2 py-1" />
-            <input aria-label="Fidelity two-qubit gates" value={twoQ} onChange={(e) => setTwoQ(e.target.value)} className="w-12 bg-black/60 border border-white/10 rounded px-2 py-1" />
-            <button type="button" onClick={() => void assess()} className="px-2 py-1 rounded bg-cyan-500/15 border border-cyan-400/30 text-cyan-200">Assess</button>
+            <input aria-label="Fidelity device" value={device} onChange={(e) => setDevice(e.target.value)} className="flex-1 min-w-0 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-[var(--color-text)]" />
+            <input aria-label="Fidelity depth" value={depth} onChange={(e) => setDepth(e.target.value)} className="w-12 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-[var(--color-text)]" />
+            <input aria-label="Fidelity two-qubit gates" value={twoQ} onChange={(e) => setTwoQ(e.target.value)} className="w-12 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-[var(--color-text)]" />
+            <button type="button" onClick={() => void assess()} className="px-2 py-1 rounded bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)]">Assess</button>
           </div>
           {fidelity && (
-            <div className="text-slate-400">
+            <div className="text-[var(--color-muted)]">
               decision {String(fidelity.decision ?? 'unknown')} · forecast {String(fidelity.predicted_fidelity ?? '—')} · probe_run {String(fidelity.probe_run ?? false)} · {String(fidelity.reason ?? '')}
             </div>
           )}
         </div>
       </div>
-      {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-[12px] text-[var(--color-danger-ink)]">{error}</p>}
     </div>
   );
 }

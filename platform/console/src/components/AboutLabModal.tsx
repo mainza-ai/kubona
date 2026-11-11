@@ -47,10 +47,10 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-[#0C0F17]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl"
+        className="w-full max-w-xl bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl shadow-[var(--shadow-float)] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl"
       >
         {/* Apple-style Window Header with Traffic Lights */}
-        <div className="h-10 px-4 border-b border-white/[0.08] bg-white/[0.02] flex items-center justify-between select-none">
+        <div className="h-10 px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between select-none">
           <div className="flex items-center space-x-2">
             <button
               onClick={onClose}
@@ -62,7 +62,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
             <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-75" />
             <div className="w-3 h-3 rounded-full bg-[#27C93F] opacity-75" />
           </div>
-          <span className="text-[12px] font-medium text-slate-400 font-sans tracking-wide">
+          <span className="text-[12px] font-medium text-[var(--color-muted)] font-sans tracking-wide">
             About Kubona Scientific Laboratory
           </span>
           <div className="w-12" /> {/* Balance spacer */}
@@ -72,7 +72,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
         <div className="p-6 space-y-6">
           {/* Brand Identity Hero: Crest + Name */}
           <div className="flex items-start space-x-5">
-            <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-xl bg-black/60 shrink-0">
+            <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-[var(--color-border-strong)] shadow-xl bg-[var(--color-field)] shrink-0">
               <Image
                 src="/assets/milimo_kubona_logo.png"
                 alt="Kubona logo"
@@ -85,17 +85,17 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
             <div className="flex-1 space-y-1">
               <div className="flex items-center space-x-2">
-                <h2 id="about-lab-title" className="text-xl font-bold text-white tracking-tight">
+                <h2 id="about-lab-title" className="text-xl font-bold text-[var(--color-text)] tracking-tight">
                   Kubona
                 </h2>
-                <span className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
+                <span className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-full bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
                   OBSERVATORY PRO
                 </span>
               </div>
-              <p className="text-xs font-semibold text-cyan-400/90 tracking-wide uppercase">
+              <p className="text-xs font-semibold text-[var(--color-accent-ink)] tracking-wide uppercase">
                 Tonga (Zambia) — <span className="italic">To see</span>
               </p>
-              <p className="text-xs text-slate-300 leading-relaxed pt-1">
+              <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed pt-1">
                 An open-source, sovereign, MCP-native quantum computing and autonomous AI science discovery platform for frontier empirical exploration.
               </p>
             </div>
@@ -103,57 +103,57 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
           {/* System Architecture Specifications Grid */}
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
+              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
                 <span>Cryptographic Posture</span>
               </div>
-              <div className="font-mono text-xs text-slate-200 font-medium">
+              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
                 Ed25519 AP2 Mandates (wired)
               </div>
-              <div className="text-[12px] text-slate-300">
+              <div className="text-[12px] text-[var(--color-muted)]">
                 ML-KEM-768 hybrid encapsulation staged — not wired, no recipient registry yet
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
+              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
+                <Lock className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />
                 <span>Workload &amp; Secrets</span>
               </div>
-              <div className="font-mono text-xs text-slate-200 font-medium">
+              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
                 OpenBao Dynamic TTL Leases
               </div>
-              <div className="text-[12px] text-slate-300">
+              <div className="text-[12px] text-[var(--color-muted)]">
                 Buzz Information Flow Control
               </div>
-              <div className="text-[12px] text-amber-300 font-mono">
+              <div className="text-[12px] text-[var(--color-warning-ink)] font-mono">
                 Vault is dev-compose only; IFC is partial. Neither is claimed as deployed here.
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
-                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
+              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
+                <Cpu className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
                 <span>Quantum &amp; Classical Engines</span>
               </div>
-              <div className="font-mono text-xs text-slate-200 font-medium">
+              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
                 PySCF FCI + Qiskit Aer
               </div>
-              <div className="text-[12px] text-slate-300">
+              <div className="text-[12px] text-[var(--color-muted)]">
                 PennyLane QPD &amp; Mitiq ZNE
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
+              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
                 <span>Cognitive Intelligence</span>
               </div>
-              <div className="font-mono text-xs text-slate-200 font-medium">
+              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
                 Env-Driven Provider Routing (NIM / Local)
               </div>
-              <div className="text-[12px] text-slate-300">
+              <div className="text-[12px] text-[var(--color-muted)]">
                 4-Turn Epistemic Tribunal Loop
               </div>
             </div>
@@ -161,30 +161,30 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
           {/* Build version is injected at image build time. There is no live
               version endpoint yet; do not present this as a live probe. */}
-          <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between text-xs font-mono text-slate-300">
+          <div className="p-3.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] flex items-center justify-between text-xs font-mono text-[var(--color-label-secondary)]">
             <div>
-              <span className="text-slate-300 font-medium">Build:</span>{' '}
-              <strong className="text-white font-bold">{BUILD_VERSION}</strong>
+              <span className="text-[var(--color-muted)] font-medium">Build:</span>{' '}
+              <strong className="text-[var(--color-text)] font-bold">{BUILD_VERSION}</strong>
             </div>
             <div>
-              <span className="text-slate-300 font-medium">Bridge:</span>{' '}
-              <strong className="text-cyan-300 font-bold">gRPC</strong>
+              <span className="text-[var(--color-muted)] font-medium">Bridge:</span>{' '}
+              <strong className="text-[var(--color-info-ink)] font-bold">gRPC</strong>
             </div>
             <div>
-              <span className="text-slate-300 font-medium">License:</span>{' '}
-              <strong className="text-emerald-300 font-bold">Apache-2.0</strong>
+              <span className="text-[var(--color-muted)] font-medium">License:</span>{' '}
+              <strong className="text-[var(--color-success-ink)] font-bold">Apache-2.0</strong>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="h-12 px-6 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-between">
-          <span className="text-xs text-slate-300">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[12px] text-slate-200 border border-white/15">Esc</kbd> to dismiss
+        <div className="h-12 px-6 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between">
+          <span className="text-xs text-[var(--color-muted)]">
+            Press <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-fill)] font-mono text-[12px] text-[var(--color-label-secondary)] border border-[var(--color-border)]">Esc</kbd> to dismiss
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 active:scale-95 text-xs font-semibold text-white transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+            className="px-4 py-1.5 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] active:scale-95 text-xs font-semibold text-[var(--color-text)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
           >
             Done
           </button>

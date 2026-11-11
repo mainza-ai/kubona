@@ -58,19 +58,19 @@ export function MolecularActiveSpaceWidget({
 
   if (!backed) {
     return (
-      <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
-        <div className="flex items-center space-x-3 border-b border-white/[0.08] pb-3">
-          <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
+        <div className="flex items-center space-x-3 border-b border-[var(--color-border)] pb-3">
+          <div className="p-2 rounded-xl bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)]">
             <Atom className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Molecular Active Space</h3>
-            <p className="text-xs text-white/50">Orbital and electron counts come from the campaign proposal.</p>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Molecular Active Space</h3>
+            <p className="text-xs text-[var(--color-muted)]">Orbital and electron counts come from the campaign proposal.</p>
           </div>
         </div>
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-center space-y-1.5">
-          <p className="text-xs font-medium text-white/80">No active-space counts are recorded for this campaign.</p>
-          <p className="text-[12px] text-slate-400">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 text-center space-y-1.5">
+          <p className="text-xs font-medium text-[var(--color-text)]">No active-space counts are recorded for this campaign.</p>
+          <p className="text-[12px] text-[var(--color-muted)]">
             The viewer appears when a campaign states its molecule, electron count, and orbital count; no molecule or gap default is substituted.
           </p>
         </div>
@@ -83,57 +83,57 @@ export function MolecularActiveSpaceWidget({
   const virtualOrbitals = Math.max(0, totalO - activeOrbitals - frozenOrbitals);
 
   return (
-    <div data-provenance="proposed" className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
-      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+    <div data-provenance="proposed" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+          <div className="p-2 rounded-xl bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)]">
             <Atom className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Molecular Active Space</h3>
-            <p className="text-xs text-white/50">{`${moleculeName} • CASSCF(${activeElectrons}e, ${activeOrbitals}o)`}</p>
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Molecular Active Space</h3>
+            <p className="text-xs text-[var(--color-muted)]">{`${moleculeName} • CASSCF(${activeElectrons}e, ${activeOrbitals}o)`}</p>
           </div>
         </div>
         <ProvenanceBadge kind="proposed" detail="Active-space counts come from the campaign proposal." />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 font-mono text-xs">
-          <div className="flex justify-between text-white/60">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 space-y-3 font-mono text-xs">
+          <div className="flex justify-between text-[var(--color-muted)]">
             <span>Total electrons / orbitals</span>
-            <span data-metric className="text-white/80">{totalE} e / {totalO} o</span>
+            <span data-metric className="text-[var(--color-text)]">{totalE} e / {totalO} o</span>
           </div>
-          <div className="flex justify-between text-white/60">
+          <div className="flex justify-between text-[var(--color-muted)]">
             <span>Active space</span>
-            <span data-metric className="text-purple-300">{activeElectrons} e / {activeOrbitals} o</span>
+            <span data-metric className="text-[var(--color-soft-lilac-ink)]">{activeElectrons} e / {activeOrbitals} o</span>
           </div>
-          <div className="flex justify-between text-white/60">
+          <div className="flex justify-between text-[var(--color-muted)]">
             <span>Frozen core</span>
-            <span data-metric className="text-white/80">{frozenElectrons} e / {frozenOrbitals} orb</span>
+            <span data-metric className="text-[var(--color-text)]">{frozenElectrons} e / {frozenOrbitals} orb</span>
           </div>
-          <div className="flex justify-between text-white/60">
+          <div className="flex justify-between text-[var(--color-muted)]">
             <span>Virtual uncorrelated</span>
-            <span data-metric className="text-white/80">{virtualOrbitals} orb</span>
+            <span data-metric className="text-[var(--color-text)]">{virtualOrbitals} orb</span>
           </div>
-          <div className="flex justify-between text-white/60 pt-2 border-t border-white/[0.04]">
+          <div className="flex justify-between text-[var(--color-muted)] pt-2 border-t border-[var(--color-border)]">
             <span>HOMO-LUMO gap</span>
-            <span data-metric className="text-emerald-300">{gap != null ? `${gap.toFixed(3)} Ha` : 'not recorded'}</span>
+            <span data-metric className="text-[var(--color-success-ink)]">{gap != null ? `${gap.toFixed(3)} Ha` : 'not recorded'}</span>
           </div>
-          <p className="text-[12px] text-slate-400 font-sans leading-relaxed pt-1">
+          <p className="text-[12px] text-[var(--color-muted)] font-sans leading-relaxed pt-1">
             Per-orbital energies are not shown because the campaign records no orbital spectrum. Counts above are proposal fields, not a measurement.
           </p>
         </div>
 
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col justify-between space-y-4">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 flex flex-col justify-between space-y-4">
           <div className="space-y-3">
-            <div className="text-xs font-semibold text-white/80 flex items-center space-x-1.5">
-              <Sliders className="w-3.5 h-3.5 text-purple-400" />
+            <div className="text-xs font-semibold text-[var(--color-text)] flex items-center space-x-1.5">
+              <Sliders className="w-3.5 h-3.5 text-[var(--color-soft-lilac-ink)]" />
               <span>CASSCF Active-Space Partitioning</span>
             </div>
             <div>
-              <div className="flex justify-between text-xs font-mono text-white/60 mb-1">
+              <div className="flex justify-between text-xs font-mono text-[var(--color-muted)] mb-1">
                 <span>Active Electrons (n_e):</span>
-                <span className="text-purple-300 font-bold">{activeElectrons}</span>
+                <span className="text-[var(--color-soft-lilac-ink)] font-bold">{activeElectrons}</span>
               </div>
               <input
                 type="range"
@@ -143,13 +143,13 @@ export function MolecularActiveSpaceWidget({
                 step="2"
                 value={activeElectrons}
                 onChange={handleElectronsChange}
-                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer"
+                className="w-full accent-[var(--color-accent)] bg-[var(--color-fill)] rounded-lg h-1.5 cursor-pointer"
               />
             </div>
             <div>
-              <div className="flex justify-between text-xs font-mono text-white/60 mb-1">
+              <div className="flex justify-between text-xs font-mono text-[var(--color-muted)] mb-1">
                 <span>Active Orbitals (n_o):</span>
-                <span className="text-purple-300 font-bold">{activeOrbitals}</span>
+                <span className="text-[var(--color-soft-lilac-ink)] font-bold">{activeOrbitals}</span>
               </div>
               <input
                 type="range"
@@ -159,11 +159,11 @@ export function MolecularActiveSpaceWidget({
                 step="1"
                 value={activeOrbitals}
                 onChange={handleOrbitalsChange}
-                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer"
+                className="w-full accent-[var(--color-accent)] bg-[var(--color-fill)] rounded-lg h-1.5 cursor-pointer"
               />
             </div>
           </div>
-          <p className="text-[12px] text-slate-400 leading-relaxed">
+          <p className="text-[12px] text-[var(--color-muted)] leading-relaxed">
             Slider changes update the proposal only. They do not imply a CASSCF run or a measured active space.
           </p>
         </div>

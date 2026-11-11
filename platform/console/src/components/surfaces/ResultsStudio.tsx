@@ -122,15 +122,15 @@ function PesTable({ points }: { points: PesPoint[] }) {
   return (
     <div className="space-y-3">
       {pesSpec && <Chart spec={pesSpec} />}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-          <span className="text-[12px] font-semibold text-white">PES points</span>
+      <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 bg-[var(--color-fill)]">
+          <span className="text-[12px] font-semibold text-[var(--color-text)]">PES points</span>
           <span className="text-[11px] text-[var(--color-muted)]">measured energy vs full FCI anchor</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead className="text-[var(--color-muted)]">
-              <tr className="border-b border-white/10">
+              <tr className="border-b border-[var(--color-border)]">
                 <th className="px-2 py-1 text-left">R (Å)</th>
                 <th className="px-2 py-1 text-right">E (Ha)</th>
                 <th className="px-2 py-1 text-right">FCI (Ha)</th>
@@ -143,7 +143,7 @@ function PesTable({ points }: { points: PesPoint[] }) {
             </thead>
             <tbody>
               {points.map((point) => (
-                <tr key={point.bond_distance} className="border-b border-white/[0.06] last:border-0">
+                <tr key={point.bond_distance} className="border-b border-[var(--color-border)] last:border-0">
                   <td className="px-2 py-1 font-code">{point.bond_distance.toFixed(4)}</td>
                   <td className="px-2 py-1 text-right font-code">{point.energy.toFixed(6)}</td>
                   <td className="px-2 py-1 text-right font-code">{point.fci_exact_energy.toFixed(6)}</td>
@@ -164,15 +164,15 @@ function PesTable({ points }: { points: PesPoint[] }) {
 
 function ResultReceiptTable({ receipts }: { receipts: CampaignResultRef[] }) {
   return (
-    <div className="rounded-xl border border-white/10 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-        <span className="text-[12px] font-semibold text-white">Result receipts</span>
+    <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-[var(--color-fill)]">
+        <span className="text-[12px] font-semibold text-[var(--color-text)]">Result receipts</span>
         <span className="text-[11px] text-[var(--color-muted)]">job → result SHA-256 → ledger receipt</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]">
           <thead className="text-[var(--color-muted)]">
-            <tr className="border-b border-white/10">
+            <tr className="border-b border-[var(--color-border)]">
               <th className="px-2 py-1 text-left">Job</th>
               <th className="px-2 py-1 text-left">Kind</th>
               <th className="px-2 py-1 text-left">Version</th>
@@ -183,7 +183,7 @@ function ResultReceiptTable({ receipts }: { receipts: CampaignResultRef[] }) {
           </thead>
           <tbody>
             {receipts.map((row) => (
-              <tr key={row.job_id} className="border-b border-white/[0.06] last:border-0">
+              <tr key={row.job_id} className="border-b border-[var(--color-border)] last:border-0">
                 <td className="px-2 py-1 font-code">{row.job_id.slice(0, 8)}</td>
                 <td className="px-2 py-1 font-code">{row.kind}</td>
                 <td className="px-2 py-1 font-code">{row.result_version || 'unversioned'}</td>
@@ -269,15 +269,15 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
       {seriesCharts.map((spec, idx) => (
         <Chart key={`${spec.title}-${idx}`} spec={spec} />
       ))}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03]">
-          <span className="text-[12px] font-semibold text-white">Measured experiments</span>
+      <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 bg-[var(--color-fill)]">
+          <span className="text-[12px] font-semibold text-[var(--color-text)]">Measured experiments</span>
           <span className="text-[11px] text-[var(--color-muted)]">spin, excited, reaction, QAOA, DMRG, dynamics, and conjecture records folded from jobs</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead className="text-[var(--color-muted)]">
-              <tr className="border-b border-white/10">
+              <tr className="border-b border-[var(--color-border)]">
                 <th className="px-2 py-1 text-left">Kind</th>
                 <th className="px-2 py-1 text-left">System</th>
                 <th className="px-2 py-1 text-right">Measured</th>
@@ -295,7 +295,7 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
                 const gap = exp.gap ?? exp.delta;
                 const system = exp.molecule || exp.model || exp.reaction || (exp.n_sites ? `${exp.n_sites} sites` : '—');
                 return (
-                  <tr key={exp.job_id} className="border-b border-white/[0.06] last:border-0">
+                  <tr key={exp.job_id} className="border-b border-[var(--color-border)] last:border-0">
                     <td className="px-2 py-1 font-code">{exp.kind}</td>
                     <td className="px-2 py-1 font-code">{system}</td>
                     <td className="px-2 py-1 text-right font-code">{typeof primary === 'number' ? primary.toFixed(6) : '—'}</td>
@@ -784,14 +784,14 @@ ${bibtex}
 
   if (!hasVerifiedData) {
     return (
-      <div className="relative min-h-[520px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-6 space-y-5">
-        <div className="flex items-center space-x-3.5 border-b border-white/[0.08] pb-4">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
-            <BookOpen className="w-5 h-5 text-indigo-400" />
+      <div className="relative min-h-[520px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-[var(--shadow-float)] p-6 space-y-5">
+        <div className="flex items-center space-x-3.5 border-b border-[var(--color-border)] pb-4">
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] flex items-center justify-center shadow-inner">
+            <BookOpen className="w-5 h-5 text-[var(--color-soft-lilac-ink)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">Citable Results Studio &amp; Systematic Notebook</h2>
-            <p className="text-xs text-slate-400 mt-0.5">No citable result is recorded for this campaign.</p>
+            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">Citable Results Studio &amp; Systematic Notebook</h2>
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">No citable result is recorded for this campaign.</p>
           </div>
         </div>
         <MeasuredOutputs sessionId={sessionId ?? null} />
@@ -808,14 +808,14 @@ ${bibtex}
               <button
                 type="button"
                 onClick={handleExportExperiments}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-text)] text-[12px]"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] text-[var(--color-text)] text-[12px]"
               >
                 <Download className="w-3.5 h-3.5" /> Download experiment report
               </button>
               <button
                 type="button"
                 onClick={handleExportExperimentsJSON}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-[var(--color-text)] text-[12px]"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] text-[var(--color-text)] text-[12px]"
               >
                 <Download className="w-3.5 h-3.5" /> Experiment JSON
               </button>
@@ -823,17 +823,17 @@ ${bibtex}
                 type="button"
                 onClick={() => void handleExportSigned()}
                 disabled={!sessionId}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-400/30 text-emerald-200 text-[12px] disabled:opacity-40"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] text-[12px] disabled:opacity-40"
               >
                 <Download className="w-3.5 h-3.5" /> Signed export
               </button>
             </div>
           </>
         )}
-        {exportError && <p role="alert" className="text-[12px] text-rose-300">{exportError}</p>}
-        <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-6 text-center space-y-2">
-          <p className="text-sm font-medium text-white">No manuscript, citation, or proof receipt yet.</p>
-          <p className="text-[13px] leading-relaxed text-slate-400">
+        {exportError && <p role="alert" className="text-[12px] text-[var(--color-danger-ink)]">{exportError}</p>}
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center space-y-2">
+          <p className="text-sm font-medium text-[var(--color-text)]">No manuscript, citation, or proof receipt yet.</p>
+          <p className="text-[13px] leading-relaxed text-[var(--color-muted)]">
             A citable studio appears only after an evaluated claim and a ledger-backed notebook exist.
             Projected corridors and template values are not shown here as results.
           </p>
@@ -843,24 +843,24 @@ ${bibtex}
   }
 
   return (
-    <div data-provenance="measured" className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
+    <div data-provenance="measured" className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-[var(--shadow-float)] flex flex-col justify-between p-6 space-y-6">
       {notebookError && (
-        <div role="alert" className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+        <div role="alert" className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
           Notebook projection unavailable — {notebookError}. Nothing synthesized.
         </div>
       )}
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
-            <BookOpen className="w-5 h-5 text-indigo-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] flex items-center justify-center shadow-inner">
+            <BookOpen className="w-5 h-5 text-[var(--color-soft-lilac-ink)]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-white tracking-tight">Citable Results Studio & Systematic Notebook</h2>
+              <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">Citable Results Studio & Systematic Notebook</h2>
               <ProvenanceBadge kind="measured" detail="Citable gate passed: evaluated claim, notebook energies, and provenance hash." />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Structured research preprints with Lean 4 AST synchronization and frame-anchored human-in-the-loop review
             </p>
           </div>
@@ -868,11 +868,11 @@ ${bibtex}
 
         {/* View Switcher & Action buttons */}
         <div className="flex items-center space-x-2">
-          <div className="p-1 rounded-xl bg-black/50 border border-white/10 flex items-center space-x-1">
+          <div className="p-1 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center space-x-1">
             <button
               onClick={() => setActiveTab('manuscript')}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'manuscript' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                activeTab === 'manuscript' ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] font-semibold' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
               Manuscript
@@ -880,7 +880,7 @@ ${bibtex}
             <button
               onClick={() => setActiveTab('latex')}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'latex' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                activeTab === 'latex' ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] font-semibold' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
               LaTeX Source
@@ -888,7 +888,7 @@ ${bibtex}
             <button
               onClick={() => setActiveTab('lean4')}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'lean4' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                activeTab === 'lean4' ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] font-semibold' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
               Lean 4 Proof AST
@@ -896,7 +896,7 @@ ${bibtex}
             <button
               onClick={() => setActiveTab('literature')}
               className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'literature' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                activeTab === 'literature' ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] font-semibold' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
               Literature
@@ -905,9 +905,9 @@ ${bibtex}
 
           <button
             onClick={handleCopyBibtex}
-            className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-xs text-slate-300 font-medium flex items-center space-x-1.5 transition"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] font-medium flex items-center space-x-1.5 transition"
           >
-            {copiedBibtex ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiedBibtex ? <Check className="w-3.5 h-3.5 text-[var(--color-success-ink)]" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copiedBibtex ? 'BibTeX Copied' : 'Cite BibTeX'}</span>
           </button>
 
@@ -916,7 +916,7 @@ ${bibtex}
             onClick={handleExportCSV}
             disabled={!campaign?.measurement && !(campaign?.pes_points?.length)}
             title="Download measured CSV: PES points when present, otherwise the measurement summary"
-            className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
           >
             <Download className="w-3.5 h-3.5" />
             <span>CSV</span>
@@ -925,7 +925,7 @@ ${bibtex}
           <button
             onClick={handleExportResult}
             title="Download measured result JSON (campaign, measurement, PES points, notebook)"
-            className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-medium flex items-center space-x-1.5 transition"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-success-wash)] hover:opacity-90 border border-[var(--color-success-edge)] text-[var(--color-success-ink)] text-xs font-medium flex items-center space-x-1.5 transition"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Result JSON</span>
@@ -935,7 +935,7 @@ ${bibtex}
             onClick={() => void handleExportSigned()}
             disabled={!sessionId}
             title="Download a server-built experiment bundle whose canonical payload is signed by the deployment key"
-            className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-medium flex items-center space-x-1.5 transition disabled:opacity-40"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Signed export</span>
@@ -954,7 +954,7 @@ ${bibtex}
       {/* Main Two-Column Layout: Manuscript on Left, Frame-Anchored Review on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         {/* Left 2 Columns: The Living Document / Code Viewer */}
-        <div className="lg:col-span-2 bg-black/40 border border-white/10 rounded-2xl p-6 overflow-y-auto max-h-[580px] space-y-6">
+        <div className="lg:col-span-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 overflow-y-auto max-h-[580px] space-y-6">
           {activeTab === 'manuscript' && (
             <div className="space-y-6">
               {/* Measured job outputs: what ran, bound to job ids */}
@@ -982,20 +982,20 @@ ${bibtex}
                 aria-pressed={selectedAnchor === '§Title'}
                 aria-label={`Select anchor §Title`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
-                  selectedAnchor === '§Title' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
+                  selectedAnchor === '§Title' ? 'border-[var(--color-soft-indigo-edge)] bg-[var(--color-soft-indigo-wash)]' : 'border-[var(--color-border)] bg-[var(--color-fill)]'
                 }`}
               >
-                <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-cyan-400">
+                <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-[var(--color-info-ink)]">
                   {claimVerified && proofVerified ? 'Verified Research Finding' : 'Projected Research Draft'}
                 </span>
-                <h2 className="text-lg md:text-xl font-bold text-white tracking-tight leading-snug mt-1">
+                <h2 className="text-lg md:text-xl font-bold text-[var(--color-text)] tracking-tight leading-snug mt-1">
                   {campaign?.notebook?.title || `Variational Quantum Ground State of ${target} Anchored to Full Configuration Interaction`}
                 </h2>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-2 font-mono">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--color-muted)] pt-2 font-mono">
                   <span>By Kubona Autonomous Epistemic Swarm</span>
                   <span>•</span>
                   <span className={`font-semibold flex items-center space-x-1 ${
-                    claimVerified && proofVerified && isChemAccMet ? 'text-emerald-400' : 'text-amber-400'
+                    claimVerified && proofVerified && isChemAccMet ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]'
                   }`}>
                     <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />
                     {claimVerified && proofVerified && isChemAccMet ? 'Chemical Accuracy Met (Δ ≤ 1.6 mHa · proof-verified)' : 'Variational Exploration Active'}
@@ -1017,14 +1017,14 @@ ${bibtex}
                 aria-pressed={selectedAnchor === '§Abstract'}
                 aria-label={`Select anchor §Abstract`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
-                  selectedAnchor === '§Abstract' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
+                  selectedAnchor === '§Abstract' ? 'border-[var(--color-soft-indigo-edge)] bg-[var(--color-soft-indigo-wash)]' : 'border-[var(--color-border)] bg-[var(--color-fill)]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">Abstract</h3>
-                  <span className="text-[12px] font-mono text-neutral-500">Anchor: §Abstract</span>
+                  <h3 className="text-xs font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono">Abstract</h3>
+                  <span className="text-[12px] font-mono text-[var(--color-faint)]">Anchor: §Abstract</span>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans">
                   {safeAbstract}
                 </p>
               </div>
@@ -1043,25 +1043,25 @@ ${bibtex}
                 aria-pressed={selectedAnchor === '§GroundStateIntegrals'}
                 aria-label={`Select anchor §GroundStateIntegrals`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
-                  selectedAnchor === '§GroundStateIntegrals' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
+                  selectedAnchor === '§GroundStateIntegrals' ? 'border-[var(--color-soft-indigo-edge)] bg-[var(--color-soft-indigo-wash)]' : 'border-[var(--color-border)] bg-[var(--color-fill)]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono text-slate-300 font-semibold uppercase">§GroundStateIntegrals</span>
-                  <span className="text-[12px] font-mono text-neutral-500">Anchor: §GroundStateIntegrals</span>
+                  <span className="text-xs font-mono text-[var(--color-label-secondary)] font-semibold uppercase">§GroundStateIntegrals</span>
+                  <span className="text-[12px] font-mono text-[var(--color-faint)]">Anchor: §GroundStateIntegrals</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
-                  <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                    <span className="text-slate-400">VQE Energy</span>
-                    <div className="text-sm font-bold text-white">{fmtEnergy(groundEnergy)} Ha</div>
+                  <div className="p-3 rounded-lg bg-[var(--color-raised)] border border-[var(--color-border)] space-y-1">
+                    <span className="text-[var(--color-muted)]">VQE Energy</span>
+                    <div className="text-sm font-bold text-[var(--color-text)]">{fmtEnergy(groundEnergy)} Ha</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                    <span className="text-slate-400">Classical FCI Anchor</span>
-                    <div className="text-sm font-bold text-emerald-400">{fmtEnergy(fciEnergy)} Ha</div>
+                  <div className="p-3 rounded-lg bg-[var(--color-raised)] border border-[var(--color-border)] space-y-1">
+                    <span className="text-[var(--color-muted)]">Classical FCI Anchor</span>
+                    <div className="text-sm font-bold text-[var(--color-success-ink)]">{fmtEnergy(fciEnergy)} Ha</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
-                    <span className="text-slate-400">Chemical Discrepancy</span>
-                    <div className="text-sm font-bold text-cyan-300">{fmtDelta(deltaMHa)} mHa</div>
+                  <div className="p-3 rounded-lg bg-[var(--color-raised)] border border-[var(--color-border)] space-y-1">
+                    <span className="text-[var(--color-muted)]">Chemical Discrepancy</span>
+                    <div className="text-sm font-bold text-[var(--color-info-ink)]">{fmtDelta(deltaMHa)} mHa</div>
                   </div>
                 </div>
                 {energySpec && <Chart spec={energySpec} className="mt-3" />}
@@ -1082,19 +1082,19 @@ ${bibtex}
                 aria-pressed={selectedAnchor === '§Lean4ProofAST'}
                 aria-label={`Select anchor §Lean4ProofAST`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
-                  selectedAnchor === '§Lean4ProofAST' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
+                  selectedAnchor === '§Lean4ProofAST' ? 'border-[var(--color-soft-indigo-edge)] bg-[var(--color-soft-indigo-wash)]' : 'border-[var(--color-border)] bg-[var(--color-fill)]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">Formal Verification & Provenance</h3>
-                  <span className="text-[12px] font-mono text-emerald-400">{proofVerified ? 'Zero sorryAx (ρ=1.000)' : 'Unverified'}</span>
+                  <h3 className="text-xs font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono">Formal Verification & Provenance</h3>
+                  <span className="text-[12px] font-mono text-[var(--color-success-ink)]">{proofVerified ? 'Zero sorryAx (ρ=1.000)' : 'Unverified'}</span>
                 </div>
-                <div className="space-y-1.5 font-mono text-[12px] text-slate-300">
-                  <div className="bg-black/60 p-2 rounded border border-white/10 truncate">
-                    Lean 4 AST Hash: <span className="text-emerald-300">{lean4AstHash}</span>
+                <div className="space-y-1.5 font-mono text-[12px] text-[var(--color-label-secondary)]">
+                  <div className="bg-[var(--color-raised)] p-2 rounded border border-[var(--color-border)] truncate">
+                    Lean 4 AST Hash: <span className="text-[var(--color-success-ink)]">{lean4AstHash}</span>
                   </div>
-                  <div className="bg-black/60 p-2 rounded border border-white/10 truncate">
-                    Merkle Provenance: <span className="text-indigo-300">{provenanceHash}</span>
+                  <div className="bg-[var(--color-raised)] p-2 rounded border border-[var(--color-border)] truncate">
+                    Merkle Provenance: <span className="text-[var(--color-soft-lilac-ink)]">{provenanceHash}</span>
                   </div>
                 </div>
               </div>
@@ -1103,11 +1103,11 @@ ${bibtex}
 
           {activeTab === 'latex' && (
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between text-neutral-400 text-[12px]">
+              <div className="flex items-center justify-between text-[var(--color-muted)] text-[12px]">
                 <span>LaTeX Project (main.tex)</span>
-                <span className="text-cyan-400">{hasVerifiedData ? 'Draft preview — not submitted' : 'Unattested draft — not submitted'}</span>
+                <span className="text-[var(--color-info-ink)]">{hasVerifiedData ? 'Draft preview — not submitted' : 'Unattested draft — not submitted'}</span>
               </div>
-              <pre className="p-4 rounded-xl bg-black/80 border border-neutral-800 text-neutral-300 overflow-x-auto leading-relaxed">
+              <pre className="p-4 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-border)] text-[var(--color-label-secondary)] overflow-x-auto leading-relaxed">
                 {latexCode}
               </pre>
             </div>
@@ -1115,11 +1115,11 @@ ${bibtex}
 
           {activeTab === 'lean4' && (
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between text-neutral-400 text-[12px]">
+              <div className="flex items-center justify-between text-[var(--color-muted)] text-[12px]">
                 <span>Lean 4 Theorem Declaration (Lake Comparator Whitelist)</span>
-                <span className="text-emerald-400">{proofVerified ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
+                <span className="text-[var(--color-success-ink)]">{proofVerified ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
               </div>
-              <pre className="p-4 rounded-xl bg-black/80 border border-neutral-800 text-emerald-300 overflow-x-auto leading-relaxed">
+              <pre className="p-4 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-border)] text-[var(--color-success-ink)] overflow-x-auto leading-relaxed">
                 {lean4Code}
               </pre>
             </div>
@@ -1131,30 +1131,30 @@ ${bibtex}
         </div>
 
         {/* Right 1 Column: Frame-Anchored Review (The Buzz Pattern) */}
-        <div className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col justify-between max-h-[580px]">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-5 flex flex-col justify-between max-h-[580px]">
           <div className="space-y-4 overflow-y-auto pr-1">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
               <div className="flex items-center gap-2">
-                <MessageSquarePlus className="w-4 h-4 text-cyan-400" />
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                <MessageSquarePlus className="w-4 h-4 text-[var(--color-info-ink)]" />
+                <h3 className="text-xs font-bold text-[var(--color-text)] uppercase tracking-wider font-mono">
                   Frame-Anchored Review
                 </h3>
               </div>
-              <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
+              <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-[var(--color-soft-indigo-wash)] text-[var(--color-soft-lilac-ink)] border border-[var(--color-soft-indigo-edge)]">
                 The Buzz Pattern
               </span>
             </div>
 
-            <p className="text-[12px] text-neutral-400 leading-normal">
+            <p className="text-[12px] text-[var(--color-muted)] leading-normal">
               Highlight equations, sections, or proof tokens to leave targeted annotations. Prompt the agent swarm to re-verify specific derivations.
             </p>
 
             <ClaimHistory sessionId={sessionId ?? null} />
 
             {/* Current Selected Anchor Indicator */}
-            <div className="p-2.5 rounded-lg bg-neutral-900/80 border border-neutral-800 flex items-center justify-between text-xs font-mono">
-              <span className="text-neutral-400">Active Anchor:</span>
-              <span className="text-cyan-400 font-semibold">{selectedAnchor}</span>
+            <div className="p-2.5 rounded-lg bg-[var(--color-raised)] border border-[var(--color-border)] flex items-center justify-between text-xs font-mono">
+              <span className="text-[var(--color-muted)]">Active Anchor:</span>
+              <span className="text-[var(--color-info-ink)] font-semibold">{selectedAnchor}</span>
             </div>
 
             {/* Existing Frame Annotations */}
@@ -1162,33 +1162,33 @@ ${bibtex}
               {annotations.map((anno) => (
                 <div
                   key={anno.id}
-                  className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-1.5 text-xs"
+                  className="p-3 rounded-xl bg-[var(--color-raised)] border border-[var(--color-border)] space-y-1.5 text-xs"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-white text-[12px]">{anno.author}</span>
+                    <span className="font-semibold text-[var(--color-text)] text-[12px]">{anno.author}</span>
                     <span
                       className={`text-[12px] font-mono uppercase px-1.5 py-0.5 rounded border ${
                         anno.status === 'verified'
-                          ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30'
+                          ? 'border-[var(--color-success-edge)] text-[var(--color-success-ink)] bg-[var(--color-success-wash)]'
                           : anno.status === 'failed'
-                            ? 'border-rose-500/40 text-rose-400 bg-rose-950/30'
-                            : 'border-cyan-500/40 text-cyan-400 bg-cyan-950/30'
+                            ? 'border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] bg-[var(--color-danger-wash)]'
+                            : 'border-[var(--color-info-edge)] text-[var(--color-info-ink)] bg-[var(--color-info-wash)]'
                       }`}
                     >
                       {anno.status}
                     </span>
                   </div>
-                  <div className="text-[12px] font-mono text-neutral-400">{anno.targetAnchor} • {anno.timestamp}</div>
-                  <p className="text-neutral-300 text-[12px] leading-relaxed">{anno.comment}</p>
+                  <div className="text-[12px] font-mono text-[var(--color-muted)]">{anno.targetAnchor} • {anno.timestamp}</div>
+                  <p className="text-[var(--color-label-secondary)] text-[12px] leading-relaxed">{anno.comment}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* New Annotation Input Form */}
-          <form onSubmit={handleAddAnnotation} className="pt-3 border-t border-white/[0.08] space-y-2 mt-3">
+          <form onSubmit={handleAddAnnotation} className="pt-3 border-t border-[var(--color-border)] space-y-2 mt-3">
             {annotationError && (
-              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+              <div className="p-2 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
                 {annotationError}
               </div>
             )}
@@ -1198,7 +1198,7 @@ ${bibtex}
               placeholder={`Annotate ${selectedAnchor}...`}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+              className="w-full px-3 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border-strong)] text-xs text-[var(--color-text)] placeholder-[var(--color-faint)] focus:outline-none focus:border-[var(--color-info)]"
             />
             <button
               type="submit"
@@ -1213,9 +1213,9 @@ ${bibtex}
       </div>
 
       {/* Bottom Footer Note */}
-      <div className="border-t border-white/[0.08] pt-3 flex items-center justify-between text-xs text-slate-300">
+      <div className="border-t border-[var(--color-border)] pt-3 flex items-center justify-between text-xs text-[var(--color-muted)]">
         <span>Archiving requires ACCEPT review + human sign-off (staged deposit, never auto-published)</span>
-        <span className="font-mono text-slate-200 font-medium">Format: LaTeX / Lean 4 / BibTeX / Merkle JSON</span>
+        <span className="font-mono text-[var(--color-label-secondary)] font-medium">Format: LaTeX / Lean 4 / BibTeX / Merkle JSON</span>
       </div>
     </div>
   );

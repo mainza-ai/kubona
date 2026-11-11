@@ -284,24 +284,24 @@ export function QuantumDispatch({
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-5">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl p-7 space-y-5">
       <div className="flex items-center space-x-2.5">
-        <Zap className="w-5 h-5 text-amber-300" />
+        <Zap className="w-5 h-5 text-[var(--color-warning-ink)]" />
         <div>
-          <h2 className="text-sm font-bold text-white font-mono tracking-tight">Human dispatch</h2>
-          <p className="text-[12px] text-slate-400 font-sans">
+          <h2 className="text-sm font-bold text-[var(--color-text)] font-mono tracking-tight">Human dispatch</h2>
+          <p className="text-[12px] text-[var(--color-muted)] font-sans">
             Estimate first (no spend, no enqueue), mandate when non-zero, then dispatch. Async only — poll for results.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label className="block text-xs font-mono text-slate-300 space-y-1.5">
+        <label className="block text-xs font-mono text-[var(--color-label-secondary)] space-y-1.5">
           <span className="uppercase tracking-wider text-[12px]">Backend</span>
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-100"
+            className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-[var(--color-text)]"
           >
             {backends.map((b) => {
               const ready = b.dispatch_ready ?? b.executable_now;
@@ -313,19 +313,19 @@ export function QuantumDispatch({
             })}
           </select>
         </label>
-        <label className="block text-xs font-mono text-slate-300 space-y-1.5">
+        <label className="block text-xs font-mono text-[var(--color-label-secondary)] space-y-1.5">
           <span className="uppercase tracking-wider text-[12px]">{isQuboModality ? 'Samples / Reads' : 'Shots'}</span>
           <input
             type="number"
             min={1}
             value={shots}
             onChange={(e) => setShots(Math.max(1, Number(e.target.value) || 1))}
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-100"
+            className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-[var(--color-text)]"
           />
         </label>
       </div>
 
-      <label className="block text-xs font-mono text-slate-300 space-y-1.5">
+      <label className="block text-xs font-mono text-[var(--color-label-secondary)] space-y-1.5">
         <span className="uppercase tracking-wider text-[12px]">
           {isQuboModality ? 'QUBO matrix (JSON 2-D array)' : 'OpenQASM circuit'}
         </span>
@@ -334,7 +334,7 @@ export function QuantumDispatch({
           onChange={(e) => setQasm(e.target.value)}
           rows={7}
           spellCheck={false}
-          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-100 font-mono text-[12px]"
+          className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-[var(--color-text)] font-mono text-[12px]"
         />
       </label>
 
@@ -342,32 +342,32 @@ export function QuantumDispatch({
         <button
           onClick={() => void onEstimate()}
           disabled={estimating || executable.length === 0}
-          className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-white/[0.04] border border-white/10 text-slate-200 hover:bg-white/[0.08] disabled:opacity-50"
+          className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-50"
         >
           <FlaskConical className="w-4 h-4" />
           <span>{estimating ? 'Estimating…' : 'Estimate (dry run)'}</span>
         </button>
         {!sessionId && (
-          <span className="text-[12px] text-amber-300/90 font-mono">No session — estimates run on an implicit capped session.</span>
+          <span className="text-[12px] text-[var(--color-warning-ink)] font-mono">No session — estimates run on an implicit capped session.</span>
         )}
       </div>
 
       {estimateError && (
-        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-mono">
+        <div className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] font-mono">
           Estimate refused: {estimateError}
         </div>
       )}
 
       {estimate && (
-        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[12px] font-mono text-slate-300 space-y-1">
-          <div>Estimated cost: <span className="text-white font-bold">{estCost == null ? 'UNPRICED — re-estimate' : `$${estCost.toFixed(6)}`}</span></div>
-          <div>Fidelity: <span className="text-white">{fidelity?.admitted === true ? 'admitted' : fidelity?.admitted === false ? `refused — ${String(fidelity?.rejection_reason ?? 'see receipt').slice(0, 160)}` : String(fidelity?.skipped ?? 'unknown')}</span></div>
-          <div className="text-slate-500">Dry run only — nothing enqueued, nothing spent.</div>
+        <div className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] font-mono text-[var(--color-label-secondary)] space-y-1">
+          <div>Estimated cost: <span className="text-[var(--color-text)] font-bold">{estCost == null ? 'UNPRICED — re-estimate' : `$${estCost.toFixed(6)}`}</span></div>
+          <div>Fidelity: <span className="text-[var(--color-text)]">{fidelity?.admitted === true ? 'admitted' : fidelity?.admitted === false ? `refused — ${String(fidelity?.rejection_reason ?? 'see receipt').slice(0, 160)}` : String(fidelity?.skipped ?? 'unknown')}</span></div>
+          <div className="text-[var(--color-muted)]">Dry run only — nothing enqueued, nothing spent.</div>
         </div>
       )}
 
       {estimate && !quoteFresh && (
-        <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-mono">
+        <div className="p-3 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-[12px] font-mono">
           Estimate is stale: the provider, program, shots, or session changed. Re-estimate before dispatch.
         </div>
       )}
@@ -389,73 +389,73 @@ export function QuantumDispatch({
           onClick={() => void onDispatch()}
           disabled={dispatching || !quoteFresh || estCost == null || (estCost > 0 && !mandateRef)}
           title={!quoteFresh || estCost == null ? 'Re-estimate the current provider/QASM/shots/session' : estCost > 0 && !mandateRef ? 'Sign the mandate card first' : 'Dispatch'}
-          className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-emerald-600/20 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Play className="w-4 h-4" />
           <span>{dispatchLabel}</span>
         </button>
         {quoteFresh && estCost != null && estCost > 0 && !mandateRef && (
-          <span className="text-[12px] text-amber-300/90 font-mono">Non-zero estimate: sign the mandate card above first.</span>
+          <span className="text-[12px] text-[var(--color-warning-ink)] font-mono">Non-zero estimate: sign the mandate card above first.</span>
         )}
       </div>
 
       {dispatchWrite.phase !== 'idle' && (
-        <p role="status" className="text-[12px] font-mono text-slate-300">{writeSettlementLabel(dispatchWrite)}</p>
+        <p role="status" className="text-[12px] font-mono text-[var(--color-label-secondary)]">{writeSettlementLabel(dispatchWrite)}</p>
       )}
       {jobError && (
-        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-mono">
+        <div className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] font-mono">
           Dispatch refused: {jobError}
         </div>
       )}
 
       {jobId && (
-        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[12px] font-mono text-slate-300 space-y-2">
-          <div>Job <span className="text-white">{jobId}</span> — status: <span className="text-white font-bold">{jobStatus ?? '…'}</span></div>
+        <div className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] font-mono text-[var(--color-label-secondary)] space-y-2">
+          <div>Job <span className="text-[var(--color-text)]">{jobId}</span> — status: <span className="text-[var(--color-text)] font-bold">{jobStatus ?? '…'}</span></div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => void onCancel()}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 text-slate-200 hover:bg-white/[0.08] flex items-center space-x-1.5"
+              className="px-3 py-1.5 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] flex items-center space-x-1.5"
             >
               <Ban className="w-3.5 h-3.5" />
               <span>Cancel job</span>
             </button>
             <button
               onClick={() => pollJob(jobId)}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 text-slate-400 hover:bg-white/[0.08] flex items-center space-x-1.5"
+              className="px-3 py-1.5 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] flex items-center space-x-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Refresh</span>
             </button>
           </div>
           {pollPaused && (
-            <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-mono flex items-center justify-between gap-2">
+            <div className="p-2.5 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-[12px] font-mono flex items-center justify-between gap-2">
               <span>backend unreachable — polling paused after repeated transport failures.</span>
               <button
                 type="button"
                 onClick={() => pollJob(jobId)}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-semibold"
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-[var(--color-surface)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] font-semibold"
               >
                 Resume
               </button>
             </div>
           )}
           {writeSettlementLabel(cancelWrite) && (
-            <p role="status" className="text-[12px] font-mono text-slate-300">{writeSettlementLabel(cancelWrite)}</p>
+            <p role="status" className="text-[12px] font-mono text-[var(--color-label-secondary)]">{writeSettlementLabel(cancelWrite)}</p>
           )}
-          {cancelNote && <div className="text-amber-300/90">{cancelNote}</div>}
+          {cancelNote && <div className="text-[var(--color-warning-ink)]">{cancelNote}</div>}
         </div>
       )}
 
       <div className="space-y-2">
-        <div className="text-[12px] font-mono uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+        <div className="text-[12px] font-mono uppercase tracking-wider text-[var(--color-muted)] flex items-center space-x-2">
           <Receipt className="w-4 h-4" />
           <span>Refunds on this session</span>
         </div>
         {refunds.length === 0 ? (
-          <div className="text-[12px] text-slate-500 font-mono">No refunds recorded. Refunds are requested out-of-band with an admin-signed envelope (see R-32) — they appear here once sealed.</div>
+          <div className="text-[12px] text-[var(--color-muted)] font-mono">No refunds recorded. Refunds are requested out-of-band with an admin-signed envelope (see R-32) — they appear here once sealed.</div>
         ) : (
           refunds.map((r, i) => (
-            <div key={i} className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-[12px] font-mono text-emerald-200">
+            <div key={i} className="p-2.5 rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[12px] font-mono text-[var(--color-success-ink)]">
               refunded ${String((r.payload as Record<string, unknown> | undefined)?.amount_usd ?? (r as Record<string, unknown>).amount_usd ?? '?')} — {String((r.payload as Record<string, unknown> | undefined)?.reason ?? (r as Record<string, unknown>).reason ?? '')}
             </div>
           ))

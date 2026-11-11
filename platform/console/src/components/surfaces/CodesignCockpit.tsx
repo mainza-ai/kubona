@@ -51,11 +51,11 @@ function DqiBoundWidget() {
   const fErr = fOk ? null : `F value must be a finite number ≥ 0 (got "${f.trim().slice(0, 40)}"): local estimate withheld`;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
-      <input aria-label="Epsilon" value={eps} onChange={(ev) => setEps(ev.target.value)} aria-invalid={!epsOk} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-      <input aria-label="F value" value={f} onChange={(ev) => setF(ev.target.value)} aria-invalid={!fOk} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-      {loss !== null && <span className="text-xs text-white font-mono">loss ≤ {loss.toExponential(3)}</span>}
+      <input aria-label="Epsilon" value={eps} onChange={(ev) => setEps(ev.target.value)} aria-invalid={!epsOk} className="w-28 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+      <input aria-label="F value" value={f} onChange={(ev) => setF(ev.target.value)} aria-invalid={!fOk} className="w-28 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+      {loss !== null && <span className="text-xs text-[var(--color-text)] font-mono">loss ≤ {loss.toExponential(3)}</span>}
       {(epsErr || fErr) && (
-        <span role="alert" className="text-xs text-rose-300">
+        <span role="alert" className="text-xs text-[var(--color-danger-ink)]">
           {[epsErr, fErr].filter(Boolean).join(' ')}
         </span>
       )}
@@ -561,12 +561,12 @@ export function CodesignCockpit() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
-        <div className="text-xs font-semibold text-white">Verified RS decoder — read-only{verified ? ` · v${verified.version} · ${verified.generated}` : ''}</div>
-        {!verified && !verifiedError && <div className="mt-2 text-[12px] text-slate-400">Loading verified results…</div>}
-        {verifiedError && <div className="mt-2 text-xs text-rose-300">{verifiedError}</div>}
+      <div className="rounded-2xl border border-[var(--color-success-edge)] bg-[var(--color-success-wash)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Verified RS decoder — read-only{verified ? ` · v${verified.version} · ${verified.generated}` : ''}</div>
+        {!verified && !verifiedError && <div className="mt-2 text-[12px] text-[var(--color-muted)]">Loading verified results…</div>}
+        {verifiedError && <div className="mt-2 text-xs text-[var(--color-danger-ink)]">{verifiedError}</div>}
         {verified && (
-          <div className="mt-2 text-xs text-slate-200">
+          <div className="mt-2 text-xs text-[var(--color-label-secondary)]">
             <div className="font-mono">
               {verified.total.toffoli.toLocaleString('en-US')}T × {verified.total.qubits.toLocaleString('en-US')}Q — composed end-to-end
             </div>
@@ -577,10 +577,10 @@ export function CodesignCockpit() {
                 </li>
               ))}
             </ul>
-            <div className="mt-2 text-[12px] text-slate-400">{verified.labels.join(' · ')}</div>
+            <div className="mt-2 text-[12px] text-[var(--color-muted)]">{verified.labels.join(' · ')}</div>
             <details className="mt-2">
-              <summary className="cursor-pointer text-[12px] text-cyan-200">Proofs ({verified.proofs.length})</summary>
-              <ul className="mt-1 space-y-0.5 text-[12px] text-slate-300">
+              <summary className="cursor-pointer text-[12px] text-[var(--color-info-ink)]">Proofs ({verified.proofs.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[12px] text-[var(--color-label-secondary)]">
                 {verified.proofs.map((p, i) => (
                   <li key={i}>{p}</li>
                 ))}
@@ -590,31 +590,31 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">TQ scoring — read-only</div>
-        <div className="text-[12px] text-slate-400">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">TQ scoring — read-only</div>
+        <div className="text-[12px] text-[var(--color-muted)]">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>
         <div className="mt-3 flex flex-wrap gap-2 items-center">
-          <input aria-label="Toffoli count" value={toffoli} onChange={(e) => setToffoli(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
-          <input aria-label="Qubit count" value={qubits} onChange={(e) => setQubits(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
-          <label className="flex items-center gap-2 text-[12px] text-slate-400">
+          <input aria-label="Toffoli count" value={toffoli} onChange={(e) => setToffoli(e.target.value)} className="w-28 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs" />
+          <input aria-label="Qubit count" value={qubits} onChange={(e) => setQubits(e.target.value)} className="w-28 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs" />
+          <label className="flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
             κ
-            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={kappa} onChange={(e) => setKappa(e.target.value)} className="w-20 accent-cyan-400" />
-            <span className="font-mono text-white">{parseKappa() ?? '—'}</span>
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={kappa} onChange={(e) => setKappa(e.target.value)} className="w-20 accent-[var(--color-accent)]" />
+            <span className="font-mono text-[var(--color-text)]">{parseKappa() ?? '—'}</span>
           </label>
-          <button onClick={scoreTQ} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score</button>
+          <button onClick={scoreTQ} className="rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)]">Score</button>
         </div>
-        {tq !== null && <div className="mt-2 text-xs text-white">TQ = {tq}</div>}
-        {tqError && <div role="alert" className="mt-2 text-xs text-rose-300">{tqError}</div>}
+        {tq !== null && <div className="mt-2 text-xs text-[var(--color-text)]">TQ = {tq}</div>}
+        {tqError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{tqError}</div>}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">MAP-Elites frontier — read-only batch (≤64)</div>
-        <div className="text-[12px] text-slate-400">One T,Q per line. Min-TQ per cell survives. Paper reference points: HHL 1348/115, Gaussian 1583/139.</div>
-        <textarea aria-label="Frontier batch" value={batch} onChange={(e) => setBatch(e.target.value)} rows={4} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        <button onClick={scoreFrontier} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score frontier</button>
-        {frontierError && <div role="alert" className="mt-2 text-xs text-rose-300">{frontierError}</div>}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">MAP-Elites frontier — read-only batch (≤64)</div>
+        <div className="text-[12px] text-[var(--color-muted)]">One T,Q per line. Min-TQ per cell survives. Paper reference points: HHL 1348/115, Gaussian 1583/139.</div>
+        <textarea aria-label="Frontier batch" value={batch} onChange={(e) => setBatch(e.target.value)} rows={4} className="mt-3 w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+        <button onClick={scoreFrontier} className="mt-2 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)]">Score frontier</button>
+        {frontierError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{frontierError}</div>}
         {frontier && (
-          <div className="mt-2 text-xs text-slate-200">
+          <div className="mt-2 text-xs text-[var(--color-label-secondary)]">
             <div>cells: {frontier.cells} · best: {frontier.best ? `${frontier.best.toffoli}T × ${frontier.best.qubits}Q = ${frontier.best.tq}` : 'none'}</div>
             <ul className="mt-1 space-y-0.5 font-mono">
               {frontier.entries.slice(0, 12).map((e, i) => (
@@ -626,61 +626,61 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">Evaluator runs — read-only (validity stays Python-owned)</div>
-        <div className="text-[12px] text-slate-400">Named spec or truth table, artifact as JSON. Factory diagnostics attach the literature model (G3) — needs code distance + cycle time, no silent defaults.</div>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Evaluator runs — read-only (validity stays Python-owned)</div>
+        <div className="text-[12px] text-[var(--color-muted)]">Named spec or truth table, artifact as JSON. Factory diagnostics attach the literature model (G3) — needs code distance + cycle time, no silent defaults.</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <select aria-label="Spec kind" value={evalSpec} onChange={(e) => pickEvalSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+          <select aria-label="Spec kind" value={evalSpec} onChange={(e) => pickEvalSpec(e.target.value)} className="rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text)]">
             {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
-              <option key={k} value={k} className="bg-black">{k}</option>
+              <option key={k} value={k} className="bg-[var(--color-surface)] text-[var(--color-text)]">{k}</option>
             ))}
           </select>
-          <input aria-label="Number of tests" value={evalTests} onChange={(e) => setEvalTests(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <label className="flex items-center gap-1 text-[12px] text-slate-400">
+          <input aria-label="Number of tests" value={evalTests} onChange={(e) => setEvalTests(e.target.value)} className="w-20 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <label className="flex items-center gap-1 text-[12px] text-[var(--color-muted)]">
             κ
-            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 accent-cyan-400" />
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 accent-[var(--color-accent)]" />
           </label>
-          <input aria-label="Seed" value={evalSeed} onChange={(e) => setEvalSeed(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Seed" value={evalSeed} onChange={(e) => setEvalSeed(e.target.value)} className="w-20 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
         </div>
-        <textarea aria-label="Artifact JSON" value={evalArtifact} onChange={(e) => setEvalArtifact(e.target.value)} rows={2} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+        <textarea aria-label="Artifact JSON" value={evalArtifact} onChange={(e) => setEvalArtifact(e.target.value)} rows={2} className="mt-2 w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
         <div className="mt-2 flex flex-wrap gap-2 items-center">
-          <select aria-label="Factory (optional)" value={evalFactory} onChange={(e) => setEvalFactory(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
-            <option value="" className="bg-black">no factory</option>
-            <option value="gf2019_ccz" className="bg-black">gf2019_ccz</option>
+          <select aria-label="Factory (optional)" value={evalFactory} onChange={(e) => setEvalFactory(e.target.value)} className="rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text)]">
+            <option value="" className="bg-[var(--color-surface)] text-[var(--color-text)]">no factory</option>
+            <option value="gf2019_ccz" className="bg-[var(--color-surface)] text-[var(--color-text)]">gf2019_ccz</option>
           </select>
-          <input aria-label="Code distance" value={evalDistance} onChange={(e) => setEvalDistance(e.target.value)} placeholder="d" className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <input aria-label="Cycle time us" value={evalCycle} onChange={(e) => setEvalCycle(e.target.value)} placeholder="µs" className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <button onClick={runEval} disabled={evalBusy} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+          <input aria-label="Code distance" value={evalDistance} onChange={(e) => setEvalDistance(e.target.value)} placeholder="d" className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <input aria-label="Cycle time us" value={evalCycle} onChange={(e) => setEvalCycle(e.target.value)} placeholder="µs" className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <button onClick={runEval} disabled={evalBusy} className="rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)] disabled:opacity-50">
             {evalBusy ? 'Running…' : 'Run evaluation'}
           </button>
         </div>
-        {evalError && <div role="alert" className="mt-2 text-xs text-rose-300">{evalError}</div>}
+        {evalError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{evalError}</div>}
         {evalRes && (
-          <div className="mt-2 text-xs text-slate-200 font-mono">
+          <div className="mt-2 text-xs text-[var(--color-label-secondary)] font-mono">
             <div>
               {evalRes.valid ? (
-                <span className="text-emerald-400">VALID</span>
+                <span className="text-[var(--color-success-ink)]">VALID</span>
               ) : (
-                <span className="text-rose-300">INVALID (refused, never scored)</span>
+                <span className="text-[var(--color-danger-ink)]">INVALID (refused, never scored)</span>
               )}
               {' '}{String(evalRes.toffoli)}T × {String(evalRes.peak_qubits)}Q
               {typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>}
             </div>
-              <div className="mt-1 text-[12px] text-slate-400">
+              <div className="mt-1 text-[12px] text-[var(--color-muted)]">
                 depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
               </div>
               {typeof evalRes.failures === 'number' && evalRes.failures > 0 && (
-                <div className="mt-1 text-[12px] text-rose-200">
+                <div className="mt-1 text-[12px] text-[var(--color-danger-ink)]">
                   {String(evalRes.failures)} failure{evalRes.failures === 1 ? '' : 's'}
                   {Array.isArray(evalRes.failure_details) && evalRes.failure_details.length > 0 && (() => {
                     const d = evalRes.failure_details[0] as Record<string, unknown>;
                     return <> — first: trial {String(d.t)}, input {JSON.stringify(d.input)}, {String(d.reason).slice(0, 120)}</>;
                   })()}
-                  {evalRes.failure_details_capped === true && <span className="text-slate-400"> (showing first 32 of {String(evalRes.failures)} — counts authoritative)</span>}
+                  {evalRes.failure_details_capped === true && <span className="text-[var(--color-muted)]"> (showing first 32 of {String(evalRes.failures)} — counts authoritative)</span>}
                 </div>
               )}
             {!!evalRes.factory && typeof evalRes.factory === 'object' && (
-              <div className="mt-1 text-[12px] text-slate-300">
+              <div className="mt-1 text-[12px] text-[var(--color-label-secondary)]">
                 factory {(evalRes.factory as Record<string, unknown>).factory as string}:{' '}
                 {String((evalRes.factory as Record<string, unknown>).serial_seconds_est)}s serial ·{' '}
                 {(evalRes.factory as Record<string, unknown>).within_failure_budget ? 'within accuracy budget' : 'EXCEEDS accuracy budget'}
@@ -690,46 +690,46 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4">
-        <div className="text-xs font-semibold text-white">Governed proposer rerun — LLM spend, not QPU</div>
-        <div className="text-[12px] text-slate-400">
+      <div className="rounded-2xl border border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Governed proposer rerun — LLM spend, not QPU</div>
+        <div className="text-[12px] text-[var(--color-muted)]">
           Calls <span className="font-mono">POST /api/codesign/rerun</span>: session-scoped, idempotent, bounded. Local providers cost $0;
           cloud is BYOK (provider bills your key, Kubona records an estimate) and never debits the QPU session cap.
         </div>
         <div className="mt-3 flex flex-wrap gap-2 items-center">
-          <select aria-label="Rerun session" value={rerunSessionId} onChange={(e) => { setRerunSessionId(e.target.value); setRerunRequestId(''); }} className="max-w-[18rem] rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
-            {rerunSessions.length === 0 && <option value="" className="bg-black">no sessions — create one in Recorder</option>}
+          <select aria-label="Rerun session" value={rerunSessionId} onChange={(e) => { setRerunSessionId(e.target.value); setRerunRequestId(''); }} className="max-w-[18rem] rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text)]">
+            {rerunSessions.length === 0 && <option value="" className="bg-[var(--color-surface)] text-[var(--color-text)]">no sessions — create one in Recorder</option>}
             {rerunSessions.map((s) => (
-              <option key={s.id} value={s.id} className="bg-black">{s.title || s.id.slice(0, 8)}</option>
+              <option key={s.id} value={s.id} className="bg-[var(--color-surface)] text-[var(--color-text)]">{s.title || s.id.slice(0, 8)}</option>
             ))}
           </select>
-          <select aria-label="Rerun spec" value={rerunSpec} onChange={(e) => { setRerunSpec(e.target.value); setRerunRequestId(''); }} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+          <select aria-label="Rerun spec" value={rerunSpec} onChange={(e) => { setRerunSpec(e.target.value); setRerunRequestId(''); }} className="rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text)]">
             {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
-              <option key={k} value={k} className="bg-black">{k}</option>
+              <option key={k} value={k} className="bg-[var(--color-surface)] text-[var(--color-text)]">{k}</option>
             ))}
           </select>
-          <input aria-label="Proposer steps" value={rerunSteps} onChange={(e) => { setRerunSteps(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="steps 1..12" />
-          <input aria-label="Max tokens per step" value={rerunTokens} onChange={(e) => { setRerunTokens(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="tokens 1..1024" />
-          <input aria-label="Rerun tests" value={rerunTests} onChange={(e) => { setRerunTests(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="tests 1..512" />
-          <input aria-label="Rerun seed" value={rerunSeed} onChange={(e) => { setRerunSeed(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <input aria-label="Per-run budget USD" value={rerunMaxUsd} onChange={(e) => { setRerunMaxUsd(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="USD cap for cloud BYOK" />
-          <button onClick={runRerun} disabled={rerunBusy || rerunSessions.length === 0} className="rounded-lg bg-amber-500/15 border border-amber-400/30 px-3 py-1 text-xs text-amber-100 disabled:opacity-50">
+          <input aria-label="Proposer steps" value={rerunSteps} onChange={(e) => { setRerunSteps(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" title="steps 1..12" />
+          <input aria-label="Max tokens per step" value={rerunTokens} onChange={(e) => { setRerunTokens(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" title="tokens 1..1024" />
+          <input aria-label="Rerun tests" value={rerunTests} onChange={(e) => { setRerunTests(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" title="tests 1..512" />
+          <input aria-label="Rerun seed" value={rerunSeed} onChange={(e) => { setRerunSeed(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <input aria-label="Per-run budget USD" value={rerunMaxUsd} onChange={(e) => { setRerunMaxUsd(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" title="USD cap for cloud BYOK" />
+          <button onClick={runRerun} disabled={rerunBusy || rerunSessions.length === 0} className="rounded-lg bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] px-3 py-1 text-xs text-[var(--color-warning-ink)] disabled:opacity-50">
             {rerunBusy ? 'Running…' : rerunRequestId ? 'Retry same request' : 'Run proposer'}
           </button>
         </div>
         {rerunRequestId && (
-          <div className="mt-2 text-[12px] text-slate-400">
+          <div className="mt-2 text-[12px] text-[var(--color-muted)]">
             request_id <span className="font-mono">{rerunRequestId}</span> is pinned for retry;{' '}
-            <button onClick={() => { setRerunRequestId(''); setRerunError(null); }} className="underline text-cyan-200">start a new request</button>{' '}
+            <button onClick={() => { setRerunRequestId(''); setRerunError(null); }} className="underline text-[var(--color-info-ink)]">start a new request</button>{' '}
             after changing inputs.
           </div>
         )}
-        {rerunError && <div role="alert" className="mt-2 text-xs text-rose-300">{rerunError}</div>}
+        {rerunError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{rerunError}</div>}
         {writeSettlementLabel(rerunWrite.write) && (
-          <p role="status" className="mt-2 text-xs font-mono text-slate-400">{writeSettlementLabel(rerunWrite.write)}</p>
+          <p role="status" className="mt-2 text-xs font-mono text-[var(--color-muted)]">{writeSettlementLabel(rerunWrite.write)}</p>
         )}
         {rerunRes && (
-          <div className="mt-2 text-xs text-slate-200 font-mono">
+          <div className="mt-2 text-xs text-[var(--color-label-secondary)] font-mono">
             <div>run {rerunRes.run_id} · {rerunRes.provider}/{rerunRes.model} · billing {rerunRes.billing} ({rerunRes.payer})</div>
             <div>est ${rerunRes.estimated_usd.toFixed(4)} / budget ${rerunRes.budget_usd.toFixed(2)} · steps {rerunRes.steps} · provenance {rerunRes.provenance_status}</div>
             <div>
@@ -738,8 +738,8 @@ export function CodesignCockpit() {
                 : 'none'} · {rerunRes.stopped_reason || 'ok'}
             </div>
             <details className="mt-1">
-              <summary className="cursor-pointer text-[12px] text-cyan-200">Trials ({rerunRes.trials.length})</summary>
-              <ul className="mt-1 space-y-0.5 text-[12px] text-slate-300">
+              <summary className="cursor-pointer text-[12px] text-[var(--color-info-ink)]">Trials ({rerunRes.trials.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[12px] text-[var(--color-label-secondary)]">
                 {rerunRes.trials.map((t) => (
                   <li key={t.step}>
                     step {t.step}: {t.valid ? `${t.toffoli}T × ${t.peak_qubits}Q = ${t.tq}` : 'invalid'} · {t.reason}
@@ -751,18 +751,18 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">Batch evaluation + frontier (≤64 artifacts) — read-only</div>
-        <div className="text-[12px] text-slate-400">Each artifact is scored by the Python evaluator; the returned frontier is the evaluator&apos;s Map-Elites cells, not a client-side summary.</div>
-        <textarea aria-label="Batch artifacts JSON" value={batchArtifacts} onChange={(e) => setBatchArtifacts(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        <button onClick={() => void runBatch()} disabled={batchBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Batch evaluation + frontier (≤64 artifacts) — read-only</div>
+        <div className="text-[12px] text-[var(--color-muted)]">Each artifact is scored by the Python evaluator; the returned frontier is the evaluator&apos;s Map-Elites cells, not a client-side summary.</div>
+        <textarea aria-label="Batch artifacts JSON" value={batchArtifacts} onChange={(e) => setBatchArtifacts(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+        <button onClick={() => void runBatch()} disabled={batchBusy} className="mt-2 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)] disabled:opacity-50">
           {batchBusy ? 'Scoring…' : 'Run batch'}
         </button>
-        {batchError && <div role="alert" className="mt-2 text-xs text-rose-300">{batchError}</div>}
+        {batchError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{batchError}</div>}
         {batchRes && (
-          <div className="mt-2 text-xs text-slate-200 font-mono">
+          <div className="mt-2 text-xs text-[var(--color-label-secondary)] font-mono">
             <div>spec {batchRes.spec_kind} · artifacts {batchRes.details.length} · valid {batchRes.details.filter((d) => d.valid === true).length}</div>
-            <div className="mt-1 text-[12px] text-slate-400">frontier {JSON.stringify(batchRes.frontier).slice(0, 500)}</div>
+            <div className="mt-1 text-[12px] text-[var(--color-muted)]">frontier {JSON.stringify(batchRes.frontier).slice(0, 500)}</div>
             <ul className="mt-1 max-h-40 overflow-y-auto space-y-0.5 text-[12px]">
               {batchRes.details.slice(0, 20).map((d, i) => (
                 <li key={i}>{d.valid === true ? `${String(d.toffoli)}T × ${String(d.peak_qubits)}Q = ${String(d.tq)}` : 'invalid'} · ε {String(d.eps_bound_97_5 ?? '—')}</li>
@@ -772,43 +772,43 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">Families (anti-caution fix) — read-only</div>
-        <div className="text-[12px] text-slate-400">N tracks mature separately on one spec, elites cross-pollinate, the widen-nudge names the most stagnant track. Human nudge reads the output — never auto-prompt-injection.</div>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Families (anti-caution fix) — read-only</div>
+        <div className="text-[12px] text-[var(--color-muted)]">N tracks mature separately on one spec, elites cross-pollinate, the widen-nudge names the most stagnant track. Human nudge reads the output — never auto-prompt-injection.</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <select aria-label="Family spec" value={famSpec} onChange={(e) => setFamSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+          <select aria-label="Family spec" value={famSpec} onChange={(e) => setFamSpec(e.target.value)} className="rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text)]">
             {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
-              <option key={k} value={k} className="bg-black">{k}</option>
+              <option key={k} value={k} className="bg-[var(--color-surface)] text-[var(--color-text)]">{k}</option>
             ))}
           </select>
-          <input aria-label="Families (comma list)" value={famFamilies} onChange={(e) => setFamFamilies(e.target.value)} className="w-40 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <input aria-label="Share rounds" value={famRounds} onChange={(e) => setFamRounds(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <label className="flex items-center gap-1 text-[12px] text-slate-400">
+          <input aria-label="Families (comma list)" value={famFamilies} onChange={(e) => setFamFamilies(e.target.value)} className="w-40 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <input aria-label="Share rounds" value={famRounds} onChange={(e) => setFamRounds(e.target.value)} className="w-16 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+          <label className="flex items-center gap-1 text-[12px] text-[var(--color-muted)]">
             κ
-            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 accent-cyan-400" />
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 accent-[var(--color-accent)]" />
           </label>
-          <button onClick={runFamilies} disabled={famBusy} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+          <button onClick={runFamilies} disabled={famBusy} className="rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)] disabled:opacity-50">
             {famBusy ? 'Running…' : 'Run families'}
           </button>
         </div>
-        <textarea aria-label="Family offers JSON" value={famOffers} onChange={(e) => setFamOffers(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        {famError && <div role="alert" className="mt-2 text-xs text-rose-300">{famError}</div>}
+        <textarea aria-label="Family offers JSON" value={famOffers} onChange={(e) => setFamOffers(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+        {famError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{famError}</div>}
           {famRes && (
-            <div className="mt-2 text-xs text-slate-200">
+            <div className="mt-2 text-xs text-[var(--color-label-secondary)]">
               <div className="font-mono">
                 offers: {famRes.offers.map((o) => `${o.family} ${o.valid ? `${o.toffoli}T ${o.improved ? '✓' : '='}` : 'invalid'}`).join(' · ')}
               </div>
               <div className="mt-1 font-mono">elites: {Object.entries(famRes.elites).map(([f, e]) => `${f} ${e.toffoli}T×${e.qubits}Q`).join(' · ') || 'none yet'}</div>
-            <div className="mt-1 font-mono text-[12px] text-slate-400">
+            <div className="mt-1 font-mono text-[12px] text-[var(--color-muted)]">
               stagnation: {Object.entries(famRes.stagnation).map(([f, s]) => `${f}:${s}`).join(' ')} · lineage {famRes.lineage_len}
             </div>
-            <div className="mt-1 text-[12px] text-amber-200">widen-nudge: {famRes.widen_nudge.nudge} ({famRes.widen_nudge.offers_since_improvement} offers since improvement)</div>
-            <div className="mt-1 text-[12px] text-slate-300">
+            <div className="mt-1 text-[12px] text-[var(--color-warning-ink)]">widen-nudge: {famRes.widen_nudge.nudge} ({famRes.widen_nudge.offers_since_improvement} offers since improvement)</div>
+            <div className="mt-1 text-[12px] text-[var(--color-label-secondary)]">
               sharing: {famRes.shares.map((s, i) => `round ${i + 1}: ${s.offers} offers → ${s.improvements} improvements`).join('; ') || 'no share rounds'}
             </div>
             <details className="mt-1">
-              <summary className="cursor-pointer text-[12px] text-cyan-200">Lineage ({famRes.lineage_len} events{famRes.lineage.length < famRes.lineage_len ? `, showing last ${famRes.lineage.length}` : ''})</summary>
-              <ul className="mt-1 space-y-0.5 font-mono text-[12px] text-slate-400">
+              <summary className="cursor-pointer text-[12px] text-[var(--color-info-ink)]">Lineage ({famRes.lineage_len} events{famRes.lineage.length < famRes.lineage_len ? `, showing last ${famRes.lineage.length}` : ''})</summary>
+              <ul className="mt-1 space-y-0.5 font-mono text-[12px] text-[var(--color-muted)]">
                 {famRes.lineage.map((e, i) => (
                   <li key={i}>
                     {String(e.family)} · {String(e.toffoli)}T {e.improved ? 'improved' : 'no improvement'}
@@ -821,20 +821,20 @@ export function CodesignCockpit() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget — read-only</div>
-        <div className="text-[12px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div className="text-xs font-semibold text-[var(--color-text)]">Kappa sweep + failure-budget — read-only</div>
+        <div className="text-[12px] text-[var(--color-muted)]">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={scoreSweep} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Sweep κ=1..3</button>
-          {sweep && <span className="text-xs text-white font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
-          {sweepError && <span role="alert" className="text-xs text-rose-300">{sweepError}</span>}
+          <button onClick={scoreSweep} className="rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)]">Sweep κ=1..3</button>
+          {sweep && <span className="text-xs text-[var(--color-text)] font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
+          {sweepError && <span role="alert" className="text-xs text-[var(--color-danger-ink)]">{sweepError}</span>}
         </div>
-        <textarea aria-label="Budget rows" value={budgetRows} onChange={(e) => setBudgetRows(e.target.value)} rows={2} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        <button onClick={scoreBudgetServer} disabled={budgetBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+        <textarea aria-label="Budget rows" value={budgetRows} onChange={(e) => setBudgetRows(e.target.value)} rows={2} className="mt-3 w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] px-2 py-1 text-xs font-mono" />
+        <button onClick={scoreBudgetServer} disabled={budgetBusy} className="mt-2 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] px-3 py-1 text-xs text-[var(--color-info-ink)] disabled:opacity-50">
           {budgetBusy ? 'Scoring…' : 'Seal union bound'}
         </button>
         {budget && (
-          <div className="mt-2 text-xs text-white font-mono">
+          <div className="mt-2 text-xs text-[var(--color-text)] font-mono">
             <ul className="space-y-0.5">
               {budget.rows.map((r, i) => (
                 <li key={i}>{r.source}: {r.per_use_rate} × {r.uses} = {r.contribution.toExponential(3)}</li>
@@ -843,19 +843,19 @@ export function CodesignCockpit() {
             <div className="mt-1">union ≤ {budget.union_bound.toExponential(3)} (server-sealed)</div>
           </div>
         )}
-        {budgetError && <div role="alert" className="mt-2 text-xs text-rose-300">{budgetError}</div>}
+        {budgetError && <div role="alert" className="mt-2 text-xs text-[var(--color-danger-ink)]">{budgetError}</div>}
       </div>
 
-      <details className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <summary className="cursor-pointer text-xs font-semibold text-white">DQI loss bound (Eq 25) — local estimate</summary>
-        <div className="text-[12px] text-slate-400 mt-1">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
+      <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">DQI loss bound (Eq 25) — local estimate</summary>
+        <div className="text-[12px] text-[var(--color-muted)] mt-1">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
         <DqiBoundWidget />
       </details>
 
-      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[12px] text-slate-300">
-        <summary className="cursor-pointer text-xs font-semibold text-white">Domain packs — live registry (served, never hand-typed)</summary>
-        {!packs && !packsError && <div className="mt-1 text-slate-400">Loading pack registry…</div>}
-        {packsError && <div className="mt-1 text-rose-300">{packsError}</div>}
+      <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-[12px] text-[var(--color-label-secondary)]">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Domain packs — live registry (served, never hand-typed)</summary>
+        {!packs && !packsError && <div className="mt-1 text-[var(--color-muted)]">Loading pack registry…</div>}
+        {packsError && <div className="mt-1 text-[var(--color-danger-ink)]">{packsError}</div>}
         {packs && (
           <ul className="mt-1 space-y-1 font-mono">
             {packs.order.map((name) => {
@@ -869,10 +869,10 @@ export function CodesignCockpit() {
             })}
           </ul>
         )}
-        <div className="mt-1 text-slate-400">Promotion to active needs anchor_ref + proof_ref in the ledger. A pack name is not a result.</div>
+        <div className="mt-1 text-[var(--color-muted)]">Promotion to active needs anchor_ref + proof_ref in the ledger. A pack name is not a result.</div>
       </details>
 
-      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4 text-[12px] text-amber-200">
+      <div className="rounded-2xl border border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] p-4 text-[12px] text-[var(--color-warning-ink)]">
         Validity ground truth is the Python kickmix evaluator (simulator-only, Aer local). This cockpit scores numbers only — never verdicts. Paper gains (12×/32×/39×/…) are Anthropic-claimed until independently rerun.
       </div>
     </div>

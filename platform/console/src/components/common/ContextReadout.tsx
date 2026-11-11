@@ -40,12 +40,12 @@ export function ContextReadout({ sessionId, refreshKey }: { sessionId: string; r
     ` · ${totalTok} tokens measured`;
   return (
     <span
-      className={`text-[12px] font-code ml-1 ${hot ? 'text-amber-300' : 'text-slate-400'}`}
+      className={`text-[12px] font-code ml-1 ${hot ? 'text-[var(--color-warning)] font-semibold' : 'text-[var(--color-muted)]'}`}
       title={title}
       aria-label={`Context pressure ${pct} percent`}
     >
       ctx {pct}%
-      {ctx.would_drop > 0 && <span className="text-amber-300"> ↓{ctx.would_drop}</span>}
+      {ctx.would_drop > 0 && <span className="text-[var(--color-warning)]"> ↓{ctx.would_drop}</span>}
     </span>
   );
 }

@@ -51,15 +51,15 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
   return (
     <div className="space-y-3">
       <form onSubmit={run} className="flex items-center space-x-2">
-        <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl bg-neutral-900 border border-neutral-700 focus-within:border-cyan-500">
-          <Search className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] focus-within:border-[var(--color-info-edge)]">
+          <Search className="w-3.5 h-3.5 text-[var(--color-muted)]" />
           <input
             type="text"
             aria-label="Search literature"
             placeholder="Ground this report: e.g. variational quantum eigensolver"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none"
+            className="flex-1 bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
           />
         </div>
         <button
@@ -72,7 +72,7 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
       </form>
 
       {searched && !failed && (
-        <div className="text-[12px] font-mono text-slate-400">
+        <div className="text-[12px] font-mono text-[var(--color-muted)]">
           {records.length} record{records.length === 1 ? '' : 's'}
           {/* Label invariant: the bridge never fabricates records, so a
               non-empty uncached result genuinely arrived live this session;
@@ -86,13 +86,13 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
       )}
 
       {searched && failed && (
-        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
           <span>search unavailable — the backend did not answer. Nothing returned, nothing assumed.</span>
           <button
             type="button"
             onClick={() => void run()}
             disabled={busy}
-            className="shrink-0 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[12px] font-semibold disabled:opacity-50"
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] text-[12px] font-semibold disabled:opacity-50"
           >
             Retry
           </button>
@@ -103,30 +103,30 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
         {records.map((r, i) => (
           <div
             key={r.id || r.title || `record-${i}`}
-            className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-1"
+            className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-1"
           >
             <div className="flex items-start justify-between gap-2">
-              <span className="text-xs font-semibold text-white leading-snug">{r.title || 'Untitled record'}</span>
+              <span className="text-xs font-semibold text-[var(--color-text)] leading-snug">{r.title || 'Untitled record'}</span>
               {r.url && (
                 <a
                   href={r.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="shrink-0 text-cyan-400 hover:text-cyan-300"
+                  className="shrink-0 text-[var(--color-info-ink)] hover:opacity-80"
                   aria-label={`Open ${r.title}`}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
             </div>
-            <div className="text-[12px] font-mono text-slate-400 flex items-center gap-2">
+            <div className="text-[12px] font-mono text-[var(--color-muted)] flex items-center gap-2">
               <BookOpen className="w-3 h-3" />
               <span className="truncate">{r.authors}</span>
               {r.publication_year > 0 && <span>· {r.publication_year}</span>}
               <span>· {typeof r.citation_count === 'number' && Number.isFinite(r.citation_count) ? r.citation_count : '—'} citations</span>
             </div>
             {r.abstract && (
-              <p className="text-[12px] text-neutral-400 leading-relaxed">{r.abstract}</p>
+              <p className="text-[12px] text-[var(--color-muted)] leading-relaxed">{r.abstract}</p>
             )}
           </div>
         ))}

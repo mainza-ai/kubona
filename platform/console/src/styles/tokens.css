@@ -1,101 +1,201 @@
-/*
- * Kubona semantic interface tokens.
- *
- * Components should use these names, not raw palette utilities. The ladder is
- * deliberately neutral: hierarchy comes from surface, spacing and type. Colour
- * is reserved for state and data.
- */
+/* Kubona semantic design tokens aligned with Zephium's warm-neutral graphite
+   tonal ladder. Dark is the base (:root); [data-theme="light"], [data-tint],
+   [data-contrast], [data-density], and [data-reduce-motion] live in axes.css. */
 
 :root {
-  /* Surface ladder */
-  --color-canvas: #0b0c0f;
-  --color-page: #101114;
-  --color-chrome: #15161a;
-  --color-surface: #1b1c21;
-  --color-raised: #23242a;
-  --color-float: #2a2b32;
-  --color-menu: #2a2b32;
+  color-scheme: dark;
 
-  /* Text */
-  --color-text: #f1f2f4;
-  --color-label-secondary: #d5d7db;
-  --color-muted: rgb(241 242 244 / 0.68);
-  --color-faint: rgb(241 242 244 / 0.46);
+  /* Neutral graphite tonal ladder */
+  --color-canvas: #1a1a1d;
+  --color-page: #1a1a1d;
+  --color-chrome: #1f1f22;
+  --color-surface: #26262a;
+  --color-surface-elev: #303036;
+  --color-raised: #2c2c30;
+  --color-float: #3d3d44;
+  --wash-raised: 62%;
+  --color-menu: color-mix(in srgb, var(--color-float) var(--wash-raised), transparent);
+  --color-menu-separator: rgb(255 255 255 / 0.1);
 
-  /* Lines and fills */
-  --color-border: rgb(255 255 255 / 0.08);
-  --color-border-strong: rgb(255 255 255 / 0.14);
+  /* Surface fills & hairlines */
   --color-fill: rgb(255 255 255 / 0.05);
   --color-fill-hover: rgb(255 255 255 / 0.08);
-  --color-fill-pressed: rgb(255 255 255 / 0.12);
+  --color-fill-active: rgb(255 255 255 / 0.12);
+  --color-fill-pressed: rgb(255 255 255 / 0.16);
+  --color-fill-strong: rgb(255 255 255 / 0.22);
+  --color-card: rgb(255 255 255 / 0.05);
+  --color-tile: rgb(255 255 255 / 0.06);
+  --color-tile-hover: rgb(255 255 255 / 0.1);
+  --color-border: rgb(255 255 255 / 0.07);
+  --color-border-strong: rgb(255 255 255 / 0.13);
+
+  /* List & segmented states */
+  --row-hover: rgb(255 255 255 / 0.04);
+  --row-active: rgb(255 255 255 / 0.075);
+  --row-pressed: rgb(255 255 255 / 0.1);
+  --row-rim: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  --segment-thumb: var(--row-active);
+  --shadow-segment-thumb: var(--row-rim);
+
+  /* Scrollbars */
+  --scroll-thumb: rgb(255 255 255 / 0.16);
+  --scroll-thumb-hover: rgb(255 255 255 / 0.28);
+
+  /* Text hierarchy (WCAG AA >= 4.5:1 on --color-surface / --color-raised) */
+  --color-text: #f4f4f6;
+  --color-label-secondary: #d8d8db;
+  --color-muted: rgb(244 244 246 / 0.72);
+  --color-faint: rgb(244 244 246 / 0.62);
+
+  /* Controls & inputs */
   --color-control: rgb(255 255 255 / 0.09);
   --color-control-hover: rgb(255 255 255 / 0.13);
-  --color-field: rgb(255 255 255 / 0.08);
-  --color-field-ring: rgb(255 255 255 / 0.18);
+  --color-control-pressed: rgb(255 255 255 / 0.17);
+  --color-on-control: var(--color-text);
+  --color-on-control-strong: var(--color-text);
+  --color-field: rgb(255 255 255 / 0.09);
+  --color-field-hover: rgb(255 255 255 / 0.12);
+  --color-field-ring: rgb(255 255 255 / 0.16);
+  --color-raise: rgb(255 255 255 / 0.08);
+  --color-raise-active: rgb(255 255 255 / 0.12);
+  --color-track: rgb(255 255 255 / 0.14);
+  --color-track-on: #96969d;
 
-  /* State and data. Semantic colour supplements a label; it never carries
-     meaning alone. */
-  --color-accent: #e8e9ec;
-  --color-on-accent: #111216;
-  --color-lit: #eceef2;
+  /* Lit & default neutral accent */
+  --color-lit: #ededf0;
+  --color-lit-hover: #f7f7fa;
+  --color-on-lit: #161619;
+  --color-lit-soft: rgb(237 237 240 / 0.16);
+  --color-accent: var(--color-lit);
+  --color-accent-hover: var(--color-lit-hover);
+  --color-on-accent: var(--color-on-lit);
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --color-accent-ink: color-mix(in oklab, var(--color-accent) 78%, var(--color-text));
+  --color-accent-edge: color-mix(in oklab, var(--color-accent) 36%, var(--color-border-strong));
+  --color-ring: rgb(255 255 255 / 0.5);
+
+  /* Palette tints */
+  --color-tint-graphite: #96969d;
+  --color-tint-sky: #7fb3f5;
+  --color-tint-sage: #86c9a4;
+  --color-tint-rose: #ee8f95;
+  --color-tint-amber: #e9b872;
+  --color-tint-teal: #6fc6c1;
+  --color-tint-lavender: #b3a4f2;
+  --color-tint-orchid: #dc9ad8;
+
+  /* Semantic states */
+  --color-danger: #ef8a8e;
   --color-success: #7fcaa1;
   --color-warning: #dcb977;
-  --color-danger: #ef8a8e;
   --color-info: #8fbcf7;
-  --color-chart-1: #74b9ff;
-  --color-chart-2: #7fcaa1;
-  --color-chart-3: #dcb977;
-  --color-chart-4: #ef8a8e;
-  --color-chart-5: #b3a4f2;
-  --color-chart-6: #6fc6c1;
-  --color-chart-7: #e9a6d8;
-  --color-chart-8: #b8c0cc;
-  --color-chart-other: #7b8492;
 
-  /* Reading sizes: body 13, labels 12, captions 11. */
-  --text-display: 30px;
-  --text-title: 20px;
-  --text-page-title: 16px;
-  --text-body: 13px;
-  --text-label: 12px;
-  --text-caption: 11px;
-  --text-code: 12px;
+  /* Soft semantic hues (badges, tags, inline code, key terms) */
+  --color-soft-sky: #8db9f2;
+  --color-soft-mint: #88d0b3;
+  --color-soft-lemon: #e6cb80;
+  --color-soft-peach: #efaa89;
+  --color-soft-rose: #ee9aae;
+  --color-soft-lilac: #b7a6f0;
+  --soft-wash: 15%;
+  --soft-edge: 26%;
+  --soft-ink: 62%;
+  --color-soft-sky-wash: color-mix(in oklab, var(--color-soft-sky) var(--soft-wash), var(--color-surface));
+  --color-soft-mint-wash: color-mix(in oklab, var(--color-soft-mint) var(--soft-wash), var(--color-surface));
+  --color-soft-lemon-wash: color-mix(in oklab, var(--color-soft-lemon) var(--soft-wash), var(--color-surface));
+  --color-soft-peach-wash: color-mix(in oklab, var(--color-soft-peach) var(--soft-wash), var(--color-surface));
+  --color-soft-rose-wash: color-mix(in oklab, var(--color-soft-rose) var(--soft-wash), var(--color-surface));
+  --color-soft-lilac-wash: color-mix(in oklab, var(--color-soft-lilac) var(--soft-wash), var(--color-surface));
+  --color-soft-sky-edge: color-mix(in oklab, var(--color-soft-sky) var(--soft-edge), transparent);
+  --color-soft-mint-edge: color-mix(in oklab, var(--color-soft-mint) var(--soft-edge), transparent);
+  --color-soft-lemon-edge: color-mix(in oklab, var(--color-soft-lemon) var(--soft-edge), transparent);
+  --color-soft-peach-edge: color-mix(in oklab, var(--color-soft-peach) var(--soft-edge), transparent);
+  --color-soft-rose-edge: color-mix(in oklab, var(--color-soft-rose) var(--soft-edge), transparent);
+  --color-soft-lilac-edge: color-mix(in oklab, var(--color-soft-lilac) var(--soft-edge), transparent);
+  --color-soft-sky-ink: color-mix(in oklab, var(--color-soft-sky) var(--soft-ink), var(--color-text));
+  --color-soft-mint-ink: color-mix(in oklab, var(--color-soft-mint) var(--soft-ink), var(--color-text));
+  --color-soft-lemon-ink: color-mix(in oklab, var(--color-soft-lemon) var(--soft-ink), var(--color-text));
+  --color-soft-peach-ink: color-mix(in oklab, var(--color-soft-peach) var(--soft-ink), var(--color-text));
+  --color-soft-rose-ink: color-mix(in oklab, var(--color-soft-rose) var(--soft-ink), var(--color-text));
+  --color-soft-lilac-ink: color-mix(in oklab, var(--color-soft-lilac) var(--soft-ink), var(--color-text));
+  --color-code-chip: color-mix(in oklab, var(--color-soft-lilac) 13%, transparent);
+  --color-code-chip-ink: var(--color-soft-lilac-ink);
+  --color-term: var(--color-soft-sky-ink);
+  --color-term-wash: color-mix(in oklab, var(--color-soft-sky) 12%, transparent);
+  --color-warning-wash: color-mix(in oklab, var(--color-warning) var(--soft-wash), var(--color-surface));
+  --color-warning-edge: color-mix(in oklab, var(--color-warning) var(--soft-edge), transparent);
+  --color-warning-ink: color-mix(in oklab, var(--color-warning) var(--soft-ink), var(--color-text));
+  --color-success-wash: color-mix(in oklab, var(--color-success) var(--soft-wash), var(--color-surface));
+  --color-success-edge: color-mix(in oklab, var(--color-success) var(--soft-edge), transparent);
+  --color-success-ink: color-mix(in oklab, var(--color-success) var(--soft-ink), var(--color-text));
+  --color-danger-wash: color-mix(in oklab, var(--color-danger) var(--soft-wash), var(--color-surface));
+  --color-danger-edge: color-mix(in oklab, var(--color-danger) var(--soft-edge), transparent);
+  --color-danger-ink: color-mix(in oklab, var(--color-danger) var(--soft-ink), var(--color-text));
+  --color-info-wash: color-mix(in oklab, var(--color-info) var(--soft-wash), var(--color-surface));
+  --color-info-edge: color-mix(in oklab, var(--color-info) var(--soft-edge), transparent);
+  --color-info-ink: color-mix(in oklab, var(--color-info) var(--soft-ink), var(--color-text));
+  --color-soft-indigo-wash: var(--color-soft-lilac-wash);
+  --color-soft-indigo-edge: var(--color-soft-lilac-edge);
 
-  /* Role-named radii, never size-named. */
+  /* Categorical data chart palette (CVD-safe stepped contrast) */
+  --color-chart-1: #6193db;
+  --color-chart-2: #b37046;
+  --color-chart-3: #2da58f;
+  --color-chart-4: #a47d00;
+  --color-chart-5: #b77094;
+  --color-chart-6: #679936;
+  --color-chart-7: #7e68ab;
+  --color-chart-8: #c6685b;
+  --color-chart-other: #8c8c96;
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
+  --chart-6: var(--color-chart-6);
+  --chart-7: var(--color-chart-7);
+  --chart-8: var(--color-chart-8);
+
+  /* Role-based radii */
+  --radius-swatch: 3px;
   --radius-inset: 8px;
-  --radius-control-compact: 10px;
   --radius-row: 12px;
+  --radius-control-compact: 10px;
   --radius-control: 14px;
+  --radius-control-large: 18px;
   --radius-card: 18px;
   --radius-panel: 22px;
-  --radius-capsule: 9999px;
+  --radius-capsule: 999px;
+  --radius-pill: var(--radius-capsule);
 
-  /* Spacing rhythm */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  /* Elevation shadows */
+  --shadow-card: none;
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --shadow-float: 0 6px 22px rgb(0 0 0 / 0.34), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --shadow-overlay: 0 12px 36px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --shadow-popover: var(--shadow-float);
+  --shadow-menu: 0 0 0 1px rgb(255 255 255 / 0.08), 0 14px 44px -10px rgb(0 0 0 / 0.34);
+  --shine: inset 0 1px 0 0 rgb(255 255 255 / 0.13), inset 0 -1px 0 0 rgb(255 255 255 / 0.04), inset 0 0 0 1px rgb(255 255 255 / 0.05);
 
-  /* One shadow recipe for things that float. */
-  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 24px rgb(0 0 0 / 0.16);
-  --shadow-popover: 0 2px 4px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.28);
+  /* Typographic scale */
+  --text-caption: 11px;
+  --text-label: 12px;
+  --text-body: 13px;
+  --text-page-body: 13px;
+  --text-page-title: 14px;
+  --text-title: 22px;
+  --text-headline: 26px;
+  --text-display: 30px;
 
-  /* Motion: transform/opacity only. */
-  --motion-instant: 70ms;
-  --motion-fast: 120ms;
-  --motion-base: 200ms;
-  --motion-slow: 300ms;
-  --motion-page: 400ms;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Motion timings & density */
+  --motion-fast: 140ms;
+  --motion-mid: 220ms;
+  --motion-slow: 340ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease: var(--ease-out);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --focus-ring: 2px solid var(--color-info);
+  --inspector-width: 380px;
+  --workbench-card-pad: 12px 14px;
+  --workbench-row-gap: 6px;
 }
-
-.text-body { font-size: var(--text-body); line-height: 1.5; }
-.text-label { font-size: var(--text-label); line-height: 1.4; }
-.text-caption { font-size: var(--text-caption); line-height: 1.35; }
-.text-page-title { font-size: var(--text-page-title); line-height: 1.25; }
-.text-title { font-size: var(--text-title); line-height: 1.2; }

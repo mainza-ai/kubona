@@ -40,3 +40,28 @@ func TestW220BoundedResponseRefuses(t *testing.T) {
 		t.Errorf("oversize body must refuse with cap error, got %v", err)
 	}
 }
+
+func TestFetchModelsEmptyReturnsSliceNotNil(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	s := llm.DefaultSettings()
+	snap := s.GetSnapshot()
+	pc := snap.Providers[llm.ProviderOMLX]
+	pc.BaseURL = srv.URL
+	snap.Providers[llm.ProviderOMLX] = pc
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
+	c := llm.NewClient(s)
+	models, err := c.FetchModels(context.Background(), llm.ProviderOMLX)
+	if err != nil {
+		t.Fatalf("FetchModels: %v", err)
+	}
+	if models == nil || len(models) != 0 {
+		t.Fatalf("expected non-nil empty slice, got %#v", models)
+	}
+}

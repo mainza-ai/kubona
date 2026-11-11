@@ -3,15 +3,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
-import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
+import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, hasOperatorBearer, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
-import { setAuthPhase } from '@/domain/auth-state';
+import { setAuthPhase, useAuthPhase } from '@/domain/auth-state';
 import { subscribeInvalidation } from '@/domain/invalidation';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
 import { buildWorkbench, type WorkbenchObject, type WorkbenchObjectKind } from '@/components/workbench/workbench-model';
@@ -21,8 +21,9 @@ import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
 import { useSessionsProjection } from '@/lib/useSessionsProjection';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
-import { CopilotDrawer, type CopilotHandle } from '@/components/CopilotDrawer';
-import { Composer } from '@/components/shell/Composer';
+import { CopilotDrawer } from '@/components/CopilotDrawer';
+import { CommandDock } from '@/components/shell/CommandDock';
+import { useCopilotChat } from '@/domain/useCopilotChat';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
@@ -33,16 +34,20 @@ import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
 import { SwarmUniverse } from '@/components/sovereign/SwarmUniverse';
 import { ProofDagView } from '@/components/sovereign/ProofDagView';
 import { ActionGate } from '@/components/sovereign/ActionGate';
+import { Chart } from '@/components/data/LazyChart';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
+import { Button } from '@/components/ui/Button';
 import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorderCard } from '@/components/FlightRecorderCard';
-import { Workbench } from '@/components/workbench/Workbench';
+import { CodeBlock, CompareMatrix, Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
 import { BannerStack, describeCreateFailure } from '@/components/shell/Banners';
 import { KeyHint } from '@/components/ui/Controls';
 import { Dialog } from '@/components/ui/Overlays';
 import { CampaignHeader } from '@/components/shell/CampaignHeader';
+import { runViewTransition } from '@/lib/appearance';
 import { buildShellSearch, parseShellParams, tabForSurface, type DockSurface, type MeshTab } from '@/lib/shell-params';
 
 const FlightRecorder = dynamic(() => import('@/components/surfaces/FlightRecorder').then((mod) => ({ default: mod.FlightRecorder })), { ssr: false, loading: () => <SurfaceLoading label="flight recorder" /> });
@@ -55,6 +60,7 @@ const HuggingFaceModelHub = dynamic(() => import('@/components/surfaces/HuggingF
 const LabsView = dynamic(() => import('@/components/surfaces/LabsView').then((mod) => ({ default: mod.LabsView })), { ssr: false, loading: () => <SurfaceLoading label="laboratories" /> });
 const LLMSettings = dynamic(() => import('@/components/surfaces/LLMSettings').then((mod) => ({ default: mod.LLMSettings })), { ssr: false, loading: () => <SurfaceLoading label="LLM settings" /> });
 const QuantumSettings = dynamic(() => import('@/components/surfaces/QuantumSettings').then((mod) => ({ default: mod.QuantumSettings })), { ssr: false, loading: () => <SurfaceLoading label="quantum settings" /> });
+const AppearanceSettings = dynamic(() => import('@/components/surfaces/AppearanceSettings').then((mod) => ({ default: mod.AppearanceSettings })), { ssr: false, loading: () => <SurfaceLoading label="appearance" /> });
 const QuantumDispatch = dynamic(() => import('@/components/surfaces/QuantumDispatch').then((mod) => ({ default: mod.QuantumDispatch })), { ssr: false, loading: () => <SurfaceLoading label="quantum dispatch" /> });
 const ExperimentPanel = dynamic(() => import('@/components/common/ExperimentPanel').then((mod) => ({ default: mod.ExperimentPanel })), { ssr: false, loading: () => <SurfaceLoading label="experiment launcher" /> });
 const DiscoveryProtocolPanel = dynamic(() => import('@/components/common/DiscoveryProtocolPanel').then((mod) => ({ default: mod.DiscoveryProtocolPanel })), { ssr: false, loading: () => <SurfaceLoading label="discovery protocol" /> });
@@ -95,8 +101,10 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
-  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'experiments' | 'vault' | 'readiness'>('models');
+  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'experiments' | 'vault' | 'readiness' | 'appearance'>('models');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
+  const [inlineGateOwned, setInlineGateOwned] = useState(false);
+  const [liftedObject, setLiftedObject] = useState<WorkbenchObject | null>(null);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
   const [canvasWidget, setCanvasWidget] = useState<CanvasWidgetSpec | null>(null);
@@ -108,6 +116,12 @@ export default function Home() {
   const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authPhase = useAuthPhase();
+  const authPhaseRef = useRef(authPhase);
+  useEffect(() => {
+    authPhaseRef.current = authPhase;
+  }, [authPhase]);
+  const loopsAuthHaltedRef = useRef(false);
   useEffect(() => {
     setAuthPhase('checking');
     void authWhoami().then((session) => {
@@ -148,10 +162,7 @@ export default function Home() {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('details');
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
-  const copilotRef = useRef<CopilotHandle>(null);
   const workbenchRef = useRef<WorkbenchHandle>(null);
-  const pendingAsk = useRef<string | null>(null);
-  const pendingAttach = useRef<Array<{ name: string; text: string }>>([]);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
@@ -172,11 +183,26 @@ export default function Home() {
     } else {
       setSessionListError(sessResult.error);
     }
-    if (loopResult.ok) setLoops(loopResult.data);
+    if (loopResult.ok) {
+      loopsAuthHaltedRef.current = false;
+      setLoops(loopResult.data);
+    } else if (loopResult.failure.kind === 'auth' && !hasOperatorBearer() && authPhaseRef.current !== 'authenticated') {
+      loopsAuthHaltedRef.current = true;
+    }
     if (evtResult.ok) setEvents(evtResult.data);
     const readError = !loopResult.ok ? localFailure(loopResult) : !evtResult.ok ? localFailure(evtResult) : null;
     setDataError(readError);
   }, [currentSessionId, localFailure, setLoops, setSessions]);
+
+  const prevAuthPhase = useRef(authPhase);
+  useEffect(() => {
+    const previous = prevAuthPhase.current;
+    prevAuthPhase.current = authPhase;
+    if (authPhase === 'authenticated' && previous !== 'authenticated') {
+      loopsAuthHaltedRef.current = false;
+      void refreshData();
+    }
+  }, [authPhase, refreshData]);
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
@@ -226,14 +252,26 @@ export default function Home() {
       if (!mounted) return;
       if (!sessResult.ok) {
         setSessionListError(sessResult.error);
-        if (loopResult.ok) setLoops(loopResult.data);
+        if (loopResult.ok) {
+          loopsAuthHaltedRef.current = false;
+          setLoops(loopResult.data);
+        } else if (loopResult.failure.kind === 'auth' && !hasOperatorBearer() && authPhaseRef.current !== 'authenticated') {
+          loopsAuthHaltedRef.current = true;
+        }
         const authOnly = sessResult.failure.status === 401 || /multi-lab|unauthorized|log in/i.test(sessResult.error);
         setDataError(authOnly ? (loopResult.ok ? null : localFailure(loopResult)) : (loopResult.ok ? sessResult.error : localFailure(loopResult)));
         return;
       }
       setSessionListError(null);
-      if (!loopResult.ok) setDataError(localFailure(loopResult));
-      else setDataError(null);
+      if (!loopResult.ok) {
+        if (loopResult.failure.kind === 'auth' && !hasOperatorBearer() && authPhaseRef.current !== 'authenticated') {
+          loopsAuthHaltedRef.current = true;
+        }
+        setDataError(localFailure(loopResult));
+      } else {
+        loopsAuthHaltedRef.current = false;
+        setDataError(null);
+      }
       const sessList = sessResult.sessions;
       let targetSessionId = currentSessionId;
       setSessions(sessList);
@@ -267,15 +305,19 @@ export default function Home() {
       tickBusy.current = true;
       try {
         if (!document.hidden) {
-          if (!streamLive) {
+          if (!streamLive && !loopsAuthHaltedRef.current) {
             const loopResult = await fetchLoopsResult(currentSessionId || undefined);
             if (!mounted) return;
             if (!loopResult.ok) {
               if (loopResult.failure.kind === 'transport' || loopResult.failure.kind === 'server') {
                 throw new ApiFailureError(loopResult.failure);
               }
+              if (loopResult.failure.kind === 'auth' && !hasOperatorBearer() && authPhaseRef.current !== 'authenticated') {
+                loopsAuthHaltedRef.current = true;
+              }
               setDataError(localFailure(loopResult));
             } else {
+              loopsAuthHaltedRef.current = false;
               setLoops(loopResult.data);
               setDataError(null);
             }
@@ -549,57 +591,12 @@ export default function Home() {
       setSurface('mesh');
       setMeshTab('settings');
     };
-    const doc = typeof document !== 'undefined'
-      ? (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } })
-      : null;
-    if (!doc || typeof doc.startViewTransition !== 'function') {
-      applyMode();
-      doc?.getElementById('kubona-main')?.focus();
-      return;
-    }
-    const transition = doc.startViewTransition(() => {
-      applyMode();
-    });
-    transition.finished.finally(() => {
-      doc.getElementById('kubona-main')?.focus();
+    runViewTransition(applyMode, () => {
+      if (typeof document !== 'undefined') {
+        document.getElementById('kubona-main')?.focus();
+      }
     });
   }, [surface]);
-
-  useEffect(() => {
-    if (!inspectorOpen || inspectorTab !== 'copilot' || !copilotRef.current) return;
-    for (const item of pendingAttach.current) copilotRef.current.attach(item.name, item.text);
-    pendingAttach.current = [];
-    if (!pendingAsk.current) return;
-    const text = pendingAsk.current;
-    pendingAsk.current = null;
-    // Attachments are React state; let the attach commits land before send
-    // reads the transcript's attachment list.
-    setTimeout(() => { void copilotRef.current?.submit(text); }, 0);
-  }, [inspectorOpen, inspectorTab]);
-
-  const handleAttach = useCallback((name: string, text: string) => {
-    if (inspectorOpen && inspectorTab === 'copilot' && copilotRef.current) {
-      copilotRef.current.attach(name, text);
-      return;
-    }
-    pendingAttach.current = [...pendingAttach.current.filter((item) => item.name !== name), { name, text }];
-    setInspectorOpen(true);
-    setInspectorTab('copilot');
-  }, [inspectorOpen, inspectorTab]);
-
-  const handleDetach = useCallback((name: string) => {
-    pendingAttach.current = pendingAttach.current.filter((item) => item.name !== name);
-    copilotRef.current?.detach(name);
-  }, []);
-
-  const handleAsk = useCallback((text: string) => {
-    if (inspectorOpen && inspectorTab === 'copilot' && copilotRef.current) {
-      return copilotRef.current.submit(text);
-    }
-    pendingAsk.current = text;
-    setInspectorOpen(true);
-    setInspectorTab('copilot');
-  }, [inspectorOpen, inspectorTab]);
 
   const handleOpenWorkbenchObject = useCallback((kind: WorkbenchObjectKind) => {
     if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
@@ -642,9 +639,11 @@ export default function Home() {
     if (out.ok && out.closed) {
       obligationWrite.applied(requestId, `obligation ${id.slice(0, 8)} closed`);
       refreshObligations();
-    } else {
-      obligationWrite.refused(requestId, (out.reasons ?? []).join('; ') || out.error || 'not close-ready');
+      return { ok: true as const };
     }
+    const reason = (out.reasons ?? []).join('; ') || out.error || 'not close-ready';
+    obligationWrite.refused(requestId, reason);
+    return { ok: false as const, error: reason };
   }, [obligationWrite, refreshObligations]);
 
   const handleTaskStatus = useCallback(async (taskId: string, status: 'open' | 'done') => {
@@ -749,6 +748,40 @@ export default function Home() {
     if (phase !== 'idle') setRunElapsedSec(0);
   }, []);
 
+  const copilotChat = useCopilotChat({
+    sessionId: currentSessionId,
+    campaign,
+    requiresSignIn: Boolean(sessionListError && /multi-lab|unauthorized|log in/i.test(sessionListError)),
+    onSessionChange: (id) => {
+      setCurrentSessionId(id);
+      refreshData();
+    },
+    onCampaignUpdated: (c) => setCampaign(c),
+    onExperimentLaunched: () => {
+      refreshData();
+      void reloadCampaign();
+    },
+    onRunStateChange: handleRunStateChange,
+    onMaterialize: handleMaterialize,
+  });
+
+  const copilotChatRef = useRef(copilotChat);
+  useEffect(() => {
+    copilotChatRef.current = copilotChat;
+  }, [copilotChat]);
+
+  const handleAsk = useCallback((text: string) => {
+    setInspectorTab('copilot');
+    setInspectorOpen(true);
+    return copilotChatRef.current.send(text);
+  }, []);
+
+  const handleTribunalAsk = useCallback((topic: string) => {
+    setInspectorTab('copilot');
+    setInspectorOpen(true);
+    return copilotChatRef.current.conveneTribunal(topic);
+  }, []);
+
   // Prompt → probe mapping: the canvas lights the agent being asked.
   const probeForText = useCallback((text: string): ProbeId | null => {
     const t = text.toLowerCase();
@@ -786,6 +819,17 @@ export default function Home() {
     Boolean(campaign) &&
     isMeteredBackend(campaign?.quantum_factors?.recommended_backend) &&
     !gateState[currentSessionId];
+
+  const focusWorkbenchTarget = useCallback((id: string) => {
+    setSurface('arena');
+    setArenaView('workbench');
+    setShowLegacyCanvas(false);
+    if (workbenchRef.current) {
+      workbenchRef.current.focusObject(id);
+    } else {
+      setTimeout(() => workbenchRef.current?.focusObject(id), 0);
+    }
+  }, []);
 
   // Run-state derivation: overdue, lit probe, HUD status line.
   const runOverdue = runPhase !== 'idle' && runElapsedSec > 90;
@@ -895,6 +939,15 @@ export default function Home() {
   }, [surface, proofsTab, meshTab, arenaView]);
 
   const session = sessions.find((s) => s.id === currentSessionId) || null;
+  const confirmGate = useMemo(() => (
+    gateOpen && campaign ? {
+      campaign,
+      session,
+      onAuthorized: handleAuthorizePulse,
+      onDenied: handleDenyPulse,
+      onDowngrade: handleDowngradePulse,
+    } : null
+  ), [gateOpen, campaign, session, handleAuthorizePulse, handleDenyPulse, handleDowngradePulse]);
   const targetShort = campaign?.quantum_factors?.target_molecule || campaign?.target_system || '';
   const targetLabel = targetShort ? `${targetShort.slice(0, 28)} · Ground State Target` : 'No Target · Idle';
   void nowTick;
@@ -907,13 +960,13 @@ export default function Home() {
 
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
     <div className="flex items-center justify-center px-4 pt-4">
-      <div className="bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-2xl">
+      <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-[var(--shadow-float)]">
         {options.map((o) => (
           <button
             key={o.id}
             onClick={() => onChange(o.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-              value === o.id ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
+              value === o.id ? 'bg-[var(--color-fill-active)] text-[var(--color-text)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
             }`}
           >
             {o.label}
@@ -924,7 +977,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign">
+    <div className="flex h-screen w-screen bg-[var(--color-canvas)] text-[var(--color-text)] overflow-hidden font-sovereign">
       <a href="#kubona-main" className="k-skip-link">Skip to main content</a>
       <AttentionProvider>
       {/* Modals & Dialogs */}
@@ -971,7 +1024,7 @@ export default function Home() {
         body={
           <>
             EMERGENCY ABORT: settle every unsettled job in session{' '}
-            <code className="rounded bg-white/10 px-1 font-mono">{currentSessionId}</code> as
+            <code className="rounded bg-[var(--color-fill)] text-[var(--color-text)] px-1 font-mono">{currentSessionId}</code> as
             failed? This cannot be undone.
           </>
         }
@@ -994,7 +1047,7 @@ export default function Home() {
           body={
             <span>
               This will permanently remove its state and transcripts. Type{' '}
-              <code className="rounded bg-white/10 px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
+              <code className="rounded bg-[var(--color-fill)] text-[var(--color-text)] px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
             </span>
           }
           requireText={deleteDraft.id.slice(0, 8)}
@@ -1026,7 +1079,7 @@ export default function Home() {
         <div
           data-testid="create-campaign-error"
           role="alert"
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] max-w-lg px-4 py-2.5 rounded-2xl bg-rose-950/95 border border-rose-500/40 text-rose-100 text-xs shadow-2xl"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] max-w-lg px-4 py-2.5 rounded-2xl bg-[var(--color-float)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs shadow-[var(--shadow-float)]"
         >
           {createError}
         </div>
@@ -1060,14 +1113,14 @@ export default function Home() {
         }
         const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
         return (
-        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[#0E1117] border border-white/10 shadow-2xl p-3 space-y-2">
+        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-border-strong)] shadow-[var(--shadow-float)] p-3 space-y-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-[12px] font-code uppercase tracking-wider text-slate-400">
+            <span className="text-[12px] font-code uppercase tracking-wider text-[var(--color-muted)]">
               Campaigns ({sessions.length})
             </span>
             <button
               onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25 transition-all"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] hover:bg-[var(--color-fill-hover)] transition-all"
             >
               <Plus className="w-3 h-3" /> New <kbd className="font-code text-[12px]">{SHORTCUTS.newCampaign}</kbd>
             </button>
@@ -1079,37 +1132,37 @@ export default function Home() {
             onChange={(e) => setCampaignFilter(e.target.value)}
             placeholder="Filter by title or lab…"
             aria-label="Filter campaigns by title or lab"
-            className="w-full px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400/50"
+            className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder-[var(--color-faint)] focus:outline-none focus:border-[var(--color-info)]"
           />
           <div className="max-h-64 overflow-y-auto space-y-3">
             {ordered.length === 0 && (
               sessionListError ? (
                 /multi-lab|unauthorized|log in/i.test(sessionListError) ? (
-                  <div role="status" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
+                  <div role="status" className="text-[12px] text-[var(--color-warning-ink)] px-1 py-2 space-y-1">
                     <p>This is a multi-lab workspace. Sign in to see your lab’s campaigns.</p>
                     <button
                       type="button"
                       onClick={() => { setShowCampaignMenu(false); setSurface('mesh'); setMeshTab('labs'); setInspectorOpen(false); }}
-                      className="text-cyan-200 underline underline-offset-2"
+                      className="text-[var(--color-info-ink)] underline underline-offset-2"
                     >
                       Sign in
                     </button>
                   </div>
                 ) : (
-                  <div role="alert" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
+                  <div role="alert" className="text-[12px] text-[var(--color-warning-ink)] px-1 py-2 space-y-1">
                     <p>Campaigns unavailable: {sessionListError}</p>
-                    <button type="button" onClick={() => void refreshData()} className="text-cyan-200 underline underline-offset-2">
+                    <button type="button" onClick={() => void refreshData()} className="text-[var(--color-info-ink)] underline underline-offset-2">
                       Retry
                     </button>
                   </div>
                 )
               ) : (
-                <div className="text-[12px] text-slate-500 px-1 py-2">{sessions.length === 0 ? 'No campaigns yet.' : 'No campaigns match.'}</div>
+                <div className="text-[12px] text-[var(--color-faint)] px-1 py-2">{sessions.length === 0 ? 'No campaigns yet.' : 'No campaigns match.'}</div>
               )
             )}
             {ordered.map(([tenant, list]) => (
               <div key={tenant} className="space-y-1.5">
-                <div className="px-1 text-[12px] font-code uppercase tracking-wider text-slate-500">
+                <div className="px-1 text-[12px] font-code uppercase tracking-wider text-[var(--color-faint)]">
                   Lab: {tenant} ({list.length})
                 </div>
                 {list.map((s) => {
@@ -1122,23 +1175,23 @@ export default function Home() {
                     onClick={() => { switchSession(s.id); setShowCampaignMenu(false); }}
                     className={`w-full text-left p-2.5 pr-8 rounded-xl text-xs transition-all border ${
                       isSelected
-                        ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
-                        : 'bg-black/40 border-white/[0.06] text-slate-300 hover:bg-white/[0.04]'
+                        ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-text)]'
+                        : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]'
                     }`}
                   >
                     <div className="font-semibold truncate">{s.title}</div>
-                    <div className="text-[12px] font-code text-slate-400 flex justify-between mt-0.5">
+                    <div className="text-[12px] font-code text-[var(--color-muted)] flex justify-between mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(s.created_at).toLocaleDateString()}
                       </span>
-                      <span className="text-amber-300">${spend.toFixed(2)} / ${limit.toFixed(2)}</span>
+                      <span className="text-[var(--color-warning-ink)]">${spend.toFixed(2)} / ${limit.toFixed(2)}</span>
                     </div>
                   </button>
                   <button
                     onClick={(e) => handleDeleteSession(e, s.id)}
                     aria-label={`Delete ${s.title}`}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-all"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg text-[var(--color-faint)] hover:text-[var(--color-danger-ink)] hover:bg-[var(--color-danger-wash)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1148,14 +1201,14 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.06] text-[12px]">
-            <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-red-300 hover:text-red-200 transition-colors">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-border)] text-[12px]">
+            <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-[var(--color-danger-ink)] hover:opacity-80 transition-opacity">
               <Zap className="w-3.5 h-3.5" /> Ring 0 Intercept
             </button>
-            <button onClick={() => { setShowCampaignMenu(false); setIsAboutOpen(true); }} className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors">
+            <button onClick={() => { setShowCampaignMenu(false); setIsAboutOpen(true); }} className="flex items-center gap-1.5 text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors">
               <Info className="w-3.5 h-3.5" /> Lab Info
             </button>
-            <button onClick={() => { setShowCampaignMenu(false); setIsShortcutsOpen(true); }} className="flex items-center gap-1 text-slate-300 hover:text-white transition-colors">
+            <button onClick={() => { setShowCampaignMenu(false); setIsShortcutsOpen(true); }} className="flex items-center gap-1 text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors">
               <HelpCircle className="w-3.5 h-3.5" /> <span className="font-code">?</span>
             </button>
           </div>
@@ -1183,20 +1236,23 @@ export default function Home() {
           />
         )}
         {surface === 'arena' && (
-          <main id="kubona-main" tabIndex={-1} className="relative min-h-0 flex-1 overflow-hidden">
+          <main id="kubona-main" tabIndex={-1} className="relative flex flex-col min-h-0 flex-1 overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
-                view={arenaView}
-                onViewChange={handleArenaViewChange}
-                showWorkbench={workbenchEnabled}
+              view={arenaView}
+              onViewChange={handleArenaViewChange}
+              showWorkbench={workbenchEnabled}
               spendUsd={session?.current_spend_usd ?? 0}
               spendCapUsd={session?.spend_limit_usd ?? 150}
               sessionElapsed={session ? formatElapsed(session.created_at) : '00:00:00'}
               statusText={runStatusText}
               onRecenter={() => setRecenterSignal((n) => n + 1)}
+              onOpenExperimentLab={!showLegacyCanvas ? () => setIsExperimentLabOpen(true) : undefined}
+              onOpenMoleculeView={!showLegacyCanvas ? () => setShowLegacyCanvas(true) : undefined}
             />
 
+            <div className="relative min-h-0 flex-1 overflow-hidden">
             {arenaView === 'workbench' && !showLegacyCanvas && (
               <Workbench
                 key={currentSessionId}
@@ -1211,13 +1267,17 @@ export default function Home() {
                 obligations={obligations}
                 tasks={tasks}
                 sessionSpendUsd={session?.current_spend_usd}
+                recenterSignal={recenterSignal}
                 onCreateCampaign={handleCreateSession}
                 localMode={access?.anonymous_chat === true}
                 multiLab={access?.mode === 'multi_lab'}
                 access={access}
                 onTaskStatus={(taskId, status) => { void handleTaskStatus(taskId, status); }}
-                onCloseObligation={(id) => { void handleCloseObligation(id); }}
+                onCloseObligation={(id) => handleCloseObligation(id)}
                 sessionId={currentSessionId || undefined}
+                confirmGate={confirmGate}
+                onInlineGateVisibility={setInlineGateOwned}
+                onLiftObject={(object) => setLiftedObject(object)}
                 onSelectObject={(object) => {
                   setSelectedWorkbenchObject(object);
                   if (object) {
@@ -1226,6 +1286,12 @@ export default function Home() {
                   }
                 }}
                 onOpenObject={handleOpenWorkbenchObject}
+                onAskSelection={(selectedObjs) => {
+                  const first = selectedObjs[0];
+                  if (first) setSelectedWorkbenchObject(first);
+                  setInspectorTab('copilot');
+                  setInspectorOpen(true);
+                }}
               />
             )}
             {arenaView === 'orbital' && !showLegacyCanvas && (
@@ -1242,42 +1308,18 @@ export default function Home() {
                 role="dialog"
                 aria-label="Molecule object view"
                 data-testid="molecule-object-view"
-                className="absolute inset-0 overflow-y-auto pt-20 px-6 pb-6 bg-[#07080B]/95"
+                className="absolute inset-0 overflow-y-auto pt-6 px-6 pb-6 bg-[var(--color-canvas)]/95"
               >
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
                   <button
                     onClick={() => setShowLegacyCanvas(false)}
                     aria-label="Close molecule object view"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[12px] text-slate-300 hover:text-white transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-fill)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all"
                   >
                     <X className="w-3.5 h-3.5" /> Back to Universe
                   </button>
                 </div>
                 <SpatialCanvas campaign={campaign} />
-              </div>
-            )}
-
-            {/* Molecule object view & Experiment Lab entry points */}
-            {!showLegacyCanvas && (
-              <div className={`absolute bottom-6 ${inspectorOpen ? 'right-6' : 'right-40'} z-20 flex items-center gap-2`}>
-                <button
-                  type="button"
-                  onClick={() => setIsExperimentLabOpen(true)}
-                  title="Open Experiment & Discovery Lab (⌘E)"
-                  aria-label="Open Experiment & Discovery Lab"
-                  className="h-9 px-3 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 text-[var(--color-text)] text-xs font-medium transition-all shadow-2xl flex items-center gap-1.5"
-                >
-                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Experiment Lab</span>
-                </button>
-                <button
-                  onClick={() => setShowLegacyCanvas(true)}
-                  title="Open molecule object view"
-                  aria-label="Open molecule object view"
-                  className="w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
-                >
-                  <Box className="w-4 h-4 text-cyan-400" />
-                </button>
               </div>
             )}
 
@@ -1294,8 +1336,8 @@ export default function Home() {
               />
             )}
 
-            {/* Calibrated action gate — only while authorization is outstanding */}
-            {gateOpen && !showLegacyCanvas && (
+            {/* Calibrated action gate — fallback when inline workbench circuit card gate is not active */}
+            {gateOpen && !showLegacyCanvas && !(arenaView === 'workbench' && inlineGateOwned) && (
               <ActionGate
                 campaign={campaign}
                 session={session}
@@ -1305,7 +1347,7 @@ export default function Home() {
               />
             )}
             {gateNotice && (
-              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[#0E1117]/90 border border-white/10 text-[12px] text-slate-200 shadow-2xl">
+              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] text-[var(--color-label-secondary)] shadow-[var(--shadow-float)]">
                 {gateNotice}
               </div>
             )}
@@ -1314,11 +1356,12 @@ export default function Home() {
                 key={toast.key}
                 role="status"
                 aria-live="polite"
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[#0E1117] border border-cyan-400/25 text-[12px] font-code text-cyan-200 shadow-2xl animate-pulse"
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-code text-[var(--color-text)] shadow-[var(--shadow-float)]"
               >
                 {toast.text}
               </div>
             )}
+            </div>
           </main>
         )}
 
@@ -1386,6 +1429,7 @@ export default function Home() {
                       ['experiments', 'Experiments'],
                       ['vault', 'Vault leases'],
                       ['readiness', 'System readiness'],
+                      ['appearance', 'Appearance'],
                     ] as const).map(([id, label]) => (
                       <button
                         key={id}
@@ -1404,20 +1448,44 @@ export default function Home() {
                   {settingsSection === 'experiments' && (<div className="space-y-4"><ExperimentPanel sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} /><DiscoveryProtocolPanel sessionId={currentSessionId || null} /></div>)}
                   {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
                   {settingsSection === 'readiness' && <SystemReadinessPanel />}
+                  {settingsSection === 'appearance' && <AppearanceSettings />}
                 </div>
               )}
             </div>
           </main>
         )}
         {surface === 'arena' && (
-          <Composer
+          <CommandDock
             onSubmit={handleAsk}
             contextLabel={selectedWorkbenchObject ? `${selectedWorkbenchObject.label}: ${selectedWorkbenchObject.title}` : campaign?.target_system || null}
             onClearContext={() => setSelectedWorkbenchObject(null)}
-            onAttach={handleAttach}
-            onDetach={handleDetach}
+            onAttach={copilotChat.attach}
+            onDetach={copilotChat.detach}
+            attachments={copilotChat.attachments}
             onOpenModel={() => { setSurface('mesh'); setMeshTab('models'); }}
             modelLabel="Model Hub"
+            sessionId={currentSessionId || null}
+            messageCount={copilotChat.messages.length}
+            streaming={Boolean(copilotChat.streamingId)}
+            busy={copilotChat.loading || copilotChat.runningTribunal}
+            onStop={copilotChat.stop}
+            followUps={copilotChat.followUps}
+            onFollowUp={(key) => {
+              setInspectorTab('copilot');
+              setInspectorOpen(true);
+              copilotChat.runFollowUp(key);
+            }}
+            onTribunal={handleTribunalAsk}
+            targetDisplayName={copilotChat.targetDisplayName}
+            onSessionChange={(id) => {
+              setCurrentSessionId(id);
+              refreshData();
+            }}
+            onOpenInspector={!inspectorOpen ? () => {
+              setInspectorOpen(true);
+              setInspectorTab('details');
+            } : undefined}
+            inspectorShortcut={SHORTCUTS.copilot}
           />
         )}
         <StatusStrip
@@ -1444,11 +1512,13 @@ export default function Home() {
         onRefreshJobs={refreshJobs}
         expanded={isCopilotExpanded}
         onOpenObject={(object) => handleOpenWorkbenchObject(object.kind)}
-        onFocusObject={(object) => workbenchRef.current?.focusObject(object.id)}
+        onFocusObject={(object) => focusWorkbenchTarget(object.id)}
+        onFocusJob={(job) => focusWorkbenchTarget(job.id)}
         onRemoveObject={(object) => workbenchRef.current?.removeObject(object.id)}
         copilot={
           <CopilotDrawer
-            ref={copilotRef}
+            controller={copilotChat}
+            dockComposer
             sessionId={currentSessionId}
             campaign={campaign}
             isExpanded={isCopilotExpanded}
@@ -1471,20 +1541,129 @@ export default function Home() {
           />
         }
       />
-      {!inspectorOpen && (
+      {!inspectorOpen && surface !== 'arena' && (
         <button
           onClick={() => { setInspectorOpen(true); setInspectorTab('details'); }}
-          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl flex items-center space-x-2.5 group transition-colors duration-200"
+          className="fixed bottom-12 right-6 z-40 px-4 py-2.5 rounded-full bg-[var(--color-float)] border border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-[var(--shadow-float)] flex items-center space-x-2.5 group transition-colors duration-200"
           title={`Open Inspector (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
+            <Sparkles className="w-4 h-4 text-[var(--color-accent-ink)]" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--color-success)]" />
           </div>
-          <span className="text-xs font-semibold text-slate-200 group-hover:text-white">Inspector</span>
+          <span className="text-xs font-semibold text-[var(--color-label-secondary)] group-hover:text-[var(--color-text)]">Inspector</span>
           <KeyHint>{SHORTCUTS.copilot}</KeyHint>
         </button>
       )}
+      <Dialog
+        open={Boolean(liftedObject)}
+        onClose={() => setLiftedObject(null)}
+        title={liftedObject ? `${liftedObject.label}: ${liftedObject.title}` : ''}
+        className="k-dialog-lift"
+      >
+        {liftedObject && (
+          <div className="k-lift-body" data-provenance={liftedObject.provenance ?? 'catalog'}>
+            <div className="k-lift-meta">
+              <ProvenanceBadge kind={liftedObject.provenance ?? 'catalog'} />
+              <div className="k-lift-actions">
+                <Button
+                  type="button"
+                  size="compact"
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedWorkbenchObject(liftedObject);
+                    setInspectorTab('copilot');
+                    setInspectorOpen(true);
+                    setLiftedObject(null);
+                  }}
+                >
+                  Ask Copilot
+                </Button>
+                <Button
+                  type="button"
+                  size="compact"
+                  onClick={() => {
+                    const targetKind = liftedObject.kind;
+                    const targetId = liftedObject.id;
+                    setLiftedObject(null);
+                    if (
+                      targetKind === 'campaign' ||
+                      targetKind === 'task' ||
+                      targetKind === 'table' ||
+                      targetKind === 'measurement' ||
+                      targetKind === 'note'
+                    ) {
+                      focusWorkbenchTarget(targetId);
+                    } else {
+                      handleOpenWorkbenchObject(targetKind);
+                    }
+                  }}
+                >
+                  {({
+                    chart: 'Jump to Flight Recorder',
+                    agent_run: 'Jump to Flight Recorder',
+                    job: 'Jump to Flight Recorder',
+                    approval: 'Jump to Guardrails',
+                    evidence: 'Jump to Evidence Manifold',
+                    hypothesis: 'Jump to Evidence Manifold',
+                    molecule: 'Open Molecule Workbench',
+                    proof: 'Jump to Results Studio',
+                    manuscript: 'Jump to Results Studio',
+                    circuit: 'Jump to Proof DAG',
+                    campaign: 'Focus on Workbench',
+                    task: 'Focus on Workbench',
+                    table: 'Focus on Workbench',
+                    measurement: 'Focus on Workbench',
+                    note: 'Focus on Workbench',
+                  } as Partial<Record<typeof liftedObject.kind, string>>)[liftedObject.kind] ?? 'Focus on Workbench'}
+                </Button>
+              </div>
+            </div>
+            <p className="k-lift-detail">{liftedObject.detail}</p>
+            {liftedObject.meta?.callout && (
+              <div className="k-workbench-callout" data-tone={liftedObject.meta.callout.tone}>
+                <span>{liftedObject.meta.callout.summary}</span>
+              </div>
+            )}
+            {liftedObject.facts.length > 0 && (
+              <dl className="k-lift-facts">
+                {liftedObject.facts.map((fact) => (
+                  <div key={fact.label}>
+                    <dt>{fact.label}</dt>
+                    <dd data-metric>{fact.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {liftedObject.chart && (
+              <div className="k-lift-panel" data-metric>
+                <Chart spec={liftedObject.chart} />
+              </div>
+            )}
+            {liftedObject.meta?.comparison && liftedObject.meta.comparison.rows.length > 0 && (
+              <CompareMatrix comparison={liftedObject.meta.comparison} title={liftedObject.title} />
+            )}
+            {liftedObject.meta?.code && liftedObject.meta.code.content && (
+              <CodeBlock code={liftedObject.meta.code} initialExpanded />
+            )}
+            {liftedObject.kind === 'manuscript' && (
+              <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />
+            )}
+            {liftedObject.basis && <p className="k-workbench-basis">{liftedObject.basis}</p>}
+            {liftedObject.sources?.length ? (
+              <ul className="k-workbench-sources" aria-label={`Sources for ${liftedObject.title}`}>
+                {liftedObject.sources.map((source) => (
+                  <li key={source.label}>
+                    {source.url
+                      ? <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a>
+                      : <span>{source.label}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
+      </Dialog>
       </AttentionProvider>
     </div>
   );

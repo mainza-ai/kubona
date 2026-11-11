@@ -112,7 +112,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
   };
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3" aria-label="Claim history">
+    <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3" aria-label="Claim history">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-[var(--color-pulse-cyan)]" />
@@ -121,7 +121,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
         <button
           type="button"
           onClick={() => setNonce((n) => n + 1)}
-          className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)]"
+          className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)]"
           aria-label="Refresh claim history"
         >
           <RefreshCw className="w-3 h-3" /> Refresh
@@ -133,7 +133,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
           aria-label="Claim review reason"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-[12px] text-[var(--color-text)]"
+          className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
           placeholder="Why this decision is justified"
         />
       </label>
@@ -148,11 +148,11 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
             const job = evidenceJob(claim);
             const review = reviewed[claim.id];
             return (
-              <li key={claim.id} className="rounded-xl border border-white/10 bg-black/20 p-3 space-y-1">
+              <li key={claim.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 space-y-1">
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
                   <span className="font-code text-[var(--color-pulse-cyan)]">{claim.id}</span>
-                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[var(--color-muted)]">{claim.turn_kind}</span>
-                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[var(--color-text)]">{claim.verdict}</span>
+                  <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-muted)]">{claim.turn_kind}</span>
+                  <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-text)]">{claim.verdict}</span>
                   {job && <span className="font-code text-[var(--color-muted)]">job {job.slice(0, 8)}</span>}
                   <span className="ml-auto text-[var(--color-faint)]">{claim.created_at}</span>
                 </div>
@@ -162,7 +162,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
                   <span>β {claim.beta < 0 ? 'not evaluated' : claim.beta.toFixed(2)}</span>
                   <span>γ {claim.gamma < 0 ? 'not evaluated' : claim.gamma.toFixed(2)}</span>
                   {reviews[claim.id]?.[0] && (
-                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[var(--color-text)]">
+                    <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[var(--color-text)]">
                       review: {reviews[claim.id][0].decision}
                     </span>
                   )}
@@ -172,7 +172,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
                       type="button"
                       disabled={reviewing === claim.id || !sessionId}
                       onClick={() => void decide(claim, decision)}
-                      className="rounded-lg border border-white/10 px-2 py-1 text-[var(--color-muted)] disabled:opacity-40"
+                      className="rounded-lg border border-[var(--color-border)] px-2 py-1 text-[var(--color-muted)] hover:text-[var(--color-text)] disabled:opacity-40"
                     >
                       {decision}
                     </button>
@@ -181,7 +181,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
                     type="button"
                     disabled={reviewing === claim.id || !sessionId}
                     onClick={() => void requestReview(claim)}
-                    className="ml-auto inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[var(--color-text)] disabled:opacity-40"
+                    className="ml-auto inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40"
                   >
                     <MessageSquare className="w-3 h-3" />
                     {reviewing === claim.id ? 'Sending…' : review === 'requested' ? 'Review requested' : review === 'failed' ? 'Review failed' : 'Request review'}
@@ -197,7 +197,7 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
           type="button"
           disabled={loadingMore}
           onClick={() => void loadOlder()}
-          className="w-full rounded-lg border border-white/10 px-2 py-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)] disabled:opacity-40"
+          className="w-full rounded-lg border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-muted)] hover:text-[var(--color-text)] disabled:opacity-40"
         >
           {loadingMore ? 'Loading older claims…' : 'Load older claims'}
         </button>

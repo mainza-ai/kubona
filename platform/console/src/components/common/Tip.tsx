@@ -27,10 +27,10 @@ export function Tip({ label, sub, position = 'top', children }: TipProps) {
       {children}
       <span
         role="tooltip"
-        className={`absolute ${POSITION_CLASS[position]} px-2.5 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-50 shadow-2xl text-left`}
+        className={`absolute ${POSITION_CLASS[position]} px-2.5 py-1.5 rounded-lg bg-[var(--color-float)] border border-[var(--color-border-strong)] text-xs text-[var(--color-text)] whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-50 shadow-[var(--shadow-float)] text-left`}
       >
         <span className="font-medium block">{label}</span>
-        {sub && <span className="block text-[12px] text-slate-400">{sub}</span>}
+        {sub && <span className="block text-[12px] text-[var(--color-muted)]">{sub}</span>}
       </span>
     </span>
   );

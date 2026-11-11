@@ -282,16 +282,16 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const sessionTenantLabel = (session?.tenant_id ?? '').trim() || 'unbound';
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl flex flex-col justify-between p-8 select-none">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
-            <KeyRound className="w-5 h-5 text-amber-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-center">
+            <KeyRound className="w-5 h-5 text-[var(--color-warning-ink)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">Autonomous Guardrails &amp; Sentinel</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">Autonomous Guardrails &amp; Sentinel</h2>
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Secure spending limits, Sentinel action approval, and sovereign air-gap isolation
             </p>
           </div>
@@ -312,17 +312,17 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           }
           className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full ${
             sentinelActive
-              ? 'bg-black/40 border border-white/10'
+              ? 'bg-[var(--color-success-wash)] border border-[var(--color-success-edge)]'
               : sentinelPredicatesLive
-                ? 'bg-amber-950/40 border border-amber-800/50'
-                : 'bg-black/40 border border-white/10'
+                ? 'bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)]'
+                : 'bg-[var(--color-tile)] border border-[var(--color-border)]'
           }`}
         >
           <ShieldCheck
-            className={`w-4 h-4 ${sentinelActive ? 'text-emerald-400' : sentinelPredicatesLive ? 'text-amber-400' : 'text-slate-400'}`}
+            className={`w-4 h-4 ${sentinelActive ? 'text-[var(--color-success-ink)]' : sentinelPredicatesLive ? 'text-[var(--color-warning-ink)]' : 'text-[var(--color-muted)]'}`}
           />
           <span
-            className={`text-xs font-mono font-medium ${sentinelActive ? 'text-emerald-300' : sentinelPredicatesLive ? 'text-amber-300' : 'text-slate-400'}`}
+            className={`text-xs font-mono font-medium ${sentinelActive ? 'text-[var(--color-success-ink)]' : sentinelPredicatesLive ? 'text-[var(--color-warning-ink)]' : 'text-[var(--color-muted)]'}`}
           >
             {sentinelActive
               ? 'Sentinel Protection Active'
@@ -337,46 +337,46 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       <div className="flex-1 flex flex-col items-center justify-center my-6 max-w-xl mx-auto w-full space-y-6">
         {/* Action Message Banner */}
         {actionMessage && (
-          <div className="w-full p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 text-cyan-200 text-xs font-medium text-center animate-pulse">
+          <div className="w-full p-3.5 rounded-2xl bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-xs font-medium text-center animate-pulse">
             {actionMessage}
           </div>
         )}
         {writeSettlementLabel(airGapWrite.write) && (
-          <p role="status" className="text-[12px] font-mono text-slate-400">
+          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
             {writeSettlementLabel(airGapWrite.write)}
           </p>
         )}
         {writeSettlementLabel(abortWrite.write) && (
-          <p role="status" className="text-[12px] font-mono text-slate-400">
+          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
             {writeSettlementLabel(abortWrite.write)}
           </p>
         )}
         {writeSettlementLabel(launchWrite.write) && (
-          <p role="status" className="text-[12px] font-mono text-slate-400">
+          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
             {writeSettlementLabel(launchWrite.write)}
           </p>
         )}
 
         {/* Meta Muse-Inspired Proactive Approval Card */}
-        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-md space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-semibold text-[var(--color-text)] flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-[var(--color-info-ink)]" />
               <span>Sentinel Approval Request</span>
             </span>
-            <span className="text-[12px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800/40">
+            <span className="text-[12px] font-mono text-[var(--color-info-ink)] bg-[var(--color-info-wash)] px-2.5 py-0.5 rounded-full border border-[var(--color-info-edge)]">
               {costKnown ? `Est. Cost: $${fmtFixed(rawEstimated, 2)}` : 'UNPRICED — authorization disabled'}
             </span>
           </div>
 
-          <p className="text-sm text-slate-300 leading-relaxed font-sans">
+          <p className="text-sm text-[var(--color-label-secondary)] leading-relaxed font-sans">
             Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
           </p>
           {!sessionBound && (
-            <p className="text-[12px] font-code text-amber-300">No session bound — authorization disabled until a session is attached.</p>
+            <p className="text-[12px] font-code text-[var(--color-warning-ink)]">No session bound — authorization disabled until a session is attached.</p>
           )}
           {!costKnown && (
-            <p className="text-[12px] font-code text-amber-300">No priced estimate on this campaign — authorization disabled until priced.</p>
+            <p className="text-[12px] font-code text-[var(--color-warning-ink)]">No priced estimate on this campaign — authorization disabled until priced.</p>
           )}
 
           <ApprovalPacketCard
@@ -404,7 +404,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
               onClick={handleSimulateOffline}
               disabled={isSubmitting || !session?.id || !campaign?.quantum_factors?.qasm}
               title={!campaign?.quantum_factors?.qasm ? 'Needs a campaign circuit first' : 'Dispatch to local simulator ($0.00 spend)'}
-              className="flex-1 py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all disabled:opacity-40"
+              className="flex-1 py-2.5 px-4 bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-medium rounded-xl transition-all disabled:opacity-40"
             >
               Simulate Offline — $0.00
             </button>
@@ -412,10 +412,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         </div>
 
         {/* Budget Planning View (local sketch — enforcement lives in the session cap) */}
-        <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 space-y-4">
+        <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 space-y-4">
           <div className="flex justify-between items-center text-xs">
-            <span className="font-semibold text-white">Planning Ceiling <span className="text-slate-500 font-normal">(local view)</span></span>
-            <span className="font-mono text-emerald-400 font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>
+            <span className="font-semibold text-[var(--color-text)]">Planning Ceiling <span className="text-[var(--color-muted)] font-normal">(local view)</span></span>
+            <span className="font-mono text-[var(--color-success-ink)] font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>
           </div>
 
           <input 
@@ -425,25 +425,25 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             step="5"
             value={budgetUSD}
             onChange={(e) => setBudgetUSD(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
+            className="w-full h-2 bg-[var(--color-tile)] rounded-lg appearance-none cursor-pointer accent-[var(--color-success)] focus:outline-none"
           />
 
-          <div className="flex justify-between items-center text-[12px] text-slate-400 font-mono pt-1">
+          <div className="flex justify-between items-center text-[12px] text-[var(--color-muted)] font-mono pt-1">
             <span>Spent (server): ${fmtFixed(session?.current_spend_usd ?? currentSpentUSD, 2)}</span>
             <span>Available: ${fmtFixed((session?.spend_limit_usd ?? budgetUSD) - (session?.current_spend_usd ?? currentSpentUSD), 2)}</span>
           </div>
-          <p className="text-[12px] font-code text-slate-500">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
+          <p className="text-[12px] font-code text-[var(--color-muted)]">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
         </div>
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
-        <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/10">
+        <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
           <div className="flex items-center space-x-3">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${airGap === true ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-900 text-slate-400'}`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${airGap === true ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]' : 'bg-[var(--color-tile)] text-[var(--color-muted)] border border-[var(--color-border)]'}`}>
               <Lock className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-white">Sovereign Air-Gap Mode</div>
-              <div className="text-[12px] text-slate-400">
+              <div className="text-xs font-semibold text-[var(--color-text)]">Sovereign Air-Gap Mode</div>
+              <div className="text-[12px] text-[var(--color-muted)]">
                 {airGap === null ? 'State unknown — settings unreachable' : 'Strictly keep computations on local Mac hardware'}
               </div>
             </div>
@@ -453,9 +453,9 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             onClick={handleToggleAirGap}
             disabled={airGap === null}
             title={airGap === null ? 'Air-gap state unknown — settings unreachable' : 'Persists to intelligence settings (same control as Cognitive Mesh)'}
-            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${airGap === true ? 'bg-cyan-500' : 'bg-slate-700'} disabled:opacity-40`}
+            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${airGap === true ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-tile)] border border-[var(--color-border-strong)]'} disabled:opacity-40`}
           >
-            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${airGap === true ? 'translate-x-5' : 'translate-x-0'}`} />
+            <div className={`w-5 h-5 rounded-full bg-[var(--color-on-accent)] shadow-md transform transition-transform ${airGap === true ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
 
@@ -469,13 +469,13 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       </div>
 
       {/* Bottom Footer: Emergency Pause & Progressive Disclosure */}
-      <div className="border-t border-white/[0.08] pt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="border-t border-[var(--color-border)] pt-4 flex flex-wrap items-center justify-between gap-4">
         {/* Tactile Emergency Pause */}
         <button
           onClick={handleEmergencyStop}
-          className="px-3.5 py-2 rounded-xl bg-red-950/40 hover:bg-red-950/70 border border-red-800/50 text-red-300 text-xs font-semibold flex items-center space-x-2 transition-all active:scale-95"
+          className="px-3.5 py-2 rounded-xl bg-[var(--color-danger-wash)] hover:opacity-90 border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs font-semibold flex items-center space-x-2 transition-all active:scale-95"
         >
-          <AlertOctagon className="w-4 h-4 text-red-400" />
+          <AlertOctagon className="w-4 h-4 text-[var(--color-danger-ink)]" />
           <span>Emergency Pause All Workloads</span>
         </button>
         <ConfirmDialog
@@ -493,25 +493,25 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         {/* Progressive Disclosure: Crypto Attestation */}
         <button
           onClick={() => setShowCryptoDetails(!showCryptoDetails)}
-          className="text-xs text-slate-300 hover:text-white font-medium transition-colors flex items-center space-x-1.5"
+          className="text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] font-medium transition-colors flex items-center space-x-1.5"
         >
           <span>{showCryptoDetails ? 'Hide Attestation' : 'Inspect Cryptographic AP2 Mandate Envelope'}</span>
-          {showCryptoDetails ? <ChevronUp className="w-3.5 h-3.5 text-slate-300" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-300" />}
+          {showCryptoDetails ? <ChevronUp className="w-3.5 h-3.5 text-[var(--color-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--color-muted)]" />}
         </button>
       </div>
 
       {/* Expanded Cryptographic Detail Sheet */}
       {showCryptoDetails && (
-        <div className="mt-4 p-4 rounded-2xl bg-black/80 border border-white/15 text-xs font-mono text-slate-300 space-y-2.5">
+        <div className="mt-4 p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-mono text-[var(--color-label-secondary)] space-y-2.5">
           <div className="flex justify-between items-center">
-            <span className="text-slate-300 font-medium">Signing Scheme:</span>
-            <span className="text-slate-100 font-bold">RFC 8032 Ed25519 WebCrypto</span>
+            <span className="text-[var(--color-muted)] font-medium">Signing Scheme:</span>
+            <span className="text-[var(--color-text)] font-bold">RFC 8032 Ed25519 WebCrypto</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-300 font-medium">Storage Invariant:</span>
-            <span className="text-emerald-300 font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
+            <span className="text-[var(--color-muted)] font-medium">Storage Invariant:</span>
+            <span className="text-[var(--color-success-ink)] font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
           </div>
-          <div className="truncate text-xs text-slate-300 pt-1 border-t border-white/10">
+          <div className="truncate text-xs text-[var(--color-label-secondary)] pt-1 border-t border-[var(--color-border)]">
             Tenant: {sessionTenantLabel} • {lastReceipt ? `Envelope verified ${lastReceipt.verifiedAt} (sig ${lastReceipt.sigPreview}…) for tenant ${lastReceipt.tenant}` : 'No envelope verified yet — authorize a run to mint one.'}
           </div>
         </div>

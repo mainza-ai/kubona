@@ -15,15 +15,15 @@ function label(s: BackendStatus | null): { text: string; tone: string; dot: stri
   if (!s || !s.reachable) {
     return {
       text: 'backend unreachable — data below may be stale or empty',
-      tone: 'bg-rose-500/10 border-rose-500/30 text-rose-200',
-      dot: 'bg-rose-400',
+      tone: 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]',
+      dot: 'bg-[var(--color-danger-ink)]',
     };
   }
   if (!s.ready) {
     return {
       text: `backend degraded — ${s.message || 'not ready'}`,
-      tone: 'bg-amber-500/10 border-amber-500/30 text-amber-200',
-      dot: 'bg-amber-400',
+      tone: 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]',
+      dot: 'bg-[var(--color-warning)]',
     };
   }
   const disk =
@@ -32,8 +32,8 @@ function label(s: BackendStatus | null): { text: string; tone: string; dot: stri
       : '';
   return {
     text: `${s.service || 'kubonad'}${s.version ? ` ${s.version}` : ''} · ready${disk}`,
-    tone: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200',
-    dot: 'bg-emerald-400',
+    tone: 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]',
+    dot: 'bg-[var(--color-success)]',
   };
 }
 
@@ -44,7 +44,7 @@ export function BackendStatusBar({ compact = false }: { compact?: boolean } = {}
     <div
       role="status"
       aria-label={`Backend status: ${text}`}
-      className={`flex min-w-0 items-center gap-2 text-[12px] font-code ${compact ? 'py-0' : `border-b border-white/[0.06] px-3 py-1 ${tone}`}`}
+      className={`flex min-w-0 items-center gap-2 text-[12px] font-code ${compact ? 'py-0' : `border-b border-[var(--color-border)] px-3 py-1 ${tone}`}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
       <span className="truncate">{text}</span>

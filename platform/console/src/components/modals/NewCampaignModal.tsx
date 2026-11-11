@@ -184,10 +184,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
     >
       <div
         ref={modalRef}
-        className="w-full max-w-2xl bg-[#0C0F17]/95 border border-white/10 rounded-3xl shadow-2xl shadow-black/90 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-3xl shadow-[var(--shadow-float)] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl flex flex-col max-h-[90vh]"
       >
         {/* Apple-style Window Header */}
-        <div className="h-11 px-5 border-b border-white/[0.08] bg-white/[0.02] flex items-center justify-between select-none shrink-0">
+        <div className="h-11 px-5 border-b border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between select-none shrink-0">
           <div className="flex items-center space-x-2">
             <button
               onClick={onClose}
@@ -200,8 +200,8 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
             <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-75" />
             <div className="w-3 h-3 rounded-full bg-[#27C93F] opacity-75" />
           </div>
-          <span className="text-xs font-semibold text-slate-300 font-sans tracking-wide flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-xs font-semibold text-[var(--color-label-secondary)] font-sans tracking-wide flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
             <span>New Scientific Research Campaign</span>
           </span>
           <div className="w-12" />
@@ -211,17 +211,17 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Header Introduction */}
           <div>
-            <h2 id="new-campaign-title" className="text-lg font-bold text-white tracking-tight">
+            <h2 id="new-campaign-title" className="text-lg font-bold text-[var(--color-text)] tracking-tight">
               Initiate Discovery Exploration
             </h2>
-            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+            <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
               Configure your molecular target, establish classical ground truth anchors, and set sovereign guardrails.
             </p>
           </div>
 
           {/* Campaign Title / Hypothesis */}
           <div className="space-y-1.5">
-            <label htmlFor="new-campaign-title-input" className="block text-xs font-semibold text-slate-200">
+            <label htmlFor="new-campaign-title-input" className="block text-xs font-semibold text-[var(--color-text)]">
               Research Campaign Name / Hypothesis
             </label>
             <input
@@ -236,10 +236,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                 if (titleError) setTitleError(validateTitle(e.target.value));
               }}
               placeholder="e.g., Lithium Hydride Ground State Dissociation"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/40 transition-all font-sans"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-edge)] transition-all font-sans"
             />
             {titleError && (
-              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[12px] text-rose-300 font-sans">
+              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[12px] text-[var(--color-danger-ink)] font-sans">
                 {titleError}
               </p>
             )}
@@ -248,10 +248,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
           {/* Molecule Target Presets */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-200">
+              <label className="block text-xs font-semibold text-[var(--color-text)]">
                 Target Chemical System
               </label>
-              <span className="text-[12px] text-slate-400 font-mono">
+              <span className="text-[12px] text-[var(--color-muted)] font-mono">
                 PySCF ab-initio anchor available on run
               </span>
             </div>
@@ -266,22 +266,22 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                     onClick={() => handleSelectPreset(p)}
                     className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between space-y-1 relative group ${
                       isSelected
-                        ? 'bg-cyan-950/60 border-cyan-500/60 ring-1 ring-cyan-500/30 text-white shadow-lg'
-                        : 'bg-black/40 hover:bg-black/70 border-white/[0.08] hover:border-white/20 text-slate-300'
+                        ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] ring-1 ring-[var(--color-info-edge)] text-[var(--color-text)] shadow-sm'
+                        : 'bg-[var(--color-card)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-label-secondary)]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold font-mono tracking-tight text-white">
+                      <span className="text-sm font-bold font-mono tracking-tight text-[var(--color-text)]">
                         {p.symbol}
                       </span>
-                      <span className="text-[12px] font-mono px-1.5 py-0.2 rounded bg-white/[0.06] text-cyan-300">
+                      <span className="text-[12px] font-mono px-1.5 py-0.2 rounded bg-[var(--color-fill)] text-[var(--color-info-ink)]">
                         {p.qubits}q
                       </span>
                     </div>
-                    <div className="text-[12px] font-medium text-slate-300 truncate">
+                    <div className="text-[12px] font-medium text-[var(--color-label-secondary)] truncate">
                       {p.name}
                     </div>
-                    <div className="text-[12px] text-slate-400 font-mono">
+                    <div className="text-[12px] text-[var(--color-muted)] font-mono">
                       R = {p.bondDist}
                     </div>
                   </button>
@@ -310,10 +310,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                   }
                 }}
                 placeholder="Or specify custom chemical formula or SMILES (e.g. HF, CH4, Caffeine)..."
-                className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-cyan-400 transition-all font-mono"
+                className="w-full px-3.5 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent)] transition-all font-mono"
               />
               {moleculeError && (
-                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[12px] text-rose-300 font-sans">
+                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[12px] text-[var(--color-danger-ink)] font-sans">
                   {moleculeError}
                 </p>
               )}
@@ -321,13 +321,13 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
           </div>
 
           {/* Spend Budget Ceiling */}
-          <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+          <div className="p-4 rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-slate-200 flex items-center space-x-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="font-semibold text-[var(--color-text)] flex items-center space-x-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
                 <span>Spend Limit Mandate</span>
               </span>
-              <span className="font-mono text-emerald-400 font-bold text-xs">
+              <span className="font-mono text-[var(--color-success-ink)] font-bold text-xs">
                 ${spendLimit.toFixed(2)} Maximum
               </span>
             </div>
@@ -339,10 +339,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               step="25"
               value={spendLimit}
               onChange={(e) => setSpendLimit(parseFloat(e.target.value))}
-              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
+              className="w-full h-2 bg-[var(--color-fill)] rounded-lg appearance-none cursor-pointer accent-[var(--color-success)] focus:outline-none"
             />
 
-            <div className="flex justify-between text-[12px] text-slate-400 font-mono">
+            <div className="flex justify-between text-[12px] text-[var(--color-muted)] font-mono">
               <span>$25.00</span>
               <span>$100.00 (Standard)</span>
               <span>$250.00</span>
@@ -351,18 +351,18 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
           {/* Server refusal (verbatim, modal stays open) */}
           {submitError && (
-            <div role="alert" data-testid="campaign-create-error" className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
+            <div role="alert" data-testid="campaign-create-error" className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs">
               Campaign creation refused — nothing created ({submitError}).
             </div>
           )}
 
           {/* Form Actions Footer */}
-          <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between">
+          <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.04] transition-all disabled:opacity-50"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all disabled:opacity-50"
             >
               Cancel
             </button>

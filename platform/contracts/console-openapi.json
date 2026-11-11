@@ -1692,6 +1692,44 @@
         }
       }
     },
+    "/api/workbench/view": {
+      "get": {
+        "operationId": "fetchWorkbenchView",
+        "tags": [
+          "workbench"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workbench.view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workbench.view"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveWorkbenchView",
+        "tags": [
+          "workbench"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workbench.view.save",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workbench.view.save"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hf/models/{id}": {
       "get": {
         "operationId": "getHFModelDetails",
@@ -3322,6 +3360,46 @@
             "type": "string"
           },
           "revision": {
+            "type": "number"
+          }
+        }
+      },
+      "workbench.view": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "view_revision",
+          "view"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "view_revision": {
+            "type": "number"
+          },
+          "view": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          }
+        }
+      },
+      "workbench.view.save": {
+        "type": "object",
+        "required": [
+          "status",
+          "session_id",
+          "view_revision"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "view_revision": {
             "type": "number"
           }
         }

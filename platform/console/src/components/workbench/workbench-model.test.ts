@@ -1,12 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignState } from '@/types';
 import {
+  alignSelectedPositions,
+  arrangeSelectedPositions,
+  boardPin,
   buildWorkbench,
+  buildWorkbenchLinks,
+  distributeSelectedPositions,
+  dropSpot,
+  factKeyOverlapRatio,
+  filterWorkbenchObjects,
+  freeSpot,
+  nextZoomTier,
   readCamera,
   readPositions,
   readWorkbenchDocument,
+  readWorkbenchView,
+  resolveFocusObjectId,
+  routeOrthogonalBusEdges,
+  selectFocusedLinks,
+  totalOverlapArea,
   workbenchDocument,
   workbenchPayload,
+  workbenchViewDocument,
 } from './workbench-model';
 
 function campaign(overrides: Partial<CampaignState> = {}): CampaignState {
@@ -219,17 +235,229 @@ describe('workbench model', () => {
     });
   });
 
-  it('round-trips the v2 document without duplicating content', () => {
+  it('round-trips the v2 semantic layout document without camera/selection or unpinned coords', () => {
     const objects = buildWorkbench(campaign());
-    const doc = workbenchDocument('s1', objects, {}, {}, { x: 10, y: 20, zoom: 1.1 });
+    expect(totalOverlapArea(objects)).toBe(0);
+    const links = buildWorkbenchLinks(objects);
+
+    const doc = workbenchDocument('s1', objects, { campaign: { x: 16, y: 24 } }, {}, { campaign: true }, links);
+    expect('camera' in (doc as Record<string, unknown>)).toBe(false);
+    expect('selected' in (doc as Record<string, unknown>)).toBe(false);
+    expect(doc.objects[0]).toEqual(
+      expect.objectContaining({ id: 'campaign', position: { x: 16, y: 24 }, pinned: true }),
+    );
+
     const read = readWorkbenchDocument(doc as unknown as Record<string, unknown>);
-    expect(read.camera).toEqual({ x: 10, y: 20, zoom: 1.1 });
-    expect(read.positions.campaign).toEqual({ x: 0, y: 0 });
+    expect(read.pins).toEqual({ campaign: true });
+    expect(read.positions.campaign).toEqual({ x: 16, y: 24 });
     expect(doc.objects[0].ref).toEqual({ domain: 'campaign', id: 's1' });
     expect('title' in doc.objects[0]).toBe(false);
     expect(doc.links).toEqual(expect.arrayContaining([{ id: 'campaign-hypothesis', source: 'campaign', target: 'hypothesis', kind: 'supports' }]));
     expect(read.links).toHaveLength(doc.links.length);
-    const withHidden = workbenchDocument('s1', objects, {}, {}, { x: 0, y: 0, zoom: 1 }, undefined, undefined, {}, ['campaign']);
+
+    const withHidden = workbenchDocument('s1', objects, {}, {}, {}, [], undefined, {}, ['campaign']);
     expect(readWorkbenchDocument(withHidden as unknown as Record<string, unknown>).hidden).toEqual(['campaign']);
+  });
+
+  it('round-trips the ephemeral view document and rescues legacy layout cameras', () => {
+    const view = workbenchViewDocument({
+      camera: { x: 10, y: 20, zoom: 1.1 },
+      selected: ['campaign'],
+      view_mode: 'list',
+    });
+    expect(readWorkbenchView(view as unknown as Record<string, unknown>)).toEqual({
+      camera: { x: 10, y: 20, zoom: 1.1 },
+      selected: ['campaign'],
+      view_mode: 'list',
+      filters: {},
+      panel: '',
+      lod: 'compact',
+    });
+    expect(['summary', 'compact', 'detail']).toContain(view.lod);
+    expect(typeof view.panel).toBe('string');
+    const legacy = readWorkbenchView(null, { camera: { x: 12, y: 24, zoom: 0.9 } });
+    expect(legacy.camera).toEqual({ x: 12, y: 24, zoom: 0.9 });
+  });
+
+  it('resolves non-overlapping 8px-snapped placements and drop spots', () => {
+    const objects = buildWorkbench(campaign());
+    const obstacles = objects.map((o) => ({ x: o.position.x, y: o.position.y, width: o.size.width, height: o.size.height }));
+    const spot = freeSpot({ width: 356, height: 180 }, { x: 0, y: 0 }, obstacles);
+    expect(Math.abs(spot.x % 8)).toBe(0);
+    expect(Math.abs(spot.y % 8)).toBe(0);
+    expect(totalOverlapArea([...objects, { ...objects[0], id: 'extra', position: spot, size: { width: 356, height: 180 } }])).toBe(0);
+
+    const settled = dropSpot({ x: 384, y: 0, width: 356, height: 220 }, obstacles);
+    expect(Math.abs(settled.x % 8)).toBe(0);
+    expect(Math.abs(settled.y % 8)).toBe(0);
+    expect(boardPin(1, 1)).toBe(false);
+    expect(boardPin(8, 0)).toBe(true);
+  });
+
+  it('folds repeatable jobs onto root card with transient history cap and respects pins', () => {
+    const base = campaign();
+    const repeatJobs = [
+      { id: 'td-1', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.1 }, created_at: '2026-11-01T00:00:00Z' },
+      { id: 'td-2', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.11 }, created_at: '2026-11-01T00:01:00Z' },
+      { id: 'td-3', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.12 }, created_at: '2026-11-01T00:02:00Z' },
+      { id: 'td-4', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.13 }, created_at: '2026-11-01T00:03:00Z', completed_at: '2026-11-01T00:03:10Z' },
+    ];
+    const collapsed = buildWorkbench(base, [], repeatJobs);
+    const jobs = collapsed.filter((o) => o.kind === 'job');
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].id).toBe('job-td-1');
+    expect(jobs[0].facts.find((f) => f.label === 'Runs')?.value).toBe('4 (3 folded)');
+    expect(jobs[0].facts.find((f) => f.label === 'Delta')?.value).toBe('-0.03000 Ha');
+    expect(jobs[0].detail).toContain('+1 older runs');
+
+    const withPin = buildWorkbench(base, [], repeatJobs, [], [], undefined, { 'job-td-4': true });
+    expect(withPin.filter((o) => o.kind === 'job')).toHaveLength(2);
+    expect(withPin.some((o) => o.id === 'job-td-4')).toBe(true);
+  });
+
+  it('fuses >=50% overlapping chart factors, folds comparison tables, and weaves evidence into claim prose', () => {
+    const base = campaign();
+    const objects = buildWorkbench(base, [], [
+      {
+        id: 'cmp-1',
+        session_id: 's1',
+        status: 'COMPLETED',
+        job_type: 'comparison',
+        params_json: { holder: 'measurement' },
+        result_json: {
+          kind: 'comparison',
+          comparison: {
+            columns: ['Ansatz', 'Energy', 'Δ'],
+            rows: [{ label: 'UCCSD', values: ['-1.137 Ha', '0.5 mHa'] }],
+          },
+          factors: { Steps: 2, Initial: '-1.10000 Ha', Optimizer: 'COBYLA' },
+        },
+        created_at: '2026-11-01T00:00:00Z',
+      },
+    ]);
+    expect(objects.some((o) => o.id === 'job-cmp-1')).toBe(false);
+    const measurement = objects.find((o) => o.id === 'measurement')!;
+    expect(measurement.meta?.comparison?.rows).toHaveLength(1);
+    expect(measurement.facts.find((f) => f.label === 'Comparison')?.value).toBe('1 rows folded');
+
+    const chart = objects.find((o) => o.id === 'chart')!;
+    expect(chart.facts.find((f) => f.label === 'Optimizer')?.value).toBe('COBYLA');
+    expect(factKeyOverlapRatio([{ label: 'Steps' }, { label: 'Initial' }], [{ label: 'Steps' }, { label: 'Latest' }])).toBe(0.5);
+
+    const hypothesis = objects.find((o) => o.id === 'hypothesis')!;
+    expect(hypothesis.detail).toContain('ledger:1');
+    expect(hypothesis.sources).toEqual([{ label: 'ledger:1' }]);
+  });
+
+  it('builds foreign-key links, caps focused relations at 6, and routes orthogonal elbows', () => {
+    const objects = buildWorkbench(
+      campaign(),
+      [{ id: 'l1', session_id: 's1', status: 'running', step_count: 1, max_steps: 5, diverged: false, created_at: '', updated_at: '' }],
+      [{ id: 'j1', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '' }],
+      [{ id: 'ob1', subject_kind: 'job', subject_id: 'j1', owner: 'lab', disposition: 'open', required_cases: [], required_authorities: [], close_ready: false, close_reasons: [] }],
+      [{ id: 't1', session_id: 's1', title: 'Check j1', status: 'open', source_domain: 'job', source_id: 'j1', created_at: '', updated_at: '' }],
+    );
+    const links = buildWorkbenchLinks(objects);
+    expect(links.some((l) => l.source === 'campaign' && l.target === 'agent-run-l1')).toBe(true);
+    expect(links.some((l) => l.source === 'job-j1' && l.target === 'approval-ob1')).toBe(true);
+    expect(links.some((l) => l.source === 'job-j1' && l.target === 'task-t1')).toBe(true);
+
+    const focused = selectFocusedLinks(links, ['campaign', 'measurement']);
+    expect(focused.length).toBeLessThanOrEqual(6);
+
+    const byId = new Map(objects.map((o) => [o.id, o]));
+    const routed = routeOrthogonalBusEdges(focused, byId, new Set());
+    expect(routed.length).toBe(focused.length);
+    for (const edge of routed) {
+      expect(edge.d).toContain('M');
+      expect(edge.d).not.toContain(' C');
+    }
+
+    const dragRouted = routeOrthogonalBusEdges(focused, byId, new Set(['campaign']));
+    expect(dragRouted.length).toBe(focused.length);
+  });
+
+  it('aligns, distributes, and arranges selected objects onto 8px grid with zero overlap', () => {
+    const objects = buildWorkbench(campaign()).slice(0, 4);
+    const aligned = alignSelectedPositions(objects, 'left');
+    const distributed = distributeSelectedPositions(objects);
+    const arranged = arrangeSelectedPositions(objects);
+    for (const map of [aligned, distributed, arranged]) {
+      expect(Object.keys(map)).toHaveLength(objects.length);
+      for (const pos of Object.values(map)) {
+        expect(Math.abs(pos.x % 8)).toBe(0);
+        expect(Math.abs(pos.y % 8)).toBe(0);
+      }
+      const moved = objects.map((o) => ({ ...o, position: map[o.id] ?? o.position }));
+      expect(totalOverlapArea(moved)).toBe(0);
+    }
+  });
+
+  it('applies zoom-tier hysteresis deadbands, filters subsets, and resolves folded job IDs', () => {
+    expect(nextZoomTier(0.45, 'standard')).toBe('overview');
+    expect(nextZoomTier(0.55, 'overview')).toBe('overview'); // hysteresis hold below 0.60
+    expect(nextZoomTier(0.62, 'overview')).toBe('standard');
+    expect(nextZoomTier(1.08, 'standard')).toBe('detail');
+    expect(nextZoomTier(0.98, 'detail')).toBe('detail'); // hysteresis hold above 0.95
+    expect(nextZoomTier(0.92, 'detail')).toBe('standard');
+
+    const objects = buildWorkbench(
+      campaign({
+        epistemics: {
+          alpha_corroborated: 0.2,
+          beta_contested: 0.7,
+          gamma_unverified: 0.1,
+          p_correlated: 0.2,
+          status: 'CONTESTED',
+          literature_drift_mha: 4.5,
+          statement: 'Contested energy',
+          sources: ['ledger:1'],
+        },
+      }),
+      [{ id: 'l1', session_id: 's1', status: 'running', step_count: 1, max_steps: 5, diverged: false, created_at: '', updated_at: '' }],
+      [
+        { id: 'td-1', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.12 }, created_at: '2026-11-01T00:00:00Z' },
+        { id: 'td-2', session_id: 's1', status: 'COMPLETED', job_type: 'thermodynamic_limit', params_json: { target: 'H2' }, result_json: { energy: -1.13 }, created_at: '2026-11-01T00:01:00Z' },
+      ],
+    );
+    expect(filterWorkbenchObjects(objects, 'spine').some((o) => o.kind === 'campaign')).toBe(true);
+    expect(filterWorkbenchObjects(objects, 'jobs').every((o) => o.kind === 'job' || o.kind === 'agent_run')).toBe(true);
+    expect(filterWorkbenchObjects(objects, 'issues').some((o) => /CONTESTED/i.test(`${o.title} ${o.meta?.status ?? ''}`))).toBe(true);
+
+    // Both folded and root job IDs resolve to the owning root card (job-td-1).
+    expect(resolveFocusObjectId('td-1', objects)).toBe('job-td-1');
+    expect(resolveFocusObjectId('td-2', objects)).toBe('job-td-1');
+  });
+});
+
+
+describe('energyChart outlier framing', () => {
+  it('preserves raw outlier points in series while clamping y axis to target band', () => {
+    const outlierCampaign = campaign({
+      classical_anchor: {
+        method: 'PySCF STO-3G Full Configuration Interaction',
+        rhf_mean_field_energy: -1.11668,
+        fci_exact_energy: -1.13727,
+        vqe_expectation_energy: -1.136,
+        discrepancy_mha: 1.27,
+        chemical_accuracy_limit: 1.6,
+        chemical_accuracy_passed: true,
+        anchor_computed: true,
+      },
+      trajectory: [
+        { step: 1, energy: -1.129, loss: 0.008, theta: [0.1], grad_norm: 0.1, watchdog: 'measured_vqe', timestamp: '2026-11-11T00:00:00Z', source: 'measured' },
+        { step: 2, energy: -7.85, loss: 6.71, theta: [0.2], grad_norm: 0.2, watchdog: 'measured_vqe', timestamp: '2026-11-11T00:01:00Z', source: 'measured' },
+        { step: 3, energy: -1.136, loss: 0.001, theta: [0.3], grad_norm: 0.01, watchdog: 'measured_vqe', timestamp: '2026-11-11T00:02:00Z', source: 'measured' },
+      ],
+    });
+    const objects = buildWorkbench(outlierCampaign);
+    const chartObj = objects.find((object) => object.id === 'chart');
+    expect(chartObj?.chart).toBeDefined();
+    const spec = chartObj!.chart!;
+    expect(spec.series[0]?.points.map((p) => p.y)).toEqual([-1.129, -7.85, -1.136]);
+    expect(spec.y?.clamp).toBe(true);
+    expect(spec.y?.min).toBeGreaterThan(-1.2);
+    expect(spec.y?.max).toBeLessThan(-1.0);
+    expect(spec.basis).toContain('1 off-scale step flagged');
   });
 });

@@ -75,14 +75,14 @@ export function OverflowCard({
 
   return (
     <div
-      className="rounded-2xl border border-amber-400/40 bg-amber-500/5 p-2.5 text-xs"
+      className="rounded-2xl border border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] p-2.5 text-xs"
       role="alert"
       aria-label={`Context pressure ${Math.round(ctx.pressure_pct)} percent`}
     >
-      <div className="text-amber-200 font-semibold">
+      <div className="text-[var(--color-warning-ink)] font-semibold">
         Context at {Math.round(ctx.pressure_pct)}%{ctx.would_drop > 0 ? ` — ${ctx.would_drop} oldest turns would drop next` : ''}
       </div>
-      <div className="text-slate-400 mt-0.5">
+      <div className="text-[var(--color-muted)] mt-0.5">
         {ctx.turns}/{ctx.turn_cap} turns · {ctx.history_chars}/{ctx.history_chars_cap} chars. Oldest-first cuts are announced by the model, but a fresh session or cleared history reads cleaner.
       </div>
       <div className="flex gap-2 mt-2">
@@ -90,7 +90,7 @@ export function OverflowCard({
           type="button"
           onClick={fresh}
           disabled={busy}
-          className="px-2.5 py-1 rounded-xl bg-cyan-400/90 hover:bg-cyan-300 text-black font-semibold disabled:opacity-40"
+          className="px-2.5 py-1 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] font-semibold disabled:opacity-40"
         >
           New session
         </button>
@@ -98,12 +98,12 @@ export function OverflowCard({
           type="button"
           onClick={() => setClearConfirmOpen(true)}
           disabled={busy}
-          className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 disabled:opacity-40"
+          className="px-2.5 py-1 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] disabled:opacity-40"
         >
           Clear history
         </button>
       </div>
-      {done && <div className="text-slate-300 mt-1.5">{done}</div>}
+      {done && <div className="text-[var(--color-text)] mt-1.5">{done}</div>}
       {clearConfirmOpen && (
         <ConfirmDialog
           open
@@ -111,7 +111,7 @@ export function OverflowCard({
           body={
             <span>
               This session’s chat history is deleted. Jobs, ledger and claims are kept. Type{' '}
-              <code className="rounded bg-white/10 px-1 font-mono">CLEAR</code> to confirm.
+              <code className="rounded bg-[var(--color-fill)] px-1 font-mono">CLEAR</code> to confirm.
             </span>
           }
           requireText="CLEAR"

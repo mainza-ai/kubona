@@ -3,10 +3,9 @@
 import React, { useState } from 'react';
 import { Fingerprint, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
-import { authorizeSpend } from '@/lib/authorizeSpend';
-import { launchProposal } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
+import { executeMeteredAuthorization } from '@/components/workbench/ConfirmCard';
 
 interface ActionGateProps {
   campaign: CampaignState | null;
@@ -55,75 +54,18 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   );
 
   const handleAuthorize = async () => {
-    // Defense in depth: the button is disabled without cost + session +
-    // program, but a crafted call must still refuse here, never mint.
-    if (!canAuthorize) {
-      setRejected(true);
-      setMessage(
-        !sessionBound
-          ? 'No session bound — authorization disabled.'
-          : !programKnown
-            ? 'No program in this campaign — authorization disabled until a circuit is proposed.'
-            : 'No cost estimate on this campaign — authorization disabled until priced.'
-      );
-      return;
-    }
     setIsSubmitting(true);
     setMessage(null);
     try {
-      // Single shared path (authorizeSpend): canonical v1 job binding over
-      // session + exact QASM, tenant = lab tenant (never session id).
-      const res = await authorizeSpend({ session, campaign });
-      if (!res.ok) {
+      const outcome = await executeMeteredAuthorization(campaign, session);
+      if (!outcome.ok) {
         setRejected(true);
-        setMessage(`${res.reason} Halted fail-closed — nothing dispatched, nothing spent.`);
-        return;
-      }
-      if (!session?.id) {
-        setRejected(true);
-        setMessage('No session bound — authorization was verified but nothing could be dispatched.');
-        return;
-      }
-      // The mandate is a capability, not a dispatch. Send it with the exact
-      // campaign program so the Go rail can admit the metered job and the
-      // UI can show a real job id instead of an approval receipt.
-      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `launch-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
-      const launched = await launchProposal(
-        session.id,
-        {
-          target: campaign?.target_system || campaign?.quantum_factors?.target_molecule || 'Campaign run',
-          recommended_tier: recommendedBackend,
-          spend_estimate: `$${(estimatedCost as number).toFixed(2)}`,
-          classical_anchor: campaign?.classical_anchor?.method || 'campaign anchor',
-          qasm: programQasm,
-        },
-        {
-          mandateRef: JSON.stringify(res.mandate),
-          requestId,
-          backend: recommendedBackend,
-          budgetUsd: estimatedCost as number,
-          qasm: programQasm,
-        },
-      );
-      if (!launched) {
-        setRejected(true);
-        setMessage('Mandate verified, but the launch transport failed — no job was created. Re-check and retry.');
-        return;
-      }
-      if ('error' in launched) {
-        setRejected(true);
-        setMessage(`Mandate verified, but dispatch was refused: ${launched.error}`);
+        setMessage(outcome.message);
         return;
       }
       setRejected(false);
-      setDispatchNote(`Dispatched job ${String(launched.job.id).slice(0, 8)} to ${recommendedBackend}. Track it in Recorder / Measured outputs.`);
+      setDispatchNote(`Dispatched job ${outcome.jobId.slice(0, 8)} to ${outcome.backend}. Track it in Recorder / Measured outputs.`);
       onAuthorized();
-    } catch (err) {
-      console.error('Failed to authorize pulse:', err);
-      setRejected(true);
-      setMessage('Failed to sign mandate envelope. Halted fail-closed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -132,33 +74,33 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   return (
     <div
       data-testid="action-gate"
-      className="absolute bottom-6 left-6 z-20 w-80 bg-[#0E1117]/90 border border-white/10 rounded-2xl p-4 shadow-2xl"
+      className="absolute bottom-6 left-6 z-20 w-80 bg-[var(--color-float)] border border-[var(--color-warning)] rounded-2xl p-4 shadow-[var(--shadow-float)] text-[var(--color-text)]"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-          <span className="text-[12px] font-bold text-amber-400 font-code uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-[var(--color-warning)]" aria-hidden="true" />
+          <span className="text-[12px] font-bold text-[var(--color-warning)] font-code uppercase tracking-wider">
             Action Gate
           </span>
         </div>
-        <span className="text-[12px] font-code text-slate-400">Pending Authorization</span>
+        <span className="text-[12px] font-code text-[var(--color-muted)]">Needs you</span>
       </div>
 
       <div className="mt-2.5">
-        <div className="text-xs text-white font-medium">Authorize {recommendedBackend} Dispatch</div>
-        <div className="text-[12px] text-slate-400 mt-0.5">
+        <div className="text-xs text-[var(--color-text)] font-medium">Authorize {recommendedBackend} Dispatch</div>
+        <div className="text-[12px] text-[var(--color-muted)] mt-0.5">
           {recommendedBackend} · {qubits} Qubits ·{' '}
           {costKnown ? `$${(estimatedCost as number).toFixed(2)} max` : 'unpriced — authorization disabled'}
         </div>
       </div>
 
       {message && (
-        <div className={`mt-2.5 p-2.5 rounded-xl text-[12px] ${rejected ? 'bg-rose-950/60 border border-rose-500/40 text-rose-200' : 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-200'}`}>
+        <div role={rejected ? 'alert' : 'status'} className={`mt-2.5 p-2.5 rounded-xl text-[12px] border ${rejected ? 'bg-[color-mix(in_oklab,var(--color-danger)_14%,var(--color-surface))] border-[var(--color-danger)] text-[var(--color-danger)]' : 'bg-[color-mix(in_oklab,var(--color-info)_14%,var(--color-surface))] border-[var(--color-info)] text-[var(--color-info)]'}`}>
           {message}
         </div>
       )}
       {dispatchNote && (
-        <div role="status" className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-[12px]">
+        <div role="status" className="mt-2.5 p-2.5 rounded-xl bg-[color-mix(in_oklab,var(--color-success)_14%,var(--color-surface))] border border-[var(--color-success)] text-[var(--color-success)] text-[12px]">
           {dispatchNote}
         </div>
       )}
@@ -170,7 +112,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             onClick={handleAuthorize}
             disabled={isSubmitting || !canAuthorize}
             title={!canAuthorize ? 'Disabled: needs a bound session, a proposed program, and a priced campaign' : undefined}
-            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,179,0,0.3)] active:scale-[0.98] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:outline-none"
+            className="w-full min-h-[34px] py-2 px-3 rounded-xl bg-[var(--color-warning)] hover:opacity-90 text-[var(--color-on-lit)] font-semibold text-xs flex items-center justify-center gap-2 transition-opacity disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--color-warning)] focus-visible:outline-none"
           >
             <Fingerprint className="w-4 h-4" />
             <span>{isSubmitting ? 'Signing mandate…' : 'Authorize (Ed25519)'}</span>
@@ -180,15 +122,15 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             onClick={onDowngrade}
             disabled={isSubmitting}
             title="Route this intent to the local simulator rail instead ($0.00, auto-allow)"
-            className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-medium text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+            className="w-full min-h-[34px] py-2 px-3 rounded-xl bg-[var(--color-control)] hover:bg-[var(--color-control-hover)] border border-[var(--color-border-strong)] text-[var(--color-text)] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--color-info)] focus-visible:outline-none"
           >
-            <ArrowDownToLine className="w-4 h-4 text-cyan-300" />
+            <ArrowDownToLine className="w-4 h-4 text-[var(--color-info)]" />
             <span>Downgrade to simulator</span>
           </button>
           <div className="flex items-center justify-between">
             <button
               onClick={() => setShowDetail((v) => !v)}
-              className="text-[12px] font-code text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              className="text-[12px] font-code text-[var(--color-muted)] hover:text-[var(--color-text)] flex items-center gap-1 transition-colors"
             >
               {showDetail ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               <span>burden packet</span>
@@ -196,7 +138,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             <button
               onClick={() => setShowDeny(true)}
               disabled={isSubmitting}
-              className="text-[12px] font-code text-rose-300/80 hover:text-rose-200 transition-colors disabled:opacity-50"
+              className="text-[12px] font-code text-[var(--color-danger)] hover:opacity-80 transition-opacity disabled:opacity-50"
             >
               Abort
             </button>
@@ -209,19 +151,19 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             onChange={(e) => setDenyReason(e.target.value)}
             placeholder="Denial reason (required)…"
             maxLength={280}
-            className="w-full px-3 py-2 rounded-xl bg-black/60 border border-rose-500/30 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-rose-400"
+            className="w-full px-3 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-danger)] text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
           />
           <div className="flex items-center gap-2">
             <button
               onClick={() => denyReason.trim() && onDenied(denyReason.trim())}
               disabled={isSubmitting || !denyReason.trim()}
-              className="flex-1 py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition disabled:opacity-50"
+              className="flex-1 min-h-[34px] py-2 px-4 rounded-xl bg-[var(--color-danger)] hover:opacity-90 text-[var(--color-on-lit)] text-xs font-semibold transition-opacity disabled:opacity-50"
             >
               Confirm denial
             </button>
             <button
               onClick={() => { setShowDeny(false); setDenyReason(''); }}
-              className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition"
+              className="min-h-[34px] py-2 px-4 rounded-xl bg-[var(--color-control)] hover:bg-[var(--color-control-hover)] text-[var(--color-label-secondary)] text-xs transition-colors"
             >
               Back
             </button>

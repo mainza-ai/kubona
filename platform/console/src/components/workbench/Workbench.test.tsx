@@ -7,11 +7,23 @@ import { Workbench, type WorkbenchHandle } from './Workbench';
 vi.mock('@/lib/api', () => ({
   fetchCanvasLayout: vi.fn(async () => ({})),
   fetchWorkbenchLayout: vi.fn(async () => null),
+  fetchWorkbenchView: vi.fn(async () => null),
   fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
   saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
+  saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
 }));
 
-afterEach(() => {
+const mountedTrees: TestRenderer.ReactTestRenderer[] = [];
+function createTree(element: React.ReactElement) {
+  const rendered = TestRenderer.create(element);
+  mountedTrees.push(rendered);
+  return rendered;
+}
+
+afterEach(async () => {
+  await act(async () => {
+    while (mountedTrees.length > 0) mountedTrees.pop()!.unmount();
+  });
   vi.clearAllMocks();
 });
 
@@ -83,7 +95,7 @@ describe('Workbench', () => {
   it('shows an explicit empty state without a campaign', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={null} />);
+      tree = createTree(<Workbench campaign={null} />);
     });
     expect(tree!.root.findByProps({ 'data-testid': 'workbench' })).toBeTruthy();
     expect(tree!.root.findAllByProps({ className: 'k-workbench-card' })).toHaveLength(0);
@@ -94,7 +106,7 @@ describe('Workbench', () => {
     const onSignIn = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={null} multiLab onSignIn={onSignIn} />);
+      tree = createTree(<Workbench campaign={null} multiLab onSignIn={onSignIn} />);
     });
     const text = JSON.stringify(tree!.toJSON());
     expect(text).toContain('Multi-lab workspace');
@@ -107,7 +119,7 @@ describe('Workbench', () => {
     const onCreateCampaign = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench campaign={null} localMode onCreateCampaign={onCreateCampaign} />,
       );
     });
@@ -117,7 +129,7 @@ describe('Workbench', () => {
 
     const onSignIn = vi.fn();
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench campaign={null} error="multi-lab store: log in" authError onSignIn={onSignIn} />,
       );
     });
@@ -131,7 +143,7 @@ describe('Workbench', () => {
     const onRetry = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={null} error="campaign read refused" onRetry={onRetry} />);
+      tree = createTree(<Workbench campaign={null} error="campaign read refused" onRetry={onRetry} />);
     });
     const text = JSON.stringify(tree!.toJSON());
     expect(text).toContain('Campaign unavailable');
@@ -145,7 +157,7 @@ describe('Workbench', () => {
   it('projects the campaign into typed cards and a figure', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" tasks={[{
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" tasks={[{
         id: 't1', session_id: 's1', title: 'Review anchor', status: 'open',
         source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '',
       }]} />);
@@ -176,7 +188,7 @@ describe('Workbench', () => {
     const onTaskStatus = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench
           campaign={campaign}
           sessionId="s1"
@@ -201,7 +213,7 @@ describe('Workbench', () => {
     const onCloseObligation = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench
           campaign={campaign}
           sessionId="s1"
@@ -223,7 +235,7 @@ describe('Workbench', () => {
   it('offers a list equivalent of the canvas', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const toggle = tree!.root.findByProps({ title: 'Switch between canvas and list (text equivalent)' });
     await act(async () => { toggle.props.onClick(); });
@@ -239,7 +251,7 @@ describe('Workbench', () => {
   it('projects a running loop as an agent-run card', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench
           campaign={campaign}
           sessionId="s1"
@@ -255,7 +267,7 @@ describe('Workbench', () => {
   it('renames an area and assigns the selected card to it', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
     await act(async () => { group.props.onClick(); });
@@ -273,7 +285,7 @@ describe('Workbench', () => {
   it('projects a job as a job card', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench
           campaign={campaign}
           sessionId="s1"
@@ -288,7 +300,7 @@ describe('Workbench', () => {
     const onSelectObject = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" onSelectObject={onSelectObject} />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" onSelectObject={onSelectObject} />);
     });
     const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
     await act(async () => { card.props.onClick(); });
@@ -298,7 +310,7 @@ describe('Workbench', () => {
   it('removes a selected card from the canvas and restores it without deleting the record', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
     await act(async () => { card.props.onClick(); });
@@ -313,7 +325,7 @@ describe('Workbench', () => {
   it('multi-selects cards and removes/restores the group', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const cards = tree!.root.findAllByProps({ 'data-kind': 'campaign' });
     const second = tree!.root.findAllByProps({ 'data-kind': 'hypothesis' })[0];
@@ -328,7 +340,7 @@ describe('Workbench', () => {
 
   it('creates separate areas from all objects and the current selection', async () => {
     let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    await act(async () => { tree = createTree(<Workbench campaign={campaign} sessionId="s1" />); });
     const groupAll = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
     await act(async () => { groupAll.props.onClick(); });
     const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
@@ -340,7 +352,7 @@ describe('Workbench', () => {
 
   it('creates and removes a typed custom link between two selected cards', async () => {
     let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    await act(async () => { tree = createTree(<Workbench campaign={campaign} sessionId="s1" />); });
     const circuit = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
     const evidence = tree!.root.findAllByProps({ 'data-kind': 'evidence' })[0];
     await act(async () => { circuit.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
@@ -364,7 +376,7 @@ describe('Workbench', () => {
   it('exposes focus and remove actions to the inspector', async () => {
     const ref = React.createRef<WorkbenchHandle>();
     let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<Workbench ref={ref} campaign={campaign} sessionId="s1" />); });
+    await act(async () => { tree = createTree(<Workbench ref={ref} campaign={campaign} sessionId="s1" />); });
     await act(async () => { ref.current!.focusObject('campaign'); });
     await act(async () => { ref.current!.removeObject('campaign'); });
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
@@ -373,7 +385,7 @@ describe('Workbench', () => {
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
     await act(async () => { group.props.onClick(); });
@@ -385,7 +397,7 @@ describe('Workbench', () => {
     const onOpenObject = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(
+      tree = createTree(
         <Workbench campaign={campaign} sessionId="s1" onSelectObject={onSelectObject} onOpenObject={onOpenObject} />,
       );
     });
@@ -409,7 +421,7 @@ describe('Workbench', () => {
 
   it('removes a selected card with Delete and can undo', async () => {
     let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    await act(async () => { tree = createTree(<Workbench campaign={campaign} sessionId="s1" />); });
     const card = () => tree!.root.findAllByProps({ className: 'k-workbench-card' })
       .find((node) => node.props['data-kind'] === 'campaign')!;
     await act(async () => {
@@ -423,5 +435,285 @@ describe('Workbench', () => {
     const undo = tree!.root.findByProps({ title: 'Restore the last removed card' });
     await act(async () => { undo.props.onClick(); });
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
+  });
+
+  it('saves camera pan/zoom to view channel without mutating semantic layout', async () => {
+    vi.useFakeTimers();
+    try {
+      const api = await import('@/lib/api');
+      let tree: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const zoomIn = tree!.root.findByProps({ 'aria-label': 'Zoom in' });
+      await act(async () => {
+        zoomIn.props.onClick();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(api.saveWorkbenchView).toHaveBeenCalled();
+      expect(api.saveWorkbenchLayout).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('suppresses Unavailable placeholder cards during initial hydration window', async () => {
+    vi.useFakeTimers();
+    try {
+      const api = await import('@/lib/api');
+      vi.mocked(api.fetchWorkbenchLayout).mockResolvedValueOnce({
+        revision: 2,
+        document: {
+          version: 2,
+          session_id: 's1',
+          objects: [{ id: 'missing-loop', kind: 'agent_run', ref: { domain: 'loop', id: 'l-missing' }, position: { x: 0, y: 0 }, pinned: true }],
+          links: [],
+          areas: [],
+          hidden: [],
+        },
+      });
+      let tree: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(JSON.stringify(tree!.toJSON())).not.toContain('Unavailable');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(JSON.stringify(tree!.toJSON())).toContain('Unavailable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cycles edge visibility (hybrid -> all -> off -> focus) and routes orthogonal edges capped at 6 in focus mode', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const edgeToggle = () => tree!.root.findAllByType('button').find((b) => String(b.props.children?.[0] ?? b.props.children).includes('Edges'))!;
+    expect(edgeToggle()).toBeDefined();
+
+    // Default 'hybrid' renders primary spine links even at rest (no card selected).
+    const restPaths = tree!.root.findAllByProps({ className: 'k-workbench-links' })[0].findAllByType('path');
+    expect(restPaths.length).toBeGreaterThan(0);
+    expect(restPaths.every((p) => p.props['data-edge-role'] === 'rest')).toBe(true);
+
+    const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { card.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    const hybridSelectedPaths = tree!.root.findAllByProps({ className: 'k-workbench-links' })[0].findAllByType('path');
+    expect(hybridSelectedPaths.some((p) => p.props['data-edge-role'] === 'focus')).toBe(true);
+
+    await act(async () => { edgeToggle().props.onClick(); }); // All
+    const allPaths = tree!.root.findAllByProps({ className: 'k-workbench-links' })[0].findAllByType('path');
+    expect(allPaths.length).toBeGreaterThanOrEqual(hybridSelectedPaths.length);
+
+    await act(async () => { edgeToggle().props.onClick(); }); // Off
+    const offPaths = tree!.root.findAllByProps({ className: 'k-workbench-links' })[0].findAllByType('path');
+    expect(offPaths).toHaveLength(0);
+
+    await act(async () => { edgeToggle().props.onClick(); }); // Focus (max 6)
+    const focusedPaths = tree!.root.findAllByProps({ className: 'k-workbench-links' })[0].findAllByType('path');
+    expect(focusedPaths.length).toBeGreaterThan(0);
+    expect(focusedPaths.length).toBeLessThanOrEqual(6);
+    expect(focusedPaths[0].props.d).not.toContain(' C');
+    expect(focusedPaths.every((p) => p.props['data-edge-role'] === 'focus')).toBe(true);
+  });
+
+  it('renders a floating SelectionBar when cards are selected and supports multi-card Align + Undo', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const cardA = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    const cardB = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
+    const beforeLeftB = cardB.props.style.left;
+
+    await act(async () => { cardA.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    await act(async () => { cardB.props.onClick({ metaKey: true, ctrlKey: false, shiftKey: false }); });
+
+    const alignBtn = tree!.root.findAllByType('button').find((b) => b.props.children === 'Align');
+    expect(alignBtn).toBeDefined();
+    await act(async () => { alignBtn!.props.onClick(); });
+
+    const alignedB = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
+    expect(alignedB.props.style.left).toBe(cardA.props.style.left);
+
+    const workbench = tree!.root.findByProps({ 'data-testid': 'workbench' });
+    await act(async () => {
+      workbench.props.onKeyDown({ key: 'z', preventDefault: vi.fn(), target: { tagName: 'DIV', isContentEditable: false } });
+    });
+    const revertedB = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
+    expect(revertedB.props.style.left).toBe(beforeLeftB);
+  });
+
+  it('caps CodeBlock at 16 lines with expand toggle and supports CompareMatrix CSV + validated MANUAL overrides + Undo', async () => {
+    const longQasm = Array.from({ length: 20 }, (_, i) => `rz(0.${i + 1}) q[0];`).join('\n');
+    const richCampaign: CampaignState = {
+      ...campaign,
+      quantum_factors: {
+        ...campaign.quantum_factors!,
+        qasm: longQasm,
+      },
+    };
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(
+        <Workbench
+          campaign={richCampaign}
+          jobs={[
+            { id: 'job-1', session_id: 's1', job_type: 'vqe', status: 2, params_json: { backend: 'local_simulator', shots: 1024 }, result_json: { energy: -1.13 }, created_at: '2026-11-01T00:00:00Z' },
+            { id: 'job-2', session_id: 's1', job_type: 'vqe', status: 2, params_json: { backend: 'ibm_marrakesh', shots: 4096 }, result_json: { energy: -1.11 }, created_at: '2026-11-01T00:01:00Z' },
+          ]}
+          sessionId="s1"
+        />,
+      );
+    });
+
+    // CodeBlock 16-line cap + expand/collapse
+    const circuitCard = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
+    expect(circuitCard.findAllByProps({ className: 'k-workbench-code-line' })).toHaveLength(16);
+    const expandBtn = circuitCard.findByProps({ className: 'k-workbench-code-more' });
+    await act(async () => { expandBtn.props.onClick(); });
+    expect(circuitCard.findAllByProps({ className: 'k-workbench-code-line' })).toHaveLength(20);
+
+    // CompareMatrix Copy CSV (lives on the Column 3 table card when classical_anchor is recorded)
+    const compareCard = tree!.root.findAllByProps({ 'data-kind': 'table' })[0];
+    expect(compareCard).toBeDefined();
+    const csvBtn = compareCard.findAllByType('button').find((b) => b.props.children === 'Copy CSV');
+    expect(csvBtn).toBeDefined();
+    await act(async () => { csvBtn!.props.onClick(); });
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0]![0]).toContain('RHF mean-field');
+
+    // CompareMatrix MANUAL override validation (> 8192 bytes rejected) + valid save preserving MEASURED orig + Undo
+    const editBtn = compareCard.findAllByProps({ className: 'k-compare-edit-btn' })[0];
+    await act(async () => { editBtn.props.onClick(); });
+    const input = compareCard.findByType('input');
+    const saveBtn = () => compareCard.findAllByType('button').find((b) => b.props.children === 'Save')!;
+    await act(async () => { input.props.onChange({ target: { value: 'x'.repeat(8193) } }); });
+    await act(async () => { saveBtn().props.onClick(); });
+    const alert = compareCard.findByProps({ role: 'alert' });
+    expect(alert.props.children).toContain('8192');
+
+    await act(async () => { input.props.onChange({ target: { value: '-1.14500 Ha' } }); });
+    await act(async () => { saveBtn().props.onClick(); });
+    expect(compareCard.findByProps({ className: 'k-compare-manual-badge' }).props.children).toBe('MANUAL');
+    expect(compareCard.findByProps({ className: 'k-compare-orig' }).props.children.join('')).toContain('orig ');
+
+    const workbench = tree!.root.findByProps({ 'data-testid': 'workbench' });
+    await act(async () => {
+      workbench.props.onKeyDown({ key: 'z', preventDefault: vi.fn(), target: { tagName: 'DIV', isContentEditable: false } });
+    });
+    expect(compareCard.findAllByProps({ className: 'k-compare-manual-badge' })).toHaveLength(0);
+  });
+
+  it('filters cards with recovery empty state, renders inline ConfirmCard + AskReceipt, minimap, Follow live, Lift, and held state', async () => {
+    const onInlineGateVisibility = vi.fn();
+    const onDowngrade = vi.fn();
+    const onGateSettled = vi.fn();
+    const onLiftObject = vi.fn();
+    const meteredCampaign: CampaignState = {
+      ...campaign,
+      quantum_factors: {
+        ...campaign.quantum_factors!,
+        recommended_backend: 'ibm_marrakesh',
+        estimated_spend_usd: 3.2,
+        qasm: 'OPENQASM 2.0;\nqreg q[2];\nh q[0];',
+      },
+    };
+    const gate = {
+      campaign: meteredCampaign,
+      session: { id: 's1', target_system: 'H2', spend_limit_usd: 25, current_spend_usd: 1.5, status: 'active' } as never,
+      onAuthorized: vi.fn(),
+      onDenied: vi.fn(),
+      onDowngrade,
+    };
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(
+        <Workbench
+          campaign={meteredCampaign}
+          sessionId="s1"
+          loops={[{ id: 'l1', session_id: 's1', status: 'running', step_count: 1, max_steps: 4, diverged: false, created_at: '', updated_at: '' }]}
+          confirmGate={gate}
+          onInlineGateVisibility={onInlineGateVisibility}
+          onGateSettled={onGateSettled}
+          onLiftObject={onLiftObject}
+        />,
+      );
+    });
+
+    // Single-home guarantee: circuit card owns the gate while on Canvas view.
+    expect(onInlineGateVisibility).toHaveBeenCalledWith(true);
+    expect(tree!.root.findByProps({ 'data-testid': 'confirm-card' })).toBeTruthy();
+
+    // Downgrade inside the inline ConfirmCard emits AskReceipt + calls onDowngrade.
+    const downgradeBtn = tree!.root.findByProps({ 'data-testid': 'confirm-card-downgrade' });
+    await act(async () => { downgradeBtn.props.onClick(); });
+    expect(onDowngrade).toHaveBeenCalledTimes(1);
+    expect(onGateSettled).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'downgraded' }));
+
+    // Even when confirmGate clears after settlement, AskReceipt stays rendered on the circuit card.
+    await act(async () => {
+      tree!.update(
+        <Workbench
+          campaign={meteredCampaign}
+          sessionId="s1"
+          loops={[{ id: 'l1', session_id: 's1', status: 'running', step_count: 1, max_steps: 4, diverged: false, created_at: '', updated_at: '' }]}
+          confirmGate={null}
+          onInlineGateVisibility={onInlineGateVisibility}
+          onGateSettled={onGateSettled}
+          onLiftObject={onLiftObject}
+        />,
+      );
+    });
+    expect(tree!.root.findByProps({ 'data-testid': 'ask-receipt' })).toBeTruthy();
+    expect(onInlineGateVisibility).toHaveBeenCalledWith(false);
+
+    // Filter chips: Jobs shows only job/agent_run cards; Spine hides circuit -> wait no, Spine includes circuit; Issues with zero issues offers "Show all cards".
+    const jobsFilter = tree!.root.findByProps({ 'data-filter': 'jobs' });
+    await act(async () => { jobsFilter.props.onClick(); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-card' }).every((n) => n.props['data-kind'] === 'agent_run' || n.props['data-kind'] === 'job')).toBe(true);
+
+    const allFilter = tree!.root.findByProps({ 'data-filter': 'all' });
+    await act(async () => { allFilter.props.onClick(); });
+
+    // Corner minimap + Follow live toggle on canvas view.
+    expect(tree!.root.findByProps({ 'data-testid': 'workbench-minimap' })).toBeTruthy();
+    const followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
+    await act(async () => { followBtn.props.onClick(); });
+    expect(followBtn.props['aria-pressed']).toBe(true);
+
+    // Open on a selected card routes to onLiftObject when provided.
+    const campaignCard = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { campaignCard.props.onKeyDown({ key: 'Enter', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false }); });
+    expect(onLiftObject).toHaveBeenCalledWith(expect.objectContaining({ id: 'campaign', kind: 'campaign' }));
+
+    // Held state transitions true on zoom interaction and releases after 1000ms.
+    vi.useFakeTimers();
+    try {
+      const zoomIn = tree!.root.findByProps({ 'aria-label': 'Zoom in' });
+      await act(async () => { zoomIn.props.onClick(); });
+      expect(tree!.root.findByProps({ className: 'k-workbench-viewport' }).props['data-held']).toBe('true');
+      await act(async () => { await vi.advanceTimersByTimeAsync(1050); });
+      expect(tree!.root.findByProps({ className: 'k-workbench-viewport' }).props['data-held']).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

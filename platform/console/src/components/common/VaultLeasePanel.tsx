@@ -42,25 +42,25 @@ export function VaultLeasePanel({ sessionId }: { sessionId?: string }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Vault leases">
+    <div className="rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Vault leases">
       <div>
-        <div className="text-xs font-semibold text-white">Vault secret leases</div>
-        <p className="text-[12px] text-slate-500">Short-lived lease IDs for the governed secret rail. No value is stored or shown here.</p>
+        <div className="text-xs font-semibold text-[var(--color-text)]">Vault secret leases</div>
+        <p className="text-[12px] text-[var(--color-muted)]">Short-lived lease IDs for the governed secret rail. No value is stored or shown here.</p>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <input aria-label="Lease scope" value={scope} onChange={(e) => setScope(e.target.value)} className="flex-1 min-w-40 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] font-mono text-slate-200" />
-        <input aria-label="Lease TTL seconds" value={ttl} onChange={(e) => setTtl(e.target.value)} inputMode="numeric" className="w-20 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] font-mono text-slate-200" />
-        <button type="button" onClick={() => void issue()} disabled={busy} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">Issue lease</button>
+        <input aria-label="Lease scope" value={scope} onChange={(e) => setScope(e.target.value)} className="flex-1 min-w-40 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] font-mono text-[var(--color-text)]" />
+        <input aria-label="Lease TTL seconds" value={ttl} onChange={(e) => setTtl(e.target.value)} inputMode="numeric" className="w-20 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] font-mono text-[var(--color-text)]" />
+        <button type="button" onClick={() => void issue()} disabled={busy} className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] disabled:opacity-40">Issue lease</button>
       </div>
       {lease && (
-        <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-mono text-slate-300 space-y-0.5">
+        <div className="rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] p-2 text-[12px] font-mono text-[var(--color-text)] space-y-0.5">
           <div>id {lease.lease_id}</div>
           <div>scope {lease.scope} · ttl {lease.ttl_seconds}s · expires {lease.expires_at}</div>
-          <div className="text-slate-500 break-all">sig {lease.lease_signature.slice(0, 24)}…</div>
-          <button type="button" onClick={() => void revoke()} disabled={busy} className="mt-1 px-2 py-1 rounded bg-rose-500/15 border border-rose-400/30 text-rose-200 disabled:opacity-40">Revoke lease</button>
+          <div className="text-[var(--color-muted)] break-all">sig {lease.lease_signature.slice(0, 24)}…</div>
+          <button type="button" onClick={() => void revoke()} disabled={busy} className="mt-1 px-2 py-1 rounded bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] disabled:opacity-40">Revoke lease</button>
         </div>
       )}
-      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
+      {notice && <p role="status" className="text-[12px] text-[var(--color-text)]">{notice}</p>}
     </div>
   );
 }

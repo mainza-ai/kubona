@@ -629,6 +629,63 @@ func TestReplanVQERecordsMeasuredPointAndNotebook(t *testing.T) {
 	}
 }
 
+func TestReplanVQERejectsCrossMoleculeAndIncompatibleFCI(t *testing.T) {
+	anchored, err := BuildCampaignProposal(context.Background(), "sess-h2-anchored", "H2 ground state VQE", "", stubAnchorBridge{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(anchored)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Explicit wrong-molecule payload must be rejected cleanly.
+	if _, changed, note := ReplanWithJobResult(raw, "job-lih-1", "vqe_run",
+		[]byte(`{"success":true,"molecule":"LiH","energy":-7.86,"fci_exact_energy":-7.88236,"trajectory":[{"iteration":1,"energy":-7.86}]}`),
+		"clm-lih-1"); changed || note != "vqe molecule mismatch" {
+		t.Fatalf("expected cross-molecule VQE rejection, got changed=%v note=%q", changed, note)
+	}
+
+	// 2. Unattributed cross-molecule energy (LiH -7.88236 Ha on H2 -1.13727 Ha)
+	// must be rejected via FCI compatibility check.
+	if _, changed, note := ReplanWithJobResult(raw, "job-unattributed-lih", "vqe_repeats",
+		[]byte(`{"success":true,"energy":-7.85,"fci_exact_energy":-7.88236,"trajectory":[{"iteration":1,"energy":-7.85}]}`),
+		"clm-unattr-1"); changed || note != "vqe fci anchor mismatch" {
+		t.Fatalf("expected incompatible FCI VQE rejection, got changed=%v note=%q", changed, note)
+	}
+
+	// 3. Even on a bridge-less proposal whose first VQE sets the campaign FCI
+	// anchor, a later incompatible FCI trajectory must still be rejected.
+	unanchored := replanTestState(t, "H2 ground state VQE")
+	firstUpdated, changed, note := ReplanWithJobResult(unanchored, "job-h2-first", "vqe_run",
+		[]byte(`{"success":true,"energy":-1.1368,"fci_exact_energy":-1.13727,"trajectory":[{"iteration":1,"energy":-1.1368}]}`),
+		"clm-h2-1")
+	if !changed {
+		t.Fatalf("first unanchored VQE must fold cleanly: %s", note)
+	}
+	if _, changed, note := ReplanWithJobResult(firstUpdated, "job-unattributed-later", "vqe_repeats",
+		[]byte(`{"success":true,"energy":-7.85,"fci_exact_energy":-7.88236,"trajectory":[{"iteration":1,"energy":-7.85}]}`),
+		"clm-unattr-2"); changed || note != "vqe fci anchor mismatch" {
+		t.Fatalf("expected subsequent incompatible FCI VQE rejection, got changed=%v note=%q", changed, note)
+	}
+
+	// 4. Legitimate stretched H2 geometry (-0.95 Ha vs -1.13727 Ha) stays within
+	// tolerance and folds cleanly.
+	updated, changed, note := ReplanWithJobResult(raw, "job-stretched-h2", "geometry_optimization",
+		[]byte(`{"success":true,"molecule":"H2","energy":-0.945,"fci_exact_energy":-0.95,"trajectory":[{"iteration":1,"energy":-0.945}]}`),
+		"clm-h2-stretch")
+	if !changed {
+		t.Fatalf("expected stretched H2 geometry_optimization to fold, got note=%q", note)
+	}
+	var state CampaignState
+	if err := json.Unmarshal(updated, &state); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Trajectory) != 1 || state.Trajectory[0].Energy != -0.945 {
+		t.Fatalf("expected stretched H2 point folded cleanly, got %+v", state.Trajectory)
+	}
+}
+
 func TestReplanPesHonorsExplicitUnclaimablePoint(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 	updated, changed, _ := ReplanWithJobResult(raw, "job-sweep-claim", "vqe_pes",

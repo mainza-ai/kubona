@@ -65,28 +65,28 @@ function DialogBody({
         aria-modal="true"
         aria-label={title}
         aria-describedby="confirm-dialog-body"
-        className="w-[min(28rem,calc(100vw-3rem))] rounded-xl border border-white/15 bg-[#0b0e1a] p-5 shadow-2xl"
+        className="w-[min(28rem,calc(100vw-3rem))] rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-float)] p-5 shadow-[var(--shadow-float)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-white">{title}</h2>
-        <div id="confirm-dialog-body" className="mt-2 text-sm text-slate-300">
+        <h2 className="text-base font-semibold text-[var(--color-text)]">{title}</h2>
+        <div id="confirm-dialog-body" className="mt-2 text-sm text-[var(--color-label-secondary)]">
           {body}
         </div>
         {requireText != null && (
-          <label className="mt-3 block text-xs text-slate-400">
-            Type <code className="rounded bg-white/10 px-1 font-mono">{requireText}</code> to confirm
+          <label className="mt-3 block text-xs text-[var(--color-muted)]">
+            Type <code className="rounded bg-[var(--color-fill)] px-1 font-mono">{requireText}</code> to confirm
             <input
               type="text"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               disabled={busy}
               autoComplete="off"
-              className="mt-1 block w-full rounded-md border border-white/15 bg-white/5 px-2 py-1.5 text-sm text-white placeholder:text-slate-500"
+              className="mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
             />
           </label>
         )}
         {error != null && (
-          <p role="alert" className="mt-2 text-sm text-red-300">
+          <p role="alert" className="mt-2 text-sm text-[var(--color-danger-ink)]">
             {error}
           </p>
         )}
@@ -95,7 +95,7 @@ function DialogBody({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
+            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-50"
           >
             Cancel
           </button>
@@ -104,7 +104,7 @@ function DialogBody({
             onClick={() => void onConfirm()}
             disabled={!canConfirm}
             className={`rounded-md px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-              danger ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-cyan-400 text-black hover:bg-cyan-300'
+              danger ? 'bg-rose-600 text-[var(--color-on-accent)] hover:bg-rose-500' : 'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-lit)]'
             }`}
           >
             {busy ? 'Working…' : confirmLabel}

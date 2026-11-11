@@ -29,12 +29,9 @@ import {
   Pencil,
   XCircle,
 } from 'lucide-react';
-import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
-import { useTranscript } from '@/domain/transcript-store';
-import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
+import type { ChatMessage, CampaignState, RunPhase } from '@/types';
 import { useAuthPhase } from '@/domain/auth-state';
-import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, wasRecentAuthFailure } from '@/lib/api';
+import { useCopilotChat, type CopilotChatController } from '@/domain/useCopilotChat';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
@@ -46,6 +43,8 @@ import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 interface CopilotDrawerProps {
   sessionId: string;
   campaign?: CampaignState | null;
+  controller?: CopilotChatController;
+  dockComposer?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   onExperimentLaunched?: () => void;
@@ -59,489 +58,120 @@ interface CopilotDrawerProps {
   onClose?: () => void;
 }
 
-// Spend-fork guard outcome: a usable session id, a login redirect (the
-// operator identity is unknown — the caller renders the login affordance
-// instead of minting spend), or null when the backend refused the create.
-type ActiveSession = { id: string } | { needsLogin: true };
-const isNeedsLogin = (r: ActiveSession | null): r is { needsLogin: true } =>
-  r !== null && 'needsLogin' in r;
-
 export type CopilotHandle = {
   submit: (text: string) => Promise<void>;
   attach: (name: string, text: string) => void;
   detach: (name: string) => void;
 };
 
-export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>(function CopilotDrawer({
-  sessionId,
-  campaign,
-  isExpanded: externalExpanded,
-  onToggleExpand,
-  onExperimentLaunched,
-  onCampaignUpdated,
-  onSelectSurface,
-  onCreateCampaign,
-  requiresSignIn = false,
-  onMaterialize,
-  onRunStateChange,
-  onSessionChange,
-  onClose,
-}, ref) {
+export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>(function CopilotDrawer(
+  {
+    sessionId,
+    campaign,
+    controller: externalController,
+    dockComposer = false,
+    isExpanded: externalExpanded,
+    onToggleExpand,
+    onExperimentLaunched,
+    onCampaignUpdated,
+    onSelectSurface,
+    onCreateCampaign,
+    requiresSignIn = false,
+    onMaterialize,
+    onRunStateChange,
+    onSessionChange,
+    onClose,
+  },
+  ref,
+) {
+  const internalController = useCopilotChat({
+    sessionId,
+    campaign,
+    requiresSignIn,
+    disabled: Boolean(externalController),
+    onSessionChange,
+    onCampaignUpdated,
+    onExperimentLaunched,
+    onRunStateChange,
+    onMaterialize,
+  });
+  const chat = externalController ?? internalController;
+
   const [input, setInput] = useState('');
-  const { messages, loading, streamingId, errorMessage, setMessages, setLoading, setStreamingId, setErrorMessage } = useTranscript(sessionId);
-  const chatWrite = useWriteSettlement();
-  const feedbackWrite = useWriteSettlement();
-  const lastRequestIdRef = useRef<string | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [runningTribunal, setRunningTribunal] = useState(false);
-  const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
-  const [launchingId, setLaunchingId] = useState<string | null>(null);
-  const [launchedNote, setLaunchedNote] = useState<Record<string, string>>({});
-  const [launchedJobs, setLaunchedJobs] = useState<Record<string, string>>({});
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  // Spend-fork guard outcome (see getActiveSessionId): either a usable
-  // session id, or a login redirect — never a silently minted session.
-  const authPhase = useAuthPhase();
-  const [needsLogin, setNeedsLogin] = useState(false);
-  const authExpired =
-    authPhase === 'expired' ||
-    (authPhase !== 'anonymous' && typeof wasRecentAuthFailure === 'function' && wasRecentAuthFailure());
-  // Mounted guard: stream/token callbacks and late fetch resolutions must
-  // never write into an unmounted tree (abort covers the transport; this
-  // covers already-queued continuations).
-  const mountedRef = useRef(true);
-  // Last prompt sent (ref, not state — the stall Retry button re-sends the
-  // exact same prompt through the existing handleSend(customPrompt) path).
-  const lastPromptRef = useRef<string>('');
-  const handleSendRef = useRef<CopilotHandle['submit'] | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const idCounter = useRef(0);
-  const nextTempId = (prefix: string) => `${prefix}-${++idCounter.current}`;
-  // Attachments ride the next direct send as explicit context, then clear.
-  const [attachments, setAttachments] = useState<Array<{ name: string; text: string }>>([]);
-  const [clearing, setClearing] = useState(false);
-  // Wave-3: clear-chat stages a typed ConfirmDialog (CLEAR) instead of a
-  // native confirm(). The network + message-reset flow is unchanged.
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
-  const [rewriting, setRewriting] = useState(false);
-  // In-chat search: filter-narrow + jump between matches (no KaTeX surgery).
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchIndex, setSearchIndex] = useState(0);
-  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const authPhase = useAuthPhase();
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const submitRef = useRef<CopilotHandle['submit'] | null>(null);
+
+  const {
+    messages,
+    loading,
+    streamingId,
+    runningTribunal,
+    tribunalStage,
+    elapsedSeconds,
+    errorMessage,
+    infoMessage,
+    needsLogin,
+    authExpired,
+    attachments,
+    chatWriteLabel,
+    feedbackWriteLabel,
+    launchingId,
+    launchedNote,
+    launchedJobs,
+    clearing,
+    regenerating,
+    rewriting,
+    votes,
+    canRegenerate,
+    targetSystem,
+    targetDisplayName,
+    discrepancy,
+    isChemicalAccuracyMet,
+    followUps,
+  } = chat;
 
   const handleToggleExpand = () => {
-    if (onToggleExpand) {
-      onToggleExpand();
-    } else {
-      setInternalExpanded((prev) => !prev);
-    }
+    if (onToggleExpand) onToggleExpand();
+    else setInternalExpanded((prev) => !prev);
   };
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTo({
         top: messagesContainerRef.current.scrollHeight,
         behavior: 'smooth',
       });
     }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages, loading, runningTribunal]);
 
   useEffect(() => {
-    // Unmount teardown: cancel any in-flight stream reader so its late
-    // resolution never writes into an unmounted tree.
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    // Session switch cancels any in-flight stream: tokens must never land
-    // in a stale transcript after navigating away mid-stream.
-    abortRef.current?.abort();
-    abortRef.current = null;
-    let live = true;
-    if (sessionId) {
-      fetchMessages(sessionId).then((msgs) => {
-        if (!live || !mountedRef.current) return;
-        if (msgs && msgs.length > 0) {
-          setMessages(msgs);
-        }
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [sessionId, setMessages]);
-
-  useEffect(() => {
-    if (loading || runningTribunal) {
-      const initTimer = setTimeout(() => setElapsedSeconds(0), 0);
-      timerRef.current = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-      return () => {
-        clearTimeout(initTimer);
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [loading, runningTribunal]);
-
-  const getActiveSessionId = async (): Promise<ActiveSession | null> => {
-    if (sessionId) return { id: sessionId };
-    // Spend-fork guard: a missing session must not mint session-scoped
-    // work on an identity that the server will refuse. The server is the
-    // authority: single-lab local mode accepts the create; multi-lab and
-    // cloud-LLM mode return 401. We only pre-empt when the page already
-    // observed a multi-lab refusal.
-    if (requiresSignIn || authPhase === 'expired' || authPhase === 'forbidden') {
-      return { needsLogin: true };
-    }
-    const newSess = await createSession('Quantum Research Campaign #1', 150.0);
-    if (newSess?.id) {
-      onSessionChange?.(newSess.id);
-      return { id: newSess.id };
-    }
-    if (wasRecentAuthFailure()) return { needsLogin: true };
-    return null;
-  };
-
-  const handleSend = async (customPrompt?: string, retryRequestId?: string) => {
-    const rawText = customPrompt || input.trim();
-    if (!rawText || loading || runningTribunal) return;
-
-    // Slash commands never reach the model.
-    if (rawText.startsWith('/')) {
-      handleSlash(rawText);
-      if (!customPrompt) setInput('');
-      return;
-    }
-
-    // Attachments ride this send as explicit context, then clear.
-    const attached = attachments.map((a) => `[attached ${a.name}]\n${a.text}`).join('\n');
-    const textToSend = [attached, rawText].filter(Boolean).join('\n');
-    lastPromptRef.current = textToSend;
-    if (attachments.length > 0) setAttachments([]);
-
-    if (!customPrompt) setInput('');
-    setErrorMessage(null);
-    setInfoMessage(null);
-
-    const active = await getActiveSessionId();
-    if (active === null) {
-      setErrorMessage('Could not create or resolve an active campaign session.');
-      return;
-    }
-    if (isNeedsLogin(active)) {
-      // Auth unknown — no session minted, no spend. The inline affordance
-      // below jumps to the Labs AuthPanel.
-      setNeedsLogin(true);
-      return;
-    }
-    setNeedsLogin(false);
-    const activeSessionId = active.id;
-    const requestId = retryRequestId ?? newWriteRequestId();
-    lastRequestIdRef.current = requestId;
-    const writeId = chatWrite.begin('chat send');
-
-    const tempUserMsg: ChatMessage = {
-      id: nextTempId(`temp-user`),
-      session_id: activeSessionId,
-      role: 'user',
-      content: textToSend,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-    setLoading(true);
-    onRunStateChange?.('thinking', textToSend);
-
-    // Live bubble: tokens stream into it; the done event replaces it with
-    // the stored (sanitized) records. Unary fallback on stream failure.
-    const liveId = nextTempId(`live-assistant`);
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: liveId,
-        session_id: activeSessionId,
-        role: 'assistant',
-        content: '',
-        created_at: new Date().toISOString(),
-      },
-    ]);
-    setStreamingId(liveId);
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    const settleStream = (done: { user: ChatMessage; assistant: ChatMessage; proposal?: unknown; campaign?: CampaignState; duration_ms?: number; usage?: Record<string, number> }) => {
-      if (!mountedRef.current) return;
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
-        const assistant: ChatMessage = { ...done.assistant };
-        if (!assistant.proposal_json && done.proposal) {
-          assistant.proposal_json = done.proposal as Proposal;
-        }
-        if (assistant.duration_ms == null && done.duration_ms != null) {
-          assistant.duration_ms = done.duration_ms;
-        }
-        if (!assistant.usage && done.usage) {
-          assistant.usage = {
-            completion_tokens: done.usage.completion_tokens,
-            prompt_tokens: done.usage.prompt_tokens,
-            total_tokens: done.usage.total_tokens,
-          };
-        }
-        return [...filtered, done.user, assistant];
-      });
-      if (done.campaign && onCampaignUpdated) {
-        onCampaignUpdated(done.campaign);
-      } else if (onCampaignUpdated) {
-        fetchCampaignState(activeSessionId).then((c) => {
-          if (mountedRef.current && c) onCampaignUpdated(c);
-        });
-      }
-      if (onExperimentLaunched) onExperimentLaunched();
-      chatWrite.applied(writeId, 'assistant reply stored');
-    };
-
-    try {
-      const done = await streamChatMessage(activeSessionId, textToSend, (tok) => {
-        if (!mountedRef.current) return;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === liveId ? { ...m, content: m.content + tok } : m))
-        );
-      }, controller.signal, requestId);
-      settleStream(done);
-    } catch (streamErr) {
-      if (!mountedRef.current) return;
-      if (wasRecentAuthFailure()) {
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId));
-        setNeedsLogin(true);
-        setLoading(false);
-        setStreamingId(null);
-        abortRef.current = null;
-        onRunStateChange?.('idle', '');
-        return;
-      }
-      if (streamErr instanceof DOMException && streamErr.name === 'AbortError') {
-        // Operator stop: drop the partial bubble but keep the sent prompt.
-        // The server run may still complete and appear on next history load.
-        setMessages((prev) => prev.filter((m) => m.id !== liveId));
-        chatWrite.unknown(writeId, 'operator stopped; backend may still finish');
-        setInfoMessage('Stopped. The backend run may still finish — its result will appear in history.');
-        setTimeout(() => { if (mountedRef.current) setInfoMessage(null); }, 6000);
-        setLoading(false);
-        setStreamingId(null);
-        abortRef.current = null;
-        onRunStateChange?.('idle', '');
-        return;
-      }
-      if (streamErr instanceof Error && /stream stalled/i.test(streamErr.message)) {
-        // Stall detector fired: the transport went quiet for STREAM_STALL_MS.
-        // No silent unary retry — surface the inline error with a Retry
-        // button (below) that re-sends the same prompt.
-        setMessages((prev) => prev.filter((m) => m.id !== liveId));
-        chatWrite.unknown(writeId, 'stream stalled; reply not confirmed');
-        setErrorMessage(`${streamErr.message} — the backend went quiet. Retry re-sends the same prompt.`);
-        return;
-      }
-      console.warn('Stream failed, falling back to unary chat:', streamErr);
-      try {
-        const res = await sendChatMessage(activeSessionId, textToSend, requestId);
-        if (!mountedRef.current) return;
-        if (res) {
-          setMessages((prev) => {
-            const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
-            return [...filtered, res.user, res.assistant];
-          });
-          if (onCampaignUpdated) {
-            fetchCampaignState(activeSessionId).then((c) => {
-              if (mountedRef.current && c) onCampaignUpdated(c);
-            });
-          }
-          if (onExperimentLaunched) onExperimentLaunched();
-          chatWrite.applied(writeId, 'assistant reply stored (unary fallback)');
-        } else {
-          setMessages((prev) => prev.filter((m) => m.id !== liveId));
-          chatWrite.unknown(writeId, 'unary reply not confirmed');
-          setErrorMessage('AI engine did not respond. Check the model in Sovereign settings (dock → mesh → settings).');
-        }
-      } catch (err: unknown) {
-        if (!mountedRef.current) return;
-        setMessages((prev) => prev.filter((m) => m.id !== liveId));
-        chatWrite.unknown(writeId, err instanceof Error ? err.message : 'connection error');
-        setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
-      }
-    } finally {
-      if (!mountedRef.current) return;
-      setLoading(false);
-      setStreamingId(null);
-      onRunStateChange?.('idle', '');
-    }
-  };
-
-  const handleRunTribunal = async (topic: string) => {
-    if (runningTribunal || loading) return;
-    setRunningTribunal(true);
-    setTribunalStage('Ansatz Scout: Proposing low-depth quantum circuit parameterization...');
-    onRunStateChange?.('tribunal', 'Ansatz Scout: proposing parameterization…');
-    setErrorMessage(null);
-
-    const active = await getActiveSessionId();
-    if (active === null) {
-      setRunningTribunal(false);
-      onRunStateChange?.('idle', '');
-      setErrorMessage('Could not create or resolve an active campaign session.');
-      return;
-    }
-    if (isNeedsLogin(active)) {
-      setRunningTribunal(false);
-      onRunStateChange?.('idle', '');
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-
-    const tempUserMsg: ChatMessage = {
-      id: nextTempId(`temp-tribunal`),
-      session_id: activeSessionId,
-      role: 'user',
-      content: `Convene Research Tribunal for: ${topic}`,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, tempUserMsg]);
-
-    // Live turn polling: tribunal turns land as messages mid-run (backend
-    // onTurn records each one). Every new turn updates the canvas run-state
-    // so the matching probe ignites — no simulated stages. Stateless:
-    // anything created after the prompt that isn't the prompt counts.
-    const runStartEpoch = new Date(tempUserMsg.created_at).getTime() - 1000;
-    const turnPoll = setInterval(async () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      if (!mountedRef.current) {
-        clearInterval(turnPoll);
-        return;
-      }
-      try {
-        const fresh = await fetchMessages(activeSessionId);
-        if (!mountedRef.current) return;
-        const arrived = fresh.filter(
-          (m) => m.role !== 'user' && new Date(m.created_at).getTime() >= runStartEpoch
-        );
-        const lastTurn = arrived[arrived.length - 1];
-        if (lastTurn) {
-          const roleLabel = String(lastTurn.role).replace(/_/g, ' ');
-          setTribunalStage(`${lastTurn.role}: turn recorded (${arrived.length} so far)…`);
-          onRunStateChange?.('tribunal', `${roleLabel} turn recorded`);
-          // Merge arrived turns into the visible transcript live.
-          setMessages((prev) => {
-            const ids = new Set(prev.map((m) => m.id));
-            const missing = arrived.filter((m) => !ids.has(m.id));
-            return missing.length > 0 ? [...prev, ...missing] : prev;
-          });
-        }
-      } catch {
-        /* transient poll failure — next round retries */
-      }
-    }, 2500);
-
-    try {
-      const res = await runTribunal(activeSessionId, topic);
-      if (!mountedRef.current) return;
-      if (res && res.assistant_message) {
-        const assistantWithTribunal: ChatMessage = {
-          ...res.assistant_message,
-          tribunal: res.tribunal,
-        };
-
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-          return [...filtered, tempUserMsg, assistantWithTribunal];
-        });
-
-        if (res.campaign && onCampaignUpdated) {
-          onCampaignUpdated(res.campaign);
-        } else if (onCampaignUpdated) {
-          fetchCampaignState(activeSessionId).then((c) => {
-            if (mountedRef.current && c) onCampaignUpdated(c);
-          });
-        }
-        if (onExperimentLaunched) onExperimentLaunched();
-      } else {
-        setErrorMessage('Failed to convene tribunal. Check the model in Sovereign settings and the bridge status in Fleet Radar.');
-      }
-    } catch (err: unknown) {
-      if (!mountedRef.current) return;
-      setErrorMessage(err instanceof Error ? err.message : 'Tribunal connection error.');
-    } finally {
-      clearInterval(turnPoll);
-      if (!mountedRef.current) return;
-      setRunningTribunal(false);
-      onRunStateChange?.('idle', '');
-    }
-  };
-
-  const handleLaunchLast = async () => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.role !== 'user' && m.proposal_json) {
-        await handleLaunchProposal(m.id, m.proposal_json);
-        return;
-      }
-    }
-    setInfoMessage('No proposal in this conversation yet — ask for a simulation first.');
-    setTimeout(() => setInfoMessage(null), 4000);
-  };
-
-  useEffect(() => {
-    handleSendRef.current = (text: string) => handleSend(text);
+    submitRef.current = (text: string) => chat.send(text);
   });
-  const attachText = (name: string, text: string) => {
-    setAttachments((previous) => [...previous.filter((item) => item.name !== name), { name, text }]);
-  };
-  const detachText = (name: string) => {
-    setAttachments((previous) => previous.filter((item) => item.name !== name));
-  };
-  useImperativeHandle(ref, () => ({
-    submit: (text: string) => handleSendRef.current?.(text) ?? Promise.resolve(),
-    attach: attachText,
-    detach: detachText,
-  }), []);
 
-  const handleSlash = (raw: string) => {
-    const [cmd, ...rest] = raw.slice(1).split(/\s+/);
-    const arg = rest.join(' ').trim();
-    if (cmd === 'tribunal') {
-      handleRunTribunal(arg || `${targetSystem} ground state electronic structure`);
-    } else if (cmd === 'launch') {
-      handleLaunchLast();
-    } else if (cmd === 'help') {
-      setInfoMessage('Commands: /tribunal <topic> · /launch (most recent proposal) · /help');
-      setTimeout(() => setInfoMessage(null), 5000);
-    } else {
-      setInfoMessage(`Unknown command /${cmd}. Try /help.`);
-      setTimeout(() => setInfoMessage(null), 4000);
-    }
-  };
+  useImperativeHandle(
+    ref,
+    () => ({
+      submit: (text: string) => submitRef.current?.(text) ?? Promise.resolve(),
+      attach: chat.attach,
+      detach: chat.detach,
+    }),
+    [chat.attach, chat.detach],
+  );
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -555,22 +185,16 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     if (!file) return;
     try {
       const text = await file.text();
-      const trimmed = text.length > 4000 ? text.slice(0, 4000) + '\n…[truncated]' : text;
-      setAttachments((prev) => [...prev.filter((a) => a.name !== file.name), { name: file.name, text: trimmed }]);
+      const trimmed = text.length > 4000 ? `${text.slice(0, 4000)}\n…[truncated]` : text;
+      chat.attach(file.name, trimmed);
     } catch {
-      setErrorMessage(`Could not read ${file.name}: binary or unreadable file.`);
+      chat.setErrorMessage(`Could not read ${file.name}: binary or unreadable file.`);
     }
   };
 
-  const removeAttachment = (name: string) => {
-    setAttachments((prev) => prev.filter((a) => a.name !== name));
-  };
-
-  // In-chat search matches (message ids in order).
   const matchedIds = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    // Malformed transcripts (null/undefined content) must not crash search.
     return messages.filter((m) => String(m.content ?? '').toLowerCase().includes(q)).map((m) => m.id);
   }, [messages, searchQuery]);
 
@@ -583,28 +207,26 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     });
   };
 
-  // Slash commands are defined after the handlers they invoke (no TDZ).
-
   const exportTranscript = () => {
     const lines = [
-      `# Kubona co-pilot transcript`,
-      ``,
+      '# Kubona co-pilot transcript',
+      '',
       `- Session: ${sessionId || 'unsaved'}`,
       `- Target: ${targetDisplayName}`,
       `- Exported: ${new Date().toISOString()}`,
-      ``,
+      '',
     ];
     for (const m of messages) {
       const when = new Date(m.created_at).toLocaleString();
       lines.push(`## ${m.role} · ${when}${m.model ? ` · ${m.model}` : ''}`);
-      lines.push(``);
+      lines.push('');
       lines.push(m.content);
-      lines.push(``);
+      lines.push('');
       if (m.proposal_json) {
         lines.push('```json');
         lines.push(JSON.stringify(m.proposal_json, null, 2));
         lines.push('```');
-        lines.push(``);
+        lines.push('');
       }
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
@@ -616,153 +238,14 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     URL.revokeObjectURL(url);
   };
 
-  // Regenerate is available when the transcript ends in an assistant turn.
-  const canRegenerate =
-    messages.length > 0 && messages[messages.length - 1].role !== 'user';
-
-  const handleClearChat = () => {
-    if (clearing || loading || runningTribunal || messages.length === 0) return;
-    setClearConfirmOpen(true);
-  };
-
   const confirmClearChat = async () => {
-    if (clearing || loading || runningTribunal) return;
-    const active = await getActiveSessionId();
-    if (active === null) {
-      setClearConfirmOpen(false);
-      return;
-    }
-    if (isNeedsLogin(active)) {
-      setClearConfirmOpen(false);
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-    setClearing(true);
-    try {
-      const deleted = await clearMessages(activeSessionId);
-      if (deleted != null) {
-        setMessages([]);
-        setVotes({});
-        setInfoMessage(`Cleared ${deleted} message${deleted === 1 ? '' : 's'}.`);
-        setTimeout(() => setInfoMessage(null), 4000);
-      } else {
-        setErrorMessage('Clear refused by backend — nothing was deleted.');
-      }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Clear failed.');
-    } finally {
-      setClearing(false);
-      setClearConfirmOpen(false);
-    }
+    const closed = await chat.confirmClearChat();
+    if (closed) setClearConfirmOpen(false);
   };
 
-  const handleRegenerate = async () => {
-    if (regenerating || loading || runningTribunal || !canRegenerate) return;
-    const active = await getActiveSessionId();
-    if (active === null) return;
-    if (isNeedsLogin(active)) {
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-    setRegenerating(true);
-    setErrorMessage(null);
-    onRunStateChange?.('thinking', 'regenerating last answer');
-    try {
-      const res = await regenerateChat(activeSessionId);
-      if (res?.assistant) {
-        setMessages((prev) => {
-          // Drop trailing assistant turns the server already removed, then
-          // append the fresh answer (dedupe by id for safety).
-          const trimmed: ChatMessage[] = [...prev];
-          while (trimmed.length > 0 && trimmed[trimmed.length - 1].role !== 'user') {
-            trimmed.pop();
-          }
-          if (!trimmed.some((m) => m.id === res.assistant.id)) {
-            trimmed.push(res.assistant);
-          }
-          return trimmed;
-        });
-        if (onExperimentLaunched) onExperimentLaunched();
-      } else {
-        setErrorMessage('Regenerate refused — no user message to answer, or backend error.');
-      }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Regenerate failed.');
-    } finally {
-      setRegenerating(false);
-      onRunStateChange?.('idle', '');
-    }
-  };
-  const handleVote = async (messageId: string, vote: 'up' | 'down') => {
-    const active = await getActiveSessionId();
-    if (active === null) return;
-    if (isNeedsLogin(active)) {
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-    setVotes((prev) => ({ ...prev, [messageId]: vote }));
-    const requestId = feedbackWrite.begin('chat feedback');
-    const out = await sendFeedback(activeSessionId, messageId, vote);
-    if (!out.ok) {
-      feedbackWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
-      setVotes((prev) => {
-        const next = { ...prev };
-        delete next[messageId];
-        return next;
-      });
-      setErrorMessage(`Feedback not recorded — ${out.unknown ? 'backend unreachable' : 'backend refused'} (${out.error}).`);
-    } else {
-      feedbackWrite.applied(requestId, 'feedback recorded');
-    }
-  };
-
-  // Edit-resend branching: rewrite the user turn server-side (later turns
-  // deleted), truncate the local transcript at the branch point, then
-  // regenerate the answer for the edited prompt.
   const handleRewriteSave = async (messageId: string) => {
-    const draft = editDraft.trim();
-    if (!draft || rewriting || loading || runningTribunal) return;
-    const active = await getActiveSessionId();
-    if (active === null) return;
-    if (isNeedsLogin(active)) {
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-    setRewriting(true);
-    setErrorMessage(null);
-    try {
-      const rewritten = await rewriteChat(activeSessionId, messageId, draft);
-      if (!rewritten) {
-        setErrorMessage('Rewrite refused — only your own messages can be edited.');
-        return;
-      }
-      setEditingId(null);
-      setMessages((prev) => {
-        const idx = prev.findIndex((m) => m.id === messageId);
-        const cut = idx === -1 ? prev : prev.slice(0, idx);
-        return [...cut, rewritten];
-      });
-      onRunStateChange?.('thinking', 'answering edited prompt');
-      const res = await regenerateChat(activeSessionId);
-      if (res?.assistant) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === res.assistant.id)) return prev;
-          return [...prev, res.assistant];
-        });
-        if (onExperimentLaunched) onExperimentLaunched();
-      } else {
-        setErrorMessage('Regenerate after rewrite refused — branch is clean, retry manually.');
-      }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Rewrite failed.');
-    } finally {
-      setRewriting(false);
-      onRunStateChange?.('idle', '');
-    }
+    const ok = await chat.rewriteSave(messageId, editDraft);
+    if (ok) setEditingId(null);
   };
 
   const toggleTurnExpand = (turnKey: string) => {
@@ -772,76 +255,17 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     }));
   };
 
-  const handleLaunchProposal = async (messageId: string, proposal: Proposal) => {
-    if (launchingId) return;
-    const active = await getActiveSessionId();
-    if (active === null) return;
-    if (isNeedsLogin(active)) {
-      setNeedsLogin(true);
-      return;
-    }
-    const activeSessionId = active.id;
-    setLaunchingId(messageId);
-    try {
-      const res = await launchProposal(activeSessionId, proposal);
-      if (res && 'job' in res && res.job) {
-        const jobId = String(res.job.id);
-        setLaunchedJobs((prev) => ({ ...prev, [messageId]: jobId }));
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
-        if (onExperimentLaunched) onExperimentLaunched();
-        // Inline job tracking: poll session jobs for this id and report the
-        // live status into the card. Bounded (8 rounds); terminal states stop
-        // early. Status labels + failure reasons come from the backend.
-        let rounds = 0;
-        const track = async () => {
-          rounds += 1;
-          const jobs = await fetchJobs(activeSessionId);
-          const hit = jobs.find((j) => String(j.id) === jobId);
-          if (hit?.status != null) {
-            const label = jobStatusLabel(hit.status);
-            // Failure reasons: backend writes `error` (failJob/cancel paths);
-            // the success proto also carries `error_message` (empty on success).
-            const result = (hit as { result_json?: { error?: string; error_message?: string } }).result_json;
-            const reasonText = result?.error || result?.error_message || '';
-            const reason = reasonText ? ` · ${String(reasonText).slice(0, 160)}` : '';
-            setLaunchedNote((prev) => ({
-              ...prev,
-              [messageId]: `Job ${jobId.slice(0, 8)} · ${label}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}${reason}`,
-            }));
-            if (isTerminalJobStatus(hit.status) || rounds >= 8) return;
-          } else if (rounds >= 8) {
-            setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · status unavailable` }));
-            return;
-          }
-          setTimeout(track, 3000);
-        };
-        setTimeout(track, 3000);
-      } else if (res && 'error' in res) {
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launch refused: ${res.error}` }));
-      } else {
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch refused by backend — nothing dispatched.' }));
-      }
-    } catch {
-      setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch failed — nothing dispatched.' }));
-    } finally {
-      setLaunchingId(null);
-    }
-  };
-
   const renderProposalCard = (m: ChatMessage) => {
-    // No-proposal hint: the server marks LLM failures with an engine
-    // notice (`[<provider> Notice]`, see copilot_response.go engineNotice)
-    // and no proposal_json. Say so explicitly and point at the paths that
-    // still work — never leave a dead notice without an exit.
     if (!m.proposal_json) {
       if (m.role !== 'user' && !m.tribunal && typeof m.content === 'string' && m.content.includes('Notice]')) {
         return (
-          <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-amber-400/25 p-3 space-y-1.5" aria-label="No proposal — model unavailable">
-            <div className="text-[12px] font-code text-amber-300">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
-            <p className="text-[12px] text-slate-300">
-              Nothing was dispatched. Classical paths still work: open Autonomy
-              Cockpit → Simulate Offline (needs a campaign with QASM), or ask
-              about H₂ / LiH / BeH₂ / VQE for server-side scaffolding.
+          <div
+            className="w-full max-w-[95%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-warning-edge)] p-3 space-y-1.5"
+            aria-label="No proposal — model unavailable"
+          >
+            <div className="text-[12px] font-code text-[var(--color-warning)]">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
+            <p className="text-[12px] text-[var(--color-label-secondary)]">
+              Nothing was dispatched. Classical paths still work: open Autonomy Cockpit → Simulate Offline (needs a campaign with QASM), or ask about H₂ / LiH / BeH₂ / VQE for server-side scaffolding.
             </p>
           </div>
         );
@@ -852,41 +276,50 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     const note = launchedNote[m.id];
     const jobId = launchedJobs[m.id];
     return (
-      <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-cyan-400/25 p-3 space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-code text-cyan-400">
+      <div className="w-full max-w-[95%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-code text-[var(--color-accent-ink)]">
           <span>✦</span>
           <span>LAUNCHABLE PROPOSAL</span>
           {p.designed_by === 'server-fallback' && (
-            <span className="ml-auto px-1.5 py-0.5 rounded bg-amber-400/15 border border-amber-400/40 text-amber-300" title="Circuit synthesized by the server as scaffolding, not designed by the model — review before launch">
+            <span
+              className="ml-auto px-1.5 py-0.5 rounded bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning)]"
+              title="Circuit synthesized by the server as scaffolding, not designed by the model — review before launch"
+            >
               SERVER FALLBACK
             </span>
           )}
         </div>
-        <div className="text-xs text-white font-medium">{p.target}</div>
-        <div className="grid grid-cols-2 gap-2 text-[12px] font-code text-slate-400">
-          <div><span className="text-white/40 block">Tier</span><span className="text-cyan-200">{p.recommended_tier}</span></div>
-          <div><span className="text-white/40 block">Spend</span><span className="text-amber-300">{p.spend_estimate}</span></div>
+        <div className="text-xs text-[var(--color-text)] font-medium">{p.target}</div>
+        <div className="grid grid-cols-2 gap-2 text-[12px] font-code text-[var(--color-muted)]">
+          <div>
+            <span className="text-[var(--color-faint)] block">Tier</span>
+            <span className="text-[var(--color-accent-ink)]">{p.recommended_tier}</span>
+          </div>
+          <div>
+            <span className="text-[var(--color-faint)] block">Spend</span>
+            <span className="text-[var(--color-warning)]">{p.spend_estimate}</span>
+          </div>
         </div>
-        <div className="text-[12px] font-code text-slate-500 truncate" title={p.classical_anchor}>
+        <div className="text-[12px] font-code text-[var(--color-faint)] truncate" title={p.classical_anchor}>
           anchor · {p.classical_anchor}
         </div>
         {note ? (
           jobId ? (
             <button
-              onClick={() => onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId, m.session_id)}
+              onClick={() => chat.onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId, m.session_id)}
               title="Open full job detail (params, counts, result)"
-              className="w-full text-left text-[12px] font-code text-emerald-300 hover:text-emerald-200 hover:bg-white/5 rounded-lg px-1.5 py-1 transition-all"
+              className="w-full text-left text-[12px] font-code text-[var(--color-success)] hover:bg-[var(--color-fill)] rounded-lg px-1.5 py-1 transition-all"
             >
               {note} →
             </button>
           ) : (
-            <div className="text-[12px] font-code text-emerald-300">{note}</div>
+            <div className="text-[12px] font-code text-[var(--color-success)]">{note}</div>
           )
         ) : (
           <button
-            onClick={() => handleLaunchProposal(m.id, p)}
+            onClick={() => void chat.launchProposal(m.id, p)}
             disabled={launchingId === m.id}
-            className="w-full py-1.5 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] font-semibold transition-all disabled:opacity-50"
+            className="w-full py-1.5 px-3 rounded-xl bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold transition-all disabled:opacity-50"
           >
             {launchingId === m.id ? 'Dispatching…' : 'Launch on local simulator'}
           </button>
@@ -895,179 +328,111 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     );
   };
 
-  const targetSystem = campaign?.target_system || 'No campaign';
-
-  // Plain function (not memoized): trivial string mapping, and the compiler
-  // rejects the optional-chaining dep form.
-  const displayNameFor = (rawTarget: string): string => {
-    const raw = rawTarget || 'No campaign';
-    if (raw.toUpperCase() === 'H2' || raw === 'H₂') return 'Hydrogen Molecule (H₂)';
-    if (raw.toUpperCase().includes('LIH')) return 'Lithium Hydride (LiH)';
-    if (raw.toUpperCase().includes('BEH2')) return 'Beryllium Hydride (BeH₂)';
-    if (raw.toUpperCase().includes('H2O')) return 'Water Molecule (H₂O)';
-    if (raw.toUpperCase().includes('N2')) return 'Dinitrogen (N₂)';
-    if (raw.toUpperCase().includes('CO')) return 'Carbon Monoxide (CO)';
-    return raw;
-  };
-  const targetDisplayName = campaign ? displayNameFor(campaign.target_system) : 'No campaign selected';
-  const rawDiscrepancy = campaign?.classical_anchor?.discrepancy_mha;
-  const discrepancy =
-    campaign?.classical_anchor?.anchor_computed === true &&
-    typeof rawDiscrepancy === 'number' &&
-    Number.isFinite(rawDiscrepancy)
-      ? rawDiscrepancy
-      : undefined;
-  const isChemicalAccuracyMet = discrepancy != null && discrepancy <= 1.6;
-
-  // Contextual follow-ups derived from the latest assistant turn.
-  // Data-only specs computed inline (tiny list — no memo needed), so no
-  // memoized closures over ref-touching handlers. Click dispatch happens in
-  // runFollowUp (event-handler context, refs allowed).
-  type FollowUpSpec = { label: string; accent: string; key: string };
-  const lastAssistantForFollowUps = [...messages].reverse().find((m) => m.role !== 'user');
-  const followUps: FollowUpSpec[] = lastAssistantForFollowUps?.proposal_json
-    ? [
-        { label: 'Launch it', accent: 'text-cyan-400', key: 'launch-last' },
-        { label: 'Inspect circuit', accent: 'text-cyan-400', key: 'show-circuit' },
-        { label: 'Tribunal review', accent: 'text-emerald-400', key: 'tribunal-topic' },
-      ]
-    : lastAssistantForFollowUps?.tribunal
-      ? [
-          { label: 'Inspect circuit', accent: 'text-cyan-400', key: 'show-circuit' },
-          { label: 'Shadow estimates', accent: 'text-cyan-400', key: 'show-shadows' },
-          { label: 'Active space', accent: 'text-amber-400', key: 'show-molecule' },
-        ]
-      : [
-          { label: 'H₂ Bond PES', accent: 'text-amber-400', key: 'send-pes' },
-          { label: `${targetSystem} Tribunal`, accent: 'text-emerald-400', key: 'tribunal-topic' },
-          { label: 'Canary Fidelity', accent: 'text-cyan-400', key: 'send-canary' },
-          { label: 'Classical FCI Anchor', accent: 'text-amber-400', key: 'send-anchor' },
-        ];
-
-  const runFollowUp = (key: string) => {
-    if (key === 'launch-last') {
-      handleLaunchLast();
-    } else if (key === 'show-circuit') {
-      onMaterialize?.('circuit', 'Circuit · live');
-    } else if (key === 'show-shadows') {
-      onMaterialize?.('shadows', 'Shadow estimates');
-    } else if (key === 'show-molecule') {
-      onMaterialize?.('molecule', 'Active space');
-    } else if (key === 'tribunal-topic') {
-      handleRunTribunal(`${targetDisplayName} equilibrium state`);
-    } else if (key === 'send-pes') {
-      handleSend('Calculate potential energy surface for H2');
-    } else if (key === 'send-canary') {
-      handleSend('Simulate Clifford RB canary on IBM Heron');
-    } else if (key === 'send-anchor') {
-      handleSend('Verify classical PySCF STO-3G ground truth');
-    }
-  };
-
   return (
-    <div
-      className="flex flex-col h-full w-full bg-[#0A0C10]/95 backdrop-blur-2xl text-slate-100 font-sovereign overflow-hidden"
-    >
+    <div className="flex flex-col h-full w-full bg-[var(--color-chrome)] text-[var(--color-text)] font-sovereign overflow-hidden">
       {/* Header: Kubona Copilot identity */}
-      <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-          <div>
-            <div className="text-xs font-semibold text-white tracking-wide flex items-center gap-1.5">
+      <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-2 shrink-0 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-accent-ink)] shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-[var(--color-text)] tracking-wide flex flex-wrap items-center gap-1.5">
               <span>KUBONA COPILOT</span>
-              <span className="px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-400 font-code text-[12px]">ACTIVE</span>
+              <span className="px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)] font-code text-[12px]">
+                {streamingId ? 'STREAMING' : runningTribunal ? 'DELIBERATING' : 'READY'}
+              </span>
             </div>
-            <div className="text-[12px] text-slate-400">
+            <div className="text-[12px] text-[var(--color-muted)] truncate" title={`Target: ${targetDisplayName} · Δ = ${discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}`}>
               Target: {targetDisplayName} · Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1.5">
-          {/* In-chat search */}
+        <div className="flex items-center space-x-1.5 shrink-0">
           <Tip label="Search conversation" sub="Filter + jump between matches" position="bottom">
-          <button
-            onClick={() => setSearchOpen((v) => !v)}
-            aria-label="Search this conversation"
-            className={`p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-              searchOpen ? 'text-cyan-300 bg-white/10' : 'text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              aria-label="Search this conversation"
+              className={`p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                searchOpen
+                  ? 'text-[var(--color-accent-ink)] bg-[var(--color-fill)]'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)]'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
           </Tip>
 
-          {/* Export transcript */}
           <Tip label="Export transcript" sub="Markdown download" position="bottom">
-          <button
-            onClick={exportTranscript}
-            aria-label="Export transcript"
-            disabled={messages.length === 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={exportTranscript}
+              aria-label="Export transcript"
+              disabled={messages.length === 0}
+              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
           </Tip>
 
-          {/* Regenerate last answer */}
           <Tip label="Regenerate answer" sub="Re-answers the last prompt" position="bottom">
-          <button
-            onClick={handleRegenerate}
-            aria-label="Regenerate last answer"
-            disabled={regenerating || loading || runningTribunal || !canRegenerate}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
-          >
-            <RotateCcw className={`w-3.5 h-3.5 ${regenerating ? 'animate-spin' : ''}`} />
-          </button>
+            <button
+              onClick={() => void chat.regenerate()}
+              aria-label="Regenerate last answer"
+              disabled={regenerating || loading || runningTribunal || !canRegenerate}
+              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${regenerating ? 'animate-spin' : ''}`} />
+            </button>
           </Tip>
 
-          {/* Clear chat */}
           <Tip label="Clear chat" sub="Deletes messages; session survives" position="bottom">
-          <button
-            onClick={handleClearChat}
-            aria-label="Clear chat history"
-            disabled={clearing || loading || runningTribunal || messages.length === 0}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={() => {
+                if (!clearing && !loading && !runningTribunal && messages.length > 0) setClearConfirmOpen(true);
+              }}
+              aria-label="Clear chat history"
+              disabled={clearing || loading || runningTribunal || messages.length === 0}
+              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-soft-rose-wash)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] focus-visible:outline-none"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </Tip>
 
-          {/* Spatial Expand/Contract Button */}
           <Tip label={isExpanded ? 'Dock co-pilot' : 'Expand co-pilot'} position="bottom">
-          <button
-            onClick={handleToggleExpand}
-            aria-label={isExpanded ? 'Contract to Side Dock' : 'Expand to Spatial Salon'}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
-          >
-            {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />}
-          </button>
+            <button
+              onClick={handleToggleExpand}
+              aria-label={isExpanded ? 'Contract to Side Dock' : 'Expand to Spatial Salon'}
+              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            >
+              {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />}
+            </button>
           </Tip>
 
-          {/* Close Companion Button */}
           {onClose && (
             <Tip label="Close co-pilot" sub="⌘J to reopen" position="bottom">
-            <button
-              onClick={onClose}
-              aria-label="Close Copilot (⌘J)"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
-            >
-              <PanelRightClose className="w-3.5 h-3.5" />
-            </button>
+              <button
+                onClick={onClose}
+                aria-label="Close Copilot (⌘J)"
+                className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              >
+                <PanelRightClose className="w-3.5 h-3.5" />
+              </button>
             </Tip>
           )}
         </div>
       </div>
 
       {/* Active Scientific Focus Ribbon */}
-      <div className="mx-5 mt-3 px-3 py-2 rounded-xl bg-black/40 border border-white/[0.06] backdrop-blur-xl flex items-center justify-between text-[12px] font-code shrink-0">
-        <div className="flex items-center space-x-2 text-slate-300">
-          <span className="text-cyan-400 font-bold">TARGET:</span>
-          <span className="truncate max-w-[180px]">{targetDisplayName}</span>
+      <div className="mx-5 mt-3 px-3 py-2 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex flex-wrap items-center justify-between gap-2 text-[12px] font-code shrink-0 min-w-0">
+        <div className="flex items-center gap-2 text-[var(--color-label-secondary)] min-w-0 flex-1">
+          <span className="text-[var(--color-accent-ink)] font-bold shrink-0">TARGET:</span>
+          <span className="truncate" title={targetDisplayName}>{targetDisplayName}</span>
         </div>
-        <div className="flex items-center space-x-1.5">
-          <span className={`w-1.5 h-1.5 rounded-full ${isChemicalAccuracyMet ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-          <span className={isChemicalAccuracyMet ? 'text-emerald-300' : 'text-amber-300'}>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ background: isChemicalAccuracyMet ? 'var(--color-success)' : 'var(--color-warning)' }}
+          />
+          <span className={isChemicalAccuracyMet ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'}>
             Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
           </span>
         </div>
@@ -1075,8 +440,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
       {/* In-chat search bar */}
       {searchOpen && (
-        <div className="mx-5 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 shrink-0">
-          <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+        <div className="mx-5 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] shrink-0">
+          <Search className="w-3.5 h-3.5 text-[var(--color-faint)] shrink-0" />
           <input
             autoFocus
             value={searchQuery}
@@ -1090,39 +455,45 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               if (e.key === 'Escape') setSearchOpen(false);
             }}
             placeholder="Find in conversation…"
-            className="flex-1 min-w-0 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
           />
-          <span className="text-[12px] font-code text-slate-500 shrink-0">
+          <span className="text-[12px] font-code text-[var(--color-muted)] shrink-0">
             {matchedIds.length === 0 ? '0' : `${searchIndex + 1}/${matchedIds.length}`}
           </span>
           <Tip label="Previous match" position="top">
-          <button onClick={() => jumpToMatch(-1)} aria-label="Previous match" className="p-0.5 text-slate-400 hover:text-white">
-            <ChevronUp className="w-3.5 h-3.5" />
-          </button>
+            <button onClick={() => jumpToMatch(-1)} aria-label="Previous match" className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]">
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
           </Tip>
           <Tip label="Next match" position="top">
-          <button onClick={() => jumpToMatch(1)} aria-label="Next match" className="p-0.5 text-slate-400 hover:text-white">
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
+            <button onClick={() => jumpToMatch(1)} aria-label="Next match" className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]">
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
           </Tip>
           <Tip label="Close search" sub="Esc" position="top">
-          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} aria-label="Close search" className="p-0.5 text-slate-400 hover:text-white">
-            <X className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+              aria-label="Close search"
+              className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </Tip>
         </div>
       )}
 
       {/* Messages Feed */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-thin"
-      >
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-thin">
         {messages.length === 0 && (
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[12px] text-slate-400 leading-relaxed">
+          <div className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] text-[var(--color-muted)] leading-relaxed">
             {campaign ? (
               <div className="space-y-1.5">
-                <p><span className="text-white font-medium">Campaign context:</span> {targetDisplayName}.</p>
+                <p>
+                  <span className="text-[var(--color-text)] font-medium">Campaign context:</span> {targetDisplayName}.
+                </p>
                 <p>
                   {campaign.epistemics?.status === 'COLLAPSED_VERIFIED' && campaign.notebook
                     ? 'Next: open Results to inspect the citable manuscript.'
@@ -1131,7 +502,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                       : 'Next: ask Kubona to propose the first experiment; nothing has executed yet.'}
                 </p>
                 {campaign.epistemics?.status === 'COLLAPSED_VERIFIED' && campaign.notebook && onSelectSurface && (
-                  <button type="button" onClick={() => onSelectSurface('surface7')} className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25">
+                  <button
+                    type="button"
+                    onClick={() => onSelectSurface('surface7')}
+                    className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] transition-colors"
+                  >
                     Open Results
                   </button>
                 )}
@@ -1140,7 +515,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               <div className="space-y-2">
                 <p>No campaign selected. Create or open a campaign to start.</p>
                 {onCreateCampaign && (
-                  <button type="button" onClick={onCreateCampaign} className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25">
+                  <button
+                    type="button"
+                    onClick={onCreateCampaign}
+                    className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] transition-colors"
+                  >
                     Create campaign
                   </button>
                 )}
@@ -1148,48 +527,44 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             )}
           </div>
         )}
+
         {messages.length === 0 && campaign && (
-          <div className="space-y-2">
+          <div className="pt-1 space-y-2 text-left">
+            <button
+              onClick={() => void chat.send('Map H2 ground state potential energy surface across nuclear coordinates')}
+              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-2.5">
+                <span className="text-[var(--color-warning)] text-[12px]">✦</span>
+                <span className="font-medium">H₂ Potential Energy Surface</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+            </button>
 
-            {/* Quick Scientific Suggestion Cards */}
-            <div className="pt-1 space-y-2 text-left">
-              <button
-                onClick={() => handleSend('Map H2 ground state potential energy surface across nuclear coordinates')}
-                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
-              >
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-amber-400 text-[12px]">✦</span>
-                  <span className="font-medium">H₂ Potential Energy Surface</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
-              </button>
+            <button
+              onClick={() => void chat.conveneTribunal('Lithium Hydride (LiH) ground state electronic structure')}
+              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-success-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-2.5">
+                <span className="text-[var(--color-success)] text-[12px]">✦</span>
+                <span className="font-medium">Convene Tribunal for LiH</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-success)] group-hover:translate-x-0.5 transition-all" />
+            </button>
 
-              <button
-                onClick={() => handleRunTribunal('Lithium Hydride (LiH) ground state electronic structure')}
-                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-emerald-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
-              >
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-emerald-400 text-[12px]">✦</span>
-                  <span className="font-medium">Convene Tribunal for LiH</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-300 group-hover:translate-x-0.5 transition-all" />
-              </button>
-
-              <button
-                onClick={() => handleSend('Verify our variational ansatz on the IBM Heron QPU noise model with Clifford canary')}
-                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
-              >
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-cyan-400 text-[12px]">✦</span>
-                  <span className="font-medium">Probe IBM Heron Noise Model</span>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
-              </button>
-            </div>
+            <button
+              onClick={() => void chat.send('Verify our variational ansatz on the IBM Heron QPU noise model with Clifford canary')}
+              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+            >
+              <div className="flex items-center space-x-2.5">
+                <span className="text-[var(--color-accent-ink)] text-[12px]">✦</span>
+                <span className="font-medium">Probe IBM Heron Noise Model</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+            </button>
           </div>
         )}
 
-        {/* Render Conversation Stream */}
         {messages.map((m) => {
           const isUser = m.role === 'user';
           const hasTribunal = Boolean(m.tribunal && m.tribunal.turns && m.tribunal.turns.length > 0);
@@ -1202,354 +577,338 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               }}
               className={`flex flex-col space-y-1.5 rounded-xl -mx-1 px-1 py-0.5 transition-shadow ${
                 isUser ? 'items-end' : 'items-start'
-              } ${
-                matchedIds.length > 0 && matchedIds[searchIndex] === m.id
-                  ? 'ring-1 ring-cyan-400/50'
-                  : ''
-              }`}
+              } ${matchedIds.length > 0 && matchedIds[searchIndex] === m.id ? 'ring-1 ring-[var(--color-accent-edge)]' : ''}`}
             >
-              {/* Message Meta Info + actions */}
-              <div className="flex items-center space-x-2 text-[12px] text-slate-400 font-mono px-1">
+              <div className="flex items-center space-x-2 text-[12px] text-[var(--color-muted)] font-mono px-1">
                 <span>{isUser ? 'You' : 'Kubona Tribunal Salon'}</span>
                 <span>•</span>
                 <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 {!isUser && m.model && (
                   <>
                     <span>•</span>
-                    <span className="text-slate-500">served by {m.model}</span>
+                    <span className="text-[var(--color-faint)]">served by {m.model}</span>
                   </>
                 )}
                 {!isUser && m.duration_ms != null && (
                   <>
                     <span>•</span>
-                    <span className="text-slate-500">{(m.duration_ms / 1000).toFixed(1)}s</span>
+                    <span className="text-[var(--color-faint)]">{(m.duration_ms / 1000).toFixed(1)}s</span>
                   </>
                 )}
                 {!isUser && m.usage?.completion_tokens != null && (
                   <>
                     <span>•</span>
-                    <span className="text-slate-500">{m.usage.completion_tokens} tok</span>
+                    <span className="text-[var(--color-faint)]">{m.usage.completion_tokens} tok</span>
                   </>
                 )}
                 <Tip label="Copy message" position="top">
-                <button
-                  onClick={() => copyToClipboard(m.content, `copy-${m.id}`)}
-                  aria-label="Copy message"
-                  className="p-0.5 rounded text-slate-600 hover:text-slate-200 transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none"
-                >
-                  {copiedId === `copy-${m.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                </button>
+                  <button
+                    onClick={() => copyToClipboard(m.content, `copy-${m.id}`)}
+                    aria-label="Copy message"
+                    className="p-0.5 rounded text-[var(--color-faint)] hover:text-[var(--color-text)] transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                  >
+                    {copiedId === `copy-${m.id}` ? <Check className="w-3 h-3 text-[var(--color-success)]" /> : <Copy className="w-3 h-3" />}
+                  </button>
                 </Tip>
                 {isUser && !streamingId && (
                   <Tip label="Edit and resend" sub="Branches the thread" position="top">
-                  <button
-                    onClick={() => {
-                      setEditingId(m.id);
-                      setEditDraft(m.content);
-                    }}
-                    aria-label="Edit and resend"
-                    className="p-0.5 rounded text-slate-600 hover:text-slate-200 transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
+                    <button
+                      onClick={() => {
+                        setEditingId(m.id);
+                        setEditDraft(m.content);
+                      }}
+                      aria-label="Edit and resend"
+                      className="p-0.5 rounded text-[var(--color-faint)] hover:text-[var(--color-text)] transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
                   </Tip>
                 )}
                 {!isUser && (
                   <>
                     <Tip label="Helpful" sub="Feeds the credibility flywheel" position="top">
-                    <button
-                      onClick={() => handleVote(m.id, 'up')}
-                      aria-label="Mark helpful"
-                      aria-pressed={votes[m.id] === 'up'}
-                      className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-                        votes[m.id] === 'up' ? 'text-emerald-400' : 'text-slate-600 hover:text-slate-200'
-                      }`}
-                    >
-                      <ThumbsUp className="w-3 h-3" />
-                    </button>
+                      <button
+                        onClick={() => void chat.vote(m.id, 'up')}
+                        aria-label="Mark helpful"
+                        aria-pressed={votes[m.id] === 'up'}
+                        className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                          votes[m.id] === 'up' ? 'text-[var(--color-success)]' : 'text-[var(--color-faint)] hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        <ThumbsUp className="w-3 h-3" />
+                      </button>
                     </Tip>
                     <Tip label="Not helpful" sub="Feeds the credibility flywheel" position="top">
-                    <button
-                      onClick={() => handleVote(m.id, 'down')}
-                      aria-label="Mark not helpful"
-                      aria-pressed={votes[m.id] === 'down'}
-                      className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-                        votes[m.id] === 'down' ? 'text-rose-400' : 'text-slate-600 hover:text-slate-200'
-                      }`}
-                    >
-                      <ThumbsDown className="w-3 h-3" />
-                    </button>
+                      <button
+                        onClick={() => void chat.vote(m.id, 'down')}
+                        aria-label="Mark not helpful"
+                        aria-pressed={votes[m.id] === 'down'}
+                        className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                          votes[m.id] === 'down' ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)] hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        <ThumbsDown className="w-3 h-3" />
+                      </button>
                     </Tip>
                   </>
                 )}
               </div>
 
-              {/* Standard Message Bubble (or inline editor when branching) */}
               {editingId === m.id && isUser ? (
-                <div className="w-full max-w-[92%] rounded-2xl bg-black/40 border border-cyan-400/30 p-2.5 space-y-2 self-end">
+                <div className="w-full max-w-[92%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] p-2.5 space-y-2 self-end">
                   <textarea
                     autoFocus
                     value={editDraft}
                     onChange={(e) => setEditDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRewriteSave(m.id);
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleRewriteSave(m.id);
                       if (e.key === 'Escape') setEditingId(null);
                     }}
                     rows={3}
                     maxLength={4000}
-                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none resize-y"
+                    className="w-full bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none resize-y"
                   />
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => setEditingId(null)}
                       disabled={rewriting}
-                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[12px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] text-[12px] transition-all disabled:opacity-40"
                     >
                       Cancel
                     </button>
                     <button
-                      onClick={() => handleRewriteSave(m.id)}
+                      onClick={() => void handleRewriteSave(m.id)}
                       disabled={rewriting || !editDraft.trim()}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] font-semibold transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold transition-all disabled:opacity-40"
                     >
                       {rewriting ? 'Resending…' : 'Resend (branches thread)'}
                     </button>
                   </div>
                 </div>
               ) : (
-              !hasTribunal && (
-                <div
-                  className={`px-3.5 py-2.5 text-xs leading-relaxed max-w-[92%] ${
-                    isUser
-                      ? 'rounded-2xl rounded-tr-sm bg-cyan-500/15 border border-cyan-400/30 text-white'
-                      : 'rounded-2xl rounded-tl-sm bg-[#13161F] border border-white/10 text-slate-200 shadow-lg'
-                  }`}
-                >
-                  <MathText text={m.content} />
-                  {m.id === streamingId && <span className="text-cyan-400 animate-pulse"> ▍</span>}
-                </div>
-              )
+                !hasTribunal && (
+                  <div
+                    className={`px-3.5 py-2.5 text-xs leading-relaxed max-w-[92%] ${
+                      isUser
+                        ? 'rounded-2xl rounded-tr-sm bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-text)]'
+                        : 'rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] shadow-[var(--shadow-raised)]'
+                    }`}
+                  >
+                    <MathText text={m.content} />
+                    {m.id === streamingId && <span className="text-[var(--color-accent-ink)] animate-pulse"> ▍</span>}
+                  </div>
+                )
               )}
               {!isUser && renderProposalCard(m)}
 
-              {/* Multi-Agent Tribunal Salon Presentation */}
               {hasTribunal && m.tribunal && (
                 <div className="w-full space-y-2">
-                  <div className="flex items-center gap-1.5 text-[12px] font-code text-cyan-400 px-1">
+                  <div className="flex items-center gap-1.5 text-[12px] font-code text-[var(--color-accent-ink)] px-1">
                     <Bot className="w-3 h-3" />
                     <span>TRIBUNAL SYNTHESIS</span>
                   </div>
-                  <div className="w-full rounded-2xl rounded-tl-sm bg-[#13161F] border border-white/10 p-3.5 space-y-4 shadow-lg">
-                  {/* Tribunal Header Banner */}
-                  <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-7 h-7 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                        <Scale className="w-3.5 h-3.5 text-indigo-400" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-white text-xs">Autonomous Tribunal Deliberation</div>
-                        <div className="text-[12px] text-slate-400 font-mono">Target: {m.tribunal.target || m.tribunal.molecule}</div>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-bold border flex items-center space-x-1.5 ${
-                        m.tribunal.consensus_passed
-                          ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
-                          : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
-                      }`}
-                    >
-                      {/* R16: a rendered tribunal message is finished — a false
-                          consensus is CONTESTED, never "still deliberating". */}
-                      {m.tribunal.consensus_passed ? (
-                        <CheckCircle2 className="w-3 h-3" />
-                      ) : (
-                        <XCircle className="w-3 h-3" />
-                      )}
-                      <span>{m.tribunal.consensus_passed ? 'CONSENSUS VERIFIED' : 'CONTESTED'}</span>
-                    </span>
-                  </div>
-
-                  {/* 4 Colleague Discourse Cards */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">{m.tribunal.turns.length} turns</span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() =>
-                          setExpandedTurns(
-                            Object.fromEntries((m.tribunal?.turns ?? []).map((_, idx) => [`${m.id}-turn-${idx}`, true]))
-                          )
-                        }
-                        className="text-[12px] text-cyan-300 hover:text-cyan-100"
-                      >
-                        Expand all
-                      </button>
-                      <button onClick={() => setExpandedTurns({})} className="text-[12px] text-slate-400 hover:text-slate-200">
-                        Collapse all
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2.5">
-                    {m.tribunal.turns.map((turn, idx) => {
-                      const turnKey = `${m.id}-turn-${idx}`;
-                      const isTurnExpanded = expandedTurns[turnKey] === true; // Default collapsed (D1: summary first)
-
-                      let accentColor = 'border-cyan-500/40 text-cyan-300';
-                      let roleIcon = Atom;
-                      let roleTitle = 'Ansatz Scout';
-
-                      if (turn.role.includes('disconfirmation') || turn.name.includes('Disconfirmation')) {
-                        accentColor = 'border-amber-500/40 text-amber-300';
-                        roleIcon = Scale;
-                        roleTitle = 'Disconfirmation Officer';
-                      } else if (turn.role.includes('auditor') || turn.name.includes('Auditor')) {
-                        accentColor = 'border-indigo-500/40 text-indigo-300';
-                        roleIcon = Cpu;
-                        roleTitle = 'Device Auditor';
-                      } else if (turn.role.includes('scribe') || turn.name.includes('Scribe')) {
-                        accentColor = 'border-emerald-500/40 text-emerald-300';
-                        roleIcon = BookOpen;
-                        roleTitle = 'Epistemic Scribe';
-                      }
-
-                      const RoleIconComponent = roleIcon;
-
-                      return (
-                        <div
-                          key={idx}
-                          className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-3.5 space-y-2 hover:border-white/15 transition-all"
-                        >
-                          {/* Colleague Header */}
-                          <button
-                            onClick={() => toggleTurnExpand(turnKey)}
-                            aria-expanded={isTurnExpanded}
-                            aria-label={`${isTurnExpanded ? 'Collapse' : 'Expand'} turn: ${turn.name || roleTitle}`}
-                            className="flex items-center justify-between cursor-pointer w-full text-left"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
-                              <span className="font-bold text-white text-xs tracking-tight">{turn.name || roleTitle}</span>
-                              <span className={`text-[12px] font-mono uppercase px-1.5 py-0.2 rounded border bg-black/40 ${accentColor}`}>
-                                {turn.verdict || 'ANALYZED'}
-                              </span>
-                            </div>
-
-                            <Tip label={isTurnExpanded ? 'Collapse turn' : 'Expand turn'} position="left">
-                              <span className="text-slate-400 hover:text-white transition-colors inline-flex">
-                                {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                              </span>
-                            </Tip>
-                          </button>
-
-                          {/* Colleague Content */}
-                          {isTurnExpanded && (
-                            <div className="text-xs text-slate-300 leading-relaxed font-sans pt-1 border-t border-white/[0.04]">
-                              <MathText text={turn.content} />
-                            </div>
-                          )}
+                  <div className="w-full rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] p-3.5 space-y-4 shadow-[var(--shadow-raised)]">
+                    <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-[var(--color-soft-indigo-wash)] border border-[var(--color-soft-indigo-edge)] flex items-center justify-center">
+                          <Scale className="w-3.5 h-3.5 text-[var(--color-info)]" />
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Consensus Synthesis */}
-                  {m.tribunal.synthesis && (
-                    <div className="p-3 rounded-2xl bg-[#13161F] border border-white/10 space-y-2">
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-300">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Tribunal Synthesis &amp; Proposed Action</span>
-                      </div>
-                      <div className="text-xs text-slate-200 leading-relaxed font-sans">
-                        <MathText text={m.tribunal.synthesis} />
+                        <div>
+                          <div className="font-bold text-[var(--color-text)] text-xs">Autonomous Tribunal Deliberation</div>
+                          <div className="text-[12px] text-[var(--color-muted)] font-mono">
+                            Target: {m.tribunal.target || m.tribunal.molecule}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Interactive Canvas & Notebook Artifact Buttons */}
-                      <div className="pt-2 flex flex-wrap items-center gap-2">
-                        {onSelectSurface && (
-                          <button
-                            onClick={() => onSelectSurface('surface1')}
-                            className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-[12px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
-                          >
-                            <Atom className="w-3.5 h-3.5" />
-                            <span>View on Living Canvas</span>
-                          </button>
-                        )}
-                        {onSelectSurface && (
-                          <button
-                            onClick={() => onSelectSurface('surface7')}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-[12px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
-                          >
-                            <BookOpen className="w-3.5 h-3.5" />
-                            <span>Pin to Living Paper</span>
-                          </button>
-                        )}
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-bold border flex items-center space-x-1.5 ${
+                          m.tribunal.consensus_passed
+                            ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success)]'
+                            : 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning)]'
+                        }`}
+                      >
+                        {m.tribunal.consensus_passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                        <span>{m.tribunal.consensus_passed ? 'CONSENSUS VERIFIED' : 'CONTESTED'}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] text-[var(--color-muted)]">{m.tribunal.turns.length} turns</span>
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => copyToClipboard(m.tribunal?.synthesis || '', m.id)}
-                          className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-slate-300 text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                          onClick={() =>
+                            setExpandedTurns(
+                              Object.fromEntries((m.tribunal?.turns ?? []).map((_, idx) => [`${m.id}-turn-${idx}`, true])),
+                            )
+                          }
+                          className="text-[12px] text-[var(--color-accent-ink)] hover:underline"
                         >
-                          {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
+                          Expand all
+                        </button>
+                        <button onClick={() => setExpandedTurns({})} className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)]">
+                          Collapse all
                         </button>
                       </div>
+                    </div>
 
-                      {/* On-demand canvas dispatch: agents show, don't tell */}
-                      {onMaterialize && (
-                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
-                          <button
-                            onClick={() => onMaterialize('circuit', 'Circuit · live')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
+                    <div className="space-y-2.5">
+                      {m.tribunal.turns.map((turn, idx) => {
+                        const turnKey = `${m.id}-turn-${idx}`;
+                        const isTurnExpanded = expandedTurns[turnKey] === true;
+
+                        let accentColor = 'border-[var(--color-accent-edge)] text-[var(--color-accent-ink)]';
+                        let roleIcon = Atom;
+                        let roleTitle = 'Ansatz Scout';
+
+                        if (turn.role.includes('disconfirmation') || turn.name.includes('Disconfirmation')) {
+                          accentColor = 'border-[var(--color-warning-edge)] text-[var(--color-warning)]';
+                          roleIcon = Scale;
+                          roleTitle = 'Disconfirmation Officer';
+                        } else if (turn.role.includes('auditor') || turn.name.includes('Auditor')) {
+                          accentColor = 'border-[var(--color-soft-indigo-edge)] text-[var(--color-info)]';
+                          roleIcon = Cpu;
+                          roleTitle = 'Device Auditor';
+                        } else if (turn.role.includes('scribe') || turn.name.includes('Scribe')) {
+                          accentColor = 'border-[var(--color-success-edge)] text-[var(--color-success)]';
+                          roleIcon = BookOpen;
+                          roleTitle = 'Epistemic Scribe';
+                        }
+
+                        const RoleIconComponent = roleIcon;
+
+                        return (
+                          <div
+                            key={idx}
+                            className="rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] p-3.5 space-y-2 hover:border-[var(--color-border-strong)] transition-all"
                           >
-                            <span className="text-cyan-400">✦</span> Inspect circuit
-                          </button>
+                            <button
+                              onClick={() => toggleTurnExpand(turnKey)}
+                              aria-expanded={isTurnExpanded}
+                              aria-label={`${isTurnExpanded ? 'Collapse' : 'Expand'} turn: ${turn.name || roleTitle}`}
+                              className="flex items-center justify-between cursor-pointer w-full text-left"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
+                                <span className="font-bold text-[var(--color-text)] text-xs tracking-tight">{turn.name || roleTitle}</span>
+                                <span className={`text-[12px] font-mono uppercase px-1.5 py-0.2 rounded border bg-[var(--color-field)] ${accentColor}`}>
+                                  {turn.verdict || 'ANALYZED'}
+                                </span>
+                              </div>
+
+                              <Tip label={isTurnExpanded ? 'Collapse turn' : 'Expand turn'} position="left">
+                                <span className="text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors inline-flex">
+                                  {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </span>
+                              </Tip>
+                            </button>
+
+                            {isTurnExpanded && (
+                              <div className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans pt-1 border-t border-[var(--color-border)]">
+                                <MathText text={turn.content} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {m.tribunal.synthesis && (
+                      <div className="p-3 rounded-2xl bg-[var(--color-raised)] border border-[var(--color-border)] space-y-2">
+                        <div className="flex items-center space-x-1.5 text-xs font-bold text-[var(--color-success)]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Tribunal Synthesis &amp; Proposed Action</span>
+                        </div>
+                        <div className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans">
+                          <MathText text={m.tribunal.synthesis} />
+                        </div>
+
+                        <div className="pt-2 flex flex-wrap items-center gap-2">
+                          {onSelectSurface && (
+                            <button
+                              onClick={() => onSelectSurface('surface1')}
+                              className="px-3 py-1.5 rounded-xl bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                            >
+                              <Atom className="w-3.5 h-3.5" />
+                              <span>View on Living Canvas</span>
+                            </button>
+                          )}
+                          {onSelectSurface && (
+                            <button
+                              onClick={() => onSelectSurface('surface7')}
+                              className="px-3 py-1.5 rounded-xl bg-[var(--color-soft-indigo-wash)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-soft-indigo-edge)] text-[var(--color-info)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Pin to Living Paper</span>
+                            </button>
+                          )}
                           <button
-                            onClick={() => onMaterialize('shadows', 'Shadow estimates')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
+                            onClick={() => copyToClipboard(m.tribunal?.synthesis || '', m.id)}
+                            className="px-3 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
                           >
-                            <span className="text-cyan-400">✦</span> Shadow estimates
-                          </button>
-                          <button
-                            onClick={() => onMaterialize('molecule', 'Active space')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
-                          >
-                            <span className="text-amber-400">✦</span> Active space
-                          </button>
-                          <button
-                            onClick={() => onMaterialize('mandate', 'Spend mandate')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
-                          >
-                            <span className="text-amber-400">✦</span> Spend card
+                            {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-[var(--color-success)]" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
                           </button>
                         </div>
-                      )}
-                    </div>
-                  )}
+
+                        {onMaterialize && (
+                          <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                            <button
+                              onClick={() => onMaterialize('circuit', 'Circuit · live')}
+                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                            >
+                              <span className="text-[var(--color-accent-ink)]">✦</span> Inspect circuit
+                            </button>
+                            <button
+                              onClick={() => onMaterialize('shadows', 'Shadow estimates')}
+                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                            >
+                              <span className="text-[var(--color-accent-ink)]">✦</span> Shadow estimates
+                            </button>
+                            <button
+                              onClick={() => onMaterialize('molecule', 'Active space')}
+                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                            >
+                              <span className="text-[var(--color-warning)]">✦</span> Active space
+                            </button>
+                            <button
+                              onClick={() => onMaterialize('mandate', 'Spend mandate')}
+                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                            >
+                              <span className="text-[var(--color-warning)]">✦</span> Spend card
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-              {!isUser && renderProposalCard(m)}
+                  {!isUser && renderProposalCard(m)}
                 </div>
               )}
             </div>
           );
         })}
 
-        {/* Live Loading & Multi-Stage Reasoning Aura */}
         {(loading || runningTribunal) && (
-          <div className="p-4 rounded-3xl bg-black/60 border border-cyan-500/30 space-y-2.5 animate-pulse shadow-xl shadow-cyan-950/30">
-            <div className="flex items-center justify-between text-xs font-mono text-cyan-300">
+          <div className="p-4 rounded-3xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] space-y-2.5 shadow-[var(--shadow-raised)]">
+            <div className="flex items-center justify-between text-xs font-mono text-[var(--color-accent-ink)]">
               <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 animate-spin text-cyan-400" />
+                <Sparkles className="w-4 h-4 animate-spin text-[var(--color-accent-ink)]" />
                 <span className="font-bold">Autonomous Scientific Reasoning</span>
               </div>
               <span>{elapsedSeconds}s</span>
             </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed font-sans">
-              {runningTribunal ? tribunalStage : `Reasoning with the configured model…`}
+            <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans">
+              {runningTribunal ? tribunalStage : 'Reasoning with the configured model…'}
             </p>
           </div>
         )}
 
         {needsLogin && (
-          <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-sans flex items-center justify-between gap-2" role="alert">
+          <div
+            className="p-3.5 rounded-2xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning)] text-xs font-sans flex items-center justify-between gap-2"
+            role="alert"
+          >
             <span>
               {authExpired
                 ? 'Session expired — log in again to start a campaign session. No session was created.'
@@ -1560,7 +919,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               type="button"
               onClick={() => onSelectSurface?.('labs')}
-              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-[12px] font-semibold transition-all"
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-warning-edge)] text-[var(--color-text)] text-[12px] font-semibold transition-all"
             >
               Sign in
             </button>
@@ -1568,18 +927,18 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         )}
 
         {errorMessage && (
-          <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-sans" role="alert">
+          <div
+            className="p-3.5 rounded-2xl bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] text-[var(--color-danger)] text-xs font-sans"
+            role="alert"
+          >
             <div className="flex items-start justify-between gap-2">
               <span>{errorMessage}</span>
               {/stream stalled/i.test(errorMessage) && (
                 <button
                   type="button"
                   aria-label="Retry stalled stream"
-                  onClick={() => {
-                    setErrorMessage(null);
-                    void handleSend(lastPromptRef.current || undefined, lastRequestIdRef.current || undefined);
-                  }}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-red-400/15 hover:bg-red-400/25 border border-red-400/40 text-red-100 text-[12px] font-semibold transition-all"
+                  onClick={() => chat.retryStalled()}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-soft-rose-edge)] text-[var(--color-text)] text-[12px] font-semibold transition-all"
                 >
                   Retry
                 </button>
@@ -1589,155 +948,157 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         )}
 
         {infoMessage && (
-          <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-slate-300 text-xs font-sans">
+          <div className="p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs font-sans">
             {infoMessage}
           </div>
         )}
 
-        {writeSettlementLabel(chatWrite.write) && (
-          <p role="status" className="px-1 text-[12px] font-mono text-slate-400">
-            {writeSettlementLabel(chatWrite.write)}
+        {chatWriteLabel && (
+          <p role="status" className="px-1 text-[12px] font-mono text-[var(--color-muted)]">
+            {chatWriteLabel}
           </p>
         )}
-        {writeSettlementLabel(feedbackWrite.write) && (
-          <p role="status" className="px-1 text-[12px] font-mono text-slate-400">
-            {writeSettlementLabel(feedbackWrite.write)}
+        {feedbackWriteLabel && (
+          <p role="status" className="px-1 text-[12px] font-mono text-[var(--color-muted)]">
+            {feedbackWriteLabel}
           </p>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Stage with Suggestion Pills */}
-      <div className="shrink-0 p-4 border-t border-white/5 bg-[#0A0C10] space-y-2">
-        {/* Contextual follow-ups */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-          {followUps.map((f) => (
-            <button
-              key={f.label}
-              onClick={() => runFollowUp(f.key)}
-              className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
-            >
-              <span className={f.accent}>✦</span> {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Session memory inspector (tenant-scoped recall + retain) */}
-        <MemoryPanel sessionId={sessionId} />
-
-        {/* Composer Card */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="relative bg-[#13161F] border border-white/10 rounded-2xl p-2 focus-within:border-cyan-400/60 focus-within:ring-1 focus-within:ring-cyan-400/40 transition-all shadow-inner"
-        >
-          {/* Attachment pills (explicit context riding the next send) */}
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
-              {attachments.map((a) => (
-                <span key={a.name} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-[12px] font-code text-cyan-200">
-                  <Paperclip className="w-3 h-3" />
-                  {a.name}
-                  <button type="button" onClick={() => removeAttachment(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-white">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {/* Slash hint */}
-          {input.startsWith('/') && (
-            <div className="px-2 pb-1.5 text-[12px] font-code text-slate-500">
-              <span className="text-cyan-300">/tribunal</span> convene · <span className="text-cyan-300">/launch</span> last proposal · <span className="text-cyan-300">/help</span>
-            </div>
-          )}
-          <textarea
-            rows={2}
-            value={input}
-            aria-label="Chat message"
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
-                handleSend();
-              }
-            }}
-            placeholder="Command swarm, query proofs, or adjust target..."
-            className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none resize-none px-2 py-1 font-sovereign"
-          />
-          <input
-            ref={attachInputRef}
-            type="file"
-            accept=".pdb,.cif,.xyz,.mol,.sdf,.txt,.md"
-            aria-label="Attach molecular structure or notes"
-            className="hidden"
-            onChange={handleAttachFile}
-          />
-          {/* S8b: overflow card — real pressure only, real actions only. */}
-          <div className="px-0 pt-1.5">
-            <OverflowCard
-              sessionId={sessionId}
-              refreshKey={messages.length}
-              onSessionChanged={(id) => {
-                if (onSessionChange) onSessionChange(id);
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between pt-1 border-t border-white/5 px-1">
-            <div className="flex items-center gap-1">
-              <Tip label="Attach file" sub="PDB · CIF · XYZ · text" position="top">
+      {!dockComposer && (
+        <div className="shrink-0 p-4 border-t border-[var(--color-border)] bg-[var(--color-chrome)] space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            {followUps.map((f) => (
               <button
-                type="button"
-                onClick={() => attachInputRef.current?.click()}
-                aria-label="Attach molecular file (PDB/CIF/XYZ)"
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+                key={f.label}
+                onClick={() => chat.runFollowUp(f.key)}
+                title={f.label}
+                className="max-w-full min-w-0 px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
               >
-                <Paperclip className="w-4 h-4" />
+                <span className={`shrink-0 ${f.tone === 'success' ? 'text-[var(--color-success)]' : f.tone === 'warning' ? 'text-[var(--color-warning)]' : 'text-[var(--color-accent-ink)]'}`}>✦</span>
+                <span className="truncate">{f.label}</span>
               </button>
-              </Tip>
-              <span className="text-[12px] font-code text-slate-400 ml-1">⌘K</span>
-              <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
-            </div>
-            <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
-            <button
-              type={streamingId ? 'button' : 'submit'}
-              onClick={streamingId ? () => abortRef.current?.abort() : undefined}
-              disabled={!streamingId && (!input.trim() || loading || runningTribunal)}
-              aria-label={streamingId ? 'Stop generation' : 'Send directive'}
-              className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:outline-none ${
-                streamingId
-                  ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-[0_0_15px_rgba(244,63,94,0.35)]'
-                  : 'bg-cyan-400 hover:bg-cyan-300 text-black shadow-[0_0_15px_rgba(0,229,255,0.3)] disabled:opacity-40'
-              }`}
-            >
-              {streamingId ? (
-                <span className="w-3 h-3 rounded-[2px] bg-current" />
-              ) : (
-                <ArrowUp className="w-4 h-4 font-bold" />
-              )}
-            </button>
-            </Tip>
+            ))}
           </div>
-        </form>
 
-        {/* Tribunal Action Button */}
-        <button
-          type="button"
-          onClick={() => handleRunTribunal(input.trim() || `${targetSystem} ground state electronic structure`)}
-          disabled={loading || runningTribunal}
-          className="w-full py-2 px-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-40 active:scale-[0.99]"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Convene Multi-Agent Research Tribunal</span>
-        </button>
-        <div className="text-center">
-          <span className="text-[12px] text-slate-400 font-code">Autonomous AI Swarm · Local-first</span>
+          <MemoryPanel sessionId={sessionId} />
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const textToSend = input.trim();
+              if (!textToSend) return;
+              setInput('');
+              void chat.send(textToSend);
+            }}
+            className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-2 focus-within:border-[var(--color-accent-edge)] transition-all"
+          >
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
+                {attachments.map((a) => (
+                  <span
+                    key={a.name}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[12px] font-code text-[var(--color-accent-ink)]"
+                  >
+                    <Paperclip className="w-3 h-3" />
+                    {a.name}
+                    <button type="button" onClick={() => chat.detach(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-[var(--color-text)]">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {input.startsWith('/') && (
+              <div className="px-2 pb-1.5 text-[12px] font-code text-[var(--color-muted)]">
+                <span className="text-[var(--color-accent-ink)]">/tribunal</span> convene ·{' '}
+                <span className="text-[var(--color-accent-ink)]">/launch</span> last proposal ·{' '}
+                <span className="text-[var(--color-accent-ink)]">/help</span>
+              </div>
+            )}
+            <textarea
+              rows={2}
+              value={input}
+              aria-label="Chat message"
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+                  const textToSend = input.trim();
+                  if (!textToSend) return;
+                  setInput('');
+                  void chat.send(textToSend);
+                }
+              }}
+              placeholder="Command swarm, query proofs, or adjust target..."
+              className="w-full bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none resize-none px-2 py-1 font-sovereign"
+            />
+            <input
+              ref={attachInputRef}
+              type="file"
+              accept=".pdb,.cif,.xyz,.mol,.sdf,.txt,.md"
+              aria-label="Attach molecular structure or notes"
+              className="hidden"
+              onChange={handleAttachFile}
+            />
+            <div className="px-0 pt-1.5">
+              <OverflowCard
+                sessionId={sessionId}
+                refreshKey={messages.length}
+                onSessionChanged={(id) => onSessionChange?.(id)}
+              />
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)] px-1">
+              <div className="flex items-center gap-1">
+                <Tip label="Attach file" sub="PDB · CIF · XYZ · text" position="top">
+                  <button
+                    type="button"
+                    onClick={() => attachInputRef.current?.click()}
+                    aria-label="Attach molecular file (PDB/CIF/XYZ)"
+                    className="p-1 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                </Tip>
+                <span className="text-[12px] font-code text-[var(--color-muted)] ml-1">⌘K</span>
+                <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
+              </div>
+              <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
+                <button
+                  type={streamingId ? 'button' : 'submit'}
+                  onClick={streamingId ? chat.stop : undefined}
+                  disabled={!streamingId && (!input.trim() || loading || runningTribunal)}
+                  aria-label={streamingId ? 'Stop generation' : 'Send directive'}
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                    streamingId
+                      ? 'bg-[var(--color-danger)] text-[var(--color-on-accent)]'
+                      : 'bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] disabled:opacity-40'
+                  }`}
+                >
+                  {streamingId ? <span className="w-3 h-3 rounded-[2px] bg-current" /> : <ArrowUp className="w-4 h-4 font-bold" />}
+                </button>
+              </Tip>
+            </div>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => void chat.conveneTribunal(input.trim() || `${targetSystem} ground state electronic structure`)}
+            disabled={loading || runningTribunal}
+            className="w-full py-2 px-3 rounded-2xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-40 active:scale-[0.99]"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+            <span>Convene Multi-Agent Research Tribunal</span>
+          </button>
+          <div className="text-center">
+            <span className="text-[12px] text-[var(--color-muted)] font-code">Autonomous AI Swarm · Local-first</span>
+          </div>
         </div>
-      </div>
+      )}
+
       {clearConfirmOpen && (
         <ConfirmDialog
           open
@@ -1745,7 +1106,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           body={
             <span>
               Messages are deleted; the session, campaign, and ledger history survive. Type{' '}
-              <code className="rounded bg-white/10 px-1 font-mono">CLEAR</code> to confirm.
+              <code className="rounded bg-[var(--color-fill)] px-1 font-mono">CLEAR</code> to confirm.
             </span>
           }
           requireText="CLEAR"
@@ -1754,8 +1115,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           busy={clearing}
           onConfirm={() => void confirmClearChat()}
           onCancel={() => {
-            if (clearing) return;
-            setClearConfirmOpen(false);
+            if (!clearing) setClearConfirmOpen(false);
           }}
         />
       )}

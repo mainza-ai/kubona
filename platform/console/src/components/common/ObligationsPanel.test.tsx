@@ -7,6 +7,7 @@ import * as api from '@/lib/api';
 vi.mock('@/lib/api', () => ({
   fetchOpenObligations: vi.fn(),
   closeObligation: vi.fn(),
+  hasOperatorBearer: vi.fn(() => false),
 }));
 
 function textOf(node: unknown): string {

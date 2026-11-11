@@ -73,6 +73,7 @@ func TestAPIV1AliasMatchesLegacyPayloads(t *testing.T) {
 		"/api/events?session_id=" + session.ID,
 		"/api/tasks?session_id=" + session.ID,
 		"/api/workbench/layout?session_id=" + session.ID,
+		"/api/workbench/view?session_id=" + session.ID,
 		"/api/cost/summary",
 		"/api/quantum/backends",
 		"/api/quantum/settings",

@@ -43,7 +43,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
   </a>
 </div>
 
-- **Architectural Walkthrough (Video):** [Architecting the AI Quantum Bridge Inside the Kubona Stack](https://youtu.be/Clo0PAk7Oj0)
+- **Kubona & The Autonomous Quantum Scientific Method (Video):** [Kubona & The Autonomous Quantum Scientific Method](https://youtu.be/y6EM4CKZFQA)
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
 
@@ -52,26 +52,31 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 ## Current Capabilities by Category
 
 ### 1. Quantum Chemistry, Lattice Physics & Many-Body Simulation
+
 - **Ab Initio & Variational Chemistry:** Run shot-sampled `VQE` alongside live `PySCF` reference baselines (`RHF`, `CASCI`, `FCI`) across `H₂`, `LiH`, `BeH₂`, `H₂O`, and custom closed-shell `STO-3G` molecular geometries.
 - **Potential Energy Surfaces & Geometry Optimization:** Execute bond-distance `PES` scans, `BFGS` equilibrium geometry optimization, multi-seed statistical `VQE` repeats, overlap-deflated excited states, and reactant-to-product reaction energies ($\Delta E$).
 - **Condensed-Matter & Tensor Networks:** Simulate 1D Heisenberg, anisotropic `XXZ` ($\Delta$), and `TFIM` spin chains (`COBYLA` + multi-start `L-BFGS-B`), compute `quimb` `MPS`/`DMRG` finite-size scaling to the thermodynamic limit ($1/N \to 0$), and evolve exact 2D `TFIM` quench dynamics via sparse Krylov `expm_multiply`.
 - **Combinatorial, Subspace & Error-Mitigated Workflows:** Run MaxCut `QAOA` (simulator and hardware loops), Quantum Krylov subspace diagonalization, Zero-Noise Extrapolation (`ZNE`) with measurement readout mitigation, and exact finite-scope mathematical conjecture verification.
 
 ### 2. Autonomous Discovery & Epistemic Governance
+
 - **Closed-Loop Research Campaigns:** Plan, dispatch, evaluate, and automatically replan multi-step scientific campaigns from natural-language research goals (`then` / `->` / `;` pipelines via `/api/discovery/{plan,run}`).
 - **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) — never claiming quantum advantage by assertion.
 - **Persistent Scientific Memory:** Hybrid full-text and structured memory graph linking hypotheses, OpenAlex/literature citations, artifacts, and experimental lineage across sessions.
 
 ### 3. Cryptographic Provenance & Spend Settlement
+
 - **Signed, Hash-Chained Receipts:** Every run emits a schema-validated `experiment-result-v1` payload sealed into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger.
 - **Pre-Dispatch Fidelity Gate:** Evaluates hardware `T₁`/`T₂`, two-qubit gate error, and calibration freshness (<24h) before a circuit is admitted to a QPU.
 - **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement across IBM Quantum, IonQ, AWS Braket, and local private runtimes.
 
 ### 4. Polyglot Core & MCP-Native Architecture
+
 - **6-Server MCP Surface (38 Tools over `stdio`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
 - **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), Rust native `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
 
 ### 5. The Sovereign Observatory Console
+
 - **Real-Time 3D Workbench:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), interactive **Results Studio** charts, and the unified **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`).
 
 ---
@@ -81,7 +86,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 All 13 experiment kinds execute through the governed Go job rail, validate against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), fold into campaign state, and render in the Console's **Experiment & Discovery Lab** and **Results Studio**:
 
 | Capability | Kind | Measurement | Classical Anchor |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Molecular VQE** | `vqe` (`vqe_run`) | Shot-sampled Pauli expectation energy | Live PySCF RHF / CASCI / FCI |
 | **Geometry Optimization** | `geometry_optimization` | VQE at classically relaxed bond geometry | Curated scan or caller-geometry RHF/STO-3G BFGS + FCI |
 | **Repeated VQE** | `vqe_repeats` | Multi-seed mean energy, shot σ, and between-run SE | Full FCI at identical geometry |
@@ -101,7 +106,7 @@ All 13 experiment kinds execute through the governed Go job rail, validate again
 ## System Topology
 
 | Path | Layer | Role |
-|---|---|---|
+| --- | --- | --- |
 | [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |

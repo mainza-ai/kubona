@@ -77,17 +77,17 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
       aria-modal="true"
       aria-labelledby="shortcuts-title"
     >
-      <div ref={panelRef} className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
-        <div className="h-12 px-5 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
+      <div ref={panelRef} className="w-full max-w-lg bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl shadow-[var(--shadow-float)] overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
+        <div className="h-12 px-5 border-b border-[var(--color-border)] flex items-center justify-between bg-[var(--color-surface)]">
           <div className="flex items-center space-x-2">
-            <Command className="w-4 h-4 text-cyan-400" />
-            <h2 id="shortcuts-title" className="text-sm font-semibold text-white">
+            <Command className="w-4 h-4 text-[var(--color-accent-ink)]" />
+            <h2 id="shortcuts-title" className="text-sm font-semibold text-[var(--color-text)]">
               Keyboard Shortcuts
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -97,17 +97,17 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
         <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
           {shortcutGroups.map((group) => (
             <div key={group.category} className="space-y-2">
-              <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+              <h3 className="text-[12px] font-semibold text-[var(--color-muted)] uppercase tracking-wider font-mono">
                 {group.category}
               </h3>
               <div className="space-y-1.5">
                 {group.shortcuts.map((sc) => (
                   <div
                     key={sc.key}
-                    className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/[0.04] text-xs"
+                    className="flex items-center justify-between p-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-xs"
                   >
-                    <span className="text-slate-200">{sc.description}</span>
-                    <kbd className="px-2 py-0.5 rounded-md bg-white/10 text-[12px] font-mono text-cyan-300 border border-white/10 shadow-sm">
+                    <span className="text-[var(--color-label-secondary)]">{sc.description}</span>
+                    <kbd className="px-2 py-0.5 rounded-md bg-[var(--color-fill)] text-[12px] font-mono text-[var(--color-info-ink)] border border-[var(--color-border)] shadow-sm">
                       {sc.key}
                     </kbd>
                   </div>
@@ -116,13 +116,13 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
             </div>
           ))}
           <div className="space-y-2">
-            <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+            <h3 className="text-[12px] font-semibold text-[var(--color-muted)] uppercase tracking-wider font-mono">
               Deep links
             </h3>
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.04] text-xs text-slate-300">
-              Share or bookmark <code className="font-mono text-cyan-300">?surface=</code>
+            <div className="p-3 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)]">
+              Share or bookmark <code className="font-mono text-[var(--color-info-ink)]">?surface=</code>
               <span className="font-mono">arena|recorder|manifold|fleet|proofs|mesh</span> with{' '}
-              <code className="font-mono text-cyan-300">?tab=</code>
+              <code className="font-mono text-[var(--color-info-ink)]">?tab=</code>
               <span className="font-mono">manuscripts|tribunal|gallery|circuits</span> (proofs),{' '}
               <span className="font-mono">mesh|guardrails|models|labs|settings</span> (mesh),{' '}
               <span className="font-mono">orbital|proof-dag</span> (arena).
@@ -130,10 +130,10 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
           </div>
         </div>
 
-        <div className="h-10 px-5 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-end">
+        <div className="h-10 px-5 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-semibold text-white transition-all"
+            className="px-4 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-xs font-semibold text-[var(--color-text)] transition-all"
           >
             Got it
           </button>

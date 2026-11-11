@@ -15,7 +15,7 @@ function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void;
     <div
       data-testid="auth-expired-banner"
       role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-950/90 border-b border-amber-500/40 text-amber-100 text-xs"
+      className="flex items-center justify-between gap-3 px-4 py-2 bg-[var(--color-warning-wash)] border-b border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs"
     >
       <span>Session expired — log in again.</span>
       <span className="flex items-center gap-2 shrink-0">
@@ -44,7 +44,7 @@ function ApiProblemView({ problem, onDismiss }: { problem: ApiProblem; onDismiss
     <div
       data-testid="api-problem-banner"
       role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-rose-950/90 border-b border-rose-500/40 text-rose-100 text-[12px] font-code"
+      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-[var(--color-danger-wash)] border-b border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] font-code"
     >
       <span className="truncate">
         API refusal — {problem.path} · {problem.status ?? 'transport'} · {problem.message}. Some surfaces may show empty data until this is fixed.
@@ -53,7 +53,7 @@ function ApiProblemView({ problem, onDismiss }: { problem: ApiProblem; onDismiss
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss API refusal"
-        className="shrink-0 px-2 py-0.5 rounded border border-rose-400/30 text-rose-200 hover:bg-rose-500/20"
+        className="shrink-0 px-2 py-0.5 rounded border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] hover:bg-[var(--color-fill-hover)]"
       >
         Dismiss
       </button>

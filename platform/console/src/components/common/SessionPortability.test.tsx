@@ -117,7 +117,8 @@ describe('SessionPortability import receipt (T-13)', () => {
     const html = await importManifest({ session_id: 's2-fresh', replayed: false });
     expect(html).toContain('imported session s2-fresh');
     expect(html).toContain('switched to it');
-    expect(html).toContain('text-emerald-200');
+    expect(html).toContain('text-[var(--color-success-ink)]');
+    expect(html).toContain('"role":"alert"');
   });
 
   it('idempotent replay says so instead of claiming a fresh import', async () => {

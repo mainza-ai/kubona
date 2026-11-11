@@ -515,7 +515,7 @@ func (c *Client) FetchModels(ctx context.Context, providerType ProviderType) ([]
 		return nil, err
 	}
 
-	var models []ModelInfo
+	models := []ModelInfo{}
 	for _, m := range raw.Data {
 		models = append(models, ModelInfo{
 			ID:        m.ID,

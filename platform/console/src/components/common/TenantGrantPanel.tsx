@@ -76,31 +76,31 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Tenant grants">
+    <div className="rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Tenant grants">
       <div>
-        <div className="text-xs font-semibold text-white">Cross-lab grants</div>
-        <p className="text-[12px] text-slate-500">Signed by the source lab admin; grants are read-scope and expire. No wildcard scopes.</p>
+        <div className="text-xs font-semibold text-[var(--color-text)]">Cross-lab grants</div>
+        <p className="text-[12px] text-[var(--color-muted)]">Signed by the source lab admin; grants are read-scope and expire. No wildcard scopes.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-        <select aria-label="Grant source lab" value={source} onChange={(e) => setSource(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono">
+        <select aria-label="Grant source lab" value={source} onChange={(e) => setSource(e.target.value)} className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono">
           {labs.length === 0 && <option value="">no labs</option>}
           {labs.map((l) => <option key={l.id} value={l.id}>{l.display_name || l.id}</option>)}
         </select>
-        <input aria-label="Grant target lab" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="target lab id" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
-        <input aria-label="Grant expiry hours" value={hours} onChange={(e) => setHours(e.target.value)} inputMode="numeric" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
+        <input aria-label="Grant target lab" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="target lab id" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono" />
+        <input aria-label="Grant expiry hours" value={hours} onChange={(e) => setHours(e.target.value)} inputMode="numeric" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono" />
       </div>
       <div className="flex gap-1.5">
-        <input aria-label="Grant scope" value={scope} onChange={(e) => setScope(e.target.value)} className="flex-1 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
-        <button type="button" onClick={() => void issue()} disabled={busy} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">Issue grant</button>
+        <input aria-label="Grant scope" value={scope} onChange={(e) => setScope(e.target.value)} className="flex-1 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono" />
+        <button type="button" onClick={() => void issue()} disabled={busy} className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] disabled:opacity-40">Issue grant</button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-1.5">
-        <input aria-label="Grant ID" value={grantId} onChange={(e) => setGrantId(e.target.value)} placeholder="grant id" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
-        <input aria-label="Grant revoke reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="revoke reason" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200" />
-        <button type="button" onClick={() => void revoke()} disabled={busy} className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[12px] disabled:opacity-40">Revoke grant</button>
+        <input aria-label="Grant ID" value={grantId} onChange={(e) => setGrantId(e.target.value)} placeholder="grant id" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono" />
+        <input aria-label="Grant revoke reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="revoke reason" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)]" />
+        <button type="button" onClick={() => void revoke()} disabled={busy} className="px-2 py-1 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] disabled:opacity-40">Revoke grant</button>
       </div>
-      {notice && <p role="status" className="text-[12px] text-slate-300 break-all">{notice}</p>}
+      {notice && <p role="status" className="text-[12px] text-[var(--color-text)] break-all">{notice}</p>}
       {writeSettlementLabel(settlement.write) && (
-        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(settlement.write)}</p>
       )}
     </div>
   );

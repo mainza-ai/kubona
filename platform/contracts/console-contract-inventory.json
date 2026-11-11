@@ -119,6 +119,8 @@
     "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
+    "workbench.view",
+    "workbench.view.save",
     "workflow.approval",
     "workflow.plan",
     "workflow.run"
@@ -242,6 +244,8 @@
     "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
+    "workbench.view",
+    "workbench.view.save",
     "workflow.approval",
     "workflow.plan",
     "workflow.run"
@@ -692,6 +696,12 @@
       "contract": "workbench.layout"
     },
     {
+      "function": "fetchWorkbenchView",
+      "path": "/api/workbench/view",
+      "method": "GET",
+      "contract": "workbench.view"
+    },
+    {
       "function": "getHFModelDetails",
       "path": "/api/hf/models/:id",
       "method": "GET",
@@ -972,6 +982,12 @@
       "path": "/api/workbench/layout",
       "method": "PUT",
       "contract": "workbench.save"
+    },
+    {
+      "function": "saveWorkbenchView",
+      "path": "/api/workbench/view",
+      "method": "PUT",
+      "contract": "workbench.view.save"
     },
     {
       "function": "scoreCodesignBudget",

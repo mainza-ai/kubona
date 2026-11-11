@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle, LayoutDashboard } from 'lucide-react';
+import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle, LayoutDashboard, Box } from 'lucide-react';
 
 export type ArenaView = 'workbench' | 'orbital' | 'proof-dag' | 'hardware-qpu';
 
@@ -27,6 +27,8 @@ interface ArenaHudProps {
   statusText?: string | null;
   onRecenter: () => void;
   showWorkbench?: boolean;
+  onOpenExperimentLab?: () => void;
+  onOpenMoleculeView?: () => void;
 }
 
 function fmt(v: unknown): string {
@@ -44,27 +46,29 @@ export function ArenaHud({
   statusText,
   onRecenter,
   showWorkbench = true,
+  onOpenExperimentLab,
+  onOpenMoleculeView,
 }: ArenaHudProps) {
   const spendFinite = typeof spendUsd === 'number' && Number.isFinite(spendUsd);
   const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd) && spendCapUsd > 0;
   const overCap = spendFinite && capFinite && (spendUsd as number) > (spendCapUsd as number);
   return (
-    <header className="absolute top-4 left-6 right-6 z-20 flex flex-wrap items-center gap-2 justify-between pointer-events-none">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full px-4 py-2 shadow-2xl">
-        <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400' : 'bg-emerald-400'}`} />
-        <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
-        <span className="text-white/20">|</span>
+    <header className="k-arena-hud relative z-20 shrink-0 px-4 py-2.5 flex flex-wrap items-center gap-2 justify-between border-b border-[var(--color-border)] bg-[var(--color-chrome)]/95">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl sm:rounded-full px-3.5 py-1.5 shadow-[var(--shadow-raised)]">
+        <span className="w-2 h-2 rounded-full" style={{ background: statusText ? 'var(--color-info)' : 'var(--color-success)' }} />
+        <span className="font-code text-xs text-[var(--color-text)] font-medium tracking-wide">{targetLabel}</span>
+        <span className="text-[var(--color-border-strong)]">|</span>
         {statusText ? (
-          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[12px] text-cyan-300">{statusText}</span>
+          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[12px] text-[var(--color-info)]">{statusText}</span>
         ) : (
-          <span className="font-code text-[12px] text-cyan-400">{swarmDetail}</span>
+          <span className="font-code text-[12px] text-[var(--color-muted)]">{swarmDetail}</span>
         )}
       </div>
 
       <div
         role="tablist"
         aria-label="Arena view mode"
-        className="pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-2xl"
+        className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-[var(--shadow-raised)]"
       >
         {VIEW_MODES.filter((m) => showWorkbench || m.id !== 'workbench').map((m) => {
           const Icon = m.icon;
@@ -76,45 +80,70 @@ export function ArenaHud({
               aria-selected={isActive}
               data-testid={`arena-view-${m.id}`}
               onClick={() => onViewChange(m.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium flex shrink-0 items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-                isActive ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1 rounded-full text-xs font-medium flex shrink-0 items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                isActive ? 'bg-[var(--color-lit)] text-[var(--color-on-lit)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
               }`}
             >
-              <Icon className={`w-[15px] h-[15px] ${isActive ? 'text-cyan-400' : ''}`} />
+              <Icon className="w-[15px] h-[15px]" />
               <span>{m.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full pointer-events-auto">
+      <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
         <div
-          className={`bg-[#0E1117] border rounded-full px-3.5 py-2 flex flex-wrap items-center gap-3 max-w-full shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
+          className={`bg-[var(--color-surface)] border rounded-full px-3.5 py-1.5 flex flex-wrap items-center gap-3 max-w-full shadow-[var(--shadow-raised)] ${overCap ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
           data-testid="hud-spend"
           data-breach={overCap ? 'true' : undefined}
         >
           <div className="flex items-center gap-1.5" title={capFinite ? `$${fmt(spendUsd)} of $${fmt(spendCapUsd)} cap` : `$${fmt(spendUsd)} (no cap)`}>
-            <Zap className={`w-4 h-4 ${overCap ? 'text-rose-400' : 'text-amber-400'}`} />
-            <span className={`font-code text-xs font-medium ${overCap ? 'text-rose-300 font-bold' : 'text-amber-400'}`}>
+            <Zap className="w-4 h-4" style={{ color: overCap ? 'var(--color-danger)' : 'var(--color-warning)' }} />
+            <span className="font-code text-xs font-medium" style={{ color: overCap ? 'var(--color-danger)' : 'var(--color-warning)', fontWeight: overCap ? 700 : 500 }}>
               ${fmt(spendUsd)}
             </span>
             {overCap && (
-              <span className="flex items-center gap-1 font-code text-[12px] text-rose-200 bg-rose-950/70 border border-rose-500/50 rounded-full px-1.5 py-0.5">
+              <span className="flex items-center gap-1 font-code text-[12px] text-[var(--color-danger)] bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] rounded-full px-1.5 py-0.5">
                 <AlertTriangle className="w-3 h-3" />
                 OVER CAP
               </span>
             )}
           </div>
-          <span className="text-white/20">|</span>
-          <div className="font-code text-[12px] text-slate-300">T+ {sessionElapsed}</div>
+          <span className="text-[var(--color-border-strong)]">|</span>
+          <div className="font-code text-[12px] text-[var(--color-label-secondary)]">T+ {sessionElapsed}</div>
         </div>
 
+        {onOpenExperimentLab && (
+          <button
+            type="button"
+            onClick={onOpenExperimentLab}
+            title="Open Experiment & Discovery Lab (⌘E)"
+            aria-label="Open Experiment & Discovery Lab"
+            className="h-8 px-3 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] text-xs font-medium transition-all shadow-[var(--shadow-raised)] flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+          >
+            <Zap className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+            <span>Experiment Lab</span>
+          </button>
+        )}
+        {onOpenMoleculeView && (
+          <button
+            type="button"
+            onClick={onOpenMoleculeView}
+            title="Open molecule object view"
+            aria-label="Open molecule object view"
+            className="w-8 h-8 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-accent-ink)] hover:text-[var(--color-text)] transition-all shadow-[var(--shadow-raised)] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+          >
+            <Box className="w-4 h-4" />
+          </button>
+        )}
         <button
+          type="button"
           aria-label="Recenter viewport"
+          title="Recenter viewport (0: fit · 1: 100%)"
           onClick={onRecenter}
-          className="w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 text-slate-300 hover:text-white flex items-center justify-center hover:scale-105 transition-all shadow-2xl focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          className="w-8 h-8 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] flex items-center justify-center transition-all shadow-[var(--shadow-raised)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
         >
-          <Crosshair className="w-[18px] h-[18px]" />
+          <Crosshair className="w-[17px] h-[17px]" />
         </button>
       </div>
     </header>

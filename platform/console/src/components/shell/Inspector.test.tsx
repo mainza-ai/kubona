@@ -75,4 +75,35 @@ describe('Inspector', () => {
     await act(async () => { done!.props.onClick(); });
     expect(onTaskStatus).toHaveBeenCalledWith('t1', 'done');
   });
+
+  it('makes Jobs tab rows clickable and invokes onFocusJob', async () => {
+    const onFocusJob = vi.fn();
+    const job = {
+      id: 'job-focus-1',
+      session_id: 's1',
+      job_type: 'vqe',
+      status: 2,
+      params_json: {},
+      created_at: '2026-11-01T00:00:00Z',
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Inspector
+          open
+          tab="jobs"
+          onTab={() => {}}
+          onClose={() => {}}
+          campaign={campaign}
+          selectedObject={null}
+          jobs={[job]}
+          onFocusJob={onFocusJob}
+          copilot={<div />}
+        />,
+      );
+    });
+    const jobBtn = tree!.root.findByProps({ 'data-testid': 'inspector-job-job-focus-1' });
+    await act(async () => { jobBtn.props.onClick(); });
+    expect(onFocusJob).toHaveBeenCalledWith(job);
+  });
 });

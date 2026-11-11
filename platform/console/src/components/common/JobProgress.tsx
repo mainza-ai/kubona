@@ -72,12 +72,12 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
 
   if (gone) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs" role="alert" aria-label={`Job ${jobId} unavailable`}>
-        <span className="text-slate-400 font-code">{error}</span>
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs" role="alert" aria-label={`Job ${jobId} unavailable`}>
+        <span className="text-[var(--color-muted)] font-code">{error}</span>
         <button
           type="button"
           onClick={onRetry}
-          className="ml-2 px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[12px] font-semibold"
+          className="ml-2 px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-[12px] font-semibold"
         >
           Retry
         </button>
@@ -91,7 +91,7 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
   const activeIdx = done ? 2 : st === 'RUNNING' ? 1 : 0;
   const steps = ['QUEUED', 'RUNNING', done ? (failed ? st : 'COMPLETED') : 'SETTLING'];
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs" aria-label={`Job ${status}`}>
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs" aria-label={`Job ${status}`}>
       {/* Wave-2 a11y: polite live region announces phase transitions.
           Text derives from the settled status, so it only changes on
           phase change. Visual output is identical (sr-only). */}
@@ -101,27 +101,27 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
       <div className="flex items-center gap-1.5">
         {steps.map((s, i) => (
           <React.Fragment key={s}>
-            {i > 0 && <span className="text-slate-600">→</span>}
+            {i > 0 && <span className="text-[var(--color-faint)]">→</span>}
             <span
               className={`px-1.5 py-0.5 rounded-full font-code text-[12px] ${
                 done
                   ? failed && i === 2
-                    ? 'bg-rose-500/20 text-rose-200'
-                    : 'bg-emerald-500/15 text-emerald-200'
+                    ? 'bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)]'
+                    : 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)]'
                   : i < activeIdx
-                    ? 'bg-emerald-500/15 text-emerald-200'
+                    ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)]'
                     : i === activeIdx
-                      ? 'bg-cyan-500/15 text-cyan-200 animate-pulse'
-                      : 'bg-white/5 text-slate-500'
+                      ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] animate-pulse'
+                      : 'bg-[var(--color-fill)] text-[var(--color-faint)]'
               }`}
             >
               {s}
             </span>
           </React.Fragment>
         ))}
-        <span className="text-slate-500 font-code ml-auto">{elapsed(detail.created, detail.completed)}</span>
+        <span className="text-[var(--color-faint)] font-code ml-auto">{elapsed(detail.created, detail.completed)}</span>
       </div>
-      {detail.jobType && <div className="text-slate-500 mt-1 font-code text-[12px]">{detail.jobType}</div>}
+      {detail.jobType && <div className="text-[var(--color-faint)] mt-1 font-code text-[12px]">{detail.jobType}</div>}
     </div>
   );
 }

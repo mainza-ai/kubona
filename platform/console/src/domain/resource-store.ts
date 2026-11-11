@@ -142,7 +142,7 @@ export function createPollingStore<T>(
 
   const onVisibility = () => {
     if (!active) return;
-    if (!hidden()) {
+    if (!hidden() && baseIntervalMs > 0) {
       clearTimer();
       void tick();
     } else {

@@ -111,19 +111,19 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   ];
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-[var(--shadow-float)] p-7 space-y-6 select-none">
       {/* Serene Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shadow-inner">
-            <Radio className="w-5 h-5 text-cyan-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] flex items-center justify-center shadow-inner">
+            <Radio className="w-5 h-5 text-[var(--color-info-ink)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight flex items-center space-x-2">
               <span>Ambient Hardware Radar</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               4-Tier classical-quantum continuum with real-time coherence calibration and sovereign routing
             </p>
           </div>
@@ -136,7 +136,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
               refresh();
             }}
             title="Refresh fleet + radar now (auto-poll also runs)"
-            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]"
           >
             <span>Refresh now</span>
           </button>
@@ -145,18 +145,18 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             title="Filters this list to local backends; does not change enforcement"
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
               sovereignOnly
-                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)] ring-1 ring-[var(--color-success-edge)]'
+                : 'bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
             }`}
           >
             {sovereignOnly ? (
               <>
-                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                <Lock className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
                 <span>Local backends only (filter)</span>
               </>
             ) : (
               <>
-                <Globe className="w-3.5 h-3.5 text-slate-400" />
+                <Globe className="w-3.5 h-3.5 text-[var(--color-muted)]" />
                 <span>Global Fleet Available</span>
               </>
             )}
@@ -168,24 +168,24 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           above — hidden the moment it settles, refused or not). */}
       {!loaded && !refused && (
         <div data-testid="fleet-radar-skeleton" className="space-y-2.5" aria-hidden="true">
-          <div className="h-4 w-2/3 rounded bg-white/[0.06] animate-pulse" />
+          <div className="h-4 w-2/3 rounded bg-[var(--color-fill)] animate-pulse" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <div className="h-20 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
-            <div className="h-20 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+            <div className="h-20 rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] animate-pulse" />
+            <div className="h-20 rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] animate-pulse" />
           </div>
-          <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+          <div className="h-24 rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] animate-pulse" />
         </div>
       )}
 
       {/* Continuum Radar Strip */}
-      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
+      <div className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px]" title="Vendor-declared continuum — not live canary data">
+          <span className="font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono text-[12px]" title="Vendor-declared continuum — not live canary data">
             Quantum Execution Continuum (declared catalog)
           </span>
           {showEar99 && (
-            <span className="text-slate-400 font-mono text-[12px] flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[var(--color-muted)] font-mono text-[12px] flex items-center space-x-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
               <span>EAR99 Export-Controlled Cloud Filtering Active</span>
             </span>
           )}
@@ -195,16 +195,16 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           {tiers.map((t) => (
             <div
               key={t.tier}
-              className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1 hover:border-cyan-500/30 transition-all"
+              className="p-3 rounded-xl bg-[var(--color-raised)] border border-[var(--color-border)] space-y-1 hover:border-[var(--color-info-edge)] transition-all"
             >
-              <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+              <div className="text-xs font-bold text-[var(--color-text)] flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)]" />
                 <span>Tier {t.tier}</span>
               </div>
-              <p className="text-[12px] text-slate-400 leading-tight font-sans">
+              <p className="text-[12px] text-[var(--color-muted)] leading-tight font-sans">
                 {t.desc}
               </p>
-              <p className="text-[12px] font-mono text-slate-500" title="Tier list is vendor-declared until live canary data backs it">
+              <p className="text-[12px] font-mono text-[var(--color-faint)]" title="Tier list is vendor-declared until live canary data backs it">
                 declared — not live canary data
               </p>
             </div>
@@ -213,12 +213,12 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       </div>
 
       {queueSpec && (
-        <div className="rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <Chart spec={queueSpec} />
         </div>
       )}
       {spendSpec && (
-        <div className="rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <Chart spec={spendSpec} />
         </div>
       )}
@@ -237,7 +237,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             type="button"
             onClick={onRefreshCalibration}
             disabled={calibrationBusy}
-            className="rounded border border-[var(--color-pulse-cyan)] bg-[var(--color-fill)] px-2 py-1 font-semibold text-[var(--color-pulse-cyan)] disabled:opacity-50"
+            className="rounded border border-[var(--color-info-edge)] bg-[var(--color-info-wash)] px-2 py-1 font-semibold text-[var(--color-info-ink)] disabled:opacity-50"
           >
             {calibrationBusy ? 'Refreshing…' : 'Refresh calibration'}
           </button>
@@ -246,10 +246,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       )}
 
       {backends.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+        <div className="overflow-x-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <table className="w-full text-left text-[12px]">
-            <caption className="mb-2 text-left text-xs font-semibold text-slate-300">Fleet capability matrix — exact served values, provenance per row</caption>
-            <thead className="font-mono uppercase tracking-wider text-slate-500">
+            <caption className="mb-2 text-left text-xs font-semibold text-[var(--color-label-secondary)]">Fleet capability matrix — exact served values, provenance per row</caption>
+            <thead className="font-mono uppercase tracking-wider text-[var(--color-faint)]">
               <tr>
                 <th scope="col" className="py-1 pr-3">Backend</th>
                 <th scope="col" className="py-1 pr-3">Qubits</th>
@@ -261,10 +261,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <th scope="col" className="py-1">Telemetry</th>
               </tr>
             </thead>
-            <tbody className="font-mono text-slate-300">
+            <tbody className="font-mono text-[var(--color-label-secondary)]">
               {filteredBackends.map((backend) => (
-                <tr key={backend.name} className="border-t border-white/[0.06]">
-                  <th scope="row" className="py-1.5 pr-3 font-sans font-medium text-slate-200">{backend.name}</th>
+                <tr key={backend.name} className="border-t border-[var(--color-border)]">
+                  <th scope="row" className="py-1.5 pr-3 font-sans font-medium text-[var(--color-text)]">{backend.name}</th>
                   <td className="py-1.5 pr-3">{typeof backend.qubits === 'number' ? backend.qubits : '—'}</td>
                   <td className="py-1.5 pr-3">
                     {typeof backend.queue_depth === 'number'
@@ -289,10 +289,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
 
       {/* Real-Time Host Daemon Telemetry (Ports 8080 & 50051) */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
+        <div className="flex items-center justify-between text-xs font-semibold text-[var(--color-label-secondary)] font-mono uppercase tracking-wider">
           <span>Host Daemon Telemetry &amp; Gateway Links</span>
-          <span className="text-[12px] text-cyan-400 font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+          <span className="text-[12px] text-[var(--color-info-ink)] font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)]" />
             <span>Adaptive radar · {(pollIntervalMs / 1000).toFixed(1)}s interval (1s nominal, backs off)</span>
           </span>
         </div>
@@ -300,13 +300,13 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             nominal). Gated on the existing pollIntervalMs mirror — no new
             timing logic. */}
         {loaded && pollIntervalMs > 1000 && (
-          <div data-testid="fleet-radar-stale" className="px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-[12px] font-mono">
+          <div data-testid="fleet-radar-stale" className="px-2.5 py-1.5 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-[12px] font-mono">
             Stale — refresh delayed ({(pollIntervalMs / 1000).toFixed(1)}s interval). Data may be out of date.
           </div>
         )}
 
         {refused && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+          <div className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
             Radar refused — {refused.slice(0, 200)}. Nothing discovered, nothing assumed.
           </div>
         )}
@@ -320,17 +320,17 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 data-testid="radar-endpoint-8080"
-                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] flex items-center justify-between transition-all"
+                className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between transition-all"
               >
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                    <span className="text-xs font-mono font-bold text-white">Port 8080</span>
-                    <span className="text-[12px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
+                    <span className="w-2 h-2 rounded-full bg-[var(--color-info)]" />
+                    <span className="text-xs font-mono font-bold text-[var(--color-text)]">Port 8080</span>
+                    <span className="text-[12px] font-mono text-[var(--color-info-ink)] bg-[var(--color-info-wash)] px-2 py-0.5 rounded border border-[var(--color-info-edge)]">
                       HTTP / REST
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 font-sans">
+                  <p className="text-xs text-[var(--color-label-secondary)] font-sans">
                     Kubona Go Core Gateway (Daemon: kubonad)
                   </p>
                 </div>
@@ -338,15 +338,15 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   data-testid="status-indicator-8080"
                   className={`px-3 py-1 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
                     state === 'on'
-                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
+                      ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border-[var(--color-success-edge)]'
                       : state === 'unknown'
-                        ? 'bg-white/[0.06] text-slate-300 border-white/20'
-                        : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                        ? 'bg-[var(--color-fill)] text-[var(--color-label-secondary)] border-[var(--color-border-strong)]'
+                        : 'bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)] border-[var(--color-danger-edge)]'
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      state === 'on' ? 'bg-emerald-400' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
+                      state === 'on' ? 'bg-[var(--color-success)]' : state === 'unknown' ? 'bg-[var(--color-muted)]' : 'bg-[var(--color-danger)]'
                     }`}
                   />
                   <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>
@@ -362,17 +362,17 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 data-testid="radar-endpoint-50051"
-                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] flex items-center justify-between transition-all"
+                className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-between transition-all"
               >
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                    <span className="text-xs font-mono font-bold text-white">Port 50051</span>
-                    <span className="text-[12px] font-mono text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/40">
+                    <span className="w-2 h-2 rounded-full bg-[var(--color-soft-lilac)]" />
+                    <span className="text-xs font-mono font-bold text-[var(--color-text)]">Port 50051</span>
+                    <span className="text-[12px] font-mono text-[var(--color-soft-lilac-ink)] bg-[var(--color-soft-indigo-wash)] px-2 py-0.5 rounded border border-[var(--color-soft-indigo-edge)]">
                       gRPC
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 font-sans">
+                  <p className="text-xs text-[var(--color-label-secondary)] font-sans">
                     Kubona Python Quantum Bridge (Daemon: server.py)
                   </p>
                 </div>
@@ -380,15 +380,15 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   data-testid="status-indicator-50051"
                   className={`px-3 py-1 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
                     state === 'on'
-                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
+                      ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border-[var(--color-success-edge)]'
                       : state === 'unknown'
-                        ? 'bg-white/[0.06] text-slate-300 border-white/20'
-                        : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                        ? 'bg-[var(--color-fill)] text-[var(--color-label-secondary)] border-[var(--color-border-strong)]'
+                        : 'bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)] border-[var(--color-danger-edge)]'
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      state === 'on' ? 'bg-emerald-400' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
+                      state === 'on' ? 'bg-[var(--color-success)]' : state === 'unknown' ? 'bg-[var(--color-muted)]' : 'bg-[var(--color-danger)]'
                     }`}
                   />
                   <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>
@@ -401,7 +401,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
 
       {/* Backend Devices: Clean Minimal Cards with Progressive Disclosure */}
       <div className="space-y-3">
-        <div className="text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
+        <div className="text-xs font-semibold text-[var(--color-label-secondary)] font-mono uppercase tracking-wider">
           Available Devices &amp; Simulators ({filteredBackends.length})
         </div>
 
@@ -426,28 +426,28 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 key={b.name}
-                className={`p-5 rounded-2xl bg-black/40 border transition-all space-y-3.5 ${
+                className={`p-5 rounded-2xl bg-[var(--color-surface)] border transition-all space-y-3.5 ${
                   isRecommended
-                    ? 'border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-lg shadow-cyan-950/20'
-                    : 'border-white/[0.07] hover:border-white/15'
+                    ? 'border-[var(--color-info-edge)] ring-1 ring-[var(--color-info-edge)] shadow-[var(--shadow-card)]'
+                    : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
                 }`}
               >
                 {/* Device Title & Status Pill */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <Cpu className={`w-4 h-4 ${isRecommended ? 'text-cyan-300' : 'text-slate-400'}`} />
-                    <span className="font-bold text-sm text-white font-mono tracking-tight">{b.name}</span>
+                    <Cpu className={`w-4 h-4 ${isRecommended ? 'text-[var(--color-info-ink)]' : 'text-[var(--color-muted)]'}`} />
+                    <span className="font-bold text-sm text-[var(--color-text)] font-mono tracking-tight">{b.name}</span>
                     {b.telemetry === 'declared' && (
                       <span
-                        className="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-white/10 text-[12px] font-mono font-bold"
+                        className="px-2 py-0.5 rounded-md bg-[var(--color-fill)] text-[var(--color-label-secondary)] border border-[var(--color-border)] text-[12px] font-mono font-bold"
                         title="Vendor catalog, not a live measurement: queue depth and coherence figures are declared values until the live canary proxy lands. Credential state is measured."
                       >
                         CATALOG
                       </span>
                     )}
                     {isRecommended && (
-                      <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[12px] font-mono font-bold flex items-center space-x-1">
-                        <Star className="w-2.5 h-2.5 fill-cyan-400 text-cyan-400" />
+                      <span className="px-2 py-0.5 rounded-md bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)] text-[12px] font-mono font-bold flex items-center space-x-1">
+                        <Star className="w-2.5 h-2.5 fill-[var(--color-info)] text-[var(--color-info-ink)]" />
                         <span>RECOMMENDED</span>
                       </span>
                     )}
@@ -456,16 +456,16 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border ${
                       isOnline
-                        ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
-                        : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+                        ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border-[var(--color-success-edge)]'
+                        : 'bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border-[var(--color-warning-edge)]'
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]'}`} />
                     <span>{b.status}</span>
                   </span>
                   {noCreds && (
                     <span
-                      className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
+                      className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-[var(--color-soft-sky-wash)] text-[var(--color-soft-sky-ink)] border border-[var(--color-soft-sky-edge)]"
                       title="This daemon holds no credentials for this backend — the device may be fine. Set the provider token to enable it."
                     >
                       NO CREDENTIALS
@@ -473,30 +473,30 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   )}
                 </div>
 
-                <div className="text-xs text-slate-300 font-sans">{b.type}</div>
+                <div className="text-xs text-[var(--color-label-secondary)] font-sans">{b.type}</div>
 
                 {/* Depth 1: Essential Metrics */}
-                <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-white/[0.03] p-3 rounded-xl border border-white/10">
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-[var(--color-raised)] p-3 rounded-xl border border-[var(--color-border)]">
                   <div>
-                    <span className="text-slate-300 block text-[12px] font-medium">Capacity</span>
-                    <strong className="text-white text-xs font-bold">
+                    <span className="text-[var(--color-muted)] block text-[12px] font-medium">Capacity</span>
+                    <strong className="text-[var(--color-text)] text-xs font-bold">
                       {typeof b.qubits === 'number' && Number.isFinite(b.qubits) ? `${b.qubits} Qubits` : 'Qubits UNKNOWN'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-300 block text-[12px] font-medium">Coherence T₁</span>
-                    <strong className="text-cyan-300 text-xs font-bold">
+                    <span className="text-[var(--color-muted)] block text-[12px] font-medium">Coherence T₁</span>
+                    <strong className="text-[var(--color-info-ink)] text-xs font-bold">
                       {b.t1_us && b.t1_us !== 'unknown' ? `${b.t1_us}${/^[0-9.]+$/.test(b.t1_us) ? ' µs' : ''}` : 'T1 UNKNOWN'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-300 block text-[12px] font-medium">Queue</span>
-                    <strong className="text-amber-300 text-xs font-bold">
+                    <span className="text-[var(--color-muted)] block text-[12px] font-medium">Queue</span>
+                    <strong className="text-[var(--color-warning-ink)] text-xs font-bold">
                       {typeof b.queue_depth === 'number' && Number.isFinite(b.queue_depth) ? `${b.queue_depth} jobs` : 'queue UNKNOWN'}
                     </strong>
                   </div>
                   {unprovenanced && (
-                    <div className="col-span-3 text-[12px] font-mono text-slate-400 border border-white/10 rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
+                    <div className="col-span-3 text-[12px] font-mono text-[var(--color-muted)] border border-[var(--color-border)] rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
                       UNPROVENANCED — queue/coherence unprovenanced
                     </div>
                   )}
@@ -505,13 +505,13 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 {/* Progressive Disclosure Toggle */}
                 <button
                   onClick={() => setExpandedBackend(isExpanded ? null : b.name)}
-                  className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white font-medium transition-colors pt-2 border-t border-white/[0.08]"
+                  className="w-full flex items-center justify-between text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] font-medium transition-colors pt-2 border-t border-[var(--color-border)]"
                 >
                   <span className="flex items-center space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-300" />
+                    <MapPin className="w-3.5 h-3.5 text-[var(--color-muted)]" />
                     <span>{b.jurisdiction || 'jurisdiction UNKNOWN'} ({b.itar_ear || 'export class UNKNOWN'})</span>
                   </span>
-                  <span className="flex items-center space-x-1 font-mono text-cyan-300">
+                  <span className="flex items-center space-x-1 font-mono text-[var(--color-info-ink)]">
                     <span>{isExpanded ? 'Hide Specs' : 'Deep Physics & Pricing'}</span>
                     {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </span>
@@ -519,20 +519,20 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
 
                 {/* Depth 2 & 3: Physics & Cost Specs */}
                 {isExpanded && (
-                  <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-2 text-xs font-mono animate-fadeIn">
-                    <div className="flex justify-between text-slate-300 font-medium">
+                  <div className="p-3.5 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-border)] space-y-2 text-xs font-mono animate-fadeIn">
+                    <div className="flex justify-between text-[var(--color-label-secondary)] font-medium">
                       <span>Cost per Shot:{unprovenanced ? ' (UNPROVENANCED)' : ''}</span>
-                      <strong className="text-emerald-300">${typeof b.cost_per_shot === 'number' && Number.isFinite(b.cost_per_shot) ? b.cost_per_shot.toFixed(4) : '—'}</strong>
+                      <strong className="text-[var(--color-success-ink)]">${typeof b.cost_per_shot === 'number' && Number.isFinite(b.cost_per_shot) ? b.cost_per_shot.toFixed(4) : '—'}</strong>
                     </div>
                     {typeof b.avg_t2_us === 'number' && Number.isFinite(b.avg_t2_us) && b.avg_t2_us > 0 && (
-                      <div className="flex justify-between text-slate-300 font-medium">
+                      <div className="flex justify-between text-[var(--color-label-secondary)] font-medium">
                         <span>Coherence T₂ (Dephasing):</span>
-                        <strong className="text-cyan-300">{b.avg_t2_us} µs</strong>
+                        <strong className="text-[var(--color-info-ink)]">{b.avg_t2_us} µs</strong>
                       </div>
                     )}
-                    <div className="flex justify-between text-slate-300 font-medium">
+                    <div className="flex justify-between text-[var(--color-label-secondary)] font-medium">
                       <span>Jurisdiction Policy:</span>
-                      <span className="text-white font-semibold">{b.jurisdiction || 'jurisdiction UNKNOWN'} · {b.itar_ear || 'export class UNKNOWN'}</span>
+                      <span className="text-[var(--color-text)] font-semibold">{b.jurisdiction || 'jurisdiction UNKNOWN'} · {b.itar_ear || 'export class UNKNOWN'}</span>
                     </div>
                   </div>
                 )}

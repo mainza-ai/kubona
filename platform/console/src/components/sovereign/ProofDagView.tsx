@@ -1,33 +1,23 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchQirCompile, type QirCompileReceipt } from '@/lib/api';
 import { asRecord } from '@/lib/guards';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
+import {
+  buildFallbackDagLayout,
+  DAG_NODE_H,
+  DAG_NODE_W,
+  type DagLayoutResult,
+} from './proof-dag-layout';
+import type { ProofDagWorkerRequest, ProofDagWorkerResponse } from './proof-dag.worker';
 
 export { asRecord };
 
 interface ProofDagViewProps {
   campaign?: CampaignState | null;
-}
-
-interface DagNode {
-  id: string;
-  label: string;
-  kind: string;
-  angle?: number;
-}
-
-interface DagEdge {
-  id: string;
-  source: string;
-  target: string;
-}
-
-function str(v: unknown): string {
-  return typeof v === 'string' ? v : '';
 }
 
 // Caps rendered IR at 300 lines with the cut labeled — the receipt stays
@@ -113,79 +103,54 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     }
   };
 
-  const graph = useMemo(() => {
+  const fallbackGraph = useMemo(() => {
     const rawNodes = (campaign?.quantum_factors?.dag_nodes ?? []) as unknown[];
     const rawEdges = (campaign?.quantum_factors?.dag_edges ?? []) as unknown[];
-    const nodes: DagNode[] = rawNodes.map((n, i) => {
-      const r = asRecord(n);
-      const data = asRecord(r.data);
-      return {
-        id: str(r.id) || `node-${i}`,
-        label: str(data.label) || str(r.label) || str(r.name) || `node-${i}`,
-        kind: str(data.type) || str(r.type) || 'node',
-        angle: typeof data.angle === 'number' ? data.angle : undefined,
+    return buildFallbackDagLayout(rawNodes, rawEdges, wireCuts);
+  }, [campaign?.quantum_factors?.dag_nodes, campaign?.quantum_factors?.dag_edges, wireCuts]);
+
+  const layoutKey = useMemo(
+    () => `${fallbackGraph.nodes.map((n) => n.id).join(',')}|${fallbackGraph.edges.map((e) => `${e.source}->${e.target}`).join(',')}|${wireCuts.length}`,
+    [fallbackGraph.nodes, fallbackGraph.edges, wireCuts.length],
+  );
+  const [workerGraph, setWorkerGraph] = useState<{ key: string; layout: DagLayoutResult } | null>(null);
+  const layoutSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof Worker === 'undefined' || fallbackGraph.nodes.length === 0) {
+      return;
+    }
+    const seq = (layoutSeqRef.current += 1);
+    const activeKey = layoutKey;
+    let worker: Worker | null = null;
+    try {
+      worker = new Worker(new URL('./proof-dag.worker.ts', import.meta.url), { type: 'module' });
+      worker.onmessage = (event: MessageEvent<ProofDagWorkerResponse>) => {
+        if (event.data.seq !== seq) return;
+        if ('layout' in event.data) {
+          setWorkerGraph({ key: activeKey, layout: event.data.layout });
+        }
       };
-    });
-    const ids = new Set(nodes.map((n) => n.id));
-    const edges: DagEdge[] = rawEdges
-      .map((e, i) => {
-        const r = asRecord(e);
-        return { id: str(r.id) || `e-${i}`, source: str(r.source), target: str(r.target) };
-      })
-      .filter((e) => e.source && e.target && ids.has(e.source) && ids.has(e.target));
+      worker.onerror = () => {
+        // Sync fallback remains active seamlessly on worker load/CSP issues.
+      };
+      const payload: ProofDagWorkerRequest = {
+        seq,
+        nodes: fallbackGraph.nodes,
+        edges: fallbackGraph.edges,
+        wireCuts,
+        hasCycle: fallbackGraph.hasCycle,
+      };
+      worker.postMessage(payload);
+    } catch {
+      // Fallback already rendered synchronously on frame 1.
+    }
+    return () => {
+      worker?.terminate();
+    };
+  }, [fallbackGraph, wireCuts, layoutKey]);
 
-    // Longest-path layering from roots (nodes with no in-edges).
-    const inDeg = new Map<string, number>(nodes.map((n) => [n.id, 0]));
-    const out = new Map<string, string[]>();
-    for (const e of edges) {
-      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
-      const list = out.get(e.source) ?? [];
-      list.push(e.target);
-      out.set(e.source, list);
-    }
-    const layer = new Map<string, number>();
-    const roots = nodes.filter((n) => (inDeg.get(n.id) ?? 0) === 0).map((n) => n.id);
-    const queue: string[] = [...roots];
-    // Cycle guard: no roots with edges present means every node sits in a
-    // cycle — seed from the first node but flag it loudly instead of
-    // rendering a confident layout.
-    const hasCycleSeed = queue.length === 0 && nodes.length > 0 && edges.length > 0;
-    if (queue.length === 0 && nodes.length > 0) queue.push(nodes[0].id);
-    for (const id of queue) layer.set(id, 0);
-    const order = [...queue];
-    for (let h = 0; h < order.length; h++) {
-      const id = order[h];
-      for (const next of out.get(id) ?? []) {
-        const cand = (layer.get(id) ?? 0) + 1;
-        if (cand > (layer.get(next) ?? -1)) layer.set(next, cand);
-        if (!order.includes(next)) order.push(next);
-      }
-    }
-    for (const n of nodes) {
-      if (!layer.has(n.id)) layer.set(n.id, 0);
-    }
-    // Any node unreachable from the seed set, or a seed forced from a
-    // rootless graph, indicates a cycle / disconnected loop.
-    const hasCycle = hasCycleSeed || order.length < nodes.length;
-
-    const COL_X = 190;
-    const ROW_Y = 62;
-    const columns = new Map<number, string[]>();
-    for (const n of nodes) {
-      const l = layer.get(n.id) ?? 0;
-      const col = columns.get(l) ?? [];
-      col.push(n.id);
-      columns.set(l, col);
-    }
-    const pos = new Map<string, { x: number; y: number }>();
-    for (const [l, col] of columns) {
-      col.forEach((id, i) => pos.set(id, { x: 30 + l * COL_X, y: 30 + i * ROW_Y }));
-    }
-    const maxLayer = columns.size > 0 ? Math.max(...columns.keys()) : 0;
-    const maxRows = columns.size > 0 ? Math.max(...[...columns.values()].map((c) => c.length)) : 1;
-    return { nodes, edges, pos, width: 30 + maxLayer * COL_X + 220, height: Math.max(120, 30 + maxRows * ROW_Y), hasCycle };
-  }, [campaign?.quantum_factors?.dag_nodes, campaign?.quantum_factors?.dag_edges]);
-
+  const graph = workerGraph?.key === layoutKey ? workerGraph.layout : fallbackGraph;
   const selected = graph.nodes.find((n) => n.id === selectedId) ?? null;
   const provenance = campaign?.notebook?.provenance_hash;
   // The campaign currently stores the synthesized proposal DAG, not an
@@ -199,17 +164,17 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-center px-6">
-          <GitBranch className="w-8 h-8 text-slate-600" />
-          <p className="text-xs text-slate-400 font-code">No circuit DAG is recorded for this campaign.</p>
-          <p className="text-[12px] text-slate-600">Propose a circuit to populate it; no DAG is synthesized from a template.</p>
+          <GitBranch className="w-8 h-8 text-[var(--color-faint)]" />
+          <p className="text-xs text-[var(--color-muted)] font-code">No circuit DAG is recorded for this campaign.</p>
+          <p className="text-[12px] text-[var(--color-faint)]">Propose a circuit to populate it; no DAG is synthesized from a template.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div data-testid="proof-dag" className="absolute inset-0 flex flex-col">
-      <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-slate-500 shrink-0">
+    <div data-testid="proof-dag" data-layout-engine={graph.engine} className="absolute inset-0 flex flex-col">
+      <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-[var(--color-muted)] shrink-0">
         <ProvenanceBadge kind={proposedOnly ? 'proposed' : 'measured'} detail={proposedOnly ? 'Synthesized proposal; the execution result is in Measurement/Claim.' : 'Executed circuit evidence.'} />
         <span>{dagLabel} · {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}</span>
       </div>
@@ -226,7 +191,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 <span
                   key={i}
                   title={`Cut job ${String(w.job_id ?? '?')}`}
-                  className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-emerald-400/10 border-emerald-400/40 text-emerald-300"
+                  className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]"
                 >
                   {`measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`}
                 </span>
@@ -241,7 +206,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
               <span
                 key={i}
                 title="Proposed cut — not executed"
-                className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-amber-400/10 border-amber-400/40 text-amber-300"
+                className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]"
               >
                 {known.length > 0 ? `planned: ${known.join(' · ')} (not executed)` : 'planned cut (not executed)'}
               </span>
@@ -253,7 +218,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         <div className="px-6 pb-1 flex justify-center shrink-0">
           <span
             title="The edge set contains a cycle — layering is a fallback, not a proof order"
-            className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-rose-400/10 border-rose-400/40 text-rose-300"
+            className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]"
           >
             cycle detected — layout is fallback, not proof order
           </span>
@@ -267,11 +232,9 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
               key={i}
               title={s.title}
               className={`px-2 py-0.5 rounded-full font-code text-[12px] border ${
-                s.tone === 'red'
-                  ? 'bg-red-400/10 border-red-400/40 text-red-300'
-                  : s.tone === 'amber'
-                    ? 'bg-amber-400/10 border-amber-400/40 text-amber-300'
-                    : 'bg-rose-400/10 border-rose-400/40 text-rose-300'
+                s.tone === 'amber'
+                  ? 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]'
+                  : 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]'
               }`}
             >
               {s.text}
@@ -289,23 +252,53 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         >
           <defs>
             <linearGradient id="dagEdge" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#00E5FF" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#00E5FF" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="var(--color-info)" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="var(--color-info)" stopOpacity="0.18" />
             </linearGradient>
           </defs>
+          {graph.clusters.map((cluster) => (
+            <g key={cluster.id} className="k-dag-cluster" data-testid="dag-cluster">
+              <rect
+                x={cluster.x}
+                y={cluster.y}
+                width={cluster.width}
+                height={cluster.height}
+                rx={12}
+                fill="none"
+                stroke="var(--color-border-strong)"
+                strokeWidth={1.25}
+                strokeDasharray="5 4"
+              />
+              <text x={cluster.x + 12} y={cluster.y + 15} className="fill-[var(--color-muted)]" fontSize="10" fontFamily="monospace">
+                {cluster.label}
+              </text>
+            </g>
+          ))}
           {graph.edges.map((e) => {
-            const a = graph.pos.get(e.source);
-            const b = graph.pos.get(e.target);
+            const pathD = graph.edgePaths[e.id];
+            if (pathD) {
+              return (
+                <path
+                  key={e.id}
+                  d={pathD}
+                  fill="none"
+                  stroke="url(#dagEdge)"
+                  strokeWidth="1.5"
+                />
+              );
+            }
+            const a = graph.pos[e.source];
+            const b = graph.pos[e.target];
             if (!a || !b) return null;
-            const x1 = a.x + 190;
-            const y1 = a.y + 18;
+            const x1 = a.x + DAG_NODE_W;
+            const y1 = a.y + DAG_NODE_H / 2;
             const x2 = b.x;
-            const y2 = b.y + 18;
+            const y2 = b.y + DAG_NODE_H / 2;
             const mx = (x1 + x2) / 2;
             return (
               <path
                 key={e.id}
-                d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
+                d={`M ${x1} ${y1} L ${mx} ${y1} L ${mx} ${y2} L ${x2} ${y2}`}
                 fill="none"
                 stroke="url(#dagEdge)"
                 strokeWidth="1.5"
@@ -313,7 +306,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             );
           })}
           {graph.nodes.map((n) => {
-            const p = graph.pos.get(n.id);
+            const p = graph.pos[n.id];
             if (!p) return null;
             const isSel = selectedId === n.id;
             return (
@@ -334,16 +327,16 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 className="cursor-pointer"
               >
                 <rect
-                  width="190"
-                  height="36"
+                  width={DAG_NODE_W}
+                  height={DAG_NODE_H}
                   rx="10"
-                  className={isSel ? 'fill-cyan-400/15 stroke-cyan-300' : 'fill-[#0E1117] stroke-cyan-400/25'}
+                  className={isSel ? 'fill-[var(--color-accent-soft)] stroke-[var(--color-accent-edge)]' : 'fill-[var(--color-surface)] stroke-[var(--color-border-strong)]'}
                   strokeWidth="1"
                 />
-                <text x="12" y="15" className="fill-slate-100" fontSize="10" fontFamily="monospace">
+                <text x="12" y="15" className="fill-[var(--color-text)]" fontSize="10" fontFamily="monospace">
                   {n.label.length > 26 ? `${n.label.slice(0, 25)}…` : n.label}
                 </text>
-                <text x="12" y="28" className="fill-slate-500" fontSize="9" fontFamily="monospace">
+                <text x="12" y="28" className="fill-[var(--color-muted)]" fontSize="9" fontFamily="monospace">
                   {n.kind}
                   {typeof n.angle === 'number' && Number.isFinite(n.angle) ? ` · θ=${n.angle.toFixed(3)}` : ''}
                 </text>
@@ -354,27 +347,27 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
       </div>
       <div className="shrink-0 px-6 pb-6">
         {selected ? (
-          <div className="max-w-2xl mx-auto p-3.5 rounded-2xl bg-[#0E1117]/95 border border-cyan-400/25 space-y-1.5">
-            <div className="text-xs font-code text-cyan-200">{selected.label}</div>
-            <div className="text-[12px] font-code text-slate-400">
+          <div className="max-w-2xl mx-auto p-3.5 rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-info-edge)] space-y-1.5 shadow-[var(--shadow-card)]">
+            <div className="text-xs font-code text-[var(--color-info-ink)]">{selected.label}</div>
+            <div className="text-[12px] font-code text-[var(--color-muted)]">
               id {selected.id} · {selected.kind}
               {typeof selected.angle === 'number' && Number.isFinite(selected.angle) ? ` · θ=${selected.angle}` : ''}
             </div>
-            <div className="text-[12px] font-code text-slate-500">
+            <div className="text-[12px] font-code text-[var(--color-faint)]">
               {provenance ? `ledger receipt ${provenance}` : 'no provenance receipt on this campaign'}
             </div>
           </div>
         ) : (
-          <p className="text-center text-[12px] font-code text-slate-600">
+          <p className="text-center text-[12px] font-code text-[var(--color-faint)]">
             Select a node to trace its record.
           </p>
         )}
         {/* Compile receipt: original QASM vs backend-transpiled QIR. */}
-        <div className="max-w-2xl mx-auto mt-2 rounded-2xl bg-[#0E1117]/95 border border-white/10">
+        <div className="max-w-2xl mx-auto mt-2 rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-border)] shadow-[var(--shadow-card)]">
           <button
             onClick={() => setCompileOpen((v) => !v)}
             aria-expanded={compileOpen}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-code text-slate-300 hover:text-white transition-colors"
+            className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-code text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors"
           >
             <span>Compile receipt (QASM → QIR via backend)</span>
             <span>{compileOpen ? '−' : '+'}</span>
@@ -383,38 +376,38 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <div className="px-3.5 pb-3.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[12px] font-code text-slate-500 mb-1">ORIGINAL QASM (campaign)</div>
-                  <pre className="max-h-40 overflow-auto text-[12px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                  <div className="text-[12px] font-code text-[var(--color-faint)] mb-1">ORIGINAL QASM (campaign)</div>
+                  <pre className="max-h-40 overflow-auto text-[12px] font-code text-[var(--color-label-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-2 whitespace-pre-wrap">
                     {campaign?.quantum_factors?.qasm || 'no circuit in this campaign'}
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[12px] font-code text-slate-500 mb-1">TRANSPILED QIR (backend)</div>
+                  <div className="text-[12px] font-code text-[var(--color-faint)] mb-1">TRANSPILED QIR (backend)</div>
                   {!receipt && !compileError && (
                     <button
                       onClick={() => void runCompile()}
                       disabled={compiling || !campaign?.quantum_factors?.qasm}
-                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-info-wash)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] transition-all disabled:opacity-40"
                     >
                       {compiling ? 'Compiling…' : 'Compile via backend'}
                     </button>
                   )}
                   {receipt === null && !compileError && (
-                    <p className="text-[12px] font-code text-rose-400">Compile refused — nothing transpiled.</p>
+                    <p className="text-[12px] font-code text-[var(--color-danger-ink)]">Compile refused — nothing transpiled.</p>
                   )}
                   {compileError && (
-                    <p className="text-[12px] font-code text-amber-300">
+                    <p className="text-[12px] font-code text-[var(--color-warning-ink)]">
                       Compile transport failed — bridge unreachable, not a refusal ({compileError.slice(0, 160)}). Nothing transpiled.
                     </p>
                   )}
                   {receipt && (
                     <div className="space-y-1.5">
-                      <div className="text-[12px] font-code text-slate-400">
+                      <div className="text-[12px] font-code text-[var(--color-muted)]">
                         {receipt.compiler_used || 'unanalyzed'}
                         {receipt.fallback_estimate ? ' · ESTIMATE (not compiler-verified)' : ' · compiler-verified'}
                         {' · '}qubits {receipt.num_qubits}{receipt.fallback_estimate ? ' (EST)' : ''} · depth {receipt.depth}{receipt.fallback_estimate ? ' (EST)' : ''} · gates {receipt.gate_count}{receipt.fallback_estimate ? ' (EST)' : ''} · T {receipt.t_count}{receipt.fallback_estimate ? ' (EST)' : ''}
                       </div>
-                      <pre className="max-h-40 overflow-auto text-[12px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                      <pre className="max-h-40 overflow-auto text-[12px] font-code text-[var(--color-label-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-2 whitespace-pre-wrap">
                         {receiptLineCapped(receipt.llvm_ir)}
                       </pre>
                     </div>

@@ -271,27 +271,27 @@ export function LLMSettings() {
       <div className="p-12 text-center space-y-3">
         {loadError ? (
           <>
-            <div className="text-rose-300 text-xs">Settings load failed — {loadError} Nothing loaded.</div>
+            <div className="text-[var(--color-danger-ink)] text-xs">Settings load failed — {loadError} Nothing loaded.</div>
             <button
               onClick={() => { setLoadError(null); loadAll(); }}
-              className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold"
+              className="px-4 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-semibold"
             >
               Retry load
             </button>
           </>
         ) : (
           <div className="space-y-3">
-            <div className="text-slate-400 text-xs flex items-center justify-center space-x-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+            <div className="text-[var(--color-muted)] text-xs flex items-center justify-center space-x-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-[var(--color-accent)]" />
               <span>Loading Sovereign Intelligence Configuration...</span>
             </div>
             {/* Wave-3: honest first-load skeleton for the settings form
                 (gated on settings === null — hidden the moment settings or a
                 refusal lands). */}
             <div data-testid="llm-settings-skeleton" className="space-y-2 max-w-xl mx-auto" aria-hidden="true">
-              <div className="h-4 w-1/2 mx-auto rounded bg-white/[0.06] animate-pulse" />
-              <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
-              <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+              <div className="h-4 w-1/2 mx-auto rounded bg-[var(--color-fill)] animate-pulse" />
+              <div className="h-24 rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] animate-pulse" />
+              <div className="h-24 rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] animate-pulse" />
             </div>
           </div>
         )}
@@ -300,19 +300,19 @@ export function LLMSettings() {
   }
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl p-7 space-y-6 select-none">
       {/* Serene Header & Save Button */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shadow-inner">
-            <Sliders className="w-5 h-5 text-cyan-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] flex items-center justify-center">
+            <Sliders className="w-5 h-5 text-[var(--color-info-ink)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight flex items-center space-x-2">
               <span>Sovereign Intelligence Configuration</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Local Apple Silicon Neural Engine (oMLX, Ollama), cloud models, and air-gap controls
             </p>
           </div>
@@ -320,14 +320,14 @@ export function LLMSettings() {
 
         <div className="flex items-center space-x-3">
           {dirty && (
-            <span className="px-2.5 py-1 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span className="px-2.5 py-1 rounded-full text-[12px] font-mono bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]">
               Unsaved changes
             </span>
           )}
           {loadError && (
             <button
               onClick={() => { setLoadError(null); loadAll(); }}
-              className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs font-semibold"
+              className="px-3 py-1.5 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs font-semibold"
               title={loadError}
             >
               Retry load
@@ -343,18 +343,18 @@ export function LLMSettings() {
             }
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
               settings.air_gapped
-                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
+                : 'bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
             }`}
           >
             {settings.air_gapped ? (
               <>
-                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                <Lock className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
                 <span>Air-Gap: ENGAGED</span>
               </>
             ) : (
               <>
-                <Globe className="w-3.5 h-3.5 text-red-400" />
+                <Globe className="w-3.5 h-3.5 text-[var(--color-danger-ink)]" />
                 <span>Air-Gap: OFF (Cloud Egress Allowed)</span>
               </>
             )}
@@ -376,18 +376,18 @@ export function LLMSettings() {
             title="When on, model text is never parsed as tool calls. Save to apply."
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
               settings.disable_dsml_fallback
-                ? 'bg-amber-950/70 border-amber-500/40 text-amber-300 ring-1 ring-amber-500/20'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                ? 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]'
+                : 'bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
             }`}
           >
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <ShieldAlert className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />
             <span>DSML fallback: {settings.disable_dsml_fallback ? 'KILLED' : 'ON'}</span>
           </button>
 
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 shadow-md active:scale-95 disabled:opacity-50 transition-all"
+            className="px-4 py-1.5 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 shadow-sm active:scale-95 disabled:opacity-50 transition-all"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
             <span>Save Settings</span>
@@ -396,12 +396,12 @@ export function LLMSettings() {
       </div>
 
       {saveStatus && (
-        <div role={saveSectionError ? 'alert' : undefined} data-testid="llm-save-status" className="p-3 bg-white/[0.03] border border-white/10 text-xs font-medium rounded-xl text-slate-200">
+        <div role={saveSectionError ? 'alert' : undefined} data-testid="llm-save-status" className="p-3 bg-[var(--color-tile)] border border-[var(--color-border)] text-xs font-medium rounded-xl text-[var(--color-label-secondary)]">
           {saveStatus}
         </div>
       )}
       {writeSettlementLabel(settlement.write) && (
-        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(settlement.write)}</p>
       )}
 
       {/* Main Grid: Providers vs Routing */}
@@ -409,13 +409,13 @@ export function LLMSettings() {
         {/* Left Column: Providers (live) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
-              <Cpu className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-xs font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono flex items-center space-x-2">
+              <Cpu className="w-4 h-4 text-[var(--color-info-ink)]" />
               <span>Providers</span>
             </h3>
             <button
               onClick={loadModels}
-              className="text-[12px] text-slate-400 hover:text-cyan-300 flex items-center space-x-1 transition-colors"
+              className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-info-ink)] flex items-center space-x-1 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Refresh Models</span>
@@ -423,16 +423,16 @@ export function LLMSettings() {
           </div>
 
           {Object.entries(settings.providers).map(([pt, pc]) => (
-            <div key={pt} className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3.5">
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+            <div key={pt} className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3.5">
+              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div className="flex items-center space-x-2">
-                  <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                  <span className="font-semibold text-xs text-white">{pc.name}</span>
+                  <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-[var(--color-success)]' : 'bg-[var(--color-faint)]'}`} />
+                  <span className="font-semibold text-xs text-[var(--color-text)]">{pc.name}</span>
                   {pc.is_local && (
-                    <span className="text-[12px] font-mono text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-800">LOCAL</span>
+                    <span className="text-[12px] font-mono text-[var(--color-success-ink)] bg-[var(--color-success-wash)] px-1.5 py-0.5 rounded-full border border-[var(--color-success-edge)]">LOCAL</span>
                   )}
                   {!pc.is_local && (
-                    <span className="text-[12px] font-mono text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded-full border border-indigo-800">CLOUD</span>
+                    <span className="text-[12px] font-mono text-[var(--color-accent-ink)] bg-[var(--color-soft-indigo-wash)] px-1.5 py-0.5 rounded-full border border-[var(--color-soft-indigo-edge)]">CLOUD</span>
                   )}
                 </div>
                 <button
@@ -440,8 +440,8 @@ export function LLMSettings() {
                   aria-label={`Toggle ${pc.name}`}
                   className={`text-[12px] font-mono px-2 py-0.5 rounded-full border transition-all ${
                     pc.enabled
-                      ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
-                      : 'text-[var(--color-muted)] bg-white/[0.03] border-white/10 hover:text-slate-300'
+                      ? 'text-[var(--color-success-ink)] bg-[var(--color-success-wash)] border-[var(--color-success-edge)]'
+                      : 'text-[var(--color-muted)] bg-[var(--color-tile)] border-[var(--color-border)] hover:text-[var(--color-label-secondary)]'
                   }`}
                 >
                   {pc.enabled ? (pt === 'omlx' ? 'ACTIVE :8787' : 'ENABLED') : 'OFF'}
@@ -449,11 +449,11 @@ export function LLMSettings() {
               </div>
 
               <div className="space-y-2.5 text-xs">
-                <div className="flex justify-between items-center text-slate-400 font-mono text-[12px]">
+                <div className="flex justify-between items-center text-[var(--color-muted)] font-mono text-[12px]">
                   <span>Base URL:</span>
-                  <span className="text-slate-200 truncate max-w-[220px]">{pc.base_url}</span>
+                  <span className="text-[var(--color-label-secondary)] truncate max-w-[220px]">{pc.base_url}</span>
                 </div>
-                <div className="flex justify-between items-center gap-2 text-slate-400 font-mono text-[12px]">
+                <div className="flex justify-between items-center gap-2 text-[var(--color-muted)] font-mono text-[12px]">
                   <label htmlFor={`llm-default-model-${pt}`} className="shrink-0" title="Empty clears the default — calls then fail naming the variable to set">Default model:</label>
                   <input
                     id={`llm-default-model-${pt}`}
@@ -461,19 +461,19 @@ export function LLMSettings() {
                     onChange={(e) => setProvider(pt, { default_model: e.target.value.trim() })}
                     placeholder="(unset — configure per .env or here)"
                     aria-label={`${pc.name} default model`}
-                    className="flex-1 min-w-0 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                    className="flex-1 min-w-0 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                   />
                 </div>
-                <div className="flex justify-between items-center text-slate-400 font-mono text-[12px]">
+                <div className="flex justify-between items-center text-[var(--color-muted)] font-mono text-[12px]">
                   <span>Last success:</span>
-                  <span className="text-slate-200" title="Process-lifetime signal: last completed call via this provider. Unknown until the next success after a restart.">
+                  <span className="text-[var(--color-label-secondary)]" title="Process-lifetime signal: last completed call via this provider. Unknown until the next success after a restart.">
                     {pc.last_success_at ? new Date(pc.last_success_at).toLocaleString() : 'never here'}
                   </span>
                 </div>
                 {!pc.is_local && (
                   <div>
-                    <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[12px]">
-                      API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
+                    <label htmlFor={`llm-api-key-${pt}`} className="block text-[var(--color-muted)] mb-1 text-[12px]">
+                      API key {pc.enabled ? <span className="text-[var(--color-success-ink)] font-mono">(stored ●●●)</span> : <span className="text-[var(--color-warning-ink)] font-mono">(not set)</span>}
                       <span className="block text-[12px] text-[var(--color-muted)]">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
                     </label>
                     <input
@@ -482,12 +482,12 @@ export function LLMSettings() {
                       value={keyEdits[pt] ?? ''}
                       placeholder={pc.enabled ? 'Stored — type to rotate' : 'Paste key…'}
                       onChange={(e) => setKeyEdits((prev) => ({ ...prev, [pt]: e.target.value }))}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
+                      className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl p-2.5 text-xs text-[var(--color-text)] font-mono focus:border-[var(--color-accent-edge)] focus:outline-none"
                     />
                   </div>
                 )}
                 {saveSectionError?.provider === pt && (
-                  <div role="alert" data-testid={`llm-save-error-${pt}`} className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+                  <div role="alert" data-testid={`llm-save-error-${pt}`} className="p-2 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
                     Save refused (provider {pc.name}): {saveSectionError.message} — nothing changed.
                   </div>
                 )}
@@ -495,11 +495,11 @@ export function LLMSettings() {
             </div>
           ))}
 
-          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3.5">
-            <div className="text-xs font-semibold text-white">Generation defaults</div>
+          <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3.5">
+            <div className="text-xs font-semibold text-[var(--color-text)]">Generation defaults</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="llm-temperature" className="block text-slate-400 text-[12px] mb-1">Temperature:</label>
+                <label htmlFor="llm-temperature" className="block text-[var(--color-muted)] text-[12px] mb-1">Temperature:</label>
                 <input
                   id="llm-temperature"
                   type="number"
@@ -516,11 +516,11 @@ export function LLMSettings() {
                     setTokenError(null);
                     setSettings({ ...settings, temperature: v });
                   }}
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                  className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl p-2 text-xs text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                 />
               </div>
               <div>
-                <label htmlFor="llm-max-tokens" className="block text-slate-400 text-[12px] mb-1">Max tokens (0 = uncapped):</label>
+                <label htmlFor="llm-max-tokens" className="block text-[var(--color-muted)] text-[12px] mb-1">Max tokens (0 = uncapped):</label>
                 <input
                   id="llm-max-tokens"
                   type="number"
@@ -542,18 +542,18 @@ export function LLMSettings() {
                     setTokenError(null);
                     setSettings({ ...settings, max_tokens: Math.max(0, v) });
                   }}
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                  className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl p-2 text-xs text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                 />
               </div>
             </div>
             {tokenError && (
-              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+              <div className="p-2 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
                 {tokenError}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor="llm-active-provider" className="block text-slate-400 mb-1 text-[12px]">Active provider:</label>
+                <label htmlFor="llm-active-provider" className="block text-[var(--color-muted)] mb-1 text-[12px]">Active provider:</label>
                 <select
                   id="llm-active-provider"
                   value={settings.active_provider}
@@ -561,7 +561,7 @@ export function LLMSettings() {
                     setSettings({ ...settings, active_provider: e.target.value })
                   }
                   aria-label="Active provider"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                  className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl p-2.5 text-xs text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                 >
                   {Object.entries(settings.providers).map(([pt, pc]) => (
                     <option key={pt} value={pt}>
@@ -571,7 +571,7 @@ export function LLMSettings() {
                 </select>
               </div>
               <div>
-                <label htmlFor="llm-active-model" className="block text-slate-400 mb-1 text-[12px]">Active model (used when a role has no assignment):</label>
+                <label htmlFor="llm-active-model" className="block text-[var(--color-muted)] mb-1 text-[12px]">Active model (used when a role has no assignment):</label>
                 <input
                   id="llm-active-model"
                   value={settings.active_model}
@@ -581,7 +581,7 @@ export function LLMSettings() {
                   list="kubona-model-options"
                   placeholder="(unset — resolve fails naming the variable)"
                   aria-label="Active model"
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                  className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl p-2.5 text-xs text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                 />
               </div>
             </div>
@@ -595,33 +595,33 @@ export function LLMSettings() {
 
         {/* Right Column: Agent routing */}
         <div className="space-y-4">
-          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
-            <Globe className="w-4 h-4 text-indigo-400" />
+          <h3 className="text-xs font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono flex items-center space-x-2">
+            <Globe className="w-4 h-4 text-[var(--color-accent-ink)]" />
             <span>Agent Routing {settings.air_gapped ? '(air-gapped: local only)' : ''}</span>
           </h3>
 
           {settings.air_gapped && (
-            <div className="text-[12px] text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl flex items-center space-x-2">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+            <div className="text-[12px] text-[var(--color-warning-ink)] bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] p-2.5 rounded-xl flex items-center space-x-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[var(--color-warning-ink)]" />
               <span>Cloud egress blocked while Sovereign Air-Gap is engaged. Roles on cloud providers will refuse.</span>
             </div>
           )}
           {!settings.air_gapped && (
-            <div className="text-[12px] text-slate-400 bg-white/[0.03] border border-white/10 p-2.5 rounded-xl">
+            <div className="text-[12px] text-[var(--color-muted)] bg-[var(--color-tile)] border border-[var(--color-border)] p-2.5 rounded-xl">
               Local providers (Strata, oMLX, Ollama, LM Studio) work without a cloud opt-in. In production,
-              cloud providers additionally require the deployment flag <span className="font-mono text-slate-200">KUBONA_LLM_CLOUD=1</span>.
+              cloud providers additionally require the deployment flag <span className="font-mono text-[var(--color-text)]">KUBONA_LLM_CLOUD=1</span>.
             </div>
           )}
 
           {/* Role Routing Matrix (editable) */}
-          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
-            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide font-mono">
+          <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
+            <h4 className="text-xs font-bold text-[var(--color-label-secondary)] uppercase tracking-wide font-mono">
               Agent → Provider : Model
             </h4>
             <div className="space-y-2 text-xs">
               {Object.entries(settings.role_assignments).map(([role, assign]) => (
-                <div key={role} className="p-2.5 bg-white/[0.03] rounded-xl border border-white/10 space-y-2">
-                  <div className="font-mono text-cyan-300 font-semibold">{role}</div>
+                <div key={role} className="p-2.5 bg-[var(--color-tile)] rounded-xl border border-[var(--color-border)] space-y-2">
+                  <div className="font-mono text-[var(--color-info-ink)] font-semibold">{role}</div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label htmlFor={`llm-role-provider-${role}`} className="sr-only">{role} provider</label>
@@ -630,7 +630,7 @@ export function LLMSettings() {
                         aria-label={`${role} provider`}
                         value={assign.provider}
                         onChange={(e) => setRole(role, { provider: e.target.value })}
-                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                        className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg p-1.5 text-[12px] text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                       >
                         {Object.entries(settings.providers).map(([pt, pc]) => (
                           <option key={pt} value={pt}>
@@ -648,7 +648,7 @@ export function LLMSettings() {
                         list={`kubona-role-models-${role}`}
                         onChange={(e) => setRole(role, { model: e.target.value.trim() })}
                         placeholder="(unset — resolve fails naming the variable)"
-                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                        className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg p-1.5 text-[12px] text-[var(--color-text)] font-mono focus:border-[var(--color-info-edge)] focus:outline-none"
                       />
                     </div>
                     <datalist id={`kubona-role-models-${role}`}>
@@ -665,15 +665,15 @@ export function LLMSettings() {
       </div>
 
       {/* Live Inference & Latency Benchmark */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-4">
-        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+      <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-4">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
           <div className="flex items-center space-x-2">
-            <Zap className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+            <Zap className="w-4 h-4 text-[var(--color-info-ink)]" />
+            <h3 className="text-xs font-bold text-[var(--color-text)] uppercase tracking-wider font-mono">
               Live Model Verification &amp; Latency Benchmark
             </h3>
           </div>
-          <span className="text-[12px] font-mono text-cyan-300">
+          <span className="text-[12px] font-mono text-[var(--color-info-ink)]">
             Target: {settings.active_model}
           </span>
         </div>
@@ -687,13 +687,13 @@ export function LLMSettings() {
               value={testPrompt}
               aria-label="Benchmark prompt"
               onChange={(e) => setTestPrompt(e.target.value)}
-              className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+              className="flex-1 bg-[var(--color-field)] border border-[var(--color-border)] rounded-xl px-3.5 py-2 text-xs text-[var(--color-text)] focus:outline-none focus:border-[var(--color-info-edge)] font-mono"
               placeholder="Enter benchmark prompt..."
             />
             <button
               onClick={handleRunTest}
               disabled={testing || !testPrompt.trim()}
-              className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 disabled:opacity-50 shadow-md active:scale-95 transition-all"
+              className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 disabled:opacity-50 shadow-sm active:scale-95 transition-all"
             >
               {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               <span>{testing ? 'Benchmarking...' : 'Test Model'}</span>
@@ -701,29 +701,29 @@ export function LLMSettings() {
           </div>
 
           {testResult && (
-            <div className="p-4 rounded-xl bg-black/60 border border-white/[0.08] space-y-3 animate-fadeIn">
-              <div className="flex items-center justify-between text-xs font-mono border-b border-white/[0.06] pb-2">
-                <span className={testResult.success ? 'text-emerald-400 flex items-center space-x-1' : 'text-red-400'}>
+            <div className="p-4 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between text-xs font-mono border-b border-[var(--color-border)] pb-2">
+                <span className={testResult.success ? 'text-[var(--color-success-ink)] flex items-center space-x-1' : 'text-[var(--color-danger-ink)] flex items-center space-x-1'}>
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                   <span>{testResult.success ? 'VERIFICATION PASSED' : 'BENCHMARK FAILED'}</span>
                 </span>
-                <div className="flex items-center space-x-4 text-slate-400">
-                  <span>Latency: <strong className="text-white">{typeof testResult.duration_ms === 'number' && Number.isFinite(testResult.duration_ms) ? `${testResult.duration_ms} ms` : 'UNVERIFIED (no duration measured)'}</strong></span>
+                <div className="flex items-center space-x-4 text-[var(--color-muted)]">
+                  <span>Latency: <strong className="text-[var(--color-text)]">{typeof testResult.duration_ms === 'number' && Number.isFinite(testResult.duration_ms) ? `${testResult.duration_ms} ms` : 'UNVERIFIED (no duration measured)'}</strong></span>
                   {typeof testResult.gen_tok_per_sec === 'number' && Number.isFinite(testResult.gen_tok_per_sec) && (
-                    <span>Speed: <strong className="text-emerald-400">{testResult.gen_tok_per_sec.toFixed(1)} tok/s</strong></span>
+                    <span>Speed: <strong className="text-[var(--color-success-ink)]">{testResult.gen_tok_per_sec.toFixed(1)} tok/s</strong></span>
                   )}
-                  <span>Model: <strong className="text-cyan-300">{testResult.model}</strong></span>
+                  <span>Model: <strong className="text-[var(--color-info-ink)]">{testResult.model}</strong></span>
                 </div>
               </div>
 
               {testResult.reply && (
-                <div className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto font-sans">
+                <div className="text-xs text-[var(--color-label-secondary)] whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto font-sans">
                   {testResult.reply}
                 </div>
               )}
 
               {testResult.error && (
-                <div className="text-xs text-red-400 font-mono">
+                <div className="text-xs text-[var(--color-danger-ink)] font-mono">
                   {testResult.error}
                 </div>
               )}

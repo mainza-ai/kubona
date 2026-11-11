@@ -63,13 +63,13 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="w-full rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Autoresearch loops">
+    <div className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Autoresearch loops">
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-xs font-semibold text-white">Autoresearch loops</span>
-          <p className="text-[12px] text-slate-500">Sandboxed harness stepping; each transition re-reads server state.</p>
+          <span className="text-xs font-semibold text-[var(--color-text)]">Autoresearch loops</span>
+          <p className="text-[12px] text-[var(--color-faint)]">Sandboxed harness stepping; each transition re-reads server state.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[12px] text-slate-300">Refresh</button>
+        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)]">Refresh</button>
       </div>
       {runner && runner.available !== true && (
         <p role="status" className="text-[12px] text-[var(--color-warning)]">
@@ -80,39 +80,39 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
         <p className="text-[12px] text-[var(--color-muted)]">Sandbox ready: {String(runner.image || 'runner')} (read-only, cap-drop, no network).</p>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-        <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-slate-200 font-mono">
+        <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] font-mono">
           {harnesses.length === 0 && <option value="">no harnesses</option>}
           {harnesses.map((h) => <option key={h.id} value={h.id}>{h.id}</option>)}
         </select>
-        <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-slate-200 font-mono" />
+        <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] font-mono" />
         <button type="button" disabled={busy !== null || !harnessId || !sessionId} onClick={() => {
           const n = Number(maxIterations);
           if (!Number.isInteger(n) || n < 1 || n > 1000) { setNotice('max iterations must be an integer 1..1000.'); return; }
           void run('start', () => startAutoresearchLoop(harnessId, n, undefined, sessionId), 'Loop started.');
-        }} className="px-2 py-1 rounded-lg bg-indigo-500/15 border border-indigo-400/30 text-indigo-200 disabled:opacity-40">
+        }} className="px-2 py-1 rounded-lg bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)] disabled:opacity-40">
           Start loop
         </button>
       </div>
       {(notice || writeSettlementLabel(settlement.write)) && (
-        <p role="status" className="text-[12px] text-slate-300">{writeSettlementLabel(settlement.write) || notice}</p>
+        <p role="status" className="text-[12px] text-[var(--color-label-secondary)]">{writeSettlementLabel(settlement.write) || notice}</p>
       )}
-      {loops === null && <p className="text-[12px] text-slate-500">Loading loops…</p>}
-      {loops !== null && loops.length === 0 && <p className="text-[12px] text-slate-400">No autoresearch loops.</p>}
+      {loops === null && <p className="text-[12px] text-[var(--color-faint)]">Loading loops…</p>}
+      {loops !== null && loops.length === 0 && <p className="text-[12px] text-[var(--color-muted)]">No autoresearch loops.</p>}
       {(loops ?? []).map((loop) => (
-        <div key={loop.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[12px] space-y-1">
+        <div key={loop.id} className="px-2.5 py-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-[12px] space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-code text-slate-300">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
+            <span className="font-code text-[var(--color-label-secondary)]">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
             <span className="flex items-center gap-1">
-              <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 disabled:opacity-40">Step</button>
+              <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] disabled:opacity-40">Step</button>
               {loop.status === 'running' ? (
-                <button type="button" disabled={busy !== null} onClick={() => void run('pause', () => pauseAutoresearchLoop(loop.id), 'Paused.')} className="px-2 py-1 rounded bg-amber-500/15 border border-amber-400/30 text-amber-200 disabled:opacity-40">Pause</button>
+                <button type="button" disabled={busy !== null} onClick={() => void run('pause', () => pauseAutoresearchLoop(loop.id), 'Paused.')} className="px-2 py-1 rounded bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] disabled:opacity-40">Pause</button>
               ) : (
-                <button type="button" disabled={busy !== null} onClick={() => void run('resume', () => resumeAutoresearchLoop(loop.id), 'Resumed.')} className="px-2 py-1 rounded bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 disabled:opacity-40">Resume</button>
+                <button type="button" disabled={busy !== null} onClick={() => void run('resume', () => resumeAutoresearchLoop(loop.id), 'Resumed.')} className="px-2 py-1 rounded bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] disabled:opacity-40">Resume</button>
               )}
-              <button type="button" disabled={busy !== null} onClick={() => void run('stop', () => stopAutoresearchLoop(loop.id), 'Stopped.')} className="px-2 py-1 rounded bg-rose-500/15 border border-rose-400/30 text-rose-200 disabled:opacity-40">Stop</button>
+              <button type="button" disabled={busy !== null} onClick={() => void run('stop', () => stopAutoresearchLoop(loop.id), 'Stopped.')} className="px-2 py-1 rounded bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] disabled:opacity-40">Stop</button>
             </span>
           </div>
-          <div className="text-slate-500 font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
+          <div className="text-[var(--color-faint)] font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
         </div>
       ))}
     </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { APPEARANCE_PREPAINT_SCRIPT } from "@/lib/appearance-prepaint";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const geistSans = Geist({
@@ -42,9 +43,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="dark"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${jetbrains.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#07080B] text-slate-100 font-sovereign selection:bg-cyan-500/30 selection:text-cyan-200">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_PREPAINT_SCRIPT }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-[var(--color-canvas)] text-[var(--color-text)] font-sovereign selection:bg-[var(--color-accent-soft)] selection:text-[var(--color-text)]">
         {/* Wave-2 a11y: page.tsx owns the single skip link + <main>
             landmarks; this wrapper stays a plain landmark container. */}
         <h1 className="sr-only">Kubona Sovereign Console</h1>

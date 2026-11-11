@@ -204,38 +204,38 @@ export function HuggingFaceModelHub() {
   ];
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl p-7 space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shadow-inner">
-            <Database className="w-5 h-5 text-amber-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] flex items-center justify-center">
+            <Database className="w-5 h-5 text-[var(--color-warning-ink)]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+              <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight flex items-center space-x-2">
                 <span>Hugging Face Model Explorer</span>
-                <span className="px-2 py-0.5 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <span className="px-2 py-0.5 rounded-full text-[12px] font-mono bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]">
                   Hub &amp; Downloader
                 </span>
               </h2>
               <ProvenanceBadge kind="catalog" detail="Model catalog data, not a campaign measurement." />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Discover frontier weights, inspect GGUF / MLX quantizations, and stream directly into local air-gapped storage
             </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-mono">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] text-xs font-mono">
+            <ShieldCheck className="w-4 h-4 text-[var(--color-success-ink)]" />
             <span>Air-Gap Ready (~/.kubona/models)</span>
           </div>
           <button
             onClick={() => refreshDownloads()}
             aria-label="Refresh downloads"
-            className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white transition-all text-xs flex items-center space-x-1.5"
+            className="p-2 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all text-xs flex items-center space-x-1.5"
             title="Refresh Downloads"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -245,12 +245,12 @@ export function HuggingFaceModelHub() {
 
       {/* Toast Alert */}
       {toastMessage && (
-        <div className={`p-3 rounded-xl border text-xs flex items-center justify-between animate-fade-in shadow-lg ${toastTone === 'error' ? 'bg-rose-950/60 border-rose-500/40 text-rose-200' : 'bg-cyan-500/20 border-cyan-400/40 text-cyan-200'}`}>
+        <div className={`p-3 rounded-xl border text-xs flex items-center justify-between animate-fade-in shadow-md ${toastTone === 'error' ? 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]' : 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)]'}`}>
           <div className="flex items-center space-x-2">
-            <Download className="w-4 h-4 text-cyan-400 animate-bounce" />
+            <Download className="w-4 h-4 text-[var(--color-info-ink)] animate-bounce" />
             <span>{toastMessage}</span>
           </div>
-          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" title="Dismiss notification" className="text-cyan-300 hover:text-white">
+          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" title="Dismiss notification" className="text-[var(--color-info-ink)] hover:text-[var(--color-text)]">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -258,34 +258,34 @@ export function HuggingFaceModelHub() {
 
       {/* Active Downloads Panel */}
       {downloads.length > 0 && (
-        <div className="p-5 rounded-2xl bg-black/40 border border-cyan-500/30 space-y-3">
+        <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-info-edge)] space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-2">
-              <Download className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-semibold text-[var(--color-info-ink)] flex items-center space-x-2">
+              <Download className="w-4 h-4 text-[var(--color-info-ink)]" />
               <span>In-Platform Streaming Downloads ({downloads.length})</span>
             </span>
-            <span className="text-[12px] font-mono text-slate-400">Background Stream &amp; SHA-256 Verification</span>
+            <span className="text-[12px] font-mono text-[var(--color-muted)]">Background Stream &amp; SHA-256 Verification</span>
           </div>
 
           <div className="space-y-2">
             {downloads.map((task) => (
               <div
                 key={task.task_id}
-                className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3"
+                className="p-3 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] flex flex-col md:flex-row items-start md:items-center justify-between gap-3"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-white truncate">{task.filename}</span>
-                    <span className="text-[12px] font-mono text-slate-400 truncate">({task.repo_id})</span>
+                    <span className="text-xs font-semibold text-[var(--color-text)] truncate">{task.filename}</span>
+                    <span className="text-[12px] font-mono text-[var(--color-muted)] truncate">({task.repo_id})</span>
                     <span
                       className={`text-[12px] px-1.5 py-0.5 rounded font-mono font-medium ${
                         task.status === 'completed'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]'
                           : task.status === 'downloading'
-                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse'
+                          ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)] animate-pulse'
                           : task.status === 'failed'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-white/10 text-slate-300'
+                          ? 'bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)] border border-[var(--color-danger-edge)]'
+                          : 'bg-[var(--color-fill)] text-[var(--color-label-secondary)]'
                       }`}
                     >
                       {task.status.toUpperCase()}
@@ -293,23 +293,23 @@ export function HuggingFaceModelHub() {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="w-full bg-black/60 rounded-full h-1.5 overflow-hidden border border-white/5">
+                  <div className="w-full bg-[var(--color-canvas)] rounded-full h-1.5 overflow-hidden border border-[var(--color-border)]">
                     <div
                       className={`h-full transition-all duration-300 ${
-                        task.status === 'completed' ? 'bg-emerald-400' : 'bg-cyan-400'
+                        task.status === 'completed' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-accent)]'
                       }`}
                       style={{ width: `${task.progress_percent}%` }}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between text-[12px] font-mono text-slate-400">
+                  <div className="flex items-center justify-between text-[12px] font-mono text-[var(--color-muted)]">
                     <span>
                       {typeof task.bytes_downloaded === 'number' && Number.isFinite(task.bytes_downloaded) ? (task.bytes_downloaded / (1024 * 1024)).toFixed(1) : '—'} MB
                       {typeof task.total_bytes === 'number' && Number.isFinite(task.total_bytes) && task.total_bytes > 0 && ` / ${(task.total_bytes / (1024 * 1024)).toFixed(1)} MB`} ({typeof task.progress_percent === 'number' && Number.isFinite(task.progress_percent) ? task.progress_percent : '—'}%)
                     </span>
                     {typeof task.speed_mb_s === 'number' && Number.isFinite(task.speed_mb_s) && task.speed_mb_s > 0 && <span>{task.speed_mb_s} MB/s</span>}
                     {task.sha256 && (
-                      <span className="text-emerald-400 truncate max-w-xs" title={task.sha256}>
+                      <span className="text-[var(--color-success-ink)] truncate max-w-xs" title={task.sha256}>
                         SHA-256: {task.sha256.slice(0, 12)}…
                       </span>
                     )}
@@ -322,7 +322,7 @@ export function HuggingFaceModelHub() {
                     disabled={cancelling === task.task_id}
                     aria-label={`Cancel download ${task.filename}`}
                     title={`Cancel download ${task.filename}`}
-                    className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono shrink-0 disabled:opacity-50"
+                    className="px-2.5 py-1 rounded-lg bg-[var(--color-danger-wash)] hover:opacity-90 border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs font-mono shrink-0 disabled:opacity-50"
                   >
                     {cancelling === task.task_id ? 'Cancelling…' : 'Cancel'}
                   </button>
@@ -337,7 +337,7 @@ export function HuggingFaceModelHub() {
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-[var(--color-muted)] absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={query}
@@ -345,14 +345,14 @@ export function HuggingFaceModelHub() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && performSearch(query, library)}
               placeholder="Search Hugging Face models (e.g. qwen2.5-coder, deepseek-r1, llama-3.3, phi-4, llava)..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 focus:border-amber-400/50 text-white text-xs placeholder:text-slate-500 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] focus:border-[var(--color-warning-edge)] text-[var(--color-text)] text-xs placeholder:text-[var(--color-faint)] focus:outline-none"
             />
           </div>
 
           <button
             onClick={() => performSearch(query, library)}
             disabled={loading}
-            className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-md shrink-0"
+            className="px-4 py-2.5 rounded-xl bg-[var(--color-warning-wash)] hover:opacity-90 border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm shrink-0"
           >
             {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
             <span>Search Hub</span>
@@ -361,7 +361,7 @@ export function HuggingFaceModelHub() {
 
         {/* Quick Filter Chips */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12px] text-slate-400 font-mono">Curated:</span>
+          <span className="text-[12px] text-[var(--color-muted)] font-mono">Curated:</span>
           {quickFilters.map((qf) => (
             <button
               key={qf.label}
@@ -370,7 +370,7 @@ export function HuggingFaceModelHub() {
                 setLibrary(qf.lib);
                 performSearch(qf.q, qf.lib);
               }}
-              className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white text-xs font-mono transition-all"
+              className="px-2.5 py-1 rounded-lg bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] text-xs font-mono transition-all"
             >
               {qf.label}
             </button>
@@ -383,40 +383,40 @@ export function HuggingFaceModelHub() {
         {models.map((model) => (
           <div
             key={model.id}
-            className="p-5 rounded-2xl bg-black/40 border border-white/10 hover:border-amber-500/30 transition-all flex flex-col justify-between space-y-4 group"
+            className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-warning-edge)] transition-all flex flex-col justify-between space-y-4 group"
           >
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-mono text-amber-400 font-semibold truncate">{model.author}</span>
-                <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-300 border border-white/10">
+                <span className="text-xs font-mono text-[var(--color-warning-ink)] font-semibold truncate">{model.author}</span>
+                <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-[var(--color-tile)] text-[var(--color-label-secondary)] border border-[var(--color-border)]">
                   {model.pipeline_tag || 'text-generation'}
                 </span>
               </div>
 
-              <h3 className="text-sm font-semibold text-white group-hover:text-amber-200 transition-colors line-clamp-1">
+              <h3 className="text-sm font-semibold text-[var(--color-text)] group-hover:text-[var(--color-warning-ink)] transition-colors line-clamp-1">
                 {model.id.split('/')[1] || model.id}
               </h3>
 
-              <div className="flex items-center space-x-3 text-[12px] font-mono text-slate-400">
+              <div className="flex items-center space-x-3 text-[12px] font-mono text-[var(--color-muted)]">
                 <span>⬇ {(model.downloads ?? 0).toLocaleString()}</span>
                 <span>♥ {(model.likes ?? 0).toLocaleString()}</span>
               </div>
 
               <div className="flex flex-wrap gap-1 pt-1">
                 {(model.tags ?? []).slice(0, 4).map((t) => (
-                  <span key={t} className="text-[12px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-400">
+                  <span key={t} className="text-[12px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-tile)] text-[var(--color-muted)]">
                     {t}
                   </span>
                 ))}
               </div>
             </div>
 
-            <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+            <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between">
               <button
                 onClick={() => handleSelectModel(model)}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                className="px-3 py-1.5 rounded-xl bg-[var(--color-warning-wash)] hover:opacity-90 border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
               >
-                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <Layers className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />
                 <span>View Quantizations</span>
               </button>
 
@@ -424,7 +424,7 @@ export function HuggingFaceModelHub() {
                 href={`https://huggingface.co/${model.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
                 aria-label={`View ${model.id} on Hugging Face`}
                 title="View on Hugging Face"
               >
@@ -436,20 +436,20 @@ export function HuggingFaceModelHub() {
       </div>
 
       {models.length === 0 && !loading && searched && !searchFailed && (
-        <div className="p-12 text-center text-slate-400 space-y-2 border border-dashed border-white/10 rounded-2xl">
-          <Database className="w-8 h-8 mx-auto text-slate-500" />
+        <div className="p-12 text-center text-[var(--color-muted)] space-y-2 border border-dashed border-[var(--color-border)] rounded-2xl">
+          <Database className="w-8 h-8 mx-auto text-[var(--color-faint)]" />
           <p className="text-xs">No models found on Hugging Face. Try searching for &quot;qwen&quot;, &quot;llama&quot;, or &quot;mlx&quot;.</p>
         </div>
       )}
 
       {models.length === 0 && !loading && searched && searchFailed && (
-        <div className="p-12 text-center space-y-3 border border-dashed border-rose-500/40 rounded-2xl bg-rose-950/30">
-          <Database className="w-8 h-8 mx-auto text-rose-400" />
-          <p className="text-xs text-rose-200">Hugging Face hub refused the search — nothing returned, nothing assumed ({searchFailed.slice(0, 200)}).</p>
+        <div className="p-12 text-center space-y-3 border border-dashed border-[var(--color-danger-edge)] rounded-2xl bg-[var(--color-danger-wash)]">
+          <Database className="w-8 h-8 mx-auto text-[var(--color-danger-ink)]" />
+          <p className="text-xs text-[var(--color-danger-ink)]">Hugging Face hub refused the search — nothing returned, nothing assumed ({searchFailed.slice(0, 200)}).</p>
           <button
             type="button"
             onClick={() => void performSearch()}
-            className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-xs font-semibold transition"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold transition"
           >
             Retry search
           </button>
@@ -458,7 +458,7 @@ export function HuggingFaceModelHub() {
 
       {/* Quantizations Inspector Modal */}
       {selectedModel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
           <div
             ref={quantPanelRef}
             role="dialog"
@@ -467,19 +467,19 @@ export function HuggingFaceModelHub() {
             onKeyDown={(e) => {
               if (e.key === 'Escape') setSelectedModel(null);
             }}
-            className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+            className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
           >
             {/* Modal Header */}
-            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+            <div className="p-6 border-b border-[var(--color-border)] flex items-center justify-between">
               <div>
-                <span className="text-xs font-mono text-amber-400 font-semibold">{selectedModel.author}</span>
-                <h3 id="quant-inspector-title" className="text-lg font-bold text-white">{selectedModel.id}</h3>
+                <span className="text-xs font-mono text-[var(--color-warning-ink)] font-semibold">{selectedModel.author}</span>
+                <h3 id="quant-inspector-title" className="text-lg font-bold text-[var(--color-text)]">{selectedModel.id}</h3>
               </div>
               <button
                 onClick={() => setSelectedModel(null)}
                 aria-label="Close quantization inspector"
                 title="Close quantization inspector"
-                className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-all"
+                className="p-2 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -487,25 +487,25 @@ export function HuggingFaceModelHub() {
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-300">
-                <span className="font-semibold text-white">Available Precision &amp; Quantization Files</span>
-                <span className="font-mono text-slate-400">Direct HTTP Streaming to ~/.kubona/models</span>
+              <div className="flex items-center justify-between text-xs text-[var(--color-label-secondary)]">
+                <span className="font-semibold text-[var(--color-text)]">Available Precision &amp; Quantization Files</span>
+                <span className="font-mono text-[var(--color-muted)]">Direct HTTP Streaming to ~/.kubona/models</span>
               </div>
 
               {loadingDetails ? (
-                <div className="p-8 text-center text-slate-400 space-y-2">
-                  <RefreshCw className="w-6 h-6 mx-auto animate-spin text-amber-400" />
+                <div className="p-8 text-center text-[var(--color-muted)] space-y-2">
+                  <RefreshCw className="w-6 h-6 mx-auto animate-spin text-[var(--color-warning-ink)]" />
                   <p className="text-xs">Loading quantization files from Hugging Face Hub…</p>
                 </div>
               ) : (selectedModel.quantizations ?? []).length === 0 ? (
-                <div className="p-8 text-center text-slate-400 border border-dashed border-white/10 rounded-xl space-y-2">
-                  <FileCode className="w-6 h-6 mx-auto text-slate-500" />
+                <div className="p-8 text-center text-[var(--color-muted)] border border-dashed border-[var(--color-border)] rounded-xl space-y-2">
+                  <FileCode className="w-6 h-6 mx-auto text-[var(--color-faint)]" />
                   <p className="text-xs">No single-file .gguf or .mlx weights detected in repository root.</p>
                   <a
                     href={`https://huggingface.co/${selectedModel.id}/tree/main`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-cyan-400 hover:underline inline-flex items-center space-x-1"
+                    className="text-xs text-[var(--color-info-ink)] hover:underline inline-flex items-center space-x-1"
                   >
                     <span>Inspect files on Hugging Face</span>
                     <ExternalLink className="w-3 h-3" />
@@ -516,17 +516,17 @@ export function HuggingFaceModelHub() {
                   {(selectedModel.quantizations ?? []).map((q) => (
                     <div
                       key={q.filename}
-                      className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 hover:bg-white/[0.06] transition-colors"
+                      className="p-3.5 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-between gap-3 hover:bg-[var(--color-fill-hover)] transition-colors"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs font-semibold text-white truncate">{q.filename}</span>
-                          <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <span className="text-xs font-semibold text-[var(--color-text)] truncate">{q.filename}</span>
+                          <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]">
                             {q.quant_type}
                           </span>
                         </div>
                         {typeof q.size_bytes === 'number' && Number.isFinite(q.size_bytes) && (
-                          <span className="text-[12px] font-mono text-slate-400">
+                          <span className="text-[12px] font-mono text-[var(--color-muted)]">
                             Size: {(q.size_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                           </span>
                         )}
@@ -536,9 +536,9 @@ export function HuggingFaceModelHub() {
                         onClick={() => handleDownload(selectedModel.id, q.filename, q.size_bytes)}
                         aria-label={`Download ${q.filename}`}
                         title={`Download ${q.filename}`}
-                        className="px-3.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-md shrink-0"
+                        className="px-3.5 py-1.5 rounded-xl bg-[var(--color-info-wash)] hover:opacity-90 border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm shrink-0"
                       >
-                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        <Download className="w-3.5 h-3.5 text-[var(--color-info-ink)]" />
                         <span>Download</span>
                       </button>
                     </div>
@@ -555,12 +555,12 @@ export function HuggingFaceModelHub() {
                 role="alertdialog"
                 aria-modal="true"
                 aria-label={`Confirm download ${confirmDownload.filename}`}
-                className="m-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 space-y-2"
+                className="m-4 p-4 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] space-y-2"
               >
-                <div className="text-xs font-semibold text-amber-200">
+                <div className="text-xs font-semibold text-[var(--color-warning-ink)]">
                   Large download — {(confirmDownload.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                 </div>
-                <p className="text-[12px] font-mono text-slate-300 break-all">
+                <p className="text-[12px] font-mono text-[var(--color-label-secondary)] break-all">
                   {confirmDownload.filename} ({confirmDownload.repoId})
                 </p>
                 <div className="flex items-center gap-2">
@@ -568,7 +568,7 @@ export function HuggingFaceModelHub() {
                     type="button"
                     onClick={() => void handleDownload(confirmDownload.repoId, confirmDownload.filename, confirmDownload.sizeBytes, true)}
                     aria-label={`Confirm download ${confirmDownload.filename}`}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500/30 hover:bg-amber-500/40 border border-amber-500/50 text-amber-100 text-xs font-semibold"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold"
                   >
                     Download {(confirmDownload.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                   </button>
@@ -576,7 +576,7 @@ export function HuggingFaceModelHub() {
                     type="button"
                     onClick={() => setConfirmDownload(null)}
                     aria-label="Dismiss download confirmation"
-                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-xs font-semibold"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs font-semibold"
                   >
                     Keep looking
                   </button>
@@ -585,14 +585,14 @@ export function HuggingFaceModelHub() {
             )}
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-white/10 bg-black/40 flex items-center justify-between text-xs text-slate-400">
+            <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between text-xs text-[var(--color-muted)]">
               <span className="flex items-center space-x-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-[var(--color-success-ink)]" />
                 <span>Downloaded weights are immediately available for air-gapped local execution</span>
               </span>
               <button
                 onClick={() => setSelectedModel(null)}
-                className="px-4 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] text-white text-xs font-semibold transition-all"
+                className="px-4 py-1.5 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-semibold transition-all"
               >
                 Close
               </button>

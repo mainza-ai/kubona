@@ -262,17 +262,17 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
   if (!sessionId) return null;
 
   return (
-    <div data-provenance="measured" className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2">
+    <div data-provenance="measured" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
       <div className="flex items-center gap-2">
-        <div className="text-xs font-semibold text-white">Measured outputs</div>
+        <div className="text-xs font-semibold text-[var(--color-text)]">Measured outputs</div>
         <ProvenanceBadge kind="measured" detail="Latest completed job per type." />
       </div>
-      <p className="text-[12px] text-slate-500">
+      <p className="text-[12px] text-[var(--color-muted)]">
         Latest completed job per type — what ran, not what was planned. Notebook energies describe the plan.
       </p>
-      {rows === null && <p className="text-[12px] font-code text-slate-500">Loading job outputs…</p>}
+      {rows === null && <p className="text-[12px] font-code text-[var(--color-muted)]">Loading job outputs…</p>}
       {rows !== null && rows.length === 0 && (
-        <p className="text-[12px] font-code text-slate-500">No completed jobs yet — measured outputs appear here.</p>
+        <p className="text-[12px] font-code text-[var(--color-muted)]">No completed jobs yet — measured outputs appear here.</p>
       )}
       {activeIds !== null && activeIds.length > 0 && (
         <div className="space-y-1.5">
@@ -286,10 +286,10 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
           {rows.map((r) => (
             <li
               key={r.type}
-              className="flex items-baseline justify-between gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5"
+              className="flex items-baseline justify-between gap-3 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] px-2.5 py-1.5"
             >
-              <span className="text-[12px] font-code text-cyan-300 shrink-0">{r.type}</span>
-              <span data-metric className="text-[12px] font-code text-slate-200 text-right">{r.text}</span>
+              <span className="text-[12px] font-code text-[var(--color-info-ink)] shrink-0">{r.type}</span>
+              <span data-metric className="text-[12px] font-code text-[var(--color-label-secondary)] text-right">{r.text}</span>
             </li>
           ))}
         </ul>

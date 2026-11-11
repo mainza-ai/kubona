@@ -1,7 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import React from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CampaignState, Job, Loop } from '@/types';
 import type { ObligationRow } from '@/lib/api';
-import { buildWorkbench, workbenchDocument } from './workbench-model';
+import { Workbench } from './Workbench';
+import { buildWorkbench, totalOverlapArea, workbenchDocument } from './workbench-model';
+
+vi.mock('@/lib/api', () => ({
+  fetchCanvasLayout: vi.fn(async () => ({})),
+  fetchWorkbenchLayout: vi.fn(async () => null),
+  fetchWorkbenchView: vi.fn(async () => null),
+  fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
+  saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
+  saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
+}));
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function campaign(): CampaignState {
   return {
@@ -58,7 +78,8 @@ describe('workbench projection ceiling', () => {
     for (let run = 0; run < 5; run += 1) {
       const started = performance.now();
       const objects = buildWorkbench(campaign(), loops, jobs, obligations);
-      workbenchDocument('perf-session', objects, {}, {}, { x: 0, y: 0, zoom: 1 });
+      expect(totalOverlapArea(objects)).toBe(0);
+      workbenchDocument('perf-session', objects, {}, {}, {});
       samples.push(performance.now() - started);
       count = objects.length;
     }
@@ -67,5 +88,90 @@ describe('workbench projection ceiling', () => {
     expect(count).toBeGreaterThanOrEqual(300);
     // Projection/serialization budget, not a browser FPS claim.
     expect(median).toBeLessThan(250);
+  });
+
+  it('WorkIdle: schedules zero timers or animation frames after settling idle', async () => {
+    vi.useFakeTimers();
+    const rafSpy = vi.fn(() => 1);
+    vi.stubGlobal('requestAnimationFrame', rafSpy);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    try {
+      await act(async () => {
+        tree = TestRenderer.create(
+          React.createElement(Workbench, {
+            campaign: campaign(),
+            loops: [],
+            jobs: [],
+            obligations: [],
+          }),
+        );
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      timeoutSpy.mockClear();
+      intervalSpy.mockClear();
+      rafSpy.mockClear();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      expect(timeoutSpy).not.toHaveBeenCalled();
+      expect(intervalSpy).not.toHaveBeenCalled();
+      expect(rafSpy).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      if (tree) {
+        await act(async () => {
+          tree!.unmount();
+        });
+      }
+    }
+  });
+
+  it('WorkPresenceCpu: restricts workbench motion to compositor properties and gates unseen/reduced motion', () => {
+    const globalsCss = readFileSync(fileURLToPath(new URL('../../app/globals.css', import.meta.url)), 'utf8');
+    const axesCss = readFileSync(fileURLToPath(new URL('../../styles/axes.css', import.meta.url)), 'utf8');
+
+    const flowMatch = globalsCss.match(/@keyframes\s+k-flow-pulse\s*\{([\s\S]*?)\n\}/);
+    expect(flowMatch).not.toBeNull();
+    const flowBody = flowMatch![1];
+    const keyframeProps = Array.from(flowBody.matchAll(/\b([a-z-]+)\s*:/gi), (m) => m[1].toLowerCase());
+    expect(keyframeProps.length).toBeGreaterThan(0);
+    for (const prop of keyframeProps) {
+      expect(['opacity', 'transform']).toContain(prop);
+    }
+
+    const forbiddenLayoutProps = new Set([
+      'all', 'width', 'height', 'inline-size', 'block-size',
+      'top', 'right', 'bottom', 'left', 'inset', 'margin', 'padding',
+    ]);
+    const ruleRegex = /([^{}]+)\{([^{}]*)\}/g;
+    for (const [, rawSelector, body] of globalsCss.matchAll(ruleRegex)) {
+      const selector = rawSelector.trim();
+      if (!selector.includes('.k-workbench')) continue;
+      for (const [, transValue] of body.matchAll(/transition\s*:\s*([^;]+);/gi)) {
+        if (transValue.trim() === 'none') continue;
+        for (const item of transValue.split(',')) {
+          const prop = item.trim().split(/\s+/)[0]?.toLowerCase();
+          if (prop) expect(forbiddenLayoutProps.has(prop), `${selector} transitions layout property "${prop}"`).toBe(false);
+        }
+      }
+      if (/will-change\s*:/i.test(body)) {
+        expect(selector).toContain('[data-held="true"]');
+      }
+    }
+
+    expect(globalsCss).toContain('[data-unseen="true"] .k-workbench-links path[data-flow="live"]');
+    expect(globalsCss).toContain('.k-workbench-viewport[data-unseen="true"]');
+    expect(globalsCss).toContain('animation-play-state: paused !important');
+    expect(axesCss).toContain(':root[data-reduce-motion="true"]');
+    expect(axesCss).toContain('0.01ms !important');
   });
 });

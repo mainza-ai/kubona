@@ -294,37 +294,37 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl p-7 space-y-6">
       {meshError && (
-        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
+        <div className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs">
           Mesh error — {meshError} Nothing was changed.
         </div>
       )}
       {writeSettlementLabel(agentWrite.write) && (
-        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(agentWrite.write)}</p>
+        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(agentWrite.write)}</p>
       )}
       {airGapError && (
-        <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
+        <div className="p-3 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs">
           {airGapError}
         </div>
       )}
       {writeSettlementLabel(airGapWrite.write) && (
-        <p role="status" className="text-[12px] font-mono text-slate-400">
+        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
           {writeSettlementLabel(airGapWrite.write)}
         </p>
       )}
       {/* Serene Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-inner">
-            <Network className="w-5 h-5 text-indigo-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-soft-indigo-wash)] border border-[var(--color-soft-indigo-edge)] flex items-center justify-center">
+            <Network className="w-5 h-5 text-[var(--color-accent-ink)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight flex items-center space-x-2">
               <span>Sovereign Cognitive Mesh &amp; Mission Control</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="w-2 h-2 rounded-full bg-[var(--color-success)]" />
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Multimodal model routing, local zero-config discovery, and declarative agent orchestration
               {campaign?.target_system ? ` — active campaign: ${campaign.target_system}` : ''}
             </p>
@@ -335,7 +335,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           <button
             onClick={scanRadar}
             disabled={loading}
-            className="px-3 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 border border-white/10 transition-colors shadow-sm"
+            className="px-3 py-1.5 bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] text-xs font-semibold rounded-xl flex items-center space-x-1.5 border border-[var(--color-border)] transition-colors shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Scan Ports</span>
@@ -348,25 +348,25 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             title={airGapped === null ? 'Air-gap state unknown — settings unreachable' : 'Toggle sovereign air-gap'}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 disabled:opacity-50 ${
               airGapped === true
-                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
+                ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
                 : airGapped === false
-                  ? 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
-                  : 'bg-white/[0.03] border-white/10 text-slate-500'
+                  ? 'bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
+                  : 'bg-[var(--color-tile)] border-[var(--color-border)] text-[var(--color-muted)]'
             }`}
           >
             {airGapped === true ? (
               <>
-                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                <Lock className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
                 <span>Air-Gap: ENGAGED</span>
               </>
             ) : airGapped === false ? (
               <>
-                <Globe className="w-3.5 h-3.5 text-slate-400" />
+                <Globe className="w-3.5 h-3.5 text-[var(--color-muted)]" />
                 <span>Air-Gap: OFF</span>
               </>
             ) : (
               <>
-                <Globe className="w-3.5 h-3.5 text-slate-500" />
+                <Globe className="w-3.5 h-3.5 text-[var(--color-faint)]" />
                 <span>Air-Gap: UNKNOWN</span>
               </>
             )}
@@ -375,54 +375,54 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {/* LLM spend (server-sealed aggregates, heuristic estimates) */}
-      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06]">
-        <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
+      <div className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
+        <div className="text-[12px] font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono flex items-center space-x-2">
           <span>LLM spend — server-sealed</span>
           {costSummary?.local_bypass && (
-            <span className="text-emerald-400 normal-case font-sans">{`local inference $0 · unmetered (active: ${costSummary.active_provider})`}</span>
+            <span className="text-[var(--color-success-ink)] normal-case font-sans">{`local inference $0 · unmetered (active: ${costSummary.active_provider})`}</span>
           )}
         </div>
         {costRefused && (
-          <div className="mt-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+          <div className="mt-2 p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
             Spend refused — {costRefused.slice(0, 200)}. Nothing spent, nothing assumed.
           </div>
         )}
         {!costRefused && !costSummary && (
-          <div className="mt-2 text-[12px] text-slate-400 font-code">Loading spend…</div>
+          <div className="mt-2 text-[12px] text-[var(--color-muted)] font-code">Loading spend…</div>
         )}
         {costSummary && (
-          <div className="mt-1 text-xs text-slate-200 font-mono">
+          <div className="mt-1 text-xs text-[var(--color-label-secondary)] font-mono">
             spent ${fmtFixed(costSummary.spent_usd, 4)}
             {costSummary.track_only ? (
-              <span className="text-slate-400"> · no cap (track-only)</span>
+              <span className="text-[var(--color-muted)]"> · no cap (track-only)</span>
             ) : (
               <span> / ${fmtFixed(costSummary.cap_usd, 2)} cap · ${fmtFixed(costSummary.remaining_usd ?? 0, 2)} left</span>
             )}
             {costSummary.unmetered_count > 0 && (
-              <span className="text-amber-300"> · {costSummary.unmetered_count} blind-stream record{costSummary.unmetered_count === 1 ? '' : 's'} (gate-relevant)</span>
+              <span className="text-[var(--color-warning-ink)]"> · {costSummary.unmetered_count} blind-stream record{costSummary.unmetered_count === 1 ? '' : 's'} (gate-relevant)</span>
             )}
           </div>
         )}
       </div>
 
       {/* Host Port Radar Discovery */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
+      <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
-            <Terminal className="w-4 h-4 text-cyan-400" />
+          <span className="font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
+            <Terminal className="w-4 h-4 text-[var(--color-info-ink)]" />
             <span>Local Host Port Radar (Zero-Config Discovery)</span>
           </span>
-          <span className="text-slate-400 font-mono text-[12px]">
+          <span className="text-[var(--color-muted)] font-mono text-[12px]">
             Target: 127.0.0.1 (Loopback Only)
           </span>
         </div>
         {radarRefused && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+          <div className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
             Radar refused — {radarRefused.slice(0, 200)}. Nothing discovered, nothing assumed.
           </div>
         )}
         {!radarRefused && endpoints.length === 0 && (
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[12px] font-code">
+          <div className="p-2.5 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-muted)] text-[12px] font-code">
             No endpoints discovered — radar reachable but empty (not a refusal).
           </div>
         )}
@@ -431,20 +431,20 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           {endpoints.map((ep, idx) => (
             <div
               key={ep.port ?? idx}
-              className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between text-xs font-mono hover:border-cyan-500/30 transition-all"
+              className="p-3.5 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-between text-xs font-mono hover:border-[var(--color-info-edge)] transition-all"
             >
               <div>
-                <div className="font-semibold text-white">{ep.service}</div>
-                <div className="text-slate-300 text-xs font-mono">127.0.0.1:{ep.port}</div>
+                <div className="font-semibold text-[var(--color-text)]">{ep.service}</div>
+                <div className="text-[var(--color-label-secondary)] text-xs font-mono">127.0.0.1:{ep.port}</div>
               </div>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-[12px] font-semibold flex items-center space-x-1.5 border ${
                   ep.listening
-                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
-                    : 'bg-white/[0.04] text-slate-300 border-white/10'
+                    ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border-[var(--color-success-edge)]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-label-secondary)] border-[var(--color-border)]'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${ep.listening ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${ep.listening ? 'bg-[var(--color-success)]' : 'bg-[var(--color-faint)]'}`} />
                 <span>{ep.listening ? 'ONLINE' : 'IDLE'}</span>
               </span>
             </div>
@@ -453,13 +453,13 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {/* Multimodal Mission Control Route Simulator */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
+      <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
-            <Zap className="w-4 h-4 text-amber-400" />
+          <span className="font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
+            <Zap className="w-4 h-4 text-[var(--color-warning-ink)]" />
             <span>Mission Control Multimodal Router Evaluator</span>
           </span>
-          <span className="text-slate-400 font-mono text-[12px]">
+          <span className="text-[var(--color-muted)] font-mono text-[12px]">
             Local-First &amp; Air-Gap Policy Enforcement
           </span>
         </div>
@@ -470,12 +470,12 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             value={testPrompt}
             onChange={(e) => setTestPrompt(e.target.value)}
             placeholder="Scientific task prompt..."
-            className="flex-1 px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+            className="flex-1 px-4 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] text-xs placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-info-edge)]"
           />
           <select
             value={testModality}
             onChange={(e) => setTestModality(e.target.value as ModalityType)}
-            className="px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-white text-xs font-mono focus:outline-none"
+            className="px-3 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-mono focus:outline-none"
           >
             <option value="text">Modality: Text / Paper</option>
             <option value="molecule_3d">Modality: 3D Molecule (CIF/PDB)</option>
@@ -489,12 +489,12 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             onChange={(e) => setTestModel(e.target.value)}
             placeholder="Model (optional — server default applies)"
             title="Explicit model to route; empty uses the server's configured default, never a baked-in ID"
-            className="px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-white text-xs font-mono placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+            className="px-4 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] text-xs font-mono placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-info-edge)]"
           />
           <button
             onClick={handleTestRoute}
             disabled={routingLoading}
-            className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-md shrink-0"
+            className="px-4 py-2 rounded-xl bg-[var(--color-warning-wash)] hover:opacity-90 border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm shrink-0"
           >
             {routingLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
             <span>Evaluate Route</span>
@@ -502,17 +502,17 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         </div>
 
         {routingDecision && (
-          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 text-xs space-y-1.5 font-mono animate-fade-in">
+          <div className="p-3.5 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-xs space-y-1.5 font-mono animate-fade-in">
             <div className="flex items-center justify-between">
-              <span className="text-white font-semibold">
-                Selected Model: <span className="text-cyan-300">{routingDecision.model}</span>
+              <span className="text-[var(--color-text)] font-semibold">
+                Selected Model: <span className="text-[var(--color-info-ink)]">{routingDecision.model}</span>
               </span>
-              <span className={`px-2 py-0.5 rounded text-[12px] ${routingDecision.air_gap_enforced ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}`}>
+              <span className={`px-2 py-0.5 rounded text-[12px] ${routingDecision.air_gap_enforced ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]' : 'bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]'}`}>
                 {routingDecision.air_gap_enforced ? 'AIR-GAP ENFORCED' : 'CLOUD ESCALATION'}
               </span>
             </div>
-            <p className="text-slate-400 font-sans">{routingDecision.explanation}</p>
-            <div className="flex items-center space-x-4 text-[12px] text-slate-400">
+            <p className="text-[var(--color-muted)] font-sans">{routingDecision.explanation}</p>
+            <div className="flex items-center space-x-4 text-[12px] text-[var(--color-muted)]">
               <span>Provider: {routingDecision.provider}</span>
               <span>Estimated Cost: ${fmtFixed(routingDecision.estimated_cost_usd, 2)}</span>
               <span>Modalities: {(routingDecision.modalities_supported || []).join(', ') || 'general'}</span>
@@ -520,22 +520,22 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           </div>
         )}
         {routeError && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
+          <div className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
             {routeError}
           </div>
         )}
       </div>
 
       {systemAgents.length > 0 && (
-        <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-2">
-          <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
+        <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-2">
+          <div className="text-[12px] font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono">
             Tribunal system roles ({systemAgents.length})
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {systemAgents.map((role) => (
-              <div key={role.role} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[12px]">
-                <div className="font-code text-cyan-200">{role.role}</div>
-                <p className="text-slate-400 font-sans mt-0.5">{role.description}</p>
+              <div key={role.role} className="p-2.5 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-[12px]">
+                <div className="font-code text-[var(--color-info-ink)]">{role.role}</div>
+                <p className="text-[var(--color-muted)] font-sans mt-0.5">{role.description}</p>
               </div>
             ))}
           </div>
@@ -543,18 +543,18 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       )}
 
       {/* Agents Matrix: Standard System + User-Defined */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-4">
+      <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-4">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
-            <Users className="w-4 h-4 text-indigo-400" />
-            <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px]">
+            <Users className="w-4 h-4 text-[var(--color-accent-ink)]" />
+            <span className="font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono text-[12px]">
               Scientific Agent Roster ({agents.length})
             </span>
           </div>
 
           <button
             onClick={() => { setMeshError(null); setIsCreatingAgent(true); }}
-            className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+            className="px-3 py-1.5 rounded-xl bg-[var(--color-soft-indigo-wash)] hover:opacity-90 border border-[var(--color-soft-indigo-edge)] text-[var(--color-accent-ink)] text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Create Custom Agent</span>
@@ -565,41 +565,41 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           {agents.map((agent) => (
             <div
               key={agent.id}
-              className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-indigo-500/30 transition-all flex flex-col justify-between space-y-3"
+              className="p-4 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] transition-all flex flex-col justify-between space-y-3"
             >
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <span className="text-base">{agent.avatar_emoji}</span>
-                    <span className="font-semibold text-white text-xs">{agent.name}</span>
+                    <span className="font-semibold text-[var(--color-text)] text-xs">{agent.name}</span>
                   </div>
                   <span
                     className={`text-[12px] font-mono px-2 py-0.5 rounded ${
                       agent.is_system_agent
-                        ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        ? 'bg-[var(--color-soft-indigo-wash)] text-[var(--color-accent-ink)] border border-[var(--color-soft-indigo-edge)]'
+                        : 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]'
                     }`}
                   >
                     {agent.is_system_agent ? 'SYSTEM' : 'USER-DEFINED'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed font-sans">{agent.description}</p>
+                <p className="text-xs text-[var(--color-muted)] leading-relaxed font-sans">{agent.description}</p>
               </div>
 
-              <div className="space-y-1.5 pt-2 border-t border-white/[0.04] text-[12px] font-mono">
-                <div className="flex items-center justify-between text-slate-400">
+              <div className="space-y-1.5 pt-2 border-t border-[var(--color-border)] text-[12px] font-mono">
+                <div className="flex items-center justify-between text-[var(--color-muted)]">
                   <span>Model:</span>
-                  <span className="text-cyan-300 truncate max-w-[200px]">{agent.preferred_model}</span>
+                  <span className="text-[var(--color-info-ink)] truncate max-w-[200px]">{agent.preferred_model}</span>
                 </div>
-                <div className="flex items-center justify-between text-slate-400">
+                <div className="flex items-center justify-between text-[var(--color-muted)]">
                   <span>Modalities:</span>
-                  <span className="text-slate-300">{agent.modalities.join(', ')}</span>
+                  <span className="text-[var(--color-label-secondary)]">{agent.modalities.join(', ')}</span>
                 </div>
                 {!agent.is_system_agent && (
                   <div className="pt-2 flex justify-end">
                     <button
                       onClick={() => handleDeleteAgent(agent.id)}
-                      className="text-rose-400 hover:text-rose-300 text-xs flex items-center space-x-1"
+                      className="text-[var(--color-danger-ink)] hover:opacity-80 text-xs flex items-center space-x-1"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Remove</span>
@@ -614,7 +614,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
       {/* Modal: Create User-Defined Agent */}
       {isCreatingAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
           <div
             ref={createAgentPanelRef}
             role="dialog"
@@ -623,16 +623,16 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             onKeyDown={(e) => {
               if (e.key === 'Escape') setIsCreatingAgent(false);
             }}
-            className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl"
+            className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 id="create-agent-title" className="text-base font-bold text-white flex items-center space-x-2">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+              <h3 id="create-agent-title" className="text-base font-bold text-[var(--color-text)] flex items-center space-x-2">
                 <span>Define Custom Scientific Agent</span>
               </h3>
               <button
                 onClick={() => setIsCreatingAgent(false)}
                 aria-label="Close create agent dialog"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -640,14 +640,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-300 font-semibold block mb-1">Agent Name &amp; Emoji</label>
+                <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">Agent Name &amp; Emoji</label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
                     value={newAgentEmoji}
                     aria-label="Agent emoji"
                     onChange={(e) => setNewAgentEmoji(e.target.value)}
-                    className="w-12 text-center p-2 rounded-xl bg-black/40 border border-white/10 text-white"
+                    className="w-12 text-center p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)]"
                   />
                   <input
                     type="text"
@@ -655,93 +655,93 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                     aria-label="Agent name"
                     onChange={(e) => setNewAgentName(e.target.value)}
                     placeholder="e.g. Battery Crystallographer"
-                    className="flex-1 p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500"
+                    className="flex-1 p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-300 font-semibold block mb-1">Role Identifier</label>
+                <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">Role Identifier</label>
                 <input
                   type="text"
                   value={newAgentRole}
                   aria-label="Role identifier"
                   onChange={(e) => setNewAgentRole(e.target.value)}
                   placeholder="e.g. solid_state_crystallographer"
-                  className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                  className="w-full p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] font-mono"
                 />
               </div>
 
               <div>
-                <label className="text-slate-300 font-semibold block mb-1">Short Description</label>
+                <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">Short Description</label>
                 <input
                   type="text"
                   value={newAgentDesc}
                   aria-label="Short description"
                   onChange={(e) => setNewAgentDesc(e.target.value)}
                   placeholder="e.g. Investigates halide perovskite crystal structures"
-                  className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white"
+                  className="w-full p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)]"
                 />
               </div>
 
               <div>
-                <label className="text-slate-300 font-semibold block mb-1">System Prompt / Instructions</label>
+                <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">System Prompt / Instructions</label>
                 <textarea
                   rows={4}
                   value={newAgentPrompt}
                   aria-label="System prompt"
                   onChange={(e) => setNewAgentPrompt(e.target.value)}
                   placeholder="Detailed scientific system prompt guiding the agent's reasoning..."
-                  className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500 font-mono text-[12px]"
+                  className="w-full p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] placeholder:text-[var(--color-faint)] font-mono text-[12px]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Preferred Model</label>
+                  <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">Preferred Model</label>
                   <input
                     type="text"
                     value={newAgentModel}
                     aria-label="Preferred model"
                     placeholder="e.g. local/qwen2.5-coder:32b (required — never assumed)"
                     onChange={(e) => setNewAgentModel(e.target.value)}
-                    className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-[12px]"
+                    className="w-full p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] font-mono text-[12px]"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Spend Budget (USD)</label>
+                  <label className="text-[var(--color-label-secondary)] font-semibold block mb-1">Spend Budget (USD)</label>
                   <input
                     type="number"
                     step="0.5"
                     value={newAgentBudget}
                     aria-label="Spend budget in USD"
                     onChange={(e) => setNewAgentBudget(e.target.value)}
-                    className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
+                    className="w-full p-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] font-mono"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-white/10 flex justify-end space-x-2">
+            <div className="pt-3 border-t border-[var(--color-border)] flex justify-end space-x-2">
               {/* Audit 2026-10-21: registration refusals set meshError,
               which renders on the page behind this modal's backdrop.
               The dialog carries its own copy so the refusal is visible
               where the user acted — the modal stays open with the form
               intact for retry. */}
               {meshError && (
-                <p role="alert" className="flex-1 text-left text-[12px] text-rose-200 self-center pr-2">
+                <p role="alert" className="flex-1 text-left text-[12px] text-[var(--color-danger-ink)] self-center pr-2">
                   {meshError}
                 </p>
               )}
               <button
                 onClick={() => setIsCreatingAgent(false)}
-                className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs font-semibold"
+                className="px-4 py-1.5 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs font-semibold"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveCustomAgent}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
+                className="px-4 py-1.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold shadow-sm"
               >
                 Save &amp; Register Agent
               </button>

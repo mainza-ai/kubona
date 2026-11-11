@@ -420,6 +420,15 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS workbench_views (
+		session_id TEXT PRIMARY KEY,
+		view_revision INTEGER NOT NULL DEFAULT 0,
+		view_json TEXT NOT NULL DEFAULT '{}',
+		view_digest TEXT NOT NULL DEFAULT '',
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+
 	CREATE TABLE IF NOT EXISTS tasks (
 		id TEXT PRIMARY KEY,
 		session_id TEXT NOT NULL,

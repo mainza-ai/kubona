@@ -36,6 +36,7 @@ export type ChartSpec = {
     currency?: string;
     min?: number;
     max?: number;
+    clamp?: boolean;
   };
   basis?: string;
   headline?: { label: string; value: string };
@@ -135,6 +136,16 @@ export function alignedRows(spec: ChartSpec): {
 }
 
 export function extents(spec: ChartSpec): { low: number | null; high: number | null } {
+  if (
+    spec.y?.clamp &&
+    typeof spec.y.min === 'number' &&
+    Number.isFinite(spec.y.min) &&
+    typeof spec.y.max === 'number' &&
+    Number.isFinite(spec.y.max) &&
+    spec.y.max > spec.y.min
+  ) {
+    return { low: spec.y.min, high: spec.y.max };
+  }
   const values: number[] = [];
   for (const series of spec.series) {
     for (const point of series.points) {
@@ -244,4 +255,25 @@ function endSlope(a: { x: number; y: number }, b: { x: number; y: number }, tang
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** Auto-flip categorical bar charts horizontally when labels are long or numerous. */
+export function shouldFlipHorizontal(spec: ChartSpec, keys: readonly string[]): boolean {
+  if (spec.kind !== 'bars' && spec.kind !== 'stacked') return false;
+  return Boolean(spec.horizontal || keys.length > 8 || keys.some((key) => key.length > 14));
+}
+
+/** Deterministic X-axis tick indices when series length exceeds readable density (> 12). */
+export function thinnedTickIndices(total: number, maxLabels = 8): number[] {
+  if (total <= 0) return [];
+  if (total <= 12) return Array.from({ length: total }, (_, index) => index);
+  const step = Math.ceil(total / Math.max(2, maxLabels));
+  const out: number[] = [];
+  for (let index = 0; index < total; index += step) out.push(index);
+  const last = total - 1;
+  if (out[out.length - 1] !== last) {
+    if (last - out[out.length - 1]! < Math.ceil(step / 2)) out.pop();
+    out.push(last);
+  }
+  return out;
 }

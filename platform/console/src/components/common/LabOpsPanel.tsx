@@ -129,10 +129,10 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     };
     return (
       <div className="space-y-1.5">
-        <p className="text-[12px] text-amber-200">
+        <p className="text-[12px] text-[var(--color-warning-ink)]">
           No admin registered for this lab — first write wins (bootstrap, sealed in the ledger).
         </p>
-        <label htmlFor={`lab-bootstrap-token-${lab.id}`} className="block text-[12px] text-slate-400">
+        <label htmlFor={`lab-bootstrap-token-${lab.id}`} className="block text-[12px] text-[var(--color-muted)]">
           Operator token (KUBONA_API_TOKEN; used once, not stored)
         </label>
         <input
@@ -142,10 +142,10 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           onChange={(e) => setBootstrapToken(e.target.value)}
           aria-label="Operator token"
           autoComplete="off"
-          className="w-full bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono"
+          className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] font-mono"
         />
         {!browserPub && (
-          <p className="text-[12px] text-slate-500">
+          <p className="text-[12px] text-[var(--color-faint)]">
             No browser key yet. Creating one is an explicit action; it mints the
             non-extractable Ed25519 key that will become this lab&apos;s admin.
           </p>
@@ -164,15 +164,15 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
               void createKeyAndRegister();
             }
           }}
-          className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[12px] disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] hover:opacity-90 text-[12px] disabled:opacity-40"
         >
           {browserPub
             ? `Register this browser key (${browserPub.slice(0, 12)}…) as lab admin`
             : 'Create browser key & register as lab admin'}
         </button>
-        {notice && <p className="text-[12px] text-amber-200" role="alert">{notice}</p>}
+        {notice && <p className="text-[12px] text-[var(--color-warning-ink)]" role="alert">{notice}</p>}
         {writeSettlementLabel(settlement.write) && (
-          <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(settlement.write)}</p>
         )}
       </div>
     );
@@ -219,24 +219,24 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   return (
     <div className="space-y-2 pt-1">
       <div className="flex items-center gap-1.5 text-[12px]">
-        <span className="text-slate-400">admin</span>
-        <span className="font-code text-emerald-300" title={registeredAdmin}>
+        <span className="text-[var(--color-muted)]">admin</span>
+        <span className="font-code text-[var(--color-success-ink)]" title={registeredAdmin}>
           {registeredAdmin.slice(0, 12)}… {isAdmin ? '(this browser key)' : '(signed-in lab-admin session)'}
         </span>
       </div>
       {!isAdmin && (
-        <p className="text-[12px] text-slate-500" title={`lab admin: ${registeredAdmin}\nbrowser key: ${browserPub ?? 'none'}`}>
+        <p className="text-[12px] text-[var(--color-faint)]" title={`lab admin: ${registeredAdmin}\nbrowser key: ${browserPub ?? 'none'}`}>
           Browser key {browserPub ? `${browserPub.slice(0, 12)}… ` : ''}is not this lab&apos;s admin. Writes use the signed-in lab-admin session; the server enforces it.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
-        <label htmlFor={`lab-autonomy-${lab.id}`} className="text-[12px] text-slate-400">Autonomy</label>
+        <label htmlFor={`lab-autonomy-${lab.id}`} className="text-[12px] text-[var(--color-muted)]">Autonomy</label>
         <select
           id={`lab-autonomy-${lab.id}`}
           value={autonomyDraft}
           onChange={(e) => setAutonomyDraft(e.target.value)}
           disabled={busy !== null || suspended}
-          className="px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[12px] font-code text-slate-200 disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[12px] font-code text-[var(--color-text)] disabled:opacity-40"
         >
           {['L0', 'L1', 'L2', 'L3'].map((level) => <option key={level} value={level}>{level}</option>)}
         </select>
@@ -248,7 +248,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
             const action = await envelope('grant_autonomy', { level: autonomyDraft });
             return setTenantAutonomy(lab.id, autonomyDraft as 'L0' | 'L1' | 'L2' | 'L3', action);
           })}
-          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-200 disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] disabled:opacity-40"
         >
           Set autonomy
         </button>
@@ -259,7 +259,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           onChange={(e) => setRevokeReason(e.target.value)}
           placeholder="revoke autonomy reason (required)"
           aria-label={`Revoke reason for ${lab.id}`}
-          className="flex-1 min-w-40 px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[12px] text-slate-200"
+          className="flex-1 min-w-40 px-2 py-1 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
         />
         <button
           type="button"
@@ -268,7 +268,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
             if (!revokeReason.trim()) { setNotice('revoke needs a reason.'); return; }
             setRevokeDraft(revokeReason.trim());
           }}
-          className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[12px] disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] disabled:opacity-40"
         >
           Revoke autonomy
         </button>
@@ -280,7 +280,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           placeholder="new ceiling USD"
           inputMode="decimal"
           aria-label={`New ceiling for ${lab.id}`}
-          className="w-32 px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[12px] font-code text-slate-200"
+          className="w-32 px-2 py-1 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[12px] font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
         />
         <button
           type="button"
@@ -294,7 +294,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
               }
               setCeilingDraft(v);
             }}
-          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-200 disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] disabled:opacity-40"
         >
           Set ceiling
         </button>
@@ -308,8 +308,8 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           aria-label={`${suspended ? 'Resume' : 'Suspend'} lab ${lab.id}`}
           className={`px-2 py-1 rounded-lg border text-[12px] disabled:opacity-40 ${
             suspended
-              ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-200 hover:bg-emerald-500/25'
-              : 'bg-amber-500/15 border-amber-400/30 text-amber-200 hover:bg-amber-500/25'
+              ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)] hover:opacity-90'
+              : 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] hover:opacity-90'
           }`}
         >
           {suspended ? 'Resume' : 'Suspend'}
@@ -322,14 +322,14 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           placeholder="refund USD"
           inputMode="decimal"
           aria-label={`Refund amount for ${lab.id}`}
-          className="w-24 px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[12px] font-code text-slate-200"
+          className="w-24 px-2 py-1 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[12px] font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
         />
         <input
           value={refundReason}
           onChange={(e) => setRefundReason(e.target.value)}
           placeholder="reason (required)"
           aria-label={`Refund reason for ${lab.id}`}
-          className="flex-1 min-w-32 px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[12px] text-slate-200"
+          className="flex-1 min-w-32 px-2 py-1 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
         />
         <button
           type="button"
@@ -350,13 +350,13 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
               setRefundError(null);
               setRefundDraft({ amount: v, reason: refundReason.trim() });
             }}
-          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-200 disabled:opacity-40"
+          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] disabled:opacity-40"
         >
           Refund
         </button>
       </div>
       {notice && (
-        <p className="text-[12px] text-amber-200" role="alert">
+        <p className="text-[12px] text-[var(--color-warning-ink)]" role="alert">
           {notice}
         </p>
       )}
@@ -387,8 +387,8 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           title={`Set ${lab.id} ceiling to $${ceilingDraft.toFixed(2)}?`}
           body={
             <span>
-              Set the spend ceiling for <strong className="font-semibold text-white">{lab.id}</strong> to{' '}
-              <strong className="font-semibold text-white">${ceilingDraft.toFixed(2)}</strong>. Reversible — the
+              Set the spend ceiling for <strong className="font-semibold text-[var(--color-text)]">{lab.id}</strong> to{' '}
+              <strong className="font-semibold text-[var(--color-text)]">${ceilingDraft.toFixed(2)}</strong>. Reversible — the
               ceiling can be raised or lowered again.
             </span>
           }
@@ -444,7 +444,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           title={`Refund ${refundAmountText} to ${lab.id}?`}
           body={
             <span>
-              Return <strong className="font-semibold text-white">{refundAmountText}</strong> to {lab.id} (“
+              Return <strong className="font-semibold text-[var(--color-text)]">{refundAmountText}</strong> to {lab.id} (“
               {refundDraft.reason}”). Audited, irreversible — the ledger keeps this refund forever.
             </span>
           }

@@ -138,6 +138,23 @@ func molTokenMatch(targetUpper, molNorm string) bool {
 	return false
 }
 
+// matchesCampaignMolecule checks exact molecular formula equality or whole-token
+// target match (requiring >= 2 chars so "H" never matches arbitrary strings).
+func matchesCampaignMolecule(state *CampaignState, mol string) bool {
+	if state == nil {
+		return false
+	}
+	molNorm := strings.ToUpper(strings.TrimSpace(mol))
+	if len(molNorm) < 2 {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(state.QuantumFactors.MolecularFormula), mol) {
+		return true
+	}
+	targetUpper := strings.ToUpper(state.QuantumFactors.TargetMolecule)
+	return molTokenMatch(targetUpper, molNorm)
+}
+
 // ReplanWithJobResult folds one settled job into stored campaign JSON.
 // cite carries a claim record ID for the notebook line ("" = no citation).
 func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []byte, cite string) (updated []byte, changed bool, note string) {
@@ -278,17 +295,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		// substring fallback let "LI" match "LIH" — a wrong-molecule anchor
 		// corrupts everything downstream). Codes shorter than two
 		// characters never match at all.
-		molNorm := strings.ToUpper(strings.TrimSpace(mol))
-		matched := false
-		if len(molNorm) >= 2 {
-			matched = strings.EqualFold(
-				strings.TrimSpace(state.QuantumFactors.MolecularFormula), mol)
-			if !matched {
-				targetUpper := strings.ToUpper(state.QuantumFactors.TargetMolecule)
-				matched = molTokenMatch(targetUpper, molNorm)
-			}
-		}
-		if !matched {
+		if !matchesCampaignMolecule(&state, mol) {
 			return nil, false, "anchor molecule mismatch"
 		}
 		rawRHF, okR := present("rhf_energy")
@@ -376,6 +383,16 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if energy == 0 || fci == 0 {
 			return nil, false, "vqe energy/anchor absent"
+		}
+		if raw, ok := present("molecule"); ok {
+			var mol string
+			if err := json.Unmarshal(raw, &mol); err == nil && strings.TrimSpace(mol) != "" && !matchesCampaignMolecule(&state, mol) {
+				return nil, false, "vqe molecule mismatch"
+			}
+		}
+		if anchor := state.ClassicalAnchor.FciExactEnergy; anchor != 0 &&
+			math.Abs(fci-anchor) > math.Max(1.0, 0.5*math.Abs(anchor)) {
+			return nil, false, "vqe fci anchor mismatch"
 		}
 		if raw, ok := present("theta"); ok {
 			_ = json.Unmarshal(raw, &theta)

@@ -6,6 +6,8 @@ import {
   formatValue,
   plotPath,
   pointText,
+  shouldFlipHorizontal,
+  thinnedTickIndices,
   ticks,
   valuesCsv,
   type ChartSpec,
@@ -68,5 +70,20 @@ describe('chart spec', () => {
     ]);
     expect(path.startsWith('M0,10')).toBe(true);
     expect(path).toContain('C');
+  });
+
+  it('flips bars horizontally on long category labels or > 8 categories, and thins crowded ticks', () => {
+    const shortSpec: ChartSpec = { kind: 'bars', title: 'Short', series: [] };
+    expect(shouldFlipHorizontal(shortSpec, ['A', 'B', 'C'])).toBe(false);
+    expect(shouldFlipHorizontal(shortSpec, ['Very long hardware backend label', 'Short'])).toBe(true);
+    expect(shouldFlipHorizontal(shortSpec, Array.from({ length: 9 }, (_, i) => `K${i}`))).toBe(true);
+    expect(shouldFlipHorizontal({ kind: 'line', title: 'Line', series: [] }, Array.from({ length: 15 }, (_, i) => `Long label number ${i}`))).toBe(false);
+
+    const small = thinnedTickIndices(5);
+    expect(small).toEqual([0, 1, 2, 3, 4]);
+    const crowded = thinnedTickIndices(24, 6);
+    expect(crowded.length).toBeLessThanOrEqual(7);
+    expect(crowded[0]).toBe(0);
+    expect(crowded[crowded.length - 1]).toBe(23);
   });
 });

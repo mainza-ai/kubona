@@ -31,7 +31,7 @@ export function ModeRail({
   onOpenCampaigns: () => void;
 }) {
   return (
-    <aside aria-label="Primary modes" className="relative z-30 w-14 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10] shrink-0">
+    <aside aria-label="Primary modes" className="relative z-30 w-14 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-[var(--color-border)] bg-[var(--color-chrome)] shrink-0">
       <div className="flex flex-col items-center gap-6">
         <div title="Kubona — sovereign research console" className="flex items-center justify-center">
           <Image
@@ -44,7 +44,7 @@ export function ModeRail({
           />
         </div>
 
-        <div className="w-6 h-[1px] bg-white/10" />
+        <div className="w-6 h-[1px] bg-[var(--color-border-strong)]" />
 
         <nav aria-label="Primary modes" className="flex flex-col items-center gap-3">
           {MODES.map((mode) => {
@@ -60,10 +60,10 @@ export function ModeRail({
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelect(mode.id)}
                 title={`${mode.label} — ${mode.description}`}
-                className={`group relative w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+                className={`group relative w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
                   isActive
-                    ? 'bg-cyan-400/10 border border-cyan-400/40 text-cyan-400'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10'
+                    ? 'bg-[var(--color-lit)] text-[var(--color-on-lit)] border border-[var(--color-border-strong)]'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill)] border border-transparent hover:border-[var(--color-border)]'
                 }`}
               >
                 <Icon className="w-[21px] h-[21px]" />
@@ -80,9 +80,12 @@ export function ModeRail({
           tabIndex={0}
           aria-label={airGapSovereign ? 'Air-gap: sovereign, zero outbound egress' : 'Air-gap: egress open, network path live'}
           title={airGapSovereign ? 'Air-gap enclave: sovereign, 0 outbound egress' : 'Air-gap enclave: egress open'}
-          className={`w-9 h-9 rounded-lg flex items-center justify-center border cursor-default focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-            airGapSovereign ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
-          }`}
+          className="w-9 h-9 rounded-lg flex items-center justify-center border cursor-default focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+          style={
+            airGapSovereign
+              ? { color: 'var(--color-success)', background: 'color-mix(in oklab, var(--color-success) 14%, transparent)', borderColor: 'color-mix(in oklab, var(--color-success) 30%, transparent)' }
+              : { color: 'var(--color-warning)', background: 'color-mix(in oklab, var(--color-warning) 14%, transparent)', borderColor: 'color-mix(in oklab, var(--color-warning) 30%, transparent)' }
+          }
         >
           <Lock className="w-[18px] h-[18px]" />
         </div>
@@ -92,9 +95,9 @@ export function ModeRail({
           aria-label="Campaigns"
           title="Campaigns"
           onClick={onOpenCampaigns}
-          className="w-8 h-8 rounded-full bg-[var(--color-border-strong)] p-[1px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          className="w-8 h-8 rounded-full bg-[var(--color-border-strong)] p-[1px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
         >
-          <span className="w-full h-full rounded-full bg-black flex items-center justify-center text-[12px] font-code font-bold text-white">KB</span>
+          <span className="w-full h-full rounded-full bg-[var(--color-raised)] flex items-center justify-center text-[12px] font-code font-bold text-[var(--color-text)]">KB</span>
         </button>
       </div>
     </aside>

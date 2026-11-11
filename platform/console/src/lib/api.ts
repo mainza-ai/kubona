@@ -1232,6 +1232,76 @@ export async function saveWorkbenchLayout(
   }
 }
 
+export async function fetchWorkbenchView(
+  sessionId: string,
+): Promise<{ view_revision: number; view: Record<string, unknown> } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/workbench/view?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { session_id?: unknown; view_revision?: unknown; view?: unknown };
+    if (
+      typeof data.session_id === 'string' &&
+      typeof data.view_revision === 'number' &&
+      data.view &&
+      typeof data.view === 'object'
+    ) {
+      contract('workbench.view', data);
+      return { view_revision: data.view_revision, view: data.view as Record<string, unknown> };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWorkbenchView(
+  sessionId: string,
+  viewRevision: number,
+  view: Record<string, unknown>,
+  requestId?: string,
+): Promise<{
+  ok: boolean;
+  view_revision?: number;
+  unchanged?: boolean;
+  conflict?: boolean;
+  currentViewRevision?: number;
+  unknown?: boolean;
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/workbench/view?session_id=${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ view_revision: viewRevision, view, ...(requestId ? { request_id: requestId } : {}) }),
+    });
+    if (res.status === 409) {
+      const data = (await res.json().catch(() => ({}))) as { current_view_revision?: unknown };
+      return {
+        ok: false,
+        conflict: true,
+        currentViewRevision: typeof data.current_view_revision === 'number' ? data.current_view_revision : undefined,
+        error: 'Viewport changed elsewhere — synced latest view.',
+      };
+    }
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as { view_revision?: unknown; unchanged?: unknown };
+    if (typeof data.view_revision === 'number') {
+      contract('workbench.view.save', data);
+      return {
+        ok: true,
+        view_revision: data.view_revision,
+        unchanged: data.unchanged === true,
+      };
+    }
+    return { ok: false, unknown: true, error: 'view save receipt did not carry the new view_revision' };
+  } catch (err) {
+    return { ok: false, unknown: true, error: String(err) };
+  }
+}
+
 export async function saveCanvasLayout(sessionId: string, layout: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   try {
     await requestOperation('saveCanvasLayout', { query: { session_id: sessionId }, body: layout });

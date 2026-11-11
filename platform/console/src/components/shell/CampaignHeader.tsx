@@ -30,7 +30,7 @@ export function CampaignHeader({
       <span className="k-campaign-meta">{target}</span>
       {mode && (
         <span
-          className={`k-campaign-meta ${mode === 'local_private' ? 'text-emerald-300' : 'text-amber-300'}`}
+          className={`k-campaign-meta ${mode === 'local_private' ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]'}`}
           title={mode === 'local_private' ? 'Single-lab local deployment.' : 'Multi-lab deployment: sign in to use lab-scoped chat.'}
         >
           {mode === 'local_private' ? 'Local private' : 'Multi-lab'}

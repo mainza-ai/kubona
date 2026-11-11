@@ -8,22 +8,22 @@ const META: Record<ProvenanceKind, { label: string; title: string; className: st
   measured: {
     label: 'MEASURED',
     title: 'Folded from a recorded job, computed anchor, or evaluated claim.',
-    className: 'bg-emerald-400/10 border-emerald-400/40 text-emerald-300',
+    className: 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]',
   },
   proposed: {
     label: 'PROPOSED',
     title: 'Campaign proposal or plan; not a measured result.',
-    className: 'bg-cyan-400/10 border-cyan-400/40 text-cyan-300',
+    className: 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)]',
   },
   catalog: {
     label: 'CATALOG',
     title: 'Reference catalog data, not a session measurement.',
-    className: 'bg-slate-400/10 border-slate-400/40 text-slate-300',
+    className: 'bg-[var(--color-fill)] border-[var(--color-border-strong)] text-[var(--color-label-secondary)]',
   },
   model: {
     title: 'Scientific model or visualization derived from recorded inputs.',
     label: 'MODEL',
-    className: 'bg-amber-400/10 border-amber-400/40 text-amber-300',
+    className: 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]',
   },
 };
 

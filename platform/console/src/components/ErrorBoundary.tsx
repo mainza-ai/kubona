@@ -41,12 +41,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   render(): React.ReactNode {
     if (this.state.hasError) {
       return (
-        <div role="alert" className="p-6 rounded-2xl bg-rose-950/60 border border-rose-500/40 text-rose-200 space-y-3">
+        <div role="alert" className="p-6 rounded-2xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] space-y-3">
           <p className="text-sm font-semibold">Something broke rendering this view — nothing loaded, nothing assumed.</p>
           <button
             type="button"
             onClick={this.handleRetry}
-            className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold"
+            className="px-4 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] text-xs font-semibold border border-[var(--color-border)]"
           >
             Retry
           </button>

@@ -14,23 +14,23 @@ interface ShadowTomographyRadarWidgetProps {
  */
 export function ShadowTomographyRadarWidget({ numQubits }: ShadowTomographyRadarWidgetProps) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
-      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+          <div className="p-2 rounded-xl bg-[var(--color-soft-sky-wash)] border border-[var(--color-soft-sky-edge)] text-[var(--color-soft-sky-ink)]">
             <Radio className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Classical Shadow Tomography</h3>
-            <p className="text-xs text-white/50">
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">Classical Shadow Tomography</h3>
+            <p className="text-xs text-[var(--color-muted)]">
               Huang-Kueng-Preskill protocol{numQubits != null ? ` • ${numQubits} qubits` : ''}
             </p>
           </div>
         </div>
       </div>
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-center space-y-1.5">
-        <p className="text-xs font-medium text-white/80">No shadow-tomography execution is recorded for this campaign.</p>
-        <p className="text-[12px] text-slate-400">
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 text-center space-y-1.5">
+        <p className="text-xs font-medium text-[var(--color-text)]">No shadow-tomography execution is recorded for this campaign.</p>
+        <p className="text-[12px] text-[var(--color-muted)]">
           Snapshot counts, observable estimates, standard errors, and speedups appear only after a measured snapshot job folds.
         </p>
       </div>

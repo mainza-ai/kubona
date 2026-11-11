@@ -81,8 +81,15 @@ describe('AuthPanel (A4 session auth UI)', () => {
     await act(async () => {
       await signInBtn!.props.onClick();
     });
-    // login() is void-returning; wait for the custody sign + login promises.
-    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
+    // login() is void-returning; flush async refresh + React commits across ticks.
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.authLogin).toHaveBeenCalled();
+      expect(api.authSessions).toHaveBeenCalled();
+      expect(textOf(root!.root)).toContain('sess-tok');
+    });
 
     expect(api.authChallenge).toHaveBeenCalledTimes(1);
     expect(api.authLogin).toHaveBeenCalledTimes(1);
@@ -120,7 +127,13 @@ describe('AuthPanel (A4 session auth UI)', () => {
     await act(async () => {
       await signInBtn!.props.onClick();
     });
-    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.authLogin).toHaveBeenCalled();
+      expect(textOf(root!.root)).toContain('login refused:');
+    });
 
     const text = textOf(root!.root);
     expect(text).toContain("login refused: unauthorized: key is not this lab's admin");
@@ -165,7 +178,14 @@ describe('AuthPanel (A4 session auth UI)', () => {
     await act(async () => {
       await signInBtn!.props.onClick();
     });
-    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
+    await vi.waitFor(async () => {
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(api.authLogin).toHaveBeenCalled();
+      expect(api.authSessions).toHaveBeenCalled();
+      expect(textOf(root!.root)).toContain('lab-secret');
+    });
     expect(vi.mocked(api.authLogin).mock.calls[0][0]).toBe('lab-secret');
   });
 

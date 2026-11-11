@@ -89,9 +89,23 @@ export async function mockApi(page: Page, counts: { loops?: number; jobs?: numbe
     if (path === '/api/events') return json({ events: [] });
     if (path === '/api/events/stream') return route.fulfill({ status: 204, body: '' });
     if (path === '/api/sessions/perf-session/campaign') return json(campaign());
+    if (path === '/api/sessions/context' || path === '/api/sessions/perf-session/context') {
+      return json({
+        session_id: 'perf-session', turns: 0, turn_cap: 50,
+        history_chars: 0, history_chars_cap: 100000, would_drop: 0,
+        pressure_pct: 0, prompt_tokens: 0, completion_tokens: 0,
+      });
+    }
+    if (path === '/api/sessions/perf-session/messages') return json({ messages: [] });
     if (path === '/api/workbench/layout') {
       if (route.request().method() === 'PUT') return json({ status: 'saved', session_id: 'perf-session', revision: 1 });
       return json({ session_id: 'perf-session', revision: 0, document: {} });
+    }
+    if (path === '/api/workbench/view') {
+      if (route.request().method() === 'PUT' || route.request().method() === 'POST') {
+        return json({ status: 'saved', session_id: 'perf-session', view_revision: 1 });
+      }
+      return json({ session_id: 'perf-session', view_revision: 0, view: {} });
     }
     if (path === '/api/canvas/layout') return json({});
     if (path === '/api/health' || path === '/api/ready') return json({ ok: true, status: 'ready', ready: true });

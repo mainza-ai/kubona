@@ -43,25 +43,25 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
   return (
     <div className="space-y-6">
       {/* Surface Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-[var(--color-page)] border border-white/[0.08]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-[var(--color-page)] border border-[var(--color-border)]">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[12px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            <span className="px-2.5 py-0.5 rounded-full text-[12px] font-mono tracking-wider uppercase bg-[var(--color-soft-lilac-wash)] text-[var(--color-soft-lilac-ink)] border border-[var(--color-soft-lilac-edge)]">
               Surface 9 · Scientific Widgets
             </span>
-            <span className="text-white/40 text-xs">• Agent-to-User Generative Scientific Widgets</span>
+            <span className="text-[var(--color-faint)] text-xs">• Agent-to-User Generative Scientific Widgets</span>
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
-            <Code2 className="w-6 h-6 text-purple-400" />
+          <h2 className="text-2xl font-bold text-[var(--color-text)] tracking-tight flex items-center space-x-2">
+            <Code2 className="w-6 h-6 text-[var(--color-soft-lilac-ink)]" />
             <span>Generative Scientific UI Studio</span>
           </h2>
-          <p className="text-xs text-white/60 max-w-2xl">
+          <p className="text-xs text-[var(--color-muted)] max-w-2xl">
             Interactive visual components backed by campaign proposals and measured receipts: molecular active spaces, post-QIR circuits, Lean 4 goals, classical shadows, and spend mandate cards.
           </p>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center flex-wrap gap-1 p-1 rounded-2xl bg-black/60 border border-white/[0.08]">
+        <div className="flex items-center flex-wrap gap-1 p-1 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
           {tabs.map((t) => {
             const Icon = t.icon;
             const isSelected = activeWidgetTab === t.id;
@@ -71,8 +71,8 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
                 onClick={() => setActiveWidgetTab(t.id)}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs transition ${
                   isSelected
-                    ? 'bg-purple-600/30 border border-purple-500/50 text-white font-medium shadow'
-                    : 'text-white/60 hover:text-white hover:bg-white/[0.04]'
+                    ? 'bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-text)] font-medium shadow-[var(--shadow-card)]'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -85,9 +85,9 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
 
       {/* Widget Showcase Grid */}
       {!hasLive ? (
-        <div className="rounded-3xl border border-white/[0.08] bg-[var(--color-page)] p-8 text-center space-y-2">
-          <p className="text-sm font-medium text-white">No measured campaign data for the widget gallery.</p>
-          <p className="text-xs text-slate-400 max-w-xl mx-auto">
+        <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-page)] p-8 text-center space-y-2">
+          <p className="text-sm font-medium text-[var(--color-text)]">No measured campaign data for the widget gallery.</p>
+          <p className="text-xs text-[var(--color-muted)] max-w-xl mx-auto">
             Widgets appear after a campaign has a measured notebook, epistemic claim, or trajectory. A proposal alone does not populate them with fabricated values.
           </p>
         </div>

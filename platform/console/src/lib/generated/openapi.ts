@@ -74,6 +74,18 @@ export type WorkbenchSave = {
   "revision": number;
 };
 
+export type WorkbenchView = {
+  "session_id": string;
+  "view_revision": number;
+  "view": Record<string, unknown>;
+};
+
+export type WorkbenchViewSave = {
+  "status": string;
+  "session_id": string;
+  "view_revision": number;
+};
+
 export type ObligationsOpen = {
   "obligations": {
   "id": string;
@@ -807,6 +819,7 @@ export type ApiOperationResponse = {
   fetchSystemAgents: AgentsSystem;
   fetchTasksResult: TasksList;
   fetchWorkbenchLayout: WorkbenchLayout;
+  fetchWorkbenchView: WorkbenchView;
   getHFModelDetails: HfDetails;
   importSession: SessionImport;
   issueTenantGrant: TenantGrant;
@@ -854,6 +867,7 @@ export type ApiOperationResponse = {
   saveLLMSettings: SettingsUpdate;
   saveQuantumSettings: SettingsUpdate;
   saveWorkbenchLayout: WorkbenchSave;
+  saveWorkbenchView: WorkbenchViewSave;
   scoreCodesignBudget: CodesignBudget;
   sealPrediction: PredictionSeal;
   searchHFModels: HfSearch;
@@ -952,6 +966,7 @@ export const API_OPERATIONS = {
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchTasksResult: { method: "get", path: "/api/tasks", response: "tasks.list" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
+  fetchWorkbenchView: { method: "get", path: "/api/workbench/view", response: "workbench.view" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
   importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
@@ -999,6 +1014,7 @@ export const API_OPERATIONS = {
   saveLLMSettings: { method: "post", path: "/api/llm/settings", response: "settings.update" },
   saveQuantumSettings: { method: "put", path: "/api/quantum/settings", response: "settings.update" },
   saveWorkbenchLayout: { method: "put", path: "/api/workbench/layout", response: "workbench.save" },
+  saveWorkbenchView: { method: "put", path: "/api/workbench/view", response: "workbench.view.save" },
   scoreCodesignBudget: { method: "post", path: "/api/codesign/budget", response: "codesign.budget" },
   sealPrediction: { method: "post", path: "/api/vault/predictions/seal", response: "prediction.seal" },
   searchHFModels: { method: "get", path: "/api/hf/search", response: "hf.search" },

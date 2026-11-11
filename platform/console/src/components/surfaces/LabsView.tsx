@@ -91,16 +91,16 @@ export function LabsView() {
       <div className="space-y-2.5">
         <div className="text-[var(--color-muted)] text-sm">Loading laboratories…</div>
         <div data-testid="labs-skeleton" className="space-y-2" aria-hidden="true">
-          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
-          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
-          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
+          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
+          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
         </div>
       </div>
     );
   }
   if (error) {
     return (
-      <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
+      <div className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs">
         Laboratories unavailable — nothing loaded ({error.slice(0, 200)}).
       </div>
     );
@@ -113,9 +113,9 @@ export function LabsView() {
     if (wasRecentAuthFailure() || authed === false) {
       return (
         <div className="space-y-3">
-          <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
+          <div className="p-3 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs">
             Sign in to manage laboratories. Research campaigns are under Campaigns.{' '}
-            <a href="#operator-session" className="underline hover:text-amber-100">
+            <a href="#operator-session" className="underline hover:opacity-80">
               Sign in below
             </a>
             .
@@ -125,7 +125,7 @@ export function LabsView() {
           </div>
           <CreateLabPanel onCreated={reload} />
           {authed === true && (
-            <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
+            <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
               <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
               <div className="mt-3 space-y-3">
                 <TenantGrantPanel labs={labs} />
@@ -163,7 +163,7 @@ export function LabsView() {
         Laboratories are for multi-lab administration. Research campaigns live under Campaigns.
       </p>
       <AuthPanel labs={labs} />
-      <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
+      <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
         <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
         <div className="mt-3"><CreateLabPanel onCreated={reload} /></div>
       </details>
@@ -178,7 +178,7 @@ export function LabsView() {
         return (
           <div
             key={lab.id}
-            className="rounded-2xl bg-black/50 border border-white/[0.08] p-4"
+            className="rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] p-4"
           >
             <button
               className="w-full flex items-center justify-between text-left"
@@ -186,31 +186,31 @@ export function LabsView() {
               aria-expanded={expanded}
             >
               <span className="flex items-center space-x-2">
-                <FlaskConical className="w-4 h-4 text-cyan-300" />
-                <span className="text-white font-medium text-sm">
+                <FlaskConical className="w-4 h-4 text-[var(--color-info-ink)]" />
+                <span className="text-[var(--color-text)] font-medium text-sm">
                   {lab.display_name || lab.id}
                 </span>
-                <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-white/[0.06] text-slate-300 border-white/10">
+                <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-tile)] text-[var(--color-label-secondary)] border-[var(--color-border)]">
                   {lab.autonomy_level}
                 </span>
                 {lab.status !== 'active' && (
-                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-amber-500/20 text-amber-200 border-amber-400/30">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border-[var(--color-warning-edge)]">
                     {lab.status}
                   </span>
                 )}
                 {unbounded && (
-                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-rose-500/20 text-rose-200 border-rose-400/40">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)] border-[var(--color-danger-edge)]">
                     NO-CEILING · UNBOUNDED
                   </span>
                 )}
               </span>
-              <span className="flex items-center space-x-2 text-xs text-slate-300">
+              <span className="flex items-center space-x-2 text-xs text-[var(--color-label-secondary)]">
                 {unbounded ? (
                   <span>{spent != null ? fmtMoney(spent) : '—'} / UNBOUNDED (no ceiling)</span>
                 ) : (
                   <span>{`${spent != null ? fmtMoney(spent) : '—'} / ${ceiling != null ? fmtMoney(ceiling) : '—'} (${used ?? '—'}%)`}</span>
                 )}
-                {hot && <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />}
+                {hot && <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />}
                 {expanded ? (
                   <ChevronUp className="w-4 h-4" />
                 ) : (
@@ -219,7 +219,7 @@ export function LabsView() {
               </span>
             </button>
             <div
-              className="mt-2 h-1.5 rounded-full bg-white/[0.06]"
+              className="mt-2 h-1.5 rounded-full bg-[var(--color-tile)]"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
@@ -228,10 +228,10 @@ export function LabsView() {
               aria-label={`Spend for ${lab.display_name || lab.id}`}
             >
               {unbounded ? (
-                <div className="h-1.5 rounded-full bg-rose-400/70" style={{ width: '100%' }} title="No ceiling — unbounded spend alarm" />
+                <div className="h-1.5 rounded-full bg-[var(--color-danger)]" style={{ width: '100%' }} title="No ceiling — unbounded spend alarm" />
               ) : (
                 <div
-                  className={`h-1.5 rounded-full ${hot ? 'bg-amber-400' : 'bg-cyan-400'}`}
+                  className={`h-1.5 rounded-full ${hot ? 'bg-[var(--color-warning)]' : 'bg-[var(--color-accent)]'}`}
                   style={{ width: `${used ?? 0}%` }}
                 />
               )}
@@ -247,9 +247,9 @@ export function LabsView() {
                 {labSessions.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06]"
+                    className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)]"
                   >
-                    <span className="text-slate-200">{s.title || s.id}</span>
+                    <span className="text-[var(--color-label-secondary)]">{s.title || s.id}</span>
                     <span className="text-[var(--color-muted)] font-mono">
                       {`${typeof s.current_spend_usd === 'number' && Number.isFinite(s.current_spend_usd) ? fmtMoney(s.current_spend_usd) : '—'} / ${typeof s.spend_limit_usd === 'number' && Number.isFinite(s.spend_limit_usd) ? fmtMoney(s.spend_limit_usd) : '—'} · ${s.status}`}
                     </span>

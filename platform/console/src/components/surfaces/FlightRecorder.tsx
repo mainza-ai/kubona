@@ -279,26 +279,26 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
   };
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl flex flex-col justify-between p-8 select-none">
       {/* Wave-2 a11y: polite live region announces the playback position.
           Text derives from safeIndex, so it only changes on step change. */}
       <div aria-live="polite" role="status" className="sr-only">
         {`Step ${safeIndex + 1} of ${milestones.length}: ${activeMilestone.title}`}
       </div>
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
-            <Sparkles className="w-5 h-5 text-cyan-400" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-[var(--color-info-ink)]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-white tracking-tight">
+              <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">
                 Discovery Flight Recorder · {campaign?.target_system || 'No target'}
               </h2>
               {(campaign?.trajectory?.length ?? 0) > 0 && <ProvenanceBadge kind="measured" detail="Trajectory points folded from completed jobs." />}
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="text-xs text-[var(--color-muted)] mt-0.5">
               Narrative playback of autonomous hypothesis evolution ({loops.length} loops, {events.length} ledger events)
             </p>
           </div>
@@ -309,7 +309,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
           onClick={handleStepPreview}
           disabled={isStepping}
           title="Scrub forward through the recorded narrative (dispatches nothing)"
-          className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 active:scale-[0.98] text-white text-xs font-semibold flex items-center space-x-2 transition-all shadow-md disabled:opacity-50"
+          className="px-4 py-2 rounded-xl bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] active:scale-[0.98] text-[var(--color-text)] text-xs font-semibold flex items-center space-x-2 transition-all shadow-sm disabled:opacity-50"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>{isStepping ? 'Scrubbing...' : 'Preview Next Step'}</span>
@@ -328,18 +328,18 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
       )}
 
       {history.length > 0 && (
-        <details className="mt-5 rounded-2xl border border-white/[0.08] bg-black/20 p-4" data-testid="ledger-history">
-          <summary className="cursor-pointer text-xs font-semibold text-white">Ledger history · {history.length} loaded</summary>
+        <details className="mt-5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4" data-testid="ledger-history">
+          <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Ledger history · {history.length} loaded</summary>
           <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto font-mono text-[12px] text-[var(--color-label-secondary)]">
             {history.slice(-20).reverse().map((event) => (
-              <li key={event.id} className="flex gap-2 border-b border-white/[0.04] py-1">
+              <li key={event.id} className="flex gap-2 border-b border-[var(--color-border)] py-1">
                 <span className="w-12 shrink-0 text-[var(--color-muted)]">#{event.id}</span>
                 <span className="min-w-0 flex-1 truncate">{event.event_type}</span>
                 <span className="shrink-0 text-[var(--color-muted)]">{String(event.timestamp).slice(11, 19)}</span>
               </li>
             ))}
           </ol>
-          <button type="button" onClick={() => { void loadOlderEvents(); }} disabled={!sessionId || historyBusy} className="mt-3 rounded-lg border border-white/10 px-3 py-1.5 text-[12px] text-[var(--color-text)] disabled:opacity-40">
+          <button type="button" onClick={() => { void loadOlderEvents(); }} disabled={!sessionId || historyBusy} className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-tile)] px-3 py-1.5 text-[12px] text-[var(--color-text)] disabled:opacity-40">
             {historyBusy ? 'Loading older…' : 'Load older events'}
           </button>
         </details>
@@ -364,16 +364,16 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
 
       {/* Center Narrative Story Card */}
       <div className="flex-1 flex flex-col items-center justify-center my-8 max-w-xl mx-auto w-full">
-        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-7 shadow-2xl space-y-5">
+        <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-7 shadow-lg space-y-5">
           <div className="flex items-center justify-between">
-            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
+            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-full bg-[var(--color-tile)] text-[var(--color-label-secondary)] border border-[var(--color-border)]">
               Milestone {safeIndex + 1} of {milestones.length} · Iteration {activeMilestone.step}
             </span>
 
             <span className={`text-[12px] font-mono font-bold px-3 py-1 rounded-full flex items-center space-x-1.5 ${
               activeMilestone.verdict === 'keep' || activeMilestone.verdict === 'baseline'
-                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]'
+                : 'bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]'
             }`}>
               <CheckCircle className="w-3.5 h-3.5" />
               <span>{activeMilestone.verdict === 'keep' ? 'Champion Promoted' : activeMilestone.verdict === 'baseline' ? 'Baseline Established' : 'Hypothesis Discarded'}</span>
@@ -381,21 +381,21 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold text-white tracking-tight">
+            <h3 className="text-lg font-semibold text-[var(--color-text)] tracking-tight">
               {activeMilestone.title}
             </h3>
-            <p className="text-sm text-slate-200 leading-relaxed mt-2 font-sans">
+            <p className="text-sm text-[var(--color-label-secondary)] leading-relaxed mt-2 font-sans">
               {activeMilestone.summary}
             </p>
           </div>
 
           {/* Key physical metric readout */}
-          <div className="flex items-center justify-between pt-3 border-t border-white/[0.08] text-xs font-mono">
-            <span className="text-slate-300 font-medium">Chemical Discrepancy:</span>
+          <div className="flex items-center justify-between pt-3 border-t border-[var(--color-border)] text-xs font-mono">
+            <span className="text-[var(--color-muted)] font-medium">Chemical Discrepancy:</span>
             {activeMilestone.deltaMHa < 0 ? (
-              <span className="font-bold text-slate-400">Δ = UNVERIFIED (no measurement)</span>
+              <span className="font-bold text-[var(--color-muted)]">Δ = UNVERIFIED (no measurement)</span>
             ) : (
-              <span data-metric data-provenance="measured" className={`font-bold ${activeMilestone.deltaMHa <= chemLimit ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span data-metric data-provenance="measured" className={`font-bold ${activeMilestone.deltaMHa <= chemLimit ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]'}`}>
                 Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= chemLimit ? '(Accuracy Met)' : '(Exploring)'}
               </span>
             )}
@@ -403,12 +403,12 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
 
           {/* Progressive Disclosure Code Diff */}
           {showCodeDiff && activeMilestone.codeDiff && (
-            <div className="pt-3 border-t border-white/[0.08] space-y-2">
-              <span className="text-xs font-medium text-slate-200 flex items-center space-x-1.5">
-                <FileCode className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="pt-3 border-t border-[var(--color-border)] space-y-2">
+              <span className="text-xs font-medium text-[var(--color-label-secondary)] flex items-center space-x-1.5">
+                <FileCode className="w-3.5 h-3.5 text-[var(--color-info-ink)]" />
                 <span>Quantum Circuit Mutation</span>
               </span>
-              <pre className="p-3 rounded-xl bg-black/80 border border-white/10 text-[12px] font-mono text-cyan-200 overflow-x-auto leading-relaxed">
+              <pre className="p-3 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-[12px] font-mono text-[var(--color-text)] overflow-x-auto leading-relaxed">
                 {activeMilestone.codeDiff}
               </pre>
             </div>
@@ -418,7 +418,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
         {/* Toggle Code Mutation Diff */}
         <button
           onClick={() => setShowCodeDiff(!showCodeDiff)}
-          className="mt-3 text-xs text-slate-300 hover:text-white transition-colors flex items-center space-x-1 font-medium"
+          className="mt-3 text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors flex items-center space-x-1 font-medium"
         >
           <span>{showCodeDiff ? 'Hide Circuit Code' : 'Inspect Circuit Code Mutation'}</span>
           {showCodeDiff ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -426,14 +426,14 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
       </div>
 
       {/* Bottom Cinematic Scrubber & Controls */}
-      <div className="border-t border-white/[0.08] pt-6 space-y-4">
+      <div className="border-t border-[var(--color-border)] pt-6 space-y-4">
         {/* Play/Pause & Step Indicators */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
               aria-label={isPlaying ? 'Pause narrative' : 'Play narrative'}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all shadow-md focus:outline-none"
+              className="w-9 h-9 rounded-full bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] active:scale-95 text-[var(--color-text)] border border-[var(--color-border)] flex items-center justify-center transition-all shadow-sm focus:outline-none"
               title={isPlaying ? 'Pause Narrative' : 'Play Narrative'}
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
@@ -444,14 +444,14 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
                 setCurrentStepIndex(0);
               }}
               aria-label="Reset timeline to start"
-              className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-2 rounded-lg text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors"
               title="Reset Timeline to Start"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
 
-          <span className="text-xs font-mono text-slate-200 font-medium">
+          <span className="text-xs font-mono text-[var(--color-label-secondary)] font-medium">
             Playback Scrubbing • Step {safeIndex + 1} of {milestones.length}
           </span>
         </div>
@@ -470,7 +470,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
               setIsPlaying(false);
               setCurrentStepIndex(parseInt(e.target.value));
             }}
-            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none"
+            className="w-full h-2 bg-[var(--color-tile)] rounded-lg appearance-none cursor-pointer accent-[var(--color-accent)] focus:outline-none"
           />
         </div>
 
@@ -486,12 +486,12 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
               title={m.title}
               className={`p-2 rounded-xl transition-all text-left flex items-center space-x-2 border ${
                 idx === safeIndex
-                  ? 'text-cyan-200 font-bold bg-cyan-950/70 border-cyan-500/60 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
-                  : 'text-slate-200 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border-white/10'
+                  ? 'text-[var(--color-info-ink)] font-bold bg-[var(--color-info-wash)] border-[var(--color-info-edge)] shadow-sm'
+                  : 'text-[var(--color-label-secondary)] hover:text-[var(--color-text)] bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)]'
               }`}
             >
               <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[12px] shrink-0 font-bold ${
-                idx === safeIndex ? 'bg-cyan-400 text-black' : 'bg-white/15 text-slate-200'
+                idx === safeIndex ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]' : 'bg-[var(--color-fill)] text-[var(--color-label-secondary)]'
               }`}>
                 {m.step}
               </span>
