@@ -2,20 +2,47 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-10-29
+updated: 2026-11-10
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
 
 # Platform Architecture Diagram
 
-> **Snapshot, not blueprint.** Every node below was verified against the running
-> implementation at `mainza-ai/kubona` @ `d6fff39` (2026-10-29, branches `develop`
-> + `main` fast-forwarded together). Previous snapshot: `86afb3a` (2026-10-21) —
-> superseded, kept in [[log]].
+> **Snapshot, not blueprint.** Latest verification: `mainza-ai/kubona` @ `119749e` /
+> `de3428c` (`2026-11-10`, live `kubona-live` Docker Compose stack, `develop` + `main`
+> synced). Earlier snapshots: `d6fff39` (2026-10-29) and `86afb3a` (2026-10-21) —
+> retained below / in [[log]].
 > Design intent lives on the linked concept pages; this page records only what the
 > prototype does today. **Refresh duty:** re-verify node-by-node after any slice that
 > adds/removes a service, port, store — a stale map is worse than none.
+>
+> ⚑ **Node delta (2026-11-10, `119749e` / `de3428c`):**
+> - **Edge (`kubonad :8080`):** `140` HTTP routes (`docs/repo-counts.md`), adding
+>   `/api/discovery/{plan,run}` (multi-step 1–5 job planner),
+>   `/api/sessions/{id}/experiment-export` (Ed25519 signed envelope),
+>   `/api/claims/{id}/reviews`, and `/api/fleet/calibration/refresh`; `api.Server`
+>   and `jobs.Runner` now share a single live `FidelityGate` calibration pointer.
+> - **Contracts & Folding (`pkg/experimentresult`, `replan.go`):** All **19**
+>   `experiment-result-v1` kinds validated (`TestSchemaKindEnumMatchesDecoder`)
+>   and folded into `CampaignExperiment` state (with negative failed-job folds
+>   and signed `result_receipts`); `ledger/obligation.go` locks all DB calls.
+> - **Sandbox (`pkg/sandbox/docker.go`):** Strictly requires the hardened
+>   `kubona-quantum-runner:1.1.0` image (silent fallback to bare `python:3.*-slim`
+>   removed); `Dockerfile.kubonad` bundles compiled Rust `qir-core` at
+>   `/usr/local/bin/qir-core`.
+> - **Bridge & Science:** `experiments.py` + `lattice_experiment.py` +
+>   `kubona.science.dmrg` execute caller-supplied closed-shell STO-3G VQE,
+>   multidimensional RHF/STO-3G BFGS `geometry_optimization`, `vqe_repeats`,
+>   `H2`/`LiH`/`BeH2`/`H2O` active-space `excited_state` & atomization
+>   `reaction`, 1D `spin_chain` (`xxz`/`heisenberg`/`tfim`), `quimb` DMRG
+>   `thermodynamic_limit`, exact 2D TFIM `lattice_dynamics`, `conjecture` (with
+>   opt-in OpenAlex `external_novelty`), and `hardware_pes` + `spin_chain_hardware`.
+> - **Console (`:3000`):** `142` modeled / `14` client-only / `0` unmodeled
+>   contracts (`121` schemas, `130` OpenAPI paths); adds the `Cmd+E`
+>   **Experiment & Discovery Lab** modal, `ResultsStudio` linear series SVG
+>   `<Chart>` plots (`x.kind: 'linear'`) & pre-claim report tables, native
+>   `<dialog>` dismissal, `startViewTransition`, and IME composition guards.
 
 ```mermaid
 flowchart TB
@@ -25,7 +52,7 @@ flowchart TB
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>120 routes, bearer + session edge auth<br/>obligations + tenant-grants endpoints"]
+        API["pkg/api<br/>140 routes (docs/repo-counts.md)<br/>bearer + session edge auth, discovery + export"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
@@ -193,6 +220,11 @@ flowchart TB
   generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
+- Counts at `2026-11-10` (`119749e`, `docs/repo-counts.md`): **140** HTTP routes,
+  **37** Go packages (**862** Go test funcs), **183** Python test files,
+  **120** console test files (**610** test cases), **32** Rust tests, **6**
+  MCP servers (**38** tools), **156** wiki pages; console contracts **142
+  modeled / 14 client-only / 0 unmodeled** (`121` schemas, `130` OpenAPI paths).
 
 ### Retained 2026-10-21 anchors (superseded where the 2026-10-29 block above says otherwise)
 

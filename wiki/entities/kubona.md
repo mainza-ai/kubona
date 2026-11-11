@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-10-26
+updated: 2026-11-10
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -41,6 +41,21 @@ Kubona v1 is the production agent-native platform for **Quantum Circuit Co-Desig
   2. *Combinatorial Optimization:* Exact and heuristic QUBO / Ising formulations, MaxCut, graph partitioning.
   3. *Circuit Co-Design & QIR Compilation:* OpenQASM 2.0/3.0 lowering, Stim Clifford probes, PyZX spider fusion, Pauli propagation, full-radius Reed-Solomon decoding.
   4. *Spatial Observatory & 3D Synthesis:* Gaussian splat rendering, depth-map extraction, and World Labs Atlas RGBD/Chisel synthesis.
+
+> ⚑ **Implementation update (2026-11-10, `119749e`):** As shipped today on
+> the local-private Compose stack, molecular chemistry and condensed-matter
+> simulation cover all **19** `experiment-result-v1` kinds: caller-supplied
+> closed-shell STO-3G VQE, multidimensional RHF/STO-3G BFGS
+> `geometry_optimization`, `vqe_repeats`, `H2`/`LiH`/`BeH2`/`H2O` active-space
+> `excited_state` & atomization `reaction`, 1D `spin_chain`
+> (`tfim`/`heisenberg`/`xxz`), open-boundary `quimb` MPS/DMRG
+> (`thermodynamic_limit`), exact 2D TFIM quench (`lattice_dynamics`), finite-scope
+> `conjecture` law discovery (with opt-in OpenAlex lookup), calibration-aware
+> `hardware_pes`, and multi-step `DiscoveryProtocol` pipelines. Also note the
+> repository posture below is superseded (`Q-27`, `2026-10-26`): `github.com/mainza-ai/kubona`
+> is **public**, `dev-docs/` / `.obsidian/` history and `Co-Authored-By`
+> `noreply` trailers were excised, and all stale `dependabot/*` branches were
+> removed (`2026-11-10`).
 
 - **v1 Negative Scope (What v1 is NOT):**
   1. Kubona v1 does **not** ship execution support for `rigetti`, `ionq`, `aws-braket`, `neutral-atom-quera-pasqal`, or `xanadu-strawberry-fields`. These backends are catalogued with `dispatch_ready: false` and fail-closed with actionable refusal reasons until v2 drivers land.

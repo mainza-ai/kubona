@@ -2,7 +2,7 @@
 type: concept
 name: Audit Topology & Live Verification Map
 date: 2026-10-21
-updated: 2026-10-29
+updated: 2026-11-10
 tags: [architecture, diagram, deployment, verification, audit]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-llm-circuit-codesign-2026]
 status: living
@@ -20,6 +20,26 @@ status: living
 > Evidence class: live `curl` against the compose stack and isolated local
 > rails (`--db /tmp/…`, host bridge + UDS socket), plus the 2026-10-29
 > governed live-QPU probe (estimate→reserve→cancel→settle, ledger-sealed).
+>
+> **Update (2026-11-10, `kubona-live` Compose stack @ `de3428c` / `119749e`):**
+> - **Live services verified `(healthy)`:** `kubona-live-bridge-1` (`UDS`),
+>   `kubona-live-kubonad-1` (`127.0.0.1:8080`, `140` HTTP routes, compiled
+>   `qir-core` bundled at `/usr/local/bin/qir-core`), and `kubona-live-console-1`
+>   (`127.0.0.1:3000`, `142` modeled / `14` client-only / `0` unmodeled
+>   contracts).
+> - **Fresh `kubona-state` volume:** preflight exits 0; live `spin_chain` and
+>   `thermodynamic_limit` DMRG jobs (`N=16`, `chi=32`, fixed `TNLinearOperator`)
+>   completed in compose with `experiment-result-v1` schemas and signed/hash-chained
+>   `result_receipt` records (`2026-11-10`).
+> - **`F-006` superseded:** `/api/fidelity` (`server.go:handleFidelity`) routes
+>   through `EvaluateAdmissionFloorOnly` with `probe_run:false` (no hardcoded
+>   0.94 probe), and `api.Server` now shares its live `FidelityGate` pointer
+>   with `jobs.Runner` so `POST /api/fleet/calibration/refresh` updates job
+>   admission directly (`de3428c`).
+> - **Live IBM `ibm_fez` acceptance (`docs/live-qpu-2026-11-09.md`):** SPSA HILO
+>   VQE, ZNE VQE, active-space LiH, HILO QAOA, and `spin_chain_hardware`
+>   completed end-to-end on Open Plan (`$0.00`) over the fresh volume;
+>   `claimable:false` holds honestly.
 >
 > ⚑ Update (2026-10-30, local-first production): the supported compose is
 > loopback-only (`127.0.0.1:8080` / `127.0.0.1:3000`), read-only services with
@@ -40,7 +60,7 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>120 routes, bearer|session edge auth<br/>--bridge flag dropped (socket by env)"]
+        KUBONAD["kubonad :8080<br/>140 routes (docs/repo-counts.md)<br/>bearer|session edge auth, shared FidelityGate"]
         BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
         VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end
@@ -72,8 +92,8 @@ flowchart TB
     KUBONAD & KLOCAL --> GO
     VENV --> PY
 
-    F001["F-001: in DOCKER, exec-rails 503<br/>(no python3 in kubonad image)<br/>codesign evaluate/budget/packs/families,<br/>chemistry, discovery — STILL HOLDS 2026-10-29"]
-    F006["F-006: /api/fidelity ADMITS<br/>on empty input (hardcoded 0.94 probe)<br/>— status unverified since 2026-10-21"]
+    F001["F-001 (NARROWED 2026-11-10): in DOCKER, Python-exec rails 503<br/>(no python3 in kubonad image): codesign eval/budget/packs/families/rerun;<br/>chemistry ADMET & discovery now run via Go + gRPC UDS bridge"]
+    F006["F-006 (RESOLVED): /api/fidelity calls<br/>EvaluateAdmissionFloorOnly with probe_run:false;<br/>Server & Runner share live FidelityGate"]
     RADAR["Radar probes the bridge addr<br/>(flag removed 2026-10-29: kubonad<br/>dials KUBONA_BRIDGE_SOCKET unix<br/>socket, TCP refused in prod)"]
     HF401["HF/agent rails: bearer-gated by<br/>design; console had no token →<br/>silent [] / silent null (fixed:<br/>throw + in-modal refusal)"]
 
@@ -141,8 +161,9 @@ flowchart TB
 - Compose: `platform/docker/compose.prod.yml` (kubonad WITHOUT `--bridge`
   flag; `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on both services;
   `bridge-sock` volume; `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
-- Routes: 121 `s.route(` in `platform/core/pkg/api/server.go` (recount with
-  `grep -c 's.route('` — `rg` is broken on this host).
+- Routes: 140 `s.route(` in `platform/core/pkg/api/server.go` as of `2026-11-10`
+  (previous count: 121 at `2026-10-29`; authoritative counts generated in
+  `docs/repo-counts.md`).
 - Radar: kubonad dials `KUBONA_BRIDGE_SOCKET` (unix) when `--bridge` is at
   its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for
   explicit overrides.

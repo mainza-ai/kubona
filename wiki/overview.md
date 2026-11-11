@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -190,6 +190,45 @@ ledger receipt, a cited anchor), never to an assertion.
 > acceptance, general-molecule excited/reaction workflows, conjecture novelty
 > boundaries, and launch UI. See [[core-scientific-capability-gaps]] and
 > `docs/core-scientific-capabilities-2026-11-09.md`.
+>
+> ⚑ Implementation update (2026-11-10, `119749e` / `de3428c`): several of those
+> gaps have since closed in the shipped platform:
+> - **Canonical 19-kind result envelope:** all 19 `kind` variants in
+>   `platform/contracts/experiment-result-v1.schema.json` decode and validate in
+>   Go (`pkg/experimentresult`, `TestSchemaKindEnumMatchesDecoder`), fold into
+>   `CampaignExperiment` state (including failed jobs as negative records and
+>   `result_receipts`), and export with Ed25519 signatures via
+>   `/api/sessions/{id}/experiment-export`.
+> - **Expanded chemistry & condensed-matter engines:** caller-supplied
+>   closed-shell STO-3G `vqe` and multidimensional RHF/STO-3G BFGS
+>   `geometry_optimization`, `vqe_repeats` variance, `H2`/`LiH`/`BeH2`/`H2O`
+>   active-space `excited_state` and atomization `reaction`, 1D `spin_chain`
+>   (`tfim`, `heisenberg`, `xxz` with anisotropy and multi-start `L-BFGS-B`),
+>   `quimb` open-boundary MPS/DMRG `thermodynamic_limit` (including the
+>   `TNLinearOperator` fix verified through `N=16`), exact 2D TFIM
+>   `lattice_dynamics` quench (`expm_multiply`), calibration-aware
+>   `hardware_pes` with reviewed rate-card pricing preview, opt-in OpenAlex
+>   novelty lookup (`external_novelty`), and multi-step `DiscoveryProtocol`
+>   (`then` / `->` / `;`, 1–5 governed jobs across all molecules and kinds).
+> - **Live IBM `ibm_fez` acceptance (`docs/live-qpu-2026-11-09.md`, Open Plan `$0.00`):**
+>   4-iteration SPSA hardware-in-the-loop VQE (`da0b1703`, `-1.1254 Ha`,
+>   `claimable:false`), ZNE VQE (`5f0064eb`), active-space LiH (`1b6bb0ec`),
+>   HILO QAOA (`7014cd0c`), and `spin_chain_hardware` (`1ad0e5fb`, TFIM `n=3`,
+>   `-2.278125` vs exact `-3.00902212`, `claimable:false`) all completed with
+>   live calibration refresh and signed receipts; hardware chemical accuracy
+>   and live `hardware_pes` execution remain open.
+> - **Production hardening & Observatory Console UX:** `api.Server` and
+>   `jobs.Runner` share one live `FidelityGate`, settlement hooks wire across
+>   `AdoptExternalJob` / `SyncQuantumBridgeJobStatus` / `executeJob`, sandbox
+>   execution refuses without `kubona-quantum-runner:1.1.0` (no `python:3.*-slim`
+>   fallback), `ledger/obligation.go` locks all DB calls, and the Console adds
+>   the **Experiment & Discovery Lab** modal (`Cmd+E` / `Ctrl+E`), `ResultsStudio`
+>   linear series SVG charts & pre-claim report tables, native `<dialog>`
+>   top-layer dismissing, `startViewTransition`, and IME guards. The local-private
+>   `kubona-live` Docker Compose stack (`kubonad :8080`, `console :3000`, `bridge`
+>   UDS) runs healthy on `127.0.0.1`, and repository history/dependabot hygiene is
+>   clean (`Co-Authored-By` `noreply` trailers excised, stale `dependabot/*`
+>   branches deleted).
 
 ## Where the blueprint is unsettled
 
@@ -276,6 +315,16 @@ production-readiness audits).
 Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
+
+> ⚑ Snapshot update (2026-11-10, `119749e`): `docs/repo-counts.md` now records
+> **140** HTTP routes, **37** Go packages (**862** Go test functions), **183**
+> Python test files, **120** console test files (**610** test cases), **32**
+> Rust tests, **6** MCP servers (**38** tools), and **156** wiki pages. The
+> console contract inventory stands at **142 modeled / 14 client-only / 0
+> unmodeled** (`121` schemas, `130` OpenAPI paths). Live IBM `ibm_fez`
+> runs on `2026-11-09` (`docs/live-qpu-2026-11-09.md`) added SPSA HILO VQE, ZNE
+> VQE, active-space LiH, HILO QAOA, and `spin_chain_hardware` (honest
+> `claimable:false` limits; Open Plan `$0.00`).
 
 > ⚑ Correction (2026-10-30): the operator confirms the first **paid** QPU run
 > on 2026-10-28. The 2026-10-29 `ibm_fez` entry above remains the free-plan

@@ -2,7 +2,7 @@
 type: entity
 name: IBM Quantum Platform
 date: 2026-10-28
-updated: 2026-10-29
+updated: 2026-11-10
 tags: [provider, ibm, quantum, cloud, sdk]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -98,6 +98,32 @@ Prerequisites uncovered during the run: disable the Sovereign Air-Gap through
 `/api/llm/settings` for a deliberate hardware dispatch; the bridge must receive the IBM
 token/instance/backend/max-execution env (compose now passes them); and a hardware
 mandate must be used even though a dry run succeeds without one.
+
+## Live science-rail QPU acceptance (2026-11-09)
+
+Full measured record in `docs/live-qpu-2026-11-09.md` (executed on a fresh
+`kubona-live` Docker volume against Open Plan `ibm_fez`, `$0.00` free tier,
+live calibration refresh via `POST /api/fleet/calibration/refresh` returning
+`ibm_heron` / `calibrated_at 2026-11-09T10:02:32+00:00`):
+
+- **Hardware-in-the-loop SPSA VQE (`H2`, `da0b1703`):** 4 SPSA iterations /
+  9 QPU batches at 256 shots → `-1.1253618969 Ha` (`11.9083 mHa` delta vs FCI
+  `-1.1372701747 Ha`, shot uncertainty `12.1102 mHa`, `claimable:false`, signed
+  `result_receipt` present).
+- **Molecular VQE with ZNE (`H2`, `5f0064eb`):** unitary folding at `[1,3,5]`
+  (`dbos2u44148s739th03g`, 256 shots) → unmitigated `-1.144570 Ha`, mitigated
+  `-1.144174 Ha` (`mitigated_measured:false`, `claimable:false`).
+- **Active-space LiH measurement (`1b6bb0ec` / `dbot5544148s739tj9ug`):**
+  `-7.7506964352 Ha` (`131.6659 mHa` delta vs `-7.8823622868 Ha`, `claimable:false`).
+- **Hardware-in-the-loop QAOA (`7014cd0c`):** 8-node graph, 3 COBYLA iterations /
+  4 batches → cut `5.953125` vs exact `10`, ratio `0.5953125`.
+- **Spin-chain hardware (`spin_chain_hardware`, `1ad0e5fb` / `dbp4io44148s739tu8mg`):**
+  TFIM `n=3`, 128 shots → `-2.278125` vs exact `-3.00902212`, `claimable:false`.
+  Exact-state QASM with `reset` inside gate bodies is rejected fail-closed
+  before admission. Hardware results retain `calibration_age_hours` and
+  `calibration_fresh` from the shared `FidelityGate`, withholding claimability on
+  stale snapshots. `hardware_pes` is implemented and tested, awaiting its first
+  live QPU run.
 
 **Observed run:** governed job `6631e996179d48bb` → IBM `dbh02i9t9uhs73c93fk0`,
 `ibm_marrakesh`, 100 shots, **2 s usage**, counts `00:52, 11:40, 10:6, 01:2` (a noisy

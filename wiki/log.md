@@ -5298,3 +5298,27 @@ skipped is the exact failure this incident is about:
 - The new multidimensional relaxation and DMRG/thermodynamic-limit paths were
   built into the bridge image and exercised locally; no live QPU run was made
   for either path in this slice.
+
+## [2026-11-10] verification | align wiki blueprint with implementation state (de3428c / 119749e)
+
+- Synchronized `overview.md`, `roadmap.md`, `index.md`, `entities/kubona.md`,
+  `entities/ibm-quantum-platform.md`, and concept pages
+  (`core-scientific-capability-gaps`, `implementation-gaps`, `science-discovery`,
+  `mathematical-physics-anchors`, `autonomous-mathematical-discovery`,
+  `remaining-work`, `agent-ux-control-plane`, `platform-architecture-diagram`,
+  `audit-topology-map`) with HEAD `119749e` / `de3428c` and the live
+  `kubona-live` Docker Compose stack (`kubonad` on `:8080`, `console` on
+  `:3000`, `bridge` on UDS).
+- Recorded `de3428c` audit and capability closures: shared live `FidelityGate`
+  pointer between `api.Server` and `jobs.Runner`, fail-closed `obligation.go`
+  locking and Docker sandbox (`kubona-quantum-runner:1.1.0`), `qir-core` binary
+  bundled at `/usr/local/bin/qir-core`, gRPC bridge migration for chemistry ADMET
+  (`admetViaBridge`) and multi-step `DiscoveryProtocol` (narrowing `F-001` in
+  `compose.prod.yml` to `codesign` eval/rerun), `TNLinearOperator` fix for
+  `quimb` DMRG (`N=16` verified), 19 `experiment-result-v1` kinds, and Console
+  `Cmd+E` `Experiment & Discovery Lab` + `ResultsStudio` SVG `<Chart>` views.
+- Recorded `docs/live-qpu-2026-11-09.md` (`ibm_fez` Open Plan `$0.00` runs with
+  honest `claimable:false`), `119749e` README + `dependabot/*` pruning + history
+  scrub, and synced `index.md` census to `156` pages (`tracked=49`, `10` sources)
+  against `docs/repo-counts.md` (`140` HTTP routes) and contract inventory (`142`
+  modeled / `14` client-only / `0` unmodeled).

@@ -1,7 +1,7 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [index]
 status: living
 ---
@@ -42,8 +42,8 @@ arrives, place it here first and it will find its page.
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
-| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-21 (Strata default, codesign rail, radar fix); refresh after any service/port/store change. |
-| [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked). Refresh after any compose/port/auth change. |
+| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot synced 2026-11-10 (`140` HTTP routes, UDS bridge physics/chemistry/discovery, `qir-core` bundled, Console `:3000`). Refresh after any service/port/store change. |
+| [[audit-topology-map]] | Deployment topology verified 2026-11-10 (`kubona-live` Compose stack, UDS bridge rails, F-006 closed, F-001 narrowed to `codesign`). Refresh after any compose/port/auth change. |
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8, all landed 2026-10-17). |
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6, all landed 2026-10-17). |
 | [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and landed slices (2026-10-17). |
@@ -69,11 +69,11 @@ Describes **how decided** something is — never how finished.
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
 | `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
-| `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
+| `source` | An ingested source record. Immutable once written. | the 10 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (156 pages = 48 entities · 93 concepts · 10 sources · 5 meta), 2026-11-09:**
-`settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 47 ·
+**Census (156 pages = 48 entities · 93 concepts · 10 sources · 5 meta), 2026-11-10:**
+`settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 49 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
@@ -168,7 +168,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (75; +16 under Overview & meta and the layer map = 91 total)
+## Concepts (93 total across this table, Overview & meta, and the layer map)
 
 | Page | What it is |
 |---|---|
@@ -237,7 +237,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[epistemic-continuum-and-ontology]] | Synthesis of formal deduction (ρ=1.0) and empirical sampling (ρ<1.0), hypothesis tuples, stopping rules, negative certs |
 | [[early-fault-tolerant-quantum-and-subspace-methods]] | Post-NISQ quantum Krylov subspace diagonalization, classical shadows, neutral atoms, and bivariate bicycle qLDPC gross codes |
 | [[quantum-triage-engine]] | Mathematical triage routing via Family 278 Kohn-Sham representability failure and Family 275 continuum Coulomb QMA-hardness |
-| [[core-scientific-capability-gaps]] | 2026-11-09 code audit: chemistry/QAOA spine works; physics simulation, live math discovery, broader chemistry, and closed discovery campaign are missing |
+| [[core-scientific-capability-gaps]] | Audited 2026-11-09 and synchronized 2026-11-10 (`de3428c`): 19 experiment kinds (`quimb` DMRG at `N=16`, LiH VQE/ZNE/QAOA/spin-chain on `ibm_fez`), chemistry & multi-step discovery on gRPC bridge; `F001` narrowed to `codesign`, math discovery awaiting live literature-novelty calibration |
 | [[autonomous-manuscript-synthesis-and-peer-review]] | Bilingual formal Lean 4 AST to modular arXiv LaTeX preprint synthesis and automated 5-dimensional adversarial peer review |
 | [[scientific-agentic-experience-triad]] | The AX triad: User ↔ Agent, Agent ↔ Agent tribunal protocol, Agent ↔ Interface (A2UI), and 9 cognitive observatory surfaces |
 | [[evaluator-guided-circuit-codesign]] | Evaluator-guided LLM circuit search: TaskSpec + KickmixEvaluator + TQScorer, families, MAP-Elites (`adopted`) |

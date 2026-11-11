@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-01
+updated: 2026-11-10
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -15,6 +15,46 @@ status: tracked
 > [[rea-adoption-plan]], [[cloudroom-adoption-plan]]). Durable blueprint
 > questions live in [[questions]] — this page tracks execution leftovers
 > only. Screened-out items name their reason; nothing rots silently.
+>
+> ⚑ **State update (2026-11-10, `119749e` / `de3428c`):** Since `2026-11-01`:
+> - **Science engine & contracts closed:** all 19 `experiment-result-v1` kinds
+>   decode in `pkg/experimentresult`, fold into `CampaignExperiment` state
+>   (including failed-job negative records and `result_receipts`), and export
+>   via Ed25519 `/api/sessions/{id}/experiment-export`. Added multidimensional
+>   RHF/STO-3G BFGS `geometry_optimization`, `vqe_repeats`, `H2`/`LiH`/`BeH2`/`H2O`
+>   active-space excited states & atomization reactions, 1D `spin_chain`
+>   (`xxz`/`heisenberg`/`tfim` with multi-start `L-BFGS-B`), `quimb`
+>   open-boundary DMRG (`thermodynamic_limit` with `TNLinearOperator` fix
+>   verified through `N=16`), 2D TFIM quench (`lattice_dynamics`), opt-in
+>   OpenAlex lookup in `conjecture`, calibration-aware `hardware_pes`, reviewed
+>   rate-card preview, and multi-step `DiscoveryProtocol` (`then`/`->`/`;`).
+> - **Live IBM `ibm_fez` acceptance (`docs/live-qpu-2026-11-09.md`):** completed
+>   4-step SPSA HILO VQE (`da0b1703`), ZNE VQE (`5f0064eb`), active-space LiH
+>   (`1b6bb0ec`), HILO QAOA (`7014cd0c`), and `spin_chain_hardware` (`1ad0e5fb`)
+>   with live calibration refresh and signed receipts (Open Plan `$0.00`;
+>   honestly `claimable:false` where noise exceeds thresholds).
+> - **Contracts & Console UX:** inventory stands at **142 modeled / 14
+>   client-only / 0 unmodeled** (`121` schemas, `130` OpenAPI paths;
+>   `console-contract-inventory.py --check`, `console-openapi.mjs --check`).
+>   Added the `Cmd+E` **Experiment & Discovery Lab** modal, `HardwareLaunchPanel`,
+>   `DiscoveryProtocolPanel`, `ResultsStudio` linear series `<Chart>` plots &
+>   pre-claim report tables, native `<dialog>` dismissal, `startViewTransition`,
+>   and IME guards; `api.Server` shares one live `FidelityGate` with `jobs.Runner`,
+>   `obligation.go` locks all DB calls, and `sandbox/docker.go` refuses without
+>   `kubona-quantum-runner:1.1.0`.
+> - **Repo & stack hygiene closed:** all 8 `dependabot/*` branches pruned on
+>   origin (Ruleset `25762910` excludes `dependabot/**/*`, 0 open PRs); `Co-Authored-By`
+>   `noreply` trailers excised via `git-filter-repo` (`1047` commits under
+>   `mainza-ai`); `kubona-live` Docker Compose production stack running cleanly
+>   on a fresh `kubona-state` volume (`127.0.0.1:8080` / `:3000`, `bridge` UDS).
+> - **Still open (human/operator & v2 scope):** manual VoiceOver/NVDA pass;
+>   third-party security review (P3); external provider sidecar (P4); QPU
+>   chemical/spin accuracy & live `hardware_pes` run; general SMILES/open-shell/
+>   periodic chemistry; single unified `ExperimentResult` model replacing
+>   remaining UI projections; design-system raw-utility retirement (`865` ratchet);
+>   Lean toolchain container; `gho_…` provider revocation confirmation; OpenAlex
+>   `KUBONA_CONTACT_EMAIL` / HF token rotation; vendor invoice runtime rate
+>   card; and optional [[optional-enhancement-plan-2026-11-01]] (E1–E4).
 
 ## Phase-0/1/2 execution record (2026-10-28, `develop`)
 
@@ -131,7 +171,21 @@ Landed in later slices:
   Typed operation errors carry the backend refusal body. Layout and
   obligation-close writes render accepted/applied/refused/unknown settlement.
 
-Still open:
+> **Update (2026-11-10):** Console contract inventory expanded to **142 modeled /
+> 14 client-only / 0 unmodeled** (`121` schemas, `130` OpenAPI paths) with the
+> addition of science experiment, discovery protocol, calibration refresh,
+> claim review, and signed experiment-export endpoints. Additionally,
+> `api/experiments` + **Experiment & Discovery Lab** (`Cmd+E`),
+> `HardwareLaunchPanel`, and `DiscoveryProtocolPanel` intentionally expose the
+> governed UI forms for all live measured kinds (`vqe`, `geometry_optimization`,
+> `vqe_repeats`, `pes`, `hardware_pes`, `excited_state`, `reaction`, `spin_chain`,
+> `thermodynamic_limit`, `lattice_dynamics`, `qaoa`, `conjecture`, and
+> `/api/discovery/{plan,run}`), superseding the 2026-10-17 note declining
+> standalone unbacked experiment forms. All 8 stale `dependabot/*` branches were
+> deleted from origin on `2026-11-10` after scoping Ruleset `25762910` to exclude
+> `dependabot/**/*`.
+
+Still open (as of 2026-11-10):
 
 - Manual VoiceOver/NVDA evidence: **NOT RUN**; the operator explicitly skipped
   it. Automated axe, forced-colors, 200%-zoom, reduced-motion and settings

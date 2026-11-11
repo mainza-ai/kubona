@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -115,6 +115,12 @@ layer** (maintainer synthesis).
 > | P6 lab runs the full discovery loop | **PARTIAL** | The real chemistry/QAOA/spin-chain/excited/reaction rail folds measured jobs; `/api/discovery/run` plans and sequences bounded real jobs; exact finite-scope conjecture jobs exist; and a governed spin-chain hardware parent executed on `ibm_fez` (negative accuracy result, not claimable). Missing: the old simulator-era `DiscoveryCampaign` is still a toy harness; no recorded lab run of ground→real experiment→report→archive with every claim ledger-traced; hardware spin-chain accuracy and general-molecule chemistry remain open. See [[core-scientific-capability-gaps]]. |
 >
 > Post-audit modern leg: the classical-anchor half is now live PySCF (Q-55; [[production-readiness-audit-2026-10-26]] P0-8) and real-QPU Bell execution with budget settlement is proven (P1 row); a VQE-vs-FCI Ring-1 claim-collapse run is not recorded. CI is green under branch protection (runs `40455512876`, `40467016495`, `40803947946` in [[log]] and the audit execution record).
+>
+> ⚑ Gate-status update (2026-11-10, `119749e` / `de3428c`):
+> - **P1 (QPU execution + budget + provenance):** Upgraded evidence — `docs/live-qpu-2026-11-09.md` records completed governed `ibm_fez` runs for **4-iteration SPSA hardware-in-the-loop VQE** (`da0b1703`, 9 QPU batches, `-1.1254 Ha`, `11.9 mHa` delta), **ZNE VQE** (`5f0064eb`), **active-space LiH** (`1b6bb0ec`), **HILO QAOA** (`7014cd0c`), and **`spin_chain_hardware`** (`1ad0e5fb`, TFIM `n=3`, `-2.278125` vs `-3.00902212`). Budget holds, live calibration freshness, and signed receipts executed end-to-end on Open Plan (`$0.00`); `claimable:false` holds honestly because shot/hardware noise exceeds the 1.6 mHa chemical-accuracy gate. `hardware_pes` is implemented and tested, awaiting its first live QPU run. Still `PARTIAL` pending chemical-accuracy QPU acceptance (and paid-tier invoice if desired).
+> - **P2 / Human Console surface:** Expanded through the **Experiment & Discovery Lab** modal (`Cmd+E` / `Ctrl+E`), `HardwareLaunchPanel`, `DiscoveryProtocolPanel`, `ResultsStudio` SVG series `<Chart>` plots and pre-claim reports, native `<dialog>` dismissal, `startViewTransition`, IME guards, and SSE invalidation across **142 modeled / 14 client-only / 0 unmodeled** contracts (`121` schemas, `130` OpenAPI paths).
+> - **P6 (Science Discovery & Collaboration):** All **19** `experiment-result-v1` kinds decode and fold into campaign state (`pkg/experimentresult`, `replan.go`), adding multidimensional RHF/STO-3G BFGS `geometry_optimization`, `vqe_repeats`, `LiH`/`BeH2`/`H2O` active-space `excited_state` & atomization `reaction`, `quimb` `thermodynamic_limit` DMRG (verified through `N=16`), 2D TFIM quench `lattice_dynamics`, opt-in OpenAlex external novelty check (`external_novelty`), Ed25519 `/api/sessions/{id}/experiment-export`, and multi-step `DiscoveryProtocol` (`then` / `->` / `;`). Remains `PARTIAL` until general chemistry (SMILES/open-shell/reaction networks), live QPU accuracy, and manual VoiceOver/NVDA sign-off close.
+> - **P3 (`OPEN`), P4 (`PARTIAL`), P5 (`OPEN`):** Unchanged — still require external third-party security review, a merged third-party provider sidecar, and a live monetization rail respectively. Current counts live in `docs/repo-counts.md` (`140` HTTP routes, `37` Go pkgs / `862` Go tests, `183` Python test files, `120` console files / `610` cases, `32` Rust tests, `6` MCP servers / `38` tools, `156` wiki pages).
 
 ## Phase 0 — Foundations (Weeks 1–4) → gate P0
 

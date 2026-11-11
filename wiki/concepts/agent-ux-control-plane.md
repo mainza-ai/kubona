@@ -2,7 +2,7 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
-updated: 2026-10-08
+updated: 2026-11-10
 tags: [ux, control-plane, hitl]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: adopted
@@ -30,6 +30,20 @@ No existing tool (quantum or agentic) covers both.
 > **Implementation stack:** The control plane is implemented in **TypeScript + React/Next.js**
 > talking via WebSockets and gRPC-Web to a high-throughput **Go backend orchestrator**, while
 > quantum execution runs via isolated **Python gRPC microservices**.
+>
+> ⚑ **Implementation status (2026-11-10, `de3428c` / `119749e`):** The actual
+> Next.js 16 console (`platform/console`, `:3000`) communicates with `kubonad`
+> (`:8080`) over HTTP/JSON and SSE (`/api/events/stream` with `Last-Event-ID`,
+> `142` modeled / `14` client-only / `0` unmodeled contracts) rather than
+> gRPC-Web. Shipped surfaces include Workbench / Orbital Space / Proof DAG /
+> Hardware QPU views, `ResultsStudio` (dependency-free SVG `<Chart>` series
+> plots, pre-claim measured experiment table, result receipts, and signed
+> Ed25519 export), `HardwareLaunchPanel`, `DiscoveryProtocolPanel`, and the
+> global **`Cmd+E` / `Ctrl+E` Experiment & Discovery Lab** modal, with native
+> `<dialog>` top-layer dismiss, `startViewTransition`, and IME composition guards.
+> Rather than purely passive read/approve, operators can submit experiments and
+> hardware batches strictly through the same governed Go admission, WebCrypto
+> Ed25519 mandate, and budget-hold rail used by agents.
 
 ## The nine core observatory surfaces
  

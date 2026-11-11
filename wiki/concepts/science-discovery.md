@@ -2,7 +2,7 @@
 type: concept
 name: Science Discovery Platform
 date: 2026-08-16
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [kubona, science, discovery, experiments]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -24,6 +24,20 @@ instrument family; literature, public datasets, and classical compute are the ot
 > active-space slices are now implemented; campaign closure over the real rail
 > remains. See [[core-scientific-capability-gaps]] and
 > `docs/core-scientific-capabilities-2026-11-09.md`.
+>
+> ⚑ Implementation update (2026-11-10, `119749e` / `de3428c`): all **19**
+> `experiment-result-v1` kinds now execute through the governed Go rail and
+> fold into campaign state/exports, adding caller-supplied STO-3G VQE,
+> multidimensional RHF/STO-3G BFGS `geometry_optimization`, `vqe_repeats`,
+> `H2`/`LiH`/`BeH2`/`H2O` active-space `excited_state` & atomization
+> `reaction`, 1D `spin_chain` (`tfim`/`heisenberg`/`xxz`), `quimb`
+> `thermodynamic_limit` DMRG, 2D TFIM `lattice_dynamics`, `conjecture` (with
+> opt-in OpenAlex check), `hardware_pes`, and multi-step `DiscoveryProtocol`
+> (`then` / `->` / `;`, 1–5 real governed jobs) surfaced in the Console's
+> `Cmd+E` **Experiment & Discovery Lab** and `ResultsStudio` charts. Remaining
+> gaps are breadth (SMILES, open-shell/charged chemistry, general reaction
+> networks, external formal theorem proving) and QPU accuracy (`claimable:false`
+> on `2026-11-09` `ibm_fez` runs).
 
 ## The discovery loop (what "conducting an experiment" means end-to-end)
 

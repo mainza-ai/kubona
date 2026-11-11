@@ -3,7 +3,7 @@ name: Autonomous Mathematical Discovery
 type: concept
 tags: [concept, ai-discovery, reasoning, chain-of-thought, search, proofs]
 date: 2026-10-08
-updated: 2026-11-09
+updated: 2026-11-10
 status: adopted
 sources: [source-openai-math-corpus, source-gap-analysis-plan]
 ---
@@ -91,5 +91,12 @@ Kubona incorporates these discovery mechanisms into its autonomous research arch
 > search open corpus problems. The gap is tracked in
 > [[core-scientific-capability-gaps]] and
 > `docs/core-scientific-capabilities-2026-11-09.md`.
+>
+> ⚑ Update (2026-11-10): `conjecture` (`conjecture_run`) now requires 4+ sequence
+> terms (3 training + holdout falsifier), carries canonical `experiment-result-v1`
+> validation and Ed25519 `result_receipt` provenance, and supports an opt-in
+> OpenAlex title/DOI lookup (`external_novelty`: `checked` / `unavailable`,
+> never upgrading local `novelty_status: unclassified`). Automated formal theorem
+> proving on open Lean 4 problems remains design intent.
 
 See also [[source-openai-math-corpus]], [[openai-math]], [[karpathy-autoresearch]], [[five-ring-research-loop]], [[formal-proof-verification-lean-comparator]].

@@ -3,7 +3,7 @@ name: Mathematical Physics Anchors
 type: concept
 tags: [concept, quantum-advantage-realism, anchors, mathematical-physics, benchmarks]
 date: 2026-10-08
-updated: 2026-11-09
+updated: 2026-11-10
 status: adopted
 sources: [source-openai-math-corpus, source-frontier-repo-audit-2026]
 ---
@@ -56,6 +56,16 @@ When an autonomous agent runs a VQE or QAOA campaign in Kubona:
 > physics result behind them; `kubona.science.lattice` was referenced by the
 > materials pack but did not exist. The missing capability is tracked in
 > [[core-scientific-capability-gaps]].
+>
+> ⚑ Update (2026-11-10, `de3428c` / `119749e`): `kubona.science.lattice` and
+> `kubona.science.dmrg` are now implemented and live. Shot-measured 1D
+> `spin_chain` (`tfim`/`heisenberg`/`xxz`, `COBYLA` + multi-start `L-BFGS-B`),
+> open-boundary `quimb` MPS/DMRG `thermodynamic_limit` (verified through
+> `N=16`, with exact TFIM/isotropic-Heisenberg analytic limits), exact 2D
+> TFIM `lattice_dynamics` (`expm_multiply`), and governed `spin_chain_hardware`
+> (executed on `ibm_fez` `1ad0e5fb`, `claimable:false`) all run through the
+> Go/bridge/Console rail (`Experiment & Discovery Lab`, `Cmd+E`). The 20-family
+> `MathPhysicsAnchorEngine` remains the analytical closed-form anchor table.
 
 ## 3. Platform Integration
 

@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-11-09
+updated: 2026-11-10
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -77,6 +77,39 @@ unimplemented, stubbed, or disguised behind static UI facades:
   optimization remain absent.
 - 🟠 **Discovery campaign still uses a toy harness.** It does not choose and
   sequence the real VQE/PES/spin-chain/conjecture jobs end-to-end.
+
+> ⚑ **Science, audit & UX update (2026-11-10, `de3428c` / `119749e`):**
+> - 🟢 **Chemistry & physics expansion closed within STO-3G / finite-size bounds:**
+>   caller-supplied closed-shell STO-3G VQE, multidimensional RHF/STO-3G BFGS
+>   `geometry_optimization`, `vqe_repeats` variance, `H2`/`LiH`/`BeH2`/`H2O`
+>   active-space `excited_state` & atomization `reaction`, `quimb` open-boundary
+>   MPS/DMRG (`thermodynamic_limit` with `TNLinearOperator` `N>=12` fix), exact
+>   2D TFIM quench (`lattice_dynamics`), calibration-aware `hardware_pes`,
+>   reviewed rate-card pricing preview, and live `ibm_fez` Open Plan execution
+>   of HILO SPSA VQE, ZNE VQE, LiH, QAOA, and `spin_chain_hardware` (honest
+>   `claimable:false` limits; `docs/live-qpu-2026-11-09.md`). Remaining breadth
+>   limits: SMILES, open-shell/charged generic chemistry, reaction networks,
+>   anisotropic XXZ thermodynamic limit, QPU accuracy, and live `hardware_pes`
+>   run.
+> - 🟢 **Multi-step Discovery Protocol & 19-kind schema closure:**
+>   `POST /api/discovery/{plan,run}` plans and sequences 1–5 real governed jobs
+>   (`then` / `->` / `;`) across all supported molecules and experiment kinds; all
+>   19 kinds in `experiment-result-v1.schema.json` decode in Go (`pkg/experimentresult`),
+>   fold into `CampaignExperiment` (including negative failed-job folds and
+>   `result_receipts`), and export with Ed25519 signatures via
+>   `/api/sessions/{id}/experiment-export`. Legacy `discovery/campaign.py`
+>   stays isolated from measured science.
+> - 🟢 **Governance, sandbox & Console UI closure (`de3428c`):** `api.Server` and
+>   `jobs.Runner` share one live `FidelityGate` calibration pointer, terminal
+>   settlement hooks wire across all completion/failure paths,
+>   `sandbox/docker.go` fails closed without `kubona-quantum-runner:1.1.0` (no
+>   bare `python:3.*-slim` fallback), `ledger/obligation.go` locks all DB calls,
+>   `Dockerfile.kubonad` bundles compiled Rust `qir-core`
+>   (`/usr/local/bin/qir-core`), and the Console adds the `Cmd+E` **Experiment &
+>   Discovery Lab** modal, `ResultsStudio` SVG `<Chart>` series plots, native
+>   `<dialog>` dismissal, `startViewTransition`, and IME guards (`142` modeled /
+>   `14` client-only / `0` unmodeled contracts). Live `kubona-live` Docker stack
+>   running healthy on `127.0.0.1:8080` / `:3000`.
 
 ## Critical (structural)
 
