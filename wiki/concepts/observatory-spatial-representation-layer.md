@@ -2,7 +2,7 @@
 type: concept
 name: Observatory Spatial Representation Layer
 date: 2026-10-22
-updated: 2026-11-10
+updated: 2026-11-11
 status: adopted
 tags: [ux, spatial-canvas, observatory, world-model, atlas, representation-layer, calm-technology]
 sources:
@@ -232,6 +232,12 @@ Agents navigate the same world as humans using dedicated MCP tools:
 > > compose (`kubona-live`), and `ResultsStudio` renders measured experiment
 > > series via native SVG `<Chart>` visualizations alongside pre-claim tables
 > > and signed receipts (`docs/ui-gap-audit-2026-11-09.md`).
+> >
+> > ⚑ Update (2026-11-11): `SpatialCanvas` is now promoted directly from the
+> > Workbench `Molecule` card and Arena HUD (`Open molecule object view`), and
+> > Workbench viewport/camera state persists separately via revisioned
+> > session-scoped `GET/PUT /api/workbench/view` (`pkg/api/server.go`,
+> > `route_policy.go`), keeping 3D orbit restoration independent.
 
 ### 10.3 Ledger Contract Conformance (`platform/contracts/event-types.json`)
 - **Closed Set-Identity:** Both Go and Python rails enforce contract set-identity via `events_contract_test.go`.

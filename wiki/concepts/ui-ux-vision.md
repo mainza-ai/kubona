@@ -2,7 +2,7 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [ux, ui, control-plane, console, report]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-openai-math-corpus]
 status: adopted
@@ -299,6 +299,47 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   `120` test files (`docs/repo-counts.md`). Automated WCAG 2 A/AA axe, keyboard,
   reduced-motion, and 200%-zoom checks pass; manual VoiceOver/NVDA walkthrough and
   generalized non-chemistry manuscript paper templates remain open.
+
+## 16. Workbench Overhaul, Semantic Token Axes & Drawer Consolidation (built 2026-11-11, prototype register)
+
+- **Semantic Token Architecture & Appearance Axes (`tokens.css`, `axes.css`, `appearance.ts`, `appearance-prepaint.ts`, `AppearanceSettings.tsx`):**
+  Introduces `Dark graphite` (`data-theme="dark"`) and `Light paper` (`data-theme="light"`)
+  surface ladders paired with contrast, density, and reduced-motion axes and
+  pre-paint initialization; raw-palette/typography lint debt measured by
+  `scripts/console-token-lint.mjs` is driven down to the **14**-occurrence
+  baseline (`platform/contracts/console-token-baseline.json`).
+- **Spatial Workbench & Worker DAG Ergonomics (`Workbench.tsx`, `workbench-model.ts`, `ConfirmCard.tsx`, `proof-dag.worker.ts`, `proof-dag-layout.ts`):**
+  Folds repeatable jobs canonically across pinned cards (`REPEATABLE_JOB_TYPES`),
+  removes empty overview height locks in favor of LOD-aware card heights, separates
+  single-select `NodeToolbar` from multi-select `SelectionBar`, routes orthogonal
+  hybrid edges cleanly, moves `ProofDag` layout into a Web Worker, supports
+  trackpad pan and `Ctrl/Meta+Wheel` cursor-centered zoom with `.k-workbench-code`
+  scroll passthrough, gates hover actions and link handles (`showQuickHandles` /
+  `.k-workbench-hover-actions`), pairs compact viewport controls with a toggleable
+  minimap (`Show minimap`), auto-frames first-launch (`view_revision: 0`) and
+  off-screen saved cameras via `computeFitCamera`/`cameraShowsAnyObject` (anchoring
+  top/left cards inside padding even at min zoom and keeping viewport-centered
+  zoom), and persists viewport/camera state via session-scoped
+  `GET/PUT /api/workbench/view` (`pkg/api/server.go`, `route_policy.go`).
+- **Drawer Consolidation & Runtime Reliability (`page.tsx`, `ArenaHud.tsx`, `CommandDock.tsx`, `Inspector.tsx`, `StatusStrip.tsx`, `CopilotDrawer.tsx`, `target-scope.ts`, `DataChart.tsx`, `Overlays.tsx`, `resource-store.ts`):**
+  Converts **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`) from a blocking
+  modal into a non-blocking right drawer (removing the duplicate Settings entry),
+  renders `Hardware QPU` inside the Arena shell, promotes `SpatialCanvas` directly
+  from the `Molecule` card and HUD (`Open molecule object view`), scopes replan
+  trajectory and measured outputs strictly to the active target (`target-scope.ts`,
+  `pkg/agents/replan.go`), enforces `[0, max]` zero-baseline scaling and dynamic
+  gutters in `DataChart`, centers `<dialog>` primitives (`k-dialog`), isolates
+  `ElapsedClock` timer ticks (`lib/time.ts`), separates mount-only auth/config
+  bootstrap (`page.tsx`) from polling, queues concurrent SSE `pendingRefresh`
+  invalidations (`resource-store.ts`), and eliminates `390×844` mobile composer
+  and overlay-inspector collisions.
+- **Contracts & Verification:** Inventory expands to **144 modeled / 14
+  client-only / 0 unmodeled** contracts (`123` schemas, `131` OpenAPI paths)
+  with **667** Console test cases across **127** test files (`docs/repo-counts.md`),
+  verified against `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`,
+  `a11y.spec.ts`, `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual
+  VoiceOver/NVDA screen-reader walkthrough and non-chemistry manuscript templates
+  remain open.
 
 Related: [[agent-ux-control-plane]] · [[science-discovery]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[user-identity-and-profiles]] ·

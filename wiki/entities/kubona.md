@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -87,6 +87,9 @@ Kubona v1 is the production agent-native platform for **Quantum Circuit Co-Desig
   foundation underneath it must be genuinely open source.
 
 ## Architecture at a glance
+
+> ⚑ Prototype reality (2026-11-11, `docs/repo-counts.md`):
+> `platform/core` (`kubonad` Go orchestrator, `37` packages, `141` HTTP routes including session-scoped `GET/PUT /api/workbench/view` viewport persistence, `/api/v1` alias parity, SQLite + hash-chained ledger, campaign-scoped `replan.go` filtering) + `platform/console` (Next.js 16 / React 19, `144` modeled / `14` client-only / `0` unmodeled contracts across `131` OpenAPI paths and `123` schemas, warm-graphite / light-paper semantic token axes at `14` lint-baseline occurrences, folded Spatial Workbench + Web Worker DAG, non-blocking `Cmd+E` Experiment Lab drawer, direct `SpatialCanvas` molecule view) + `platform/bridge` & `platform/kubona` (Python gRPC UDS bridge, **6** mounted MCP servers with **38** tools in `_mount.py` / `mcp-catalog.json`, PySCF / Qiskit Aer / `quimb` DMRG / `19` `experiment-result-v1` kinds) + Rust `qir-core` (OpenQASM 2.0/3.0 subset → QIR LLVM/JSON CLI at `/usr/local/bin/qir-core`) & `ifc-core` (`32` total Rust tests). Dispatchable QPU backends in v1 follow `dispatch_ready` scoping (`local`, `aer`, `ibm`, `quantinuum`, `dwave`); planned providers fail closed.
 
 > ⚑ Prototype reality (2026-11-10, `119749e` / `de3428c`, `docs/repo-counts.md`):
 > `platform/core` (`kubonad` Go orchestrator, `37` packages, `140` HTTP routes, `/api/v1` alias parity, SQLite + hash-chained ledger) + `platform/console` (Next.js 16 / React 19, `142` modeled / `14` client-only / `0` unmodeled contracts across `130` OpenAPI paths) + `platform/bridge` & `platform/kubona` (Python gRPC UDS bridge, **6** mounted MCP servers with **38** tools in `_mount.py` / `mcp-catalog.json`, PySCF / Qiskit Aer / `quimb` DMRG / `19` `experiment-result-v1` kinds) + Rust `qir-core` (OpenQASM 2.0/3.0 subset → QIR LLVM/JSON CLI at `/usr/local/bin/qir-core`) & `ifc-core` (`32` total Rust tests). Dispatchable QPU backends in v1 follow `dispatch_ready` scoping (`local`, `aer`, `ibm`, `quantinuum`, `dwave`); planned providers fail closed.

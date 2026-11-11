@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -47,11 +47,29 @@ status: tracked
 >   `noreply` trailers excised via `git-filter-repo` (`1047` commits under
 >   `mainza-ai`); `kubona-live` Docker Compose production stack running cleanly
 >   on a fresh `kubona-state` volume (`127.0.0.1:8080` / `:3000`, `bridge` UDS).
+> - **2026-11-11 Workbench, Token & Transport Consolidation:** `docs/repo-counts.md`
+>   now records **141** HTTP routes, **868** Go test functions, **127** Console
+>   test files, and **667** Console test cases; console contract inventory holds
+>   **144 modeled / 14 client-only / 0 unmodeled** (`123` schemas, `131` OpenAPI
+>   paths), adding session-scoped `GET/PUT /api/workbench/view` viewport
+>   persistence (`pkg/api/server.go`, `route_policy.go`) and campaign-scoped
+>   `replan.go` filtering. Semantic warm-graphite (`Dark graphite`) and `Light paper`
+>   themes plus contrast/density/reduced-motion axes drive `console-token-lint.mjs`
+>   down from the `865` ratchet to a **14**-occurrence baseline
+>   (`platform/contracts/console-token-baseline.json`). The `Cmd+E` **Experiment &
+>   Discovery Lab** is now a non-blocking right drawer (duplicate Settings entry
+>   removed), `SpatialCanvas` promotes directly from the `Molecule` card and HUD,
+>   Workbench folds repeatable jobs across pins with a Web Worker DAG (`proof-dag.worker.ts`)
+>   and hover/focus-gated handles, `page.tsx` separates mount-only bootstrap
+>   from polling, `resource-store.ts` queues concurrent SSE `pendingRefresh`
+>   invalidations, and `.github/workflows/console-e2e.yml` uploads Playwright traces
+>   on failure.
 > - **Still open (human/operator & v2 scope):** manual VoiceOver/NVDA pass;
 >   third-party security review (P3); external provider sidecar (P4); QPU
 >   chemical/spin accuracy & live `hardware_pes` run; general SMILES/open-shell/
 >   periodic chemistry; single unified `ExperimentResult` model replacing
->   remaining UI projections; design-system raw-utility retirement (`865` ratchet);
+>   remaining UI projections; retiring the final `14` raw-palette baseline
+>   occurrences (`console-token-lint.mjs`, down from `865`);
 >   Lean toolchain container; `gho_…` provider revocation confirmation; OpenAlex
 >   `KUBONA_CONTACT_EMAIL` / HF token rotation; vendor invoice runtime rate
 >   card; and optional [[optional-enhancement-plan-2026-11-01]] (E1–E4).
@@ -208,6 +226,20 @@ Still open (as of 2026-11-10):
 - Transport hardening: the typed auth phase store now bootstraps through
   `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
   the session stream is fetch-based, bearer-capable, bounded-backoff reconnecting,
+
+> **Update (2026-11-11):** Semantic tokens and appearance axes (`tokens.css`,
+> `axes.css`, `appearance.ts`, `AppearanceSettings.tsx`) cut `console-token-lint.mjs`
+> raw-palette debt from **865** to **14** baseline occurrences (ratchet held in
+> `platform/contracts/console-token-baseline.json`); `Experiment & Discovery Lab`
+> (`Cmd+E`) moved from a blocking modal to a non-blocking right drawer;
+> `SpatialCanvas` is now directly promoted from the `Molecule` card and HUD
+> alongside session-scoped `GET/PUT /api/workbench/view` viewport persistence;
+> `page.tsx` isolates mount-only bootstrap from polling and `resource-store.ts`
+> queues concurrent SSE `pendingRefresh` invalidations; mobile `390×844` drawer
+> overlays and `runtime-budget.spec.ts` / `stream-invalidation.spec.ts` pass
+> against `kubona-live`. Remaining from above: retiring the final 14 baseline
+> token occurrences, remaining form primitive migrations, and LCP/INP/heap
+> budget gates.
   and carries `Last-Event-ID`; telemetry invalidates campaign/jobs/tasks/loops/
   obligations and pauses their fallback polls while live; ledger history pages
   backwards. Operation receipts are queryable and layout/task writes are

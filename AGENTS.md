@@ -64,6 +64,31 @@ development — re-verify the gate on the exact commit before citing
 > queries vendor status and settles measured usage (regression-tested), but
 > the historical row is not rewritten. Counts are generated in
 > `docs/repo-counts.md`; do not hand-maintain them in prose.
+>
+> ⚑ State update (2026-11-11): console UX, spatial workbench, and contract
+> hardening landed over HEAD `e0fa6b2` (verified locally across static
+> checks, unit/Go suites, and `kubona-live` Compose + Playwright; hosted CI
+> status remains bound to the pushed commit). Highlights: semantic token
+> ladder with `Dark graphite` / `Light paper` inversion, contrast, density,
+> and reduced-motion axes (`platform/console/src/styles/tokens.css`,
+> `axes.css`, `lib/appearance.ts`, `AppearanceSettings.tsx`), driving
+> `scripts/console-token-lint.mjs` down to a `14`-occurrence baseline
+> (`platform/contracts/console-token-baseline.json`); Spatial Workbench
+> folding across pins (`REPEATABLE_JOB_TYPES`), hybrid orthogonal edges,
+> single-select `NodeToolbar` vs multi-select `SelectionBar`, hover/focus-
+> gated quick handles, trackpad pan / cursor-centered zoom, minimap toggle,
+> Web Worker DAG layout (`proof-dag.worker.ts`), and `PUT/GET /api/workbench/view`
+> viewport persistence (`pkg/api/server.go`, `route_policy.go`); unified
+> non-blocking `Experiment & Discovery Lab` drawer (`Cmd+E`), direct
+> `SpatialCanvas` molecule object view, in-Arena `Hardware QPU` view,
+> queued `pendingRefresh` SSE invalidation (`resource-store.ts`), mount-only
+> auth/config boot (`page.tsx`), isolated `ElapsedClock` timer ticks, and
+> mobile `390×844` drawer ergonomics. Console contracts stand at `144`
+> modeled / `14` client-only / `0` unmodeled across `131` OpenAPI paths and
+> `123` schemas (`console-contract-inventory.py`, `console-openapi.mjs`),
+> and `.github/workflows/console-e2e.yml` uploads Playwright traces on
+> failure. Always check `docs/repo-counts.md` (`scripts/repo-counts.py --check`)
+> for current counts rather than hand-maintaining numbers in prose.
 
 ## Three layers
 
@@ -199,22 +224,25 @@ bar before it lands. "Works" is necessary and insufficient.
   live in both directions wherever behavior branches, and record
   reversals in the wiki so nobody re-applies them.
 
-## Current state (2026-10-26)
+## Current state (2026-11-11)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
 shaped before it is implemented. Implementation is held strictly to the 2026-10-12 Production
 Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 
-**Contents:** 10 source pages (see `wiki/log.md`), 154 pages — overview/roadmap/questions/
-index/log, 48 entities, 91 concepts. A 2026-10-26 Round-2 audit read all 831 in-scope
-source files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
-Docker, and CI. Its verdict was **not production-ready**: ten P0 blockers at trust
-boundaries (bridge auth, import forgery, sandbox escape, spend settlement, release gate,
-scientific anchors, verification theater). The 2026-10-28 Round-3 re-audit plus the
-Phase-0/1/2 and deeds programs closed every blocker with evidence (tracked in
-[[production-readiness-audit-2026-10-26]]); the repo remains under constant
-development, so re-verify before citing
-status. Prior "production polish" claims are superseded.
+**Contents:** 10 source pages (see `wiki/log.md`), 156 pages (`wiki-lint.py --strict`
+clean) — overview/roadmap/questions/index/log, 48 entities, 93 concepts (0 open questions
+in `wiki/questions.md` Sections A–F). Historical audit baseline: the 2026-10-26 Round-2 audit
+read all 831 in-scope source files across Go core, Rust crates, Python runtime, Bridge,
+Console, Contracts, Docker, and CI and found ten P0 blockers; the 2026-10-28 Round-3
+re-audit plus Phase-0/1/2 and deeds programs closed those blockers with evidence (tracked in
+[[production-readiness-audit-2026-10-26]]). Subsequent `2026-11-10`..`2026-11-11` platform work
+added `GET/PUT /api/workbench/view`, campaign-scoped replan filtering (`pkg/agents/replan.go`),
+the warm-graphite/light-paper semantic design-token axes, spatial workbench folding and Web
+Worker DAG layout, non-blocking Experiment Lab drawer (`Cmd+E`), SSE `pendingRefresh`
+queuing, and expanded Console E2E runtime/a11y/mobile gates. Treat `docs/repo-counts.md` as
+the authoritative count snapshot and re-verify the gate on the exact commit before citing
+status. Prior "production polish" claims remain superseded.
 
 **Domain:** an open-source, MCP-native quantum-computing **and AI-enhanced science-discovery
 platform** for autonomous AI agents. The fourth source, [[source-frontier-repo-audit-2026]],

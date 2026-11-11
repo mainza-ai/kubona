@@ -2,7 +2,7 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-11-10
+updated: 2026-11-11
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
@@ -43,6 +43,21 @@ sources: [source-frontier-repo-audit-2026]
 >   **Experiment & Discovery Lab** modal, `ResultsStudio` linear series SVG
 >   `<Chart>` plots (`x.kind: 'linear'`) & pre-claim report tables, native
 >   `<dialog>` dismissal, `startViewTransition`, and IME composition guards.
+>
+> ⚑ **Node delta (2026-11-11):**
+> - **Edge (`kubonad :8080`) & Replan:** `141` HTTP routes (`docs/repo-counts.md`),
+>   adding session-scoped `GET/PUT /api/workbench/view` viewport persistence
+>   (`pkg/api/server.go`, `route_policy.go`) and campaign-scoped replan filtering
+>   (`pkg/agents/replan.go`).
+> - **Console (`:3000`):** `144` modeled / `14` client-only / `0` unmodeled
+>   contracts (`123` schemas, `131` OpenAPI paths); warm-graphite (`Dark graphite`)
+>   / `Light paper` semantic theme & density/contrast/reduced-motion axes cutting
+>   `console-token-lint.mjs` to `14` baseline occurrences; Spatial Workbench
+>   repeatable-job folding + Web Worker DAG (`proof-dag.worker.ts`) + hover-gated
+>   handles + minimap toggle; non-blocking **Experiment & Discovery Lab** right
+>   drawer (`Cmd+E`), in-Arena `Hardware QPU` view, direct `SpatialCanvas`
+>   molecule object view, queued SSE `pendingRefresh` invalidation, and mount-only
+>   auth/config bootstrap.
 
 ```mermaid
 flowchart TB
@@ -52,7 +67,7 @@ flowchart TB
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>140 routes (docs/repo-counts.md)<br/>bearer + session edge auth, discovery + export"]
+        API["pkg/api<br/>141 routes (docs/repo-counts.md)<br/>bearer + session edge auth, discovery, view & export"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
@@ -220,6 +235,12 @@ flowchart TB
   generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
+- Counts at `2026-11-11` (`docs/repo-counts.md`): **141** HTTP routes,
+  **37** Go packages (**868** Go test funcs), **183** Python test files,
+  **127** console test files (**667** test cases), **32** Rust tests, **6**
+  MCP servers (**38** tools), **156** wiki pages; console contracts **144
+  modeled / 14 client-only / 0 unmodeled** (`123` schemas, `131` OpenAPI paths);
+  token-lint raw-palette debt **14** baseline occurrences.
 - Counts at `2026-11-10` (`119749e`, `docs/repo-counts.md`): **140** HTTP routes,
   **37** Go packages (**862** Go test funcs), **183** Python test files,
   **120** console test files (**610** test cases), **32** Rust tests, **6**

@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -320,6 +320,24 @@ production-readiness audits).
 Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
+
+> ⚑ Snapshot update (2026-11-11): `docs/repo-counts.md` records **141** HTTP
+> routes, **37** Go packages (**868** Go test functions), **183** Python test
+> files, **127** console test files (**667** test cases), **32** Rust tests,
+> **6** MCP servers (**38** tools), and **156** wiki pages. The console
+> contract inventory stands at **144 modeled / 14 client-only / 0 unmodeled**
+> (`123` schemas, `131` OpenAPI paths), adding session-scoped `GET/PUT
+> /api/workbench/view` viewport persistence (`pkg/api/server.go`,
+> `route_policy.go`) and campaign-scoped replan filtering (`pkg/agents/replan.go`).
+> The Console ships warm-graphite (`Dark graphite`) and `Light paper` themes
+> plus contrast, density, and reduced-motion axes (`console-token-lint.mjs`
+> down to a `14`-occurrence baseline), Spatial Workbench card folding and Web
+> Worker DAG layout (`proof-dag.worker.ts`), a non-blocking **Experiment &
+> Discovery Lab** right drawer (`Cmd+E`), direct `SpatialCanvas` molecule
+> object views, in-Arena `Hardware QPU` views, queued `pendingRefresh` SSE
+> invalidation, mount-only auth/config boot, and mobile `390×844` drawer
+> ergonomics. Verified locally against `kubona-live` (Docker Compose +
+> Playwright); hosted CI status stays tied to the pushed commit.
 
 > ⚑ Snapshot update (2026-11-10, `119749e`): `docs/repo-counts.md` now records
 > **140** HTTP routes, **37** Go packages (**862** Go test functions), **183**

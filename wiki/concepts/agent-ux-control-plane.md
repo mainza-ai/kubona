@@ -2,7 +2,7 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [ux, control-plane, hitl]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: adopted
@@ -44,6 +44,17 @@ No existing tool (quantum or agentic) covers both.
 > Rather than purely passive read/approve, operators can submit experiments and
 > hardware batches strictly through the same governed Go admission, WebCrypto
 > Ed25519 mandate, and budget-hold rail used by agents.
+>
+> **Implementation update (2026-11-11):** Console contracts now stand at
+> **144** modeled / **14** client-only / **0** unmodeled (`131` OpenAPI paths,
+> `123` schemas). The `Cmd+E` / `Ctrl+E` **Experiment & Discovery Lab** now opens
+> as a non-blocking right drawer in the Arena shell (duplicate Settings entry
+> removed), `Hardware QPU` renders directly inside the Arena, `SpatialCanvas` is
+> promoted directly from the `Molecule` card and HUD (`Open molecule object view`),
+> semantic `Dark graphite` / `Light paper` plus contrast/density/reduced-motion
+> axes drive `console-token-lint.mjs` down to `14` baseline occurrences,
+> Workbench viewports persist via session-scoped `GET/PUT /api/workbench/view`,
+> and concurrent SSE invalidations queue via `pendingRefresh` (`resource-store.ts`).
 
 ## The nine core observatory surfaces
  

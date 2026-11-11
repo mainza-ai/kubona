@@ -1,7 +1,7 @@
 ---
 type: log
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [log]
 status: living
 ---
@@ -5356,3 +5356,69 @@ skipped is the exact failure this incident is about:
     `production-readiness-audit-2026-10-26.md` (`c7d98f6` nightly green
     `41041244412`, `ibm_marrakesh` `$3.20` paid run), and
     `full-system-test-plan.md`.
+
+## [2026-11-11] verification | sync AGENTS.md and wiki with workbench overhaul and runtime hardening
+
+- **Summary:** Synchronized [AGENTS.md](../AGENTS.md), generated
+  `docs/repo-counts.md`, and core wiki architecture/UI pages with the
+  2026-11-11 platform and console workspace state (post-`e0fa6b2` fixes
+  including `ArenaHud.tsx` / `MeasuredOutputs.tsx` radius-token cleanup).
+- **Platform & Contract Delta (`docs/repo-counts.md`):**
+  - Go HTTP API routes: **141** across **37** packages (**868** Go test
+    functions), adding session-scoped `GET/PUT /api/workbench/view`
+    viewport persistence (`platform/core/pkg/api/server.go`,
+    `route_policy.go`) and campaign-scoped `replan.go` filtering
+    (`platform/core/pkg/agents/replan.go`).
+  - Console contracts: **144 modeled / 14 client-only / 0 unmodeled** (`123`
+    schemas, `131` OpenAPI paths via `console-contract-inventory.py` and
+    `console-openapi.mjs`).
+  - Console suites & token hygiene: **663** Vitest cases across **127** test
+    files; `scripts/console-token-lint.mjs` raw-palette debt reduced from
+    `865` to the `14`-occurrence baseline in
+    `platform/contracts/console-token-baseline.json` after migrating to warm-graphite
+    (`Dark graphite`) and `Light paper` semantic tokens plus contrast,
+    density, and reduced-motion axes (`tokens.css`, `axes.css`,
+    `appearance.ts`, `AppearanceSettings.tsx`).
+- **Console UX & Workbench Hardening:**
+  - Repeatable job folding across pins (`REPEATABLE_JOB_TYPES`), LOD-aware
+    card sizing, single-select `NodeToolbar` vs multi-select `SelectionBar`,
+    hybrid orthogonal edge routing, Web Worker DAG layout
+    (`proof-dag.worker.ts`), trackpad pan + `Ctrl/Meta+Wheel` zoom with
+    `.k-workbench-code` scroll passthrough, hover/focus-gated quick handles,
+    and toggleable minimap in `Workbench.tsx`.
+  - Non-blocking `Experiment & Discovery Lab` right drawer (`Cmd+E` /
+    `Ctrl+E`, duplicate Settings entry removed), in-Arena `Hardware QPU`
+    view, direct `SpatialCanvas` promotion from `Molecule` (`Open molecule
+    object view`), `[0, max]` zero-baseline `DataChart` scaling, centered
+    `<dialog>` (`.k-dialog`), isolated `ElapsedClock` ticks, mount-only
+    bootstrap separation (`page.tsx`), queued SSE `pendingRefresh`
+    invalidations (`resource-store.ts`), mobile `390×844` drawer layout fixes,
+    and CI failure trace uploads (`.github/workflows/console-e2e.yml`).
+- **Updated Pages:** `overview.md`, `index.md`, `log.md`, `entities/kubona.md`,
+  `concepts/ui-ux-vision.md`, `concepts/agent-ux-control-plane.md`,
+  `concepts/observatory-spatial-representation-layer.md`,
+  `concepts/frontend-backend-ui-ux-audit.md`,
+  `concepts/platform-architecture-diagram.md`, `concepts/audit-topology-map.md`,
+  and `concepts/remaining-work.md`. Census holds cleanly at **156 pages**.
+
+## [2026-11-11] verification | workbench camera auto-framing and Fit bounds fix
+
+- **Root Cause Fixed:** Initial launches with `view_revision: 0` applied bare
+  `DEFAULT_CAMERA` without fitting, saved off-screen views were never recovered,
+  centered-offset `fitRect` pushed top cards negative when tall layouts hit
+  min zoom `0.25`, and toolbar/hotkey zoom scaled around `(0, 0)`.
+- **Code & Tests:** Added `computeFitCamera`, `cameraShowsAnyObject`,
+  `zoomCameraAtPoint`, and `hasExplicitCameraRecord` in
+  `platform/console/src/components/workbench/workbench-model.ts`; wired
+  width-fit Spine initial auto-framing (`0.68` readable zoom floor),
+  off-screen recovery across hydration/filter/area collapse, and viewport-centered
+  zoom in `Workbench.tsx` (`margin = 48` culling); added unit tests in
+  `workbench-model.test.ts` (**667** Console test cases across **127** files)
+  and E2E regression in `e2e/workbench-a11y.spec.ts`.
+- **Verification:** `docs/repo-counts.md` synced (`667` Console test cases),
+  `wiki-lint.py --strict` (`156 pages`) & contract/token gates clean,
+  `go test ./...` green, Console lint/`tsc`/Vitest (`667`)/`next build` green,
+  and rebuilt `kubona-live` Playwright E2E green (`27 passed, 6 skipped, 0 failed`;
+  operator- and nightly-perf-gated cases skipped as expected when unset), plus
+  live browser verification on `http://localhost:3000/` (`Fit` `minTop = +28.65px`,
+  `maxBottom = -24.39px` inside viewport).

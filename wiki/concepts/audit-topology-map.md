@@ -2,7 +2,7 @@
 type: concept
 name: Audit Topology & Live Verification Map
 date: 2026-10-21
-updated: 2026-11-10
+updated: 2026-11-11
 tags: [architecture, diagram, deployment, verification, audit]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-llm-circuit-codesign-2026]
 status: living
@@ -20,6 +20,20 @@ status: living
 > Evidence class: live `curl` against the compose stack and isolated local
 > rails (`--db /tmp/…`, host bridge + UDS socket), plus the 2026-10-29
 > governed live-QPU probe (estimate→reserve→cancel→settle, ledger-sealed).
+>
+> **Update (2026-11-11, `kubona-live` Compose stack):**
+> - **Edge & Contracts:** `kubonad` serves **141** HTTP routes (adding
+>   session-scoped `GET/PUT /api/workbench/view` viewport persistence and
+>   campaign-scoped `replan.go` filtering); Console contract coverage stands at
+>   **144** modeled / **14** client-only / **0** unmodeled (`131` OpenAPI paths,
+>   `123` schemas), with `console-token-lint.mjs` held at **14** baseline
+>   occurrences across `Dark graphite` / `Light paper` themes.
+> - **Console UX & Live Verification:** Rebuilt `kubona-live` passed visual and
+>   Playwright E2E verification (`runtime-budget.spec.ts`, `stream-invalidation.spec.ts`,
+>   `a11y.spec.ts`, `workbench-a11y.spec.ts`, `console.spec.ts`), confirming
+>   non-blocking `Experiment & Discovery Lab` drawer (`Cmd+E`), direct
+>   `SpatialCanvas` molecule view, SSE `pendingRefresh` queuing, and mobile
+>   `390×844` overlay inspector ergonomics.
 >
 > **Update (2026-11-10, `kubona-live` Compose stack @ `de3428c` / `119749e`):**
 > - **Live services verified `(healthy)`:** `kubona-live-bridge-1` (`UDS`),
@@ -60,7 +74,7 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>140 routes (docs/repo-counts.md)<br/>bearer|session edge auth, shared FidelityGate"]
+        KUBONAD["kubonad :8080<br/>141 routes (docs/repo-counts.md)<br/>bearer|session edge auth, shared FidelityGate"]
         BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
         VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end
@@ -161,9 +175,9 @@ flowchart TB
 - Compose: `platform/docker/compose.prod.yml` (kubonad WITHOUT `--bridge`
   flag; `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on both services;
   `bridge-sock` volume; `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
-- Routes: 140 `s.route(` in `platform/core/pkg/api/server.go` as of `2026-11-10`
-  (previous count: 121 at `2026-10-29`; authoritative counts generated in
-  `docs/repo-counts.md`).
+- Routes: 141 `s.route(` in `platform/core/pkg/api/server.go` as of `2026-11-11`
+  (adding `/api/workbench/view`; previous counts: 140 at `2026-11-10`, 121 at
+  `2026-10-29`; authoritative counts generated in `docs/repo-counts.md`).
 - Radar: kubonad dials `KUBONA_BRIDGE_SOCKET` (unix) when `--bridge` is at
   its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for
   explicit overrides.
