@@ -16,7 +16,10 @@ async function openLabs(page: Page) {
   await expect(page.getByText('Lab session')).toBeVisible();
 }
 
-async function ensureOperatorLoggedIn(page: Page) {
+async function ensureOperatorLoggedIn(
+  page: Page,
+  options?: { title?: string; targetMolecule?: string },
+) {
   const token = process.env.E2E_OPERATOR_TOKEN;
   test.skip(!token, 'E2E_OPERATOR_TOKEN not set: write-path operator setup skipped');
 
@@ -60,21 +63,23 @@ async function ensureOperatorLoggedIn(page: Page) {
     const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
     return config.apiUrl || 'http://localhost:8080';
   });
-  const createdSessionId = await page.evaluate(async (base) => {
+  const sessionTitle = options?.title ?? 'E2E operator campaign';
+  const sessionMolecule = options?.targetMolecule ?? 'H2';
+  const createdSessionId = await page.evaluate(async ({ base, title, targetMolecule }) => {
     const res = await fetch(`${base}/api/sessions`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'E2E operator campaign',
-        target_molecule: 'H2',
+        title,
+        target_molecule: targetMolecule,
         spend_limit_usd: 10,
         fresh: true,
       }),
     });
     const body = await res.json() as { id?: string };
     return body.id || '';
-  }, apiUrl);
+  }, { base: apiUrl, title: sessionTitle, targetMolecule: sessionMolecule });
   if (!createdSessionId) throw new Error('operator session creation returned no id');
   await page.goto('/');
   await expectReady(page);
@@ -228,7 +233,10 @@ test.describe('Kubona console against the real local stack', () => {
   });
 
   test('real LiH PES runs through the ledger and renders measured points', async ({ page }) => {
-    const sessionId = await ensureOperatorLoggedIn(page);
+    const sessionId = await ensureOperatorLoggedIn(page, {
+      title: 'E2E LiH PES campaign',
+      targetMolecule: 'LiH',
+    });
     const apiUrl = await page.evaluate(async () => {
       const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
       return config.apiUrl || 'http://localhost:8080';

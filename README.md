@@ -44,8 +44,34 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 </div>
 
 - **Kubona & The Autonomous Quantum Scientific Method (Video):** [Kubona & The Autonomous Quantum Scientific Method](https://youtu.be/y6EM4CKZFQA)
+- **User Interface Preview (Video):** [Kubona - User Interface preview](https://www.youtube.com/watch?v=okA0geYELYk)
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
+
+---
+
+## Sovereign Observatory Console (UI Preview & Screenshots)
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=okA0geYELYk">
+    <img src="https://i.ytimg.com/vi/okA0geYELYk/maxresdefault.jpg" alt="Kubona — User Interface Preview (YouTube)" width="100%" />
+  </a>
+  <p><em>Video walkthrough: <a href="https://www.youtube.com/watch?v=okA0geYELYk">Kubona - User Interface preview</a> (YouTube)</em></p>
+</div>
+
+<div align="center">
+  <a href="assets/screenshots/kubona_ui_screen_1.png">
+    <img src="assets/screenshots/kubona_ui_screen_1.png" alt="Kubona Sovereign Console — Light Paper Workbench Canvas and Copilot Drawer" width="100%" />
+  </a>
+  <p><em>Light Paper theme: Spatial Workbench linking H₂ campaign, OpenQASM 2.0 UCCSD circuit, repeated VQE vs FCI measurement, SHA-256 provenance proof, and Kubona Copilot drawer.</em></p>
+</div>
+
+<div align="center">
+  <a href="assets/screenshots/kubona_ui_screen_2.png">
+    <img src="assets/screenshots/kubona_ui_screen_2.png" alt="Kubona Sovereign Console — Dark Graphite Workbench Canvas, Energy Trajectory, and Copilot" width="100%" />
+  </a>
+  <p><em>Dark Graphite theme: Focused Energy trajectory chart comparing VQE iterations against the FCI anchor, node toolbar controls, and live local Copilot response.</em></p>
+</div>
 
 ---
 
