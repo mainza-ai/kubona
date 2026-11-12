@@ -456,6 +456,9 @@ jobs:
       - name: Chart implementation budget
         working-directory: .
         run: node scripts/chart-budget.mjs
+      - name: Console palette derived, verified, and in sync
+        working-directory: .
+        run: node scripts/console-palette.mjs --check
       # Phase-3 regression gate: known illustrative literals may not return
       # to production component/app/lib code.
       - name: Placeholder literal gate

@@ -1,105 +1,31 @@
-/* Kubona semantic design tokens aligned with Zephium's warm-neutral graphite
-   tonal ladder. Dark is the base (:root); [data-theme="light"], [data-tint],
-   [data-contrast], [data-density], and [data-reduce-motion] live in axes.css. */
+/* Kubona semantic design tokens — derived layer.
+   Literal values (tonal ladder, overlay alpha ladder, tints, semantic and
+   soft hues, chart series, shadows, radii, type scale) are generated into
+   palette.css by scripts/console-palette.mjs and verified there for WCAG
+   contrast and chart CVD separation. This file only composes them.
+   Dark is the base (:root); [data-theme="light"] and [data-tint] literals live
+   in palette.css; [data-contrast], [data-density] and [data-reduce-motion]
+   live in axes.css. Custom properties resolve on :root, so every mix below
+   follows the active theme without being redeclared. */
 
 :root {
   color-scheme: dark;
 
-  /* Neutral graphite tonal ladder */
-  --color-canvas: #1a1a1d;
-  --color-page: #1a1a1d;
-  --color-chrome: #1f1f22;
-  --color-surface: #26262a;
-  --color-surface-elev: #303036;
-  --color-raised: #2c2c30;
-  --color-float: #3d3d44;
-  --wash-raised: 62%;
   --color-menu: color-mix(in srgb, var(--color-float) var(--wash-raised), transparent);
-  --color-menu-separator: rgb(255 255 255 / 0.1);
-
-  /* Surface fills & hairlines */
-  --color-fill: rgb(255 255 255 / 0.05);
-  --color-fill-hover: rgb(255 255 255 / 0.08);
-  --color-fill-active: rgb(255 255 255 / 0.12);
-  --color-fill-pressed: rgb(255 255 255 / 0.16);
-  --color-fill-strong: rgb(255 255 255 / 0.22);
-  --color-card: rgb(255 255 255 / 0.05);
-  --color-tile: rgb(255 255 255 / 0.06);
-  --color-tile-hover: rgb(255 255 255 / 0.1);
-  --color-border: rgb(255 255 255 / 0.07);
-  --color-border-strong: rgb(255 255 255 / 0.13);
 
   /* List & segmented states */
-  --row-hover: rgb(255 255 255 / 0.04);
-  --row-active: rgb(255 255 255 / 0.075);
-  --row-pressed: rgb(255 255 255 / 0.1);
-  --row-rim: inset 0 0 0 1px rgb(255 255 255 / 0.06);
   --segment-thumb: var(--row-active);
   --shadow-segment-thumb: var(--row-rim);
 
-  /* Scrollbars */
-  --scroll-thumb: rgb(255 255 255 / 0.16);
-  --scroll-thumb-hover: rgb(255 255 255 / 0.28);
-
-  /* Text hierarchy (WCAG AA >= 4.5:1 on --color-surface / --color-raised) */
-  --color-text: #f4f4f6;
-  --color-label-secondary: #d8d8db;
-  --color-muted: rgb(244 244 246 / 0.72);
-  --color-faint: rgb(244 244 246 / 0.62);
-
-  /* Controls & inputs */
-  --color-control: rgb(255 255 255 / 0.09);
-  --color-control-hover: rgb(255 255 255 / 0.13);
-  --color-control-pressed: rgb(255 255 255 / 0.17);
-  --color-on-control: var(--color-text);
-  --color-on-control-strong: var(--color-text);
-  --color-field: rgb(255 255 255 / 0.09);
-  --color-field-hover: rgb(255 255 255 / 0.12);
-  --color-field-ring: rgb(255 255 255 / 0.16);
-  --color-raise: rgb(255 255 255 / 0.08);
-  --color-raise-active: rgb(255 255 255 / 0.12);
-  --color-track: rgb(255 255 255 / 0.14);
-  --color-track-on: #96969d;
-
-  /* Lit & default neutral accent */
-  --color-lit: #ededf0;
-  --color-lit-hover: #f7f7fa;
-  --color-on-lit: #161619;
-  --color-lit-soft: rgb(237 237 240 / 0.16);
+  /* Accent (graphite default = neutral lit; [data-tint] overrides) */
   --color-accent: var(--color-lit);
   --color-accent-hover: var(--color-lit-hover);
   --color-on-accent: var(--color-on-lit);
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 16%, transparent);
   --color-accent-ink: color-mix(in oklab, var(--color-accent) 78%, var(--color-text));
   --color-accent-edge: color-mix(in oklab, var(--color-accent) 36%, var(--color-border-strong));
-  --color-ring: rgb(255 255 255 / 0.5);
-
-  /* Palette tints */
-  --color-tint-graphite: #96969d;
-  --color-tint-sky: #7fb3f5;
-  --color-tint-sage: #86c9a4;
-  --color-tint-rose: #ee8f95;
-  --color-tint-amber: #e9b872;
-  --color-tint-teal: #6fc6c1;
-  --color-tint-lavender: #b3a4f2;
-  --color-tint-orchid: #dc9ad8;
-
-  /* Semantic states */
-  --color-danger: #ef8a8e;
-  --color-success: #7fcaa1;
-  --color-warning: #dcb977;
-  --color-info: #8fbcf7;
 
   /* Soft semantic hues (badges, tags, inline code, key terms) */
-  --color-soft-sky: #8db9f2;
-  --color-soft-mint: #88d0b3;
-  --color-soft-lemon: #e6cb80;
-  --color-soft-peach: #efaa89;
-  --color-soft-rose: #ee9aae;
-  --color-soft-lilac: #b7a6f0;
-  --soft-wash: 15%;
-  --soft-edge: 26%;
-  --soft-ink: 62%;
   --color-soft-sky-wash: color-mix(in oklab, var(--color-soft-sky) var(--soft-wash), var(--color-surface));
   --color-soft-mint-wash: color-mix(in oklab, var(--color-soft-mint) var(--soft-wash), var(--color-surface));
   --color-soft-lemon-wash: color-mix(in oklab, var(--color-soft-lemon) var(--soft-wash), var(--color-surface));
@@ -137,16 +63,7 @@
   --color-soft-indigo-wash: var(--color-soft-lilac-wash);
   --color-soft-indigo-edge: var(--color-soft-lilac-edge);
 
-  /* Categorical data chart palette (CVD-safe stepped contrast) */
-  --color-chart-1: #6193db;
-  --color-chart-2: #b37046;
-  --color-chart-3: #2da58f;
-  --color-chart-4: #a47d00;
-  --color-chart-5: #b77094;
-  --color-chart-6: #679936;
-  --color-chart-7: #7e68ab;
-  --color-chart-8: #c6685b;
-  --color-chart-other: #8c8c96;
+  /* Chart series aliases (literals in palette.css, CVD-verified) */
   --chart-1: var(--color-chart-1);
   --chart-2: var(--color-chart-2);
   --chart-3: var(--color-chart-3);
@@ -156,38 +73,12 @@
   --chart-7: var(--color-chart-7);
   --chart-8: var(--color-chart-8);
 
-  /* Role-based radii */
-  --radius-swatch: 3px;
-  --radius-inset: 8px;
-  --radius-row: 12px;
-  --radius-control-compact: 10px;
-  --radius-control: 14px;
-  --radius-control-large: 18px;
-  --radius-card: 18px;
-  --radius-panel: 22px;
-  --radius-capsule: 999px;
+  /* Radius & elevation aliases */
   --radius-pill: var(--radius-capsule);
-
-  /* Elevation shadows */
-  --shadow-card: none;
-  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(255 255 255 / 0.06);
-  --shadow-float: 0 6px 22px rgb(0 0 0 / 0.34), 0 0 0 0.5px rgb(255 255 255 / 0.08);
-  --shadow-overlay: 0 12px 36px rgb(0 0 0 / 0.3), 0 0 0 0.5px rgb(255 255 255 / 0.08);
   --shadow-popover: var(--shadow-float);
-  --shadow-menu: 0 0 0 1px rgb(255 255 255 / 0.08), 0 14px 44px -10px rgb(0 0 0 / 0.34);
-  --shine: inset 0 1px 0 0 rgb(255 255 255 / 0.13), inset 0 -1px 0 0 rgb(255 255 255 / 0.04), inset 0 0 0 1px rgb(255 255 255 / 0.05);
 
-  /* Typographic scale */
-  --text-caption: 11px;
-  --text-label: 12px;
-  --text-body: 13px;
-  --text-page-body: 13px;
-  --text-page-title: 14px;
-  --text-title: 22px;
-  --text-headline: 26px;
-  --text-display: 30px;
-
-  /* Motion timings & density */
+  /* Motion timings. Curves are the standard Penner easeOutQuint
+     (0.22, 1, 0.36, 1) and easeOutExpo (0.16, 1, 0.3, 1). */
   --motion-fast: 140ms;
   --motion-mid: 220ms;
   --motion-slow: 340ms;
@@ -195,6 +86,7 @@
   --motion-ease: var(--ease-out);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
+  /* Layout & density */
   --inspector-width: 380px;
   --workbench-card-pad: 12px 14px;
   --workbench-row-gap: 6px;

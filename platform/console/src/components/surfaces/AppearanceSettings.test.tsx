@@ -52,7 +52,7 @@ describe('AppearanceSettings & theme axes', () => {
     expect(classes.has('dark')).toBe(true);
   });
 
-  it('exposes all Zephium tint swatches and resets defaults', async () => {
+  it('exposes all accent tint swatches and resets defaults', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<AppearanceSettings />);

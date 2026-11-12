@@ -1,7 +1,7 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-11-11
+updated: 2026-11-12
 tags: [index]
 status: living
 ---
@@ -31,7 +31,7 @@ arrives, place it here first and it will find its page.
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]], [[circuit-codesign-production-readiness]], [[circuit-codesign-followups]], [[circuit-codesign-implementation-plan]] | `adopted` mechanisms, `tracked` vendors, dual-model register allocation |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
-| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]], [[observatory-spatial-representation-layer]] | `adopted` cognitive cockpit & AX triad |
+| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]], [[observatory-spatial-representation-layer]], [[runtime-honesty-and-commit-policy]] | `adopted` cognitive cockpit & AX triad |
 | **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]], [[leanrea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA + leanrea prior art |
 
 ## Overview & meta

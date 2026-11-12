@@ -2,7 +2,7 @@
 type: catalog
 name: Open Questions & Design Forks
 date: 2026-09-27
-updated: 2026-11-10
+updated: 2026-11-12
 tags: [index, questions, blueprint]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
@@ -49,6 +49,10 @@ in the Closed table. Implementation residuals are tracked in
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
+| **Q-58** | 2026-11-12 | Console palette re-derived from Kubona-owned parameters (no relicensing): generator + WCAG/CVD gate, drift-checked in CI; reference project no longer named in code. | [[runtime-honesty-and-commit-policy]] §1 |
+| **Q-59** | 2026-11-12 | Jobs with unknown vendor outcome get `OUTCOME_UNKNOWN`: non-terminal, non-live, reservation kept, never auto-retried, blocks deletion; exits only on vendor evidence or a signed evidence-stating operator resolution. | [[runtime-honesty-and-commit-policy]] §2 |
+| **Q-60** | 2026-11-12 | Run-scoped allowances adopted (bounded, signed, expiring, auto-suspending; tainted turns excluded); implementation gated on review of the written threat argument. | [[runtime-honesty-and-commit-policy]] §3 |
+| **Q-61** | 2026-11-12 | Settings commit friction follows consequence: only device presentation saves instantly; egress/spend/reproducibility need a staged Save; loosening safety confirms; revisioned settings writes are a P0 precondition. | [[runtime-honesty-and-commit-policy]] §4 |
 | **Q-50** | 2026-10-27 | Go SQLite is the single money authority for API/human/quantum dispatch; Python mirrors it; ledger v2 moves to integer micro-USD. | [[production-readiness-audit-2026-10-26]] |
 | **Q-51** | 2026-10-27 | Auto-refund pre-vendor failures, keep post-vendor charges, operator-only partials; Go uses the vendor-pin state. | [[production-readiness-audit-2026-10-26]] |
 | **Q-56** | 2026-10-27 | Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer. Non-extractable WebCrypto custody landed 2026-10-28; a passkey ceremony is an optional upgrade. | [[production-readiness-audit-2026-10-26]] |

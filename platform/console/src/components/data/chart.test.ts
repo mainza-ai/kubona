@@ -70,6 +70,35 @@ describe('chart spec', () => {
     ]);
     expect(path.startsWith('M0,10')).toBe(true);
     expect(path).toContain('C');
+
+    // No invented peak or dip: a Bézier lies inside the hull of its control
+    // points, so every control y must stay within its segment's y-range.
+    const datasets: Array<Array<{ x: number; y: number }>> = [
+      [{ x: 0, y: 10 }, { x: 10, y: 0 }, { x: 20, y: 10 }],
+      [{ x: 0, y: 0 }, { x: 1, y: 0.1 }, { x: 2, y: 9.9 }, { x: 3, y: 10 }, { x: 4, y: 10 }],
+      [{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 2, y: 5 }, { x: 3, y: 1 }, { x: 4, y: 8 }],
+      [{ x: 0, y: -1.137 }, { x: 0.5, y: -1.1 }, { x: 0.74, y: -1.137 }, { x: 1.5, y: -0.9 }, { x: 3, y: -0.93 }],
+      [{ x: 0, y: 1 }, { x: 1, y: 3 }, { x: 1, y: 7 }, { x: 2, y: 4 }],
+    ];
+    for (const data of datasets) {
+      const d = plotPath(data);
+      const segments = d.slice(d.indexOf(',') + 1).match(/[CL][^CL]+/g) ?? [];
+      expect(segments).toHaveLength(data.length - 1);
+      segments.forEach((segment, k) => {
+        const y0 = data[k]!.y;
+        const y1 = data[k + 1]!.y;
+        const lo = Math.min(y0, y1) - 0.011;
+        const hi = Math.max(y0, y1) + 0.011;
+        const nums = segment.slice(1).split(',').map(Number);
+        const ys = segment[0] === 'C' ? [nums[1]!, nums[3]!, nums[5]!] : [nums[1]!];
+        for (const y of ys) {
+          expect(y).toBeGreaterThanOrEqual(lo);
+          expect(y).toBeLessThanOrEqual(hi);
+        }
+      });
+    }
+    // A segment with no x-extent is drawn straight, never interpolated.
+    expect(plotPath([{ x: 0, y: 1 }, { x: 1, y: 3 }, { x: 1, y: 7 }, { x: 2, y: 4 }])).toContain('L1,7');
   });
 
   it('flips bars horizontally on long category labels or > 8 categories, and thins crowded ticks', () => {

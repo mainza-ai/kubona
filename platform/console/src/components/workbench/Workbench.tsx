@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { acceptWrite, newWriteRequestId, reconcileOperation, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
+import { PALETTE } from '@/styles/palette.generated';
 import {
   AskReceiptBanner,
   ConfirmCard,
@@ -1476,11 +1477,11 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
 
     const styles = typeof getComputedStyle === 'function' ? getComputedStyle(canvas) : null;
     const tok = (name: string, fallback: string) => styles?.getPropertyValue(name).trim() || fallback;
-    const infoColor = tok('--color-info', '#8fbcf7');
-    const successColor = tok('--color-success', '#7fcaa1');
-    const borderStrong = tok('--color-border-strong', 'rgba(255,255,255,0.18)');
-    const textColor = tok('--color-text', '#f4f4f6');
-    const neutralFill = tok('--color-control', 'rgba(255,255,255,0.12)');
+    const infoColor = tok('--color-info', PALETTE.dark['--color-info']);
+    const successColor = tok('--color-success', PALETTE.dark['--color-success']);
+    const borderStrong = tok('--color-border-strong', PALETTE.dark['--color-border-strong']);
+    const textColor = tok('--color-text', PALETTE.dark['--color-text']);
+    const neutralFill = tok('--color-control', PALETTE.dark['--color-control']);
 
     const { minX, minY, spanW, spanH } = minimapBounds;
     const scale = Math.min(w / spanW, h / spanH);

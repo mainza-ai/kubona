@@ -2,6 +2,17 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+  contrast,
+  derivePalette,
+  luminance,
+  PALETTE_CSS_PATH,
+  PALETTE_TS_PATH,
+  renderPaletteCss,
+  renderPaletteTs,
+  verifyPalette,
+} from '../../../../scripts/console-palette.mjs';
+import { PALETTE } from './palette.generated';
 
 const SRC_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const STYLES_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -26,6 +37,7 @@ function walkFiles(dir: string, extensions: readonly string[]): string[] {
 function collectDeclaredColorTokens(): Set<string> {
   const declared = new Set<string>();
   const cssFiles = [
+    join(STYLES_DIR, 'palette.css'),
     join(STYLES_DIR, 'tokens.css'),
     join(STYLES_DIR, 'axes.css'),
     join(SRC_ROOT, 'app', 'globals.css'),
@@ -60,6 +72,25 @@ const DISALLOWED_DARK_PATTERNS: Array<{ label: string; regex: RegExp }> = [
   { label: 'bg-*-950', regex: /\bbg-(?:emerald|cyan|rose|amber|indigo|violet|red|slate)-950(?:\/\d+)?\b/ },
   { label: 'pale dark-mode status text', regex: /\btext-(?:emerald|cyan|rose|amber|indigo|violet|purple|red)-(?:100|200|300|400|500)\b/ },
 ];
+
+describe('derived console palette', () => {
+  it('passes every WCAG contrast, CVD chart-separation and ladder-order check', () => {
+    expect(verifyPalette()).toEqual([]);
+  });
+
+  it('keeps generated palette.css and palette.generated.ts in sync with the derivation', () => {
+    expect(readFileSync(PALETTE_CSS_PATH, 'utf8')).toBe(renderPaletteCss());
+    expect(readFileSync(PALETTE_TS_PATH, 'utf8')).toBe(renderPaletteTs());
+    expect(PALETTE.dark['--color-text']).toBe(derivePalette().dark['--color-text']);
+  });
+
+  it('keeps hand-written token files free of literal colours (literals live only in the derivation)', () => {
+    for (const file of ['tokens.css', 'axes.css']) {
+      const text = readFileSync(join(STYLES_DIR, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      expect({ file, literals: text.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(/g) ?? [] }).toEqual({ file, literals: [] });
+    }
+  });
+});
 
 describe('design token integrity and Light Paper theme migration', () => {
   const declared = collectDeclaredColorTokens();
@@ -112,13 +143,18 @@ describe('design token integrity and Light Paper theme migration', () => {
     const missing = requiredTokens.filter((token) => !declared.has(token));
     expect(missing).toEqual([]);
 
-    const axesCss = readFileSync(join(STYLES_DIR, 'axes.css'), 'utf8');
-    const tokensCss = readFileSync(join(STYLES_DIR, 'tokens.css'), 'utf8');
-    expect(tokensCss).toContain('--color-canvas: #1a1a1d');
-    expect(axesCss).toMatch(/:root\[data-theme=["']light["']\]/);
-    expect(axesCss).toContain('--color-canvas: #f1f1f3');
-    expect(axesCss).toContain('--color-surface: #ffffff');
-    expect(axesCss).toContain('--color-text: #1c1c1f');
+    const paletteCss = readFileSync(join(STYLES_DIR, 'palette.css'), 'utf8');
+    const derived = derivePalette();
+    expect(paletteCss).toMatch(/:root\[data-theme=["']light["']\]/);
+    expect(paletteCss).toContain(`--color-canvas: ${derived.dark['--color-canvas']};`);
+    expect(paletteCss).toContain(`--color-canvas: ${derived.light['--color-canvas']};`);
+    expect(paletteCss).toContain(`--color-text: ${derived.light['--color-text']};`);
+    // Inversion is real: dark base is dark, light paper is light, text flips.
+    expect(luminance(derived.dark['--color-canvas'])).toBeLessThan(0.03);
+    expect(luminance(derived.light['--color-canvas'])).toBeGreaterThan(0.8);
+    expect(derived.light['--color-surface']).toBe('#ffffff');
+    expect(contrast(derived.dark['--color-text'], derived.dark['--color-surface'])).toBeGreaterThanOrEqual(7);
+    expect(contrast(derived.light['--color-text'], derived.light['--color-surface'])).toBeGreaterThanOrEqual(7);
   });
 
   it('resolves every var(--color-*) reference in src CSS and TSX/TS files', () => {
@@ -141,7 +177,10 @@ describe('design token integrity and Light Paper theme migration', () => {
   });
 
   it('keeps TSX/TS UI components free of un-tokenized dark-only utility classes', () => {
-    const files = walkFiles(SRC_ROOT, ['.ts', '.tsx']);
+    // palette.generated.ts is the one sanctioned literal source; it is
+    // verified by the derivation tests above, not by this utility scan.
+    const generated = join(STYLES_DIR, 'palette.generated.ts');
+    const files = walkFiles(SRC_ROOT, ['.ts', '.tsx']).filter((file) => file !== generated);
     const violations: Array<{ file: string; line: number; rule: string; snippet: string }> = [];
 
     for (const file of files) {

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mockApi } from './workbench-fixtures';
+import { PALETTE } from '../src/styles/palette.generated';
 
 async function audit(page: Page, label: string) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
@@ -106,7 +107,8 @@ test('Light theme inversion, hover opacity invariance, zero card overlap, and zo
   // Default hybrid edge visibility toolbar control.
   await expect(workbench.getByRole('button', { name: 'Edges: hybrid' })).toBeVisible();
 
-  // Semantic token inversion check (Zephium dark graphite default <-> Light Paper surfaces; no legacy #0E1117).
+  // Semantic token inversion check (derived dark graphite default <-> Light Paper surfaces; no legacy #0E1117).
+  // Expected values come from the palette derivation, never hand-copied literals.
   const themeCheck = await page.evaluate(() => {
     const rootStyle = getComputedStyle(document.documentElement);
     const defaultCanvasVar = rootStyle.getPropertyValue('--color-canvas').trim().toLowerCase();
@@ -119,11 +121,12 @@ test('Light theme inversion, hover opacity invariance, zero card overlap, and zo
     delete document.documentElement.dataset.theme;
     return { defaultCanvasVar, defaultBodyBg, lightCanvasVar, lightSurfaceVar, lightCardBg, lightBodyBg };
   });
-  expect(themeCheck.defaultCanvasVar).toBe('#1a1a1d');
-  expect(themeCheck.lightCanvasVar).toBe('#f1f1f3');
+  const [lr, lg, lb] = [1, 3, 5].map((i) => parseInt(PALETTE.light['--color-canvas'].slice(i, i + 2), 16));
+  expect(themeCheck.defaultCanvasVar).toBe(PALETTE.dark['--color-canvas']);
+  expect(themeCheck.lightCanvasVar).toBe(PALETTE.light['--color-canvas']);
   expect(['#fff', '#ffffff']).toContain(themeCheck.lightSurfaceVar);
   expect(themeCheck.defaultBodyBg).not.toBe('rgb(14, 17, 23)');
-  expect(themeCheck.lightBodyBg).toBe('rgb(241, 241, 243)');
+  expect(themeCheck.lightBodyBg).toBe(`rgb(${lr}, ${lg}, ${lb})`);
   expect(themeCheck.lightCardBg).not.toBe('rgb(14, 17, 23)');
 
   // Zero significant pairwise overlap across visible workbench cards.

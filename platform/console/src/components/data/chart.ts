@@ -210,47 +210,77 @@ export function valuesCsv(spec: ChartSpec): string {
   return lines.join('\n');
 }
 
+/**
+ * Smooth path through points ordered along x that never overshoots the data:
+ * monotone piecewise-cubic Hermite interpolation after Fritsch & Carlson,
+ * "Monotone Piecewise Cubic Interpolation", SIAM J. Numer. Anal. 17(2), 1980.
+ * Each Hermite segment is emitted as the equivalent cubic Bézier, whose
+ * control points stay within the segment's y-range, so no peak or dip is
+ * invented between measured points. Segments without positive x-extent are
+ * drawn straight rather than interpolated.
+ */
 export function plotPath(points: readonly { x: number; y: number }[]): string {
-  if (points.length === 0) return '';
+  const n = points.length;
+  if (n === 0) return '';
   const start = `M${round(points[0]!.x)},${round(points[0]!.y)}`;
-  if (points.length === 1) return start;
-  if (points.length === 2) return `${start}L${round(points[1]!.x)},${round(points[1]!.y)}`;
-  const tangents = new Array<number>(points.length);
-  for (let index = 1; index < points.length - 1; index += 1) {
-    tangents[index] = innerSlope(points[index - 1]!, points[index]!, points[index + 1]!);
+  if (n === 1) return start;
+  if (n === 2) return `${start}L${round(points[1]!.x)},${round(points[1]!.y)}`;
+
+  // 1. Secant slope of every segment (0 where x does not advance).
+  const widths: number[] = [];
+  const secants: number[] = [];
+  for (let k = 0; k < n - 1; k += 1) {
+    const h = points[k + 1]!.x - points[k]!.x;
+    widths.push(h);
+    secants.push(h > 0 ? (points[k + 1]!.y - points[k]!.y) / h : 0);
   }
-  tangents[0] = endSlope(points[0]!, points[1]!, tangents[1]!);
-  tangents[points.length - 1] = endSlope(
-    points[points.length - 2]!,
-    points[points.length - 1]!,
-    tangents[points.length - 2]!,
-  );
+
+  // 2. Initial tangents: one-sided at the ends, secant average inside, and
+  //    flat at local extrema (neighbouring secants disagree in sign).
+  const tangents: number[] = new Array(n);
+  tangents[0] = secants[0]!;
+  tangents[n - 1] = secants[n - 2]!;
+  for (let k = 1; k < n - 1; k += 1) {
+    const before = secants[k - 1]!;
+    const after = secants[k]!;
+    tangents[k] = before * after <= 0 ? 0 : (before + after) / 2;
+  }
+
+  // 3. Flat segments pin both endpoint tangents; otherwise restrict
+  //    (alpha, beta) to the circle of radius 3 — the sufficient monotonicity
+  //    region from Fritsch & Carlson.
+  for (let k = 0; k < n - 1; k += 1) {
+    const delta = secants[k]!;
+    if (delta === 0) {
+      tangents[k] = 0;
+      tangents[k + 1] = 0;
+      continue;
+    }
+    const alpha = tangents[k]! / delta;
+    const beta = tangents[k + 1]! / delta;
+    const radius = Math.hypot(alpha, beta);
+    if (radius > 3) {
+      const tau = 3 / radius;
+      tangents[k] = tau * alpha * delta;
+      tangents[k + 1] = tau * beta * delta;
+    }
+  }
+
+  // 4. Hermite segment (p0, m0, p1, m1) over width h == Bézier with control
+  //    points p0 + (h/3, m0 h/3) and p1 - (h/3, m1 h/3).
   let path = start;
-  for (let index = 1; index < points.length; index += 1) {
-    const a = points[index - 1]!;
-    const b = points[index]!;
-    const third = (b.x - a.x) / 3;
-    path += `C${round(a.x + third)},${round(a.y + third * tangents[index - 1]!)},${round(b.x - third)},${round(b.y - third * tangents[index]!)},${round(b.x)},${round(b.y)}`;
+  for (let k = 0; k < n - 1; k += 1) {
+    const a = points[k]!;
+    const b = points[k + 1]!;
+    const h = widths[k]!;
+    if (!(h > 0)) {
+      path += `L${round(b.x)},${round(b.y)}`;
+      continue;
+    }
+    const third = h / 3;
+    path += `C${round(a.x + third)},${round(a.y + third * tangents[k]!)},${round(b.x - third)},${round(b.y - third * tangents[k + 1]!)},${round(b.x)},${round(b.y)}`;
   }
   return path;
-}
-
-function sign(value: number): number {
-  return value < 0 ? -1 : 1;
-}
-
-function innerSlope(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }): number {
-  const h0 = b.x - a.x;
-  const h1 = c.x - b.x;
-  const s0 = (b.y - a.y) / (h0 || (h1 < 0 ? -0 : 0));
-  const s1 = (c.y - b.y) / (h1 || (h0 < 0 ? -0 : 0));
-  const p = (s0 * h1 + s1 * h0) / (h0 + h1);
-  return (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0;
-}
-
-function endSlope(a: { x: number; y: number }, b: { x: number; y: number }, tangent: number): number {
-  const h = b.x - a.x;
-  return h ? ((3 * (b.y - a.y)) / h - tangent) / 2 : tangent;
 }
 
 function round(value: number): number {

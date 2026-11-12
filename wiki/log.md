@@ -5422,3 +5422,34 @@ skipped is the exact failure this incident is about:
   operator- and nightly-perf-gated cases skipped as expected when unset), plus
   live browser verification on `http://localhost:3000/` (`Fit` `minTop = +28.65px`,
   `maxBottom = -24.39px` inside viewport).
+
+## [2026-11-12] decision | Q-58 — console palette re-derived; reference project no longer named
+
+- **Why:** a comparative study of `zephium-browser/Zephium` @ `1c4846c`
+  (MPL-2.0, reference only) found 121 of the console's 151 literal token values,
+  plus its radius and type ladders, identical to that project; the chart's
+  monotone routine matched d3-shape (ISC) via the same path.
+- **What landed (prototype):** `scripts/console-palette.mjs` derives every
+  literal from Kubona-owned parameters and gates WCAG contrast, chart CVD
+  separation and ladder order; generated `platform/console/src/styles/palette.css`
+  + `palette.generated.ts`; `tokens.css`/`axes.css` keep only derived mixes and
+  axes; CI step "Console palette derived, verified, and in sync"; chart curve
+  rewritten from Fritsch & Carlson (1980) with an overshoot-asserting test.
+- **Verification:** palette `--check` green and negative-tested (drift, contrast);
+  curve test negative-tested; Vitest 682/682, `tsc`, ESLint, `next build` green.
+  Local `workbench-a11y` E2E: 3 specs fail identically on the unmodified
+  baseline (cards not rendering in this environment) — not attributable here;
+  the theme-inversion spec passed against the derived palette when cards rendered.
+- **Pages:** [[runtime-honesty-and-commit-policy]] (new), [[questions]], [[index]].
+
+## [2026-11-12] question | Q-59 — outcome-unknown jobs block until resolved by evidence
+
+## [2026-11-12] question | Q-60 — run-scoped allowances adopted, gated on threat review
+
+## [2026-11-12] question | Q-61 — settings commit tiers; revisioned settings writes are P0
+
+- Q-59..Q-61 answers live on [[runtime-honesty-and-commit-policy]] §2–§4. Two
+  prototype defects verified while deciding: hardware transport errors release
+  the reservation (`jobs.go` `failJob`), and whole-document settings PUTs let a
+  stale LLM Settings save silently release air-gap. Both remain open for
+  implementation.
