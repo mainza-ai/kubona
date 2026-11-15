@@ -6176,3 +6176,20 @@ skipped is the exact failure this incident is about:
   **793/793** across **147** files, browser **9/9**; delete probe 200,
   Playwright confirms no campaign `×`, clear→0 cards→restore, and the model
   sign-in banner with zero page errors.
+
+## [2026-11-15] verification | local-model stream stall
+
+- **Diagnosis:** kubonad logs show no provider error; the prompt at 23:05
+  reached the LiH anchor at 23:04 and then produced no frames. The console's
+  client-side `STREAM_STALL_MS` was **30s**, and `/api/chat/stream` emitted no
+  heartbeat while the tool loop/provider produced its first token. A slow
+  local model was therefore reported as “backend went quiet.”
+- **Fix:** `/api/chat/stream` now writes an SSE comment heartbeat every 5s
+  during the pre-token/tool phase (serialized with token writes), and the
+  client stall budget is **120s**. Local provider defaults (`omlx`, `ollama`,
+  `lmstudio`, `strata`) are raised from 30s to 120s; existing installations
+  can set the same in LLM Settings.
+- **Verification:** Go full suite, console 793 unit + 9 browser, tsc, ESLint,
+  build. Live SSE probe against the rebuilt stack observed the tool loop with
+  `: heartbeat` frames at 5s intervals and no provider error; the persisted
+  local provider timeouts now read 120s for strata/ollama/omlx/lmstudio.

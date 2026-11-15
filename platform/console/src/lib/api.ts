@@ -88,9 +88,12 @@ function withCredentials(init: RequestInit): RequestInit {
 export const API_TIMEOUT_MS = 15000;
 
 // Stall budget for server-sent streams: a frame (token|done|error) must
-// arrive at least this often or the stream is declared dead. Without it a
-// wedged backend holds an infinite loading cursor with no recovery.
-export const STREAM_STALL_MS = 30000;
+// arrive at least this often or the stream is declared dead. The backend
+// now emits SSE heartbeats during the pre-token/tool phase; 120s leaves
+// room for a slow local model's first token without treating a live turn
+// as a dead backend. Without a bound a wedged backend holds the cursor
+// forever with no recovery.
+export const STREAM_STALL_MS = 120000;
 
 // Dispatched on window whenever the backend answers 401 (expired/invalid
 // session or token). The shell listens and surfaces "session expired —

@@ -98,7 +98,7 @@ describe('streamChatMessage stall detector', () => {
   it('rejects a silent stream instead of hanging the cursor forever', async () => {
     vi.useFakeTimers();
     const { streamChatMessage, STREAM_STALL_MS } = await freshApi();
-    expect(STREAM_STALL_MS).toBeLessThanOrEqual(60000);
+    expect(STREAM_STALL_MS).toBeLessThanOrEqual(120000);
     const silent = new ReadableStream<Uint8Array>({});
     (globalThis as { fetch?: unknown }).fetch = vi.fn(async () => ({ ok: true, body: silent }));
     const pending = streamChatMessage('s', 'hi', () => undefined);

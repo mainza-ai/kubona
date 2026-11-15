@@ -2883,11 +2883,42 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	var writeMu sync.Mutex
 	emit := func(event string, payload any) {
 		raw, _ := json.Marshal(payload)
+		writeMu.Lock()
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, string(raw))
 		flusher.Flush()
+		writeMu.Unlock()
 	}
+
+	// The tool loop and the provider's first token can take far longer than
+	// one client stall window. SSE comments are enough to prove liveness
+	// (the client refreshes on any bytes) and keep a slow local model from
+	// being mistaken for a dead backend. Write under the same mutex as
+	// tokens, and stop before the handler returns.
+	heartbeatStop := make(chan struct{})
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				fmt.Fprintf(w, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339))
+				flusher.Flush()
+				writeMu.Unlock()
+			}
+		}
+	}()
+	defer func() {
+		close(heartbeatStop)
+		<-heartbeatDone
+	}()
 
 	sessionID := r.URL.Query().Get("session_id")
 	var req struct {

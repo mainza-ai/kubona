@@ -434,7 +434,7 @@ func DefaultSettings() *Settings {
 			Wire:         WireChatCompletions,
 			Enabled:      true,
 			IsLocal:      true,
-			TimeoutSec:   30,
+			TimeoutSec:   120,
 		},
 		ProviderOllama: {
 			Type:         ProviderOllama,
@@ -444,7 +444,7 @@ func DefaultSettings() *Settings {
 			Wire:         WireOllamaNative,
 			Enabled:      true,
 			IsLocal:      true,
-			TimeoutSec:   30,
+			TimeoutSec:   120,
 		},
 		ProviderLMStudio: {
 			Type:         ProviderLMStudio,
@@ -454,7 +454,7 @@ func DefaultSettings() *Settings {
 			Wire:         WireChatCompletions,
 			Enabled:      true,
 			IsLocal:      true,
-			TimeoutSec:   30,
+			TimeoutSec:   120,
 		},
 		ProviderAnthropic: {
 			Type:         ProviderAnthropic,
@@ -564,7 +564,7 @@ func DefaultSettings() *Settings {
 			Wire:         WireChatCompletions,
 			Enabled:      true,
 			IsLocal:      true,
-			TimeoutSec:   30,
+			TimeoutSec:   120,
 		},
 		ProviderCustom: {
 			Type:         ProviderCustom,
