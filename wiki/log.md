@@ -6203,3 +6203,34 @@ skipped is the exact failure this incident is about:
   deliberately panned camera is not disturbed after load.
 - Verified: the off-screen-camera E2E passed 5/5 consecutive runs and the full
   workbench a11y suite 5/5; Workbench/workbench-model unit tests 73/73.
+
+## [2026-11-15] verification | production-readiness audit & live local Strata E2E
+
+- **Scope (`8943965b`, `e391a40c`):** Landed the full P0/P1/P2 production-readiness
+  hardening across Go core, Python bridge/runtime, Next.js Console, and Docker
+  configs, followed by DCO sign-off, `gofmt`, and `react-hooks/set-state-in-effect`
+  CI fixes on `develop` and fast-forwarded onto `main`.
+- **Live local Strata E2E (`http://127.0.0.1:47831/v1`, `unsloth-ud-iq4_xs-v31`):**
+  Real-world workflow testing uncovered and fixed three local-LLM issues:
+  1. `tribunalTurnMaxTokens` reset from `8192` to `1500` (with optional
+     `KUBONA_TRIBUNAL_TURN_TOKENS` override) in `pkg/agents/collective.go` and
+     `http.Server` `WriteTimeout` raised to `900s` in `cmd/kubonad/main.go`; all
+     4 Tribunal turns (`ansatz-scout`, `disconfirmation-officer`, `device-auditor`,
+     `epistemic-scribe`) subsequently completed with `authored=true`.
+  2. `planDiscoveryWithLLM` prompt + `normalizeDiscoveryStepSpec` in
+     `pkg/api/discovery_protocol.go`; `POST /api/discovery/plan` ->
+     `POST /api/discovery/run` completed via gRPC bridge (`-1.1229508736200662 Ha`).
+  3. `proposeMutation` in `pkg/autoresearch/engine.go` bounded with
+     `CompleteCapped(..., 2048)` and `KUBONA_LLM_TIMEOUT_SECONDS`; Autoresearch
+     `start`/`step` (`38.0s`, `decision=keep`)/`pause`/`resume`/`stop` all returned `200`.
+  - Co-Design (`cz-phase`), Workbench (`PUT`/`GET /api/workbench/view`), Hindsight
+    (`retain`/`recall`), and authenticated Playwright Chromium UI streaming
+    (`-1.137` STO-3G H2 FCI, `0` page errors, `0` non-eval console errors) passed.
+- **Verification:** Go `go vet ./... && go test ./...` all packages `ok`; Python
+  `.venv/bin/pytest -q` **1276 passed, 36 skipped**; Console `npm run lint` (`0`
+  errors), `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN="" npm run build` (static + dynamic
+  routes compiled), `npm test` **793/793** across **147** files;
+  `console-contract-inventory.py --check`, `console-openapi.mjs --check`,
+  `repo-counts.py --check`, `wiki-lint.py --strict`, `secret-scan.sh`, and
+  `local-deployment-check.sh` all passed. Hosted CI on `e391a40c` was in progress
+  at commit time (do not cite hosted CI as green until those runs finish).
