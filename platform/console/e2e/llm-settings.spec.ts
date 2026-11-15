@@ -247,7 +247,7 @@ test('LLMSettings local discovery, provider verify, role options, mono-model war
   expect(errors).toEqual([]);
 });
 
-test('CommandDock ModelPicker switches provider tabs, filters models, and passes WCAG A/AA cleanly', async ({ page }) => {
+test('CommandDock ModelPicker browses providers/models and shows the auth gate, with WCAG A/AA clean UI', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (err) => errors.push(String(err)));
   const { getSavedPayloads } = await installLLMHandlers(page);
@@ -267,11 +267,11 @@ test('CommandDock ModelPicker switches provider tabs, filters models, and passes
 
   await picker.getByRole('tab', { name: /openai/i }).click();
   await picker.getByLabel('Search models').fill('');
-  await picker.locator('button[data-model-id="gpt-4.1"]').click();
+  await expect(picker.locator('button[data-model-id="gpt-4.1"]')).toBeVisible();
 
-  await expect.poll(() => getSavedPayloads().length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
-  const latestSave = getSavedPayloads().at(-1) as { active_provider?: string; active_model?: string };
-  expect(latestSave.active_provider).toBe('openai');
-  expect(latestSave.active_model).toBe('gpt-4.1');
+  // Anonymous local-private console: browsing stays read-only; no settings
+  // write is attempted without an operator token/lab session.
+  await expect(picker.getByText(/Sign in to change the copilot model/)).toBeVisible();
+  expect(getSavedPayloads()).toHaveLength(0);
   expect(errors).toEqual([]);
 });

@@ -1807,7 +1807,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
           onClick={clearCanvas}
           title="Hide every card; records and links stay. Undo restores the canvas."
         >
-          Clear canvas
+          Clear all cards
         </Button>
         {hidden.length > 0 && (
           <Button
