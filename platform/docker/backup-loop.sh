@@ -54,10 +54,12 @@ while :; do
     printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$BACKUP_DIR/.last-success"
     printf '%s\n' "$latest" > "$BACKUP_DIR/.last-backup"
     echo "backup-loop: wrote $latest"
+    sleep_for="$INTERVAL"
   else
     printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$BACKUP_DIR/.last-failure"
     echo "backup-loop: backup failed; leaving the previous verified copy in place" >&2
     notify "Kubona backup failed on $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    sleep_for="${KUBONA_BACKUP_RETRY_SECONDS:-300}"
   fi
 
   # Retention: newest KEEP backup artifacts (plaintext or .age). Sidecars are
@@ -68,5 +70,5 @@ while :; do
     done || true
   fi
 
-  sleep "$INTERVAL"
+  sleep "$sleep_for"
 done

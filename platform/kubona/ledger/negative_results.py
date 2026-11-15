@@ -13,6 +13,7 @@ do not appear here on purpose.
 from __future__ import annotations
 
 import enum
+import fcntl
 import hashlib
 import json
 import math
@@ -181,66 +182,74 @@ class NegativeResultsLedger:
         if not isinstance(shots_wasted, int) or isinstance(shots_wasted, bool) or shots_wasted < 0:
             raise ValueError(f"shots_wasted must be a non-negative int, got {shots_wasted!r}")
 
-        prev = self._read_tail()
-        norm = normalize_hamiltonian(hamiltonian)
-        content = {
-            "problem_type": problem_type,
-            "hamiltonian": norm,
-            "hamiltonian_hash": hamiltonian_hash(hamiltonian),
-            "ansatz_family": ansatz_family,
-            "failure_mode": fm.value,
-            "variational_energy": float(variational_energy),
-            "classical_anchor_energy": float(classical_anchor_energy),
-            "delta_hartree": float(variational_energy) - float(classical_anchor_energy),
-            "objective_direction": objective_direction,
-            "shots_wasted": shots_wasted,
-            "cost_usd": float(cost_usd),
-            "falsification_notes": falsification_notes,
-            "raw_parameters": list(raw_parameters or []),
-            "attributor": attributor.strip(),
-        }
-        content_hash = hashlib.sha256(
-            json.dumps(content, sort_keys=True).encode("utf-8")
-        ).hexdigest()
-        record_hash = hashlib.sha256(f"{prev}:{content_hash}".encode("utf-8")).hexdigest()
+        lock_path = self.ledger_path.with_suffix(".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "a+") as lk:
+            fcntl.flock(lk.fileno(), fcntl.LOCK_EX)
+            try:
+                prev = self._read_tail()
+                norm = normalize_hamiltonian(hamiltonian)
+                content = {
+                    "problem_type": problem_type,
+                    "hamiltonian": norm,
+                    "hamiltonian_hash": hamiltonian_hash(hamiltonian),
+                    "ansatz_family": ansatz_family,
+                    "failure_mode": fm.value,
+                    "variational_energy": float(variational_energy),
+                    "classical_anchor_energy": float(classical_anchor_energy),
+                    "delta_hartree": float(variational_energy) - float(classical_anchor_energy),
+                    "objective_direction": objective_direction,
+                    "shots_wasted": shots_wasted,
+                    "cost_usd": float(cost_usd),
+                    "falsification_notes": falsification_notes,
+                    "raw_parameters": list(raw_parameters or []),
+                    "attributor": attributor.strip(),
+                }
+                content_hash = hashlib.sha256(
+                    json.dumps(content, sort_keys=True).encode("utf-8")
+                ).hexdigest()
+                record_hash = hashlib.sha256(f"{prev}:{content_hash}".encode("utf-8")).hexdigest()
 
-        key = self._check_key(signing_key) if signing_key is not None else self._signing_key
-        if key is not None:
-            from nacl.signing import SigningKey
+                key = self._check_key(signing_key) if signing_key is not None else self._signing_key
+                if key is not None:
+                    from nacl.signing import SigningKey
 
-            sk = SigningKey(key)
-            sig = sk.sign(record_hash.encode("utf-8")).signature.hex()
-            mode, pub = SIGNED_MODE, sk.verify_key.encode().hex()
-        else:
-            sig, mode, pub = None, UNSIGNED_MODE, None
+                    sk = SigningKey(key)
+                    sig = sk.sign(record_hash.encode("utf-8")).signature.hex()
+                    mode, pub = SIGNED_MODE, sk.verify_key.encode().hex()
+                else:
+                    sig, mode, pub = None, UNSIGNED_MODE, None
 
-        rec = NegativeResultRecord(
-            record_id=uuid.uuid4().hex[:16],
-            timestamp=time.time(),
-            prev_hash=prev,
-            content_hash=content_hash,
-            record_hash=record_hash,
-            attributor=attributor.strip(),
-            signing_mode=mode,
-            signature_hex=sig,
-            signer_pubkey_hex=pub,
-            problem_type=problem_type,
-            hamiltonian_or_graph=hamiltonian,
-            hamiltonian_hash=hamiltonian_hash(hamiltonian),
-            ansatz_family=ansatz_family,
-            failure_mode=fm.value,
-            variational_energy=float(variational_energy),
-            classical_anchor_energy=float(classical_anchor_energy),
-            delta_hartree=float(variational_energy) - float(classical_anchor_energy),
-            objective_direction=objective_direction,
-            shots_wasted=shots_wasted,
-            cost_usd=float(cost_usd),
-            falsification_notes=falsification_notes,
-            raw_parameters=list(raw_parameters or []),
-        )
-        with open(self.ledger_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec.to_dict(), sort_keys=True) + "\n")
-        return rec
+                rec = NegativeResultRecord(
+                    record_id=uuid.uuid4().hex[:16],
+                    timestamp=time.time(),
+                    prev_hash=prev,
+                    content_hash=content_hash,
+                    record_hash=record_hash,
+                    attributor=attributor.strip(),
+                    signing_mode=mode,
+                    signature_hex=sig,
+                    signer_pubkey_hex=pub,
+                    problem_type=problem_type,
+                    hamiltonian_or_graph=hamiltonian,
+                    hamiltonian_hash=hamiltonian_hash(hamiltonian),
+                    ansatz_family=ansatz_family,
+                    failure_mode=fm.value,
+                    variational_energy=float(variational_energy),
+                    classical_anchor_energy=float(classical_anchor_energy),
+                    delta_hartree=float(variational_energy) - float(classical_anchor_energy),
+                    objective_direction=objective_direction,
+                    shots_wasted=shots_wasted,
+                    cost_usd=float(cost_usd),
+                    falsification_notes=falsification_notes,
+                    raw_parameters=list(raw_parameters or []),
+                )
+                with open(self.ledger_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec.to_dict(), sort_keys=True) + "\n")
+                    f.flush()
+                return rec
+            finally:
+                fcntl.flock(lk.fileno(), fcntl.LOCK_UN)
 
     def load(self) -> tuple[List[NegativeResultRecord], int]:
         """All decodable records + count of skipped corrupt lines.

@@ -116,7 +116,13 @@ class JobStore:
         # I2: replay every retained segment oldest-first (rotation must
         # never hide rows — newer snapshots overwrite older ones).
         for seg in rotated_paths(self.path):
-            for line in seg.read_text().splitlines():
+            with open(seg, "r", encoding="utf-8") as sf:
+                fcntl.flock(sf.fileno(), fcntl.LOCK_SH)
+                try:
+                    lines = sf.read().splitlines()
+                finally:
+                    fcntl.flock(sf.fileno(), fcntl.LOCK_UN)
+            for line in lines:
                 if not line.strip():
                     continue
                 try:

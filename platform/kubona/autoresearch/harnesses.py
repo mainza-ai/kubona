@@ -70,6 +70,22 @@ class MitigationHarness(Harness):
     def mutable_artifact(self):
         return (1, 3, 5)
 
+    def propose(self, current):
+        import random
+        scales = sorted({max(1, int(s) if int(s) % 2 == 1 else int(s) + 1) for s in current})
+        if len(scales) < 2:
+            scales = [1, 3, 5]
+        idx = random.randrange(len(scales))
+        delta = random.choice((-2, 2, 4))
+        cand = max(1, scales[idx] + delta)
+        if cand % 2 == 0:
+            cand += 1
+        scales[idx] = cand
+        out = sorted(set(scales))
+        if len(out) < 2:
+            out.append(out[0] + 2)
+        return tuple(out)
+
     def metric(self, result: dict) -> float:
         return -result["abs_error"]
 

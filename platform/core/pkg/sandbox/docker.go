@@ -283,7 +283,7 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		return nil, fmt.Errorf("failed to write evaluation script: %w", err)
 	}
 
-	if mutableArtifactName != "" && mutableArtifactContent != "" {
+	if mutableArtifactName != "" {
 		baseName := filepath.Base(mutableArtifactName)
 		if baseName != mutableArtifactName || strings.Contains(mutableArtifactName, "..") {
 			return nil, fmt.Errorf("invalid artifact name %q: path traversal rejected", mutableArtifactName)

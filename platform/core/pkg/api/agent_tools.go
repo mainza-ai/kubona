@@ -42,12 +42,7 @@ const CopilotRole = "copilot"
 // writes keep flowing through the existing gated paths (launch, mandates).
 func (s *Server) registerAgentTools() *tools.Registry {
 	r := tools.NewRegistry()
-	bridge := func() pb.QuantumBridgeServiceClient {
-		if s.jobRunner == nil {
-			return nil
-		}
-		return s.jobRunner.BridgeClient()
-	}
+	bridge := s.bridgeClient
 
 	_ = r.Register(tools.Definition{
 		Name:        "get_anchor",

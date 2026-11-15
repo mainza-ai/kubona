@@ -57,11 +57,13 @@ func DefaultStoreConfig() StoreConfig {
 }
 
 type HindsightStore struct {
-	mu      sync.RWMutex
-	db      *sql.DB
-	cfg     StoreConfig
-	items   map[string]*MemoryItem
-	vectors map[string][]float32
+	mu           sync.RWMutex
+	db           *sql.DB
+	cfg          StoreConfig
+	items        map[string]*MemoryItem
+	vectors      map[string][]float32
+	vectorModels map[string]string
+	embedder     TextEmbedder
 }
 
 func NewHindsightStore() *HindsightStore {
@@ -91,10 +93,12 @@ func NewPersistentHindsightStoreWithConfig(db *sql.DB, cfg StoreConfig) *Hindsig
 	}
 
 	store := &HindsightStore{
-		db:      db,
-		cfg:     cfg,
-		items:   make(map[string]*MemoryItem),
-		vectors: make(map[string][]float32),
+		db:           db,
+		cfg:          cfg,
+		items:        make(map[string]*MemoryItem),
+		vectors:      make(map[string][]float32),
+		vectorModels: make(map[string]string),
+		embedder:     NewEnvEmbedder(),
 	}
 	if db != nil {
 		store.initTable()
@@ -127,7 +131,9 @@ func (s *HindsightStore) initTable() {
 		CREATE INDEX IF NOT EXISTS idx_mem_score ON hindsight_memories(effective_score);
 		CREATE TABLE IF NOT EXISTS hindsight_vectors (
 			memory_id TEXT PRIMARY KEY,
-			embedding BLOB NOT NULL
+			embedding BLOB NOT NULL,
+			embedding_model TEXT NOT NULL DEFAULT 'lexical-hash-v1',
+			embedding_dim INTEGER NOT NULL DEFAULT 384
 		);
 	`)
 
@@ -136,6 +142,8 @@ func (s *HindsightStore) initTable() {
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN readership TEXT NOT NULL DEFAULT 'public'`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN retracted_at TIMESTAMP`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN retract_reason TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_model TEXT NOT NULL DEFAULT 'lexical-hash-v1'`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_dim INTEGER NOT NULL DEFAULT 384`)
 }
 
 func (s *HindsightStore) loadFromDB() {
@@ -160,15 +168,16 @@ func (s *HindsightStore) loadFromDB() {
 		}
 	}
 
-	vecRows, err := s.db.Query(`SELECT memory_id, embedding FROM hindsight_vectors`)
+	vecRows, err := s.db.Query(`SELECT memory_id, embedding, COALESCE(embedding_model, 'lexical-hash-v1') FROM hindsight_vectors`)
 	if err == nil {
 		defer vecRows.Close()
 		for vecRows.Next() {
-			var memID string
+			var memID, model string
 			var blob []byte
-			if err := vecRows.Scan(&memID, &blob); err == nil {
+			if err := vecRows.Scan(&memID, &blob, &model); err == nil {
 				if vec, err := DecodeEmbedding(blob); err == nil {
 					s.vectors[memID] = vec
+					s.vectorModels[memID] = model
 				}
 			}
 		}
@@ -223,12 +232,23 @@ func (s *HindsightStore) RetainScoped(
 	}
 
 	emb := customEmbedding
+	embModel := "custom"
 	if len(emb) == 0 {
-		emb = GenerateSemanticEmbedding(content)
+		if s.embedder != nil {
+			if vec, m, err := s.embedder.Embed(context.Background(), content); err == nil && len(vec) > 0 {
+				emb = vec
+				embModel = m
+			}
+		}
+		if len(emb) == 0 {
+			emb = GenerateSemanticEmbedding(content)
+			embModel = LexicalEmbeddingModel
+		}
 	}
 
 	s.items[item.ID] = item
 	s.vectors[item.ID] = emb
+	s.vectorModels[item.ID] = embModel
 
 	if s.db != nil {
 		_, _ = s.db.Exec(`
@@ -238,9 +258,9 @@ func (s *HindsightStore) RetainScoped(
 
 		encodedBlob := EncodeEmbedding(emb)
 		_, _ = s.db.Exec(`
-			INSERT OR REPLACE INTO hindsight_vectors (memory_id, embedding)
-			VALUES (?, ?)
-		`, item.ID, encodedBlob)
+			INSERT OR REPLACE INTO hindsight_vectors (memory_id, embedding, embedding_model, embedding_dim)
+			VALUES (?, ?, ?, ?)
+		`, item.ID, encodedBlob, embModel, len(emb))
 	}
 
 	// Enforce capacity bounds and LRU eviction within the SAME tenant +
@@ -395,7 +415,13 @@ func (s *HindsightStore) SemanticRecallScoped(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	queryVec := GenerateSemanticEmbedding(queryText)
+	lexicalQueryVec := GenerateSemanticEmbedding(queryText)
+	queryVec := lexicalQueryVec
+	if s.embedder != nil {
+		if vec, _, err := s.embedder.Embed(context.Background(), queryText); err == nil && len(vec) > 0 {
+			queryVec = vec
+		}
+	}
 
 	// Prepare IFC destination reader-set for requester
 	var destRS ifc.ReaderSet
@@ -452,7 +478,11 @@ func (s *HindsightStore) SemanticRecallScoped(
 			continue
 		}
 
-		sim := CosineSimilarity(queryVec, itemVec)
+		qv := queryVec
+		if len(qv) != len(itemVec) && len(lexicalQueryVec) == len(itemVec) {
+			qv = lexicalQueryVec
+		}
+		sim := CosineSimilarity(qv, itemVec)
 		if sim >= minSimilarity {
 			scored = append(scored, &ScoredMemoryItem{
 				Item:       item,
@@ -521,13 +551,27 @@ func (s *HindsightStore) RetractScoped(tenantID, id, reason string) error {
 	return nil
 }
 
+// SetEmbedder configures the neural TextEmbedder used for Retain and Recall.
+func (s *HindsightStore) SetEmbedder(e TextEmbedder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.embedder = e
+}
+
 func (s *HindsightStore) Decay(elapsedHours float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	factor := math.Max(0.1, 1.0-s.cfg.DecayRatePerHour*elapsedHours)
+	now := time.Now().UTC()
 	for _, item := range s.items {
 		if item.Bank == BankExperiences {
+			effectiveHours := elapsedHours
+			if !item.CreatedAt.IsZero() {
+				if age := now.Sub(item.CreatedAt).Hours(); age > effectiveHours {
+					effectiveHours = age
+				}
+			}
+			factor := math.Max(0.1, 1.0-s.cfg.DecayRatePerHour*effectiveHours)
 			item.EffectiveScore = item.Importance * factor
 			if s.db != nil {
 				_, _ = s.db.Exec(`UPDATE hindsight_memories SET effective_score = ? WHERE id = ?`, item.EffectiveScore, item.ID)

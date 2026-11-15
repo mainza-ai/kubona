@@ -26,13 +26,23 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _contracts_dir() -> Path:
+    env_dir = os.environ.get("KUBONA_CONTRACTS_DIR")
+    if env_dir:
+        return Path(env_dir)
+    pkg_rel = Path(__file__).resolve().parents[1] / "contracts"
+    if pkg_rel.exists():
+        return pkg_rel
+    return _repo_root() / "platform" / "contracts"
+
+
 def catalog_path() -> Path:
-    return _repo_root() / "platform" / "contracts" / "mcp-catalog.json"
+    return _contracts_dir() / "mcp-catalog.json"
 
 
 def error_catalog_codes() -> set[str]:
     codes = set()
-    with open(_repo_root() / "platform" / "contracts" / "error-catalog.csv") as f:
+    with open(_contracts_dir() / "error-catalog.csv", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             codes.add(row["code"].strip())
     return codes

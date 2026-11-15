@@ -125,7 +125,9 @@ func (v *VaultClient) IssueLease(scope, tenantID, secretValue string, ttl time.D
 	defer v.mu.Unlock()
 
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return nil, fmt.Errorf("failed to generate lease id: %w", err)
+	}
 	leaseID := fmt.Sprintf("lease_%s_%s", scope, hex.EncodeToString(b))
 
 	lease := &SecretLease{

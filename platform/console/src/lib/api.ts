@@ -31,8 +31,11 @@ export async function configureApiBase(): Promise<string> {
     const res = await apiFetch('/api/config', { cache: 'no-store' });
     if (res.ok) {
       const data = (await res.json()) as { apiUrl?: unknown; workbench?: unknown };
-      if (typeof data.apiUrl === 'string' && /^https?:\/\//.test(data.apiUrl)) {
-        API_BASE = data.apiUrl.replace(/\/$/, '');
+      if (typeof data.apiUrl === 'string') {
+        const trimmed = data.apiUrl.trim();
+        if (trimmed === '' || trimmed.startsWith('/') || /^https?:\/\//.test(trimmed)) {
+          API_BASE = trimmed.replace(/\/$/, '');
+        }
       }
       if (typeof data.workbench === 'boolean') CONSOLE_WORKBENCH_ENABLED = data.workbench;
       apiBaseConfigured = true;
@@ -1292,6 +1295,18 @@ export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/
     return (await requestOperation('resumeAutoresearchLoop', { params: { id: loopId }, body: {} })) as unknown as import('@/types').AutoresearchLoop;
   } catch (err) {
     console.error('Failed to resume autoresearch loop:', err);
+    return null;
+  }
+}
+
+export async function wakeAutoresearchLoop(loopId: string, requestId?: string): Promise<import('@/types').AutoresearchLoop | null> {
+  try {
+    return (await requestOperation('wakeAutoresearchLoop', {
+      params: { id: loopId },
+      body: requestId ? { request_id: requestId } : {},
+    })) as unknown as import('@/types').AutoresearchLoop;
+  } catch (err) {
+    console.error('Failed to wake autoresearch loop:', err);
     return null;
   }
 }

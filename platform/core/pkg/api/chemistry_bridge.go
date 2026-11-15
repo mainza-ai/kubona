@@ -21,7 +21,7 @@ import (
 )
 
 func (s *Server) admetViaBridge(ctx context.Context, smiles string) (map[string]any, bool) {
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		return nil, false
 	}
@@ -42,7 +42,7 @@ func (s *Server) admetViaBridge(ctx context.Context, smiles string) (map[string]
 }
 
 func (s *Server) discoveryViaBridge(ctx context.Context, target string, candidatesJSON []byte) (map[string]any, bool) {
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		return nil, false
 	}

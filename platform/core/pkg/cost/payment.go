@@ -128,7 +128,9 @@ func (m *PaymentManager) GenerateChallenge(token, amount string) (*PaymentChalle
 	}
 
 	rawID := make([]byte, 16)
-	_, _ = rand.Read(rawID)
+	if _, err := rand.Read(rawID); err != nil {
+		return nil, fmt.Errorf("failed to generate challenge id: %w", err)
+	}
 	challengeID := hex.EncodeToString(rawID)
 
 	expiresAt := now.Add(5 * time.Minute)

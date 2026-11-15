@@ -71,9 +71,9 @@ def generated_operations() -> dict[str, dict[str, str]]:
 
 
 def normalize(path: str) -> str:
+    path = re.sub(r"\$\{encodeURIComponent\(([^)]*)\)\}", r":\1", path)
+    path = re.sub(r"\$\{([^}]*)\}", r":\1", path)
     path = re.sub(r"\{([^}]+)\}", r":\1", path)
-    path = re.sub(r"\$\{encodeURIComponent\([^)]*\)\}", ":id", path)
-    path = re.sub(r"\$\{[^}]*\}", ":id", path)
     path = re.sub(r"//+", "/", path)
     path = re.sub(r"(?<!/):id", "", path)
     return path.rstrip("/") if not path.endswith("/") else path

@@ -13,10 +13,12 @@ Example line (JSON):
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from kubona.config import state_path
@@ -64,8 +66,16 @@ def setup_logging(*, level: int = logging.INFO, log_dir: str | None = None) -> l
     if not logger.handlers:
         logger.addHandler(_json_handler())
     if log_dir:
-        path = state_path("logs/kubona.log")
-        logger.addHandler(_json_handler(open(path, "a")))
+        path = Path(log_dir) / "kubona.log"
+        target = str(path)
+        if not any(getattr(h, "_kubona_log_path", None) == target for h in logger.handlers):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fh = open(path, "a")
+            atexit.register(fh.close)
+            handler = _json_handler(fh)
+            handler._kubona_log_path = target  # type: ignore[attr-defined]
+            handler.close = fh.close  # type: ignore[method-assign]
+            logger.addHandler(handler)
     return logger
 
 

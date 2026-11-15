@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -119,6 +118,7 @@ func (r *Runner) ReconcileJobsOnBoot() (BootReconcile, error) {
 	if err := queued.Err(); err != nil {
 		return out, err
 	}
+	var overflow []*Job
 	for _, id := range queuedIDs {
 		job, err := r.GetJob(id)
 		if err != nil {
@@ -129,17 +129,36 @@ func (r *Runner) ReconcileJobsOnBoot() (BootReconcile, error) {
 			out.Epoch, id, pb.JobStatus_JOB_STATUS_QUEUED.String()); err != nil {
 			return out, err
 		}
-		select {
-		case r.jobQueue <- job:
-			out.Requeued++
-		default:
-			return out, errQueueFull
+		if len(overflow) == 0 {
+			select {
+			case r.jobQueue <- job:
+				out.Requeued++
+				continue
+			default:
+			}
 		}
+		overflow = append(overflow, job)
+	}
+	if len(overflow) > 0 {
+		var done <-chan struct{}
+		if r.ctx != nil {
+			done = r.ctx.Done()
+		}
+		r.wg.Add(1)
+		go func(pending []*Job) {
+			defer r.wg.Done()
+			for _, job := range pending {
+				select {
+				case <-done:
+					return
+				case r.jobQueue <- job:
+				}
+			}
+		}(overflow)
+		out.Requeued += len(overflow)
 	}
 	return out, nil
 }
-
-var errQueueFull = fmt.Errorf("job queue full during boot reconcile")
 
 // markDispatched pins the moment a vendor-reachable call is about to leave
 // the host. A later transport error is then outcome-unknown, not a refund.

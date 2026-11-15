@@ -42,10 +42,11 @@ func (s *Server) handleCampaignFlightRecorder(w http.ResponseWriter, r *http.Req
 	spentUSD := sess.CurrentSpendUSD
 	spendLimitUSD := sess.SpendLimitUSD
 
-	// Inspect recent events to determine exact halt reason and step count
+	// Inspect recent events oldest-to-newest so newer terminal verdicts win.
 	events, _ := s.ledger.GetRecentEvents(sessionID, 50)
 	stepCount := 0
-	for _, e := range events {
+	for i := len(events) - 1; i >= 0; i-- {
+		e := events[i]
 		if e.EventType == "tool_loop_capped" || e.EventType == "tool_loop_breaker" {
 			terminalVerdict = "BUDGET_EXHAUSTED"
 			stopReason = "Session spend ceiling or tool loop step bound reached"

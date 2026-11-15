@@ -260,21 +260,24 @@ func (m *Manager) IssueGrant(sourceTenant, targetTenant string, scopes []string,
 		SignatureHex:     strings.ToLower(strings.TrimSpace(sigHex)),
 		Revoked:          false,
 	}
-	if _, err := m.ledger.DB().Exec(
+	res, err := m.ledger.DB().Exec(
 		`INSERT OR IGNORE INTO tenant_grants (grant_id, source_tenant, target_tenant, scopes_csv, expiry, grantor_pubkey_hex, signature_hex, revoked, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
 		g.GrantID, g.SourceTenant, g.TargetTenant, strings.Join(cp, ","),
 		exp.UTC().Format("2006-01-02T15:04:05Z"),
 		g.GrantorPubkeyHex, g.SignatureHex, time.Now().UTC(),
-	); err != nil {
+	)
+	if err != nil {
 		return nil, fmt.Errorf("failed to store grant: %w", err)
 	}
-	m.ledger.AppendEvent(sourceTenant, "grant_issued", map[string]any{
-		"kind": "tenant_read", "grant_id": g.GrantID,
-		"source_tenant": g.SourceTenant,
-		"target_tenant": g.TargetTenant, "scopes": cp,
-		"expiry":     exp.UTC().Format(time.RFC3339),
-		"grantor_fp": Fingerprint(grantorPubkeyHex),
-	})
+	if n, err := res.RowsAffected(); err == nil && n > 0 {
+		m.ledger.AppendEvent(sourceTenant, "grant_issued", map[string]any{
+			"kind": "tenant_read", "grant_id": g.GrantID,
+			"source_tenant": g.SourceTenant,
+			"target_tenant": g.TargetTenant, "scopes": cp,
+			"expiry":     exp.UTC().Format(time.RFC3339),
+			"grantor_fp": Fingerprint(grantorPubkeyHex),
+		})
+	}
 	return m.GetGrant(g.GrantID)
 }
 

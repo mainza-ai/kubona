@@ -137,6 +137,8 @@ services:
       # preflight itself writes nothing.
       - kubona-state:/home/kubona/.kubona
       - kubona-backups:/backups
+    tmpfs:
+      - /tmp
     restart: "no"
 
   kubonad:
@@ -172,6 +174,9 @@ services:
       KUBONA_CALIBRATION_REFRESH_SECONDS: ${KUBONA_CALIBRATION_REFRESH_SECONDS:-0}
       # >=32 chars; required for /api/vault/leases (secret lease rail).
       KUBONA_LEASE_HMAC_KEY: ${KUBONA_LEASE_HMAC_KEY:-}
+      KUBONA_VAULT_REVOCATIONS: ${KUBONA_VAULT_REVOCATIONS:-/home/kubona/.kubona/vault_revocations.json}
+      KUBONA_CORS_ORIGINS: ${KUBONA_CORS_ORIGINS:-}
+      KUBONA_ALLOWED_HOSTS: ${KUBONA_ALLOWED_HOSTS:-}
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
@@ -233,6 +238,8 @@ services:
       # 2026-10-21 (models list answers through it). Point STRATA_BASE_URL
       # elsewhere only if Strata itself moves.
       STRATA_BASE_URL: ${STRATA_BASE_URL:-http://host.docker.internal:47831/v1}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       # Plain HTTP inside the compose network only: kubonad itself
       # refuses non-loopback plaintext without TLS or this explicit
       # opt-in. TLS terminates in front (reverse proxy) or via mounted
@@ -270,13 +277,11 @@ services:
       retries: 3
       start_period: 15s
 
-  # Optional profile: verified scheduled backups. Enable with
-  #   docker compose ... --profile backup up -d
+  # Verified scheduled backups (enabled by default for local-private recovery).
   # Set KUBONA_BACKUP_AGE_RECIPIENT (and KUBONA_BACKUP_REQUIRE_ENCRYPTION=1
   # for a hard requirement). The healthcheck goes unhealthy when the newest
   # verified backup is older than KUBONA_BACKUP_MAX_AGE.
   backup:
-    profiles: ["backup"]
     image: kubona/kubonad:prod
     build:
       context: ..
@@ -328,6 +333,7 @@ services:
     <<: *default-hardening
     environment:
       HOME: /tmp
+      KUBONA_CONSOLE_API_URL: ${KUBONA_CONSOLE_API_URL:-http://localhost:8080}
       # Server-side proxy target for the same-origin Atlas image route.
       KUBONA_INTERNAL_API_URL: http://kubonad:8080
     ports:

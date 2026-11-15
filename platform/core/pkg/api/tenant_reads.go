@@ -21,6 +21,8 @@ package api
 // cookie falls through to bearer and 401s (no downgrade to anonymous).
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -129,7 +131,11 @@ func (s *Server) authorizeSessionRead(w http.ResponseWriter, r *http.Request, se
 func (s *Server) authorizeKnownSession(w http.ResponseWriter, r *http.Request, sessionID string) (*session.Session, bool) {
 	sess, err := s.sessionMgr.GetSession(sessionID)
 	if err != nil {
-		return nil, true
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "session not found") {
+			return nil, true
+		}
+		http.Error(w, "session lookup failed", http.StatusInternalServerError)
+		return nil, false
 	}
 	if !s.authorizeSessionRead(w, r, sess) {
 		return nil, false

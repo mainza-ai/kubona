@@ -11,10 +11,23 @@ export async function GET(req: NextRequest) {
     return new Response('lens image URL must be HTTPS on a worldlabs.ai host', { status: 400 });
   }
   const base = (process.env.KUBONA_INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
-  const upstream = await fetch(`${base}/api/observatory/lens/image?url=${encodeURIComponent(raw)}`, {
-    cache: 'no-store',
-    headers: { cookie: req.headers.get('cookie') || '' },
-  });
+  const headers: Record<string, string> = {
+    cookie: req.headers.get('cookie') || '',
+  };
+  const auth = req.headers.get('authorization');
+  if (auth) headers.authorization = auth;
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${base}/api/observatory/lens/image?url=${encodeURIComponent(raw)}`, {
+      cache: 'no-store',
+      headers,
+    });
+  } catch (err) {
+    return new Response(`lens image upstream unreachable: ${err instanceof Error ? err.message : String(err)}`, {
+      status: 502,
+      headers: { 'Content-Type': 'text/plain' },
+    });
+  }
   if (!upstream.ok) {
     return new Response(await upstream.text(), {
       status: upstream.status,

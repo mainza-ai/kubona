@@ -43,6 +43,10 @@ func bridgeSessionAssertionInterceptor(token string) grpc.UnaryClientInterceptor
 			if r.SessionVerified {
 				assertion = sessionAssertionMAC(token, r.SessionId, r.SessionBudgetCeilingUsd, r.SessionSpentUsd, r.TenantId)
 			}
+		case *pb.WorkflowStepRequest:
+			if r.SessionVerified {
+				assertion = sessionAssertionMAC(token, r.SessionId, r.SessionBudgetCeilingUsd, r.SessionSpentUsd, r.TenantId)
+			}
 		}
 		if assertion != "" {
 			ctx = metadata.AppendToOutgoingContext(ctx, "x-kubona-session-assertion", assertion)

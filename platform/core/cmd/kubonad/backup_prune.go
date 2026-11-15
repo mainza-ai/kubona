@@ -133,7 +133,7 @@ type backupFile struct {
 	at   time.Time
 }
 
-var backupNameRE = regexp.MustCompile(`\.backup-(\d{8}T\d{6}Z)$`)
+var backupNameRE = regexp.MustCompile(`\.backup-(\d{8}T\d{6}Z)(?:\.age)?$`)
 
 func parseBackupTimestamp(name string) (time.Time, bool) {
 	m := backupNameRE.FindStringSubmatch(name)

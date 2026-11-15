@@ -135,7 +135,16 @@ func (r *Registry) Allow(role string, names ...string) error {
 			return fmt.Errorf("cannot allow unknown tool %q for role %q", n, role)
 		}
 	}
-	r.roles[role] = append(r.roles[role], names...)
+	existing := make(map[string]struct{}, len(r.roles[role]))
+	for _, n := range r.roles[role] {
+		existing[n] = struct{}{}
+	}
+	for _, n := range names {
+		if _, dup := existing[n]; !dup {
+			r.roles[role] = append(r.roles[role], n)
+			existing[n] = struct{}{}
+		}
+	}
 	return nil
 }
 
@@ -184,6 +193,19 @@ func (r *Registry) DefinitionsForLLM(role string) []map[string]any {
 	return out
 }
 
+type untrustedCtxKey struct{}
+
+// WithUntrustedTurn marks ctx as having consumed untrusted observation output.
+func WithUntrustedTurn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, untrustedCtxKey{}, true)
+}
+
+// IsUntrustedTurn reports whether ctx has consumed untrusted observation output.
+func IsUntrustedTurn(ctx context.Context) bool {
+	v, _ := ctx.Value(untrustedCtxKey{}).(bool)
+	return v
+}
+
 // Dispatch validates (role → allow-list → argument schema) then executes.
 // Every refusal names its reason; nothing executes on a failed check.
 func (r *Registry) Dispatch(ctx context.Context, role string, call Call) (any, error) {
@@ -195,6 +217,9 @@ func (r *Registry) Dispatch(ctx context.Context, role string, call Call) (any, e
 	}
 	if !r.allowed(role, call.Name) {
 		return nil, fmt.Errorf("role %q may not call tool %q: refused", role, call.Name)
+	}
+	if IsUntrustedTurn(ctx) && !def.ReadOnly && !def.AllowAfterUntrusted {
+		return nil, fmt.Errorf("tool %q refused after untrusted observation (AllowAfterUntrusted=false)", call.Name)
 	}
 	args := json.RawMessage(call.Arguments)
 	if len(args) == 0 {

@@ -7,19 +7,35 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import httpx
 
+from kubona.config import state_path
 
-CACHE_DB_PATH = Path("~/.kubona/literature_cache.db").expanduser()
+
+def _cache_db_path() -> Path:
+    return state_path("literature_cache.db")
+
+
+# Keep module-level attribute for backwards compatibility in tests/callers.
+CACHE_DB_PATH = _cache_db_path()
+
+
+def _is_airgapped() -> bool:
+    return (
+        os.getenv("KUBONA_AIRGAP", "").strip() == "1"
+        or os.getenv("KUBONA_OFFLINE", "").strip() == "1"
+    )
 
 
 def _init_db():
-    CACHE_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(CACHE_DB_PATH) as conn:
+    db_path = CACHE_DB_PATH
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS literature_cache (
@@ -52,6 +68,9 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
             for r in hit:
                 r["cached"] = True
             return hit
+
+    if _is_airgapped():
+        return []
 
     # Live query
     url = f"https://export.arxiv.org/api/query?search_query=all:{query}&max_results={max_results}&sortBy=relevance"
@@ -137,6 +156,9 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
             for r in hit:
                 r["cached"] = True
             return hit
+
+    if _is_airgapped():
+        return []
 
     url = f"https://api.openalex.org/works?search={query}&per-page={max_results}"
     results = []

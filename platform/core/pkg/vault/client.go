@@ -249,6 +249,15 @@ func (c *OpenBaoClient) RevokeLease(ctx context.Context, leaseID string) error {
 	token := c.token
 	c.mu.RUnlock()
 
+	if token == "" {
+		if err := c.Login(ctx); err != nil {
+			return err
+		}
+		c.mu.RLock()
+		token = c.token
+		c.mu.RUnlock()
+	}
+
 	body, err := json.Marshal(map[string]string{
 		"lease_id": leaseID,
 	})

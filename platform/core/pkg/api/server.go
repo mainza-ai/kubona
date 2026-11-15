@@ -332,7 +332,11 @@ func NewServer(
 	// K4: proposals persist across restarts (approvals must survive the
 	// reboot between review and application).
 	metaEngine.SetDB(l.DB())
-	pqcKey, _ := mandates.GenerateRecipientKeypair()
+	pqcKey, err := loadOrCreatePQCKeypair(l)
+	if err != nil {
+		slog.Warn("[Kubona Core] PQC keypair persistence failed; falling back to ephemeral keypair", "error", err)
+		pqcKey, _ = mandates.GenerateRecipientKeypair()
+	}
 	qirComp := qir.NewCompiler()
 
 	fg := fidelity.NewFidelityGate()
@@ -392,6 +396,7 @@ func NewServer(
 	// R2/C3: the collective seals tribunal turns + records obligation
 	// cases directly (nil-ledger unit paths are unaffected).
 	s.collective.Ledger = l
+	s.rehydrateAutoloops()
 	// Persistent associative memory (SQLite-backed, tenant-scoped recall).
 	// Activates the tribunal recall/retain paths and the recall_memory tool.
 	s.memoryStore = memory.NewPersistentHindsightStore(l.DB())
@@ -486,16 +491,13 @@ func (s *Server) Handler() http.Handler {
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Add("Vary", "Origin")
-			// Credentialed requests (session cookie) only work cross-origin
-			// with this header; the origin above is allowlisted, never "*",
-			// so browsers accept it. Reads stay public. Browser writes are
-			// refused unless the origin is allowlisted, the fetch site is
-			// not cross-site, and a body is application/json.
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			if origin != "*" {
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, Idempotency-Key, Last-Event-ID, X-Kubona-A2A-Token")
 		w.Header().Set("Access-Control-Expose-Headers", "Kubona-API-Version")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -1047,9 +1049,16 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		"flags": map[string]any{
 			"reviewer_configured":      s.reviewerKeyConfigured,
 			"ephemeral_signer_allowed": os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1",
-			"bridge_connected":         s.jobRunner.BridgeClient() != nil,
+			"bridge_connected":         s.bridgeClient() != nil,
 		},
 	})
+}
+
+func (s *Server) bridgeClient() pb.QuantumBridgeServiceClient {
+	if s.jobRunner == nil {
+		return nil
+	}
+	return s.jobRunner.BridgeClient()
 }
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
@@ -1334,7 +1343,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		WriteAPIError(w, "bad_request", "backend is required", nil)
 		return
 	}
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		WriteAPIError(w, "not_ready", "bridge unavailable: cannot refresh calibration", nil)
 		return
@@ -1434,7 +1443,7 @@ func (s *Server) providerQueueFor(provider string) (providerQueueSnapshot, bool)
 // and KUBONA_IBM_QISKIT_BACKEND to enable it.
 func (s *Server) StartCalibrationRefresh(ctx context.Context, interval time.Duration, backend string) {
 	backend = strings.TrimSpace(backend)
-	if interval <= 0 || backend == "" || s.jobRunner == nil || s.jobRunner.BridgeClient() == nil {
+	if interval <= 0 || backend == "" || s.bridgeClient() == nil {
 		return
 	}
 	go func() {
@@ -1454,7 +1463,7 @@ func (s *Server) StartCalibrationRefresh(ctx context.Context, interval time.Dura
 }
 
 func (s *Server) refreshCalibrationProfile(ctx context.Context, backend string) error {
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		return fmt.Errorf("bridge unavailable")
 	}
@@ -1931,7 +1940,7 @@ func (s *Server) handleLiterature(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		writeBridgeUnavailable(w, "literature_grounding", "bridge client is nil.")
 		return
@@ -2076,7 +2085,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// Build the proposal before minting the session: a production store
 		// without a computed anchor must fail closed, not leave a campaignless
 		// spend object behind.
-		campState, cerr := agents.BuildCampaignProposal(r.Context(), "", req.Title, req.TargetMolecule, s.jobRunner.BridgeClient())
+		campState, cerr := agents.BuildCampaignProposal(r.Context(), "", req.Title, req.TargetMolecule, s.bridgeClient())
 		if cerr != nil {
 			http.Error(w, cerr.Error(), http.StatusServiceUnavailable)
 			return
@@ -2358,7 +2367,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, prompt, "", s.jobRunner.BridgeClient())
+		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, prompt, "", s.bridgeClient())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -2623,7 +2632,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
-		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, sess.Title, "", s.jobRunner.BridgeClient())
+		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, sess.Title, "", s.bridgeClient())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -3306,9 +3315,9 @@ func (s *Server) fallbackProposal(content, reply string) *json.RawMessage {
 		return nil
 	}
 	fciStr := "PySCF STO-3G FCI (unverified fallback)"
-	if s.jobRunner.BridgeClient() != nil {
+	if bridge := s.bridgeClient(); bridge != nil {
 		anchorCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		anchorResp, err := s.jobRunner.BridgeClient().ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
+		anchorResp, err := bridge.ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
 			Molecule:     mol,
 			BondDistance: bondDist,
 		})
@@ -3705,7 +3714,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	// Watermark first: observe-round dispatches land during the run, and
 	// the write-back below attributes exactly this turn's tools.
 	tribEventsBefore := s.latestEventID(req.SessionID)
-	res, err := s.collective.ExecuteTribunalWithSession(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.SessionID, req.Prompt, onTurn)
+	res, err := s.collective.ExecuteTribunalWithSession(r.Context(), s.llmClient, s.bridgeClient(), s.memoryStore, req.SessionID, req.Prompt, onTurn)
 	s.finishTribunalRun(w, r, tribIdem, req.SessionID, req.Prompt, tribEventsBefore, res, err)
 }
 
@@ -4203,22 +4212,23 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
-	// W2.1 threat model: SSE is a read, but a long-lived unauthenticated
-	// subscription is a ghost-observation primitive (no tenant to bill,
-	// no identity to rate-limit fairly). Require operator bearer + an
-	// existing session before the first byte streams; ghosts and
-	// bearerless callers refuse.
-	switch _, _, code := s.checkAuth(r); code {
-	case http.StatusOK:
-	case http.StatusServiceUnavailable:
-		http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
-		return
-	case http.StatusForbidden:
-		WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
-		return
-	default:
-		http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
-		return
+	// W2.1 threat model: when KUBONA_API_TOKEN is configured or in multi-lab
+	// mode, require operator bearer / session auth before the first byte
+	// streams. In zero-login single-lab local mode (KUBONA_API_TOKEN unset),
+	// authorizeSessionRead permits same-lab reads without login.
+	if !s.singleTenantStore() || os.Getenv("KUBONA_API_TOKEN") != "" {
+		switch _, _, code := s.checkAuth(r); code {
+		case http.StatusOK:
+		case http.StatusServiceUnavailable:
+			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
+			return
+		case http.StatusForbidden:
+			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
+			return
+		default:
+			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+			return
+		}
 	}
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
@@ -6181,6 +6191,91 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	s.idemFinishJSON(w, arIdem, http.StatusCreated, engine.State())
 }
 
+func loadOrCreatePQCKeypair(l *ledger.Ledger) (*mandates.RecipientKeypair, error) {
+	path := strings.TrimSpace(os.Getenv("KUBONA_PQC_KEY_PATH"))
+	if path == "" && l != nil {
+		dbPath := strings.TrimSpace(l.DBPath())
+		if dbPath != "" && dbPath != ":memory:" && !strings.HasPrefix(dbPath, "file::memory:") {
+			path = filepath.Join(filepath.Dir(dbPath), "pqc_recipient_key.bin")
+		}
+	}
+	if path == "" {
+		return mandates.GenerateRecipientKeypair()
+	}
+	if raw, err := os.ReadFile(path); err == nil {
+		if kp, perr := mandates.ParseRecipientKeypair(raw); perr == nil {
+			return kp, nil
+		} else {
+			return nil, fmt.Errorf("invalid persisted PQC keypair at %s: %w", path, perr)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	kp, err := mandates.GenerateRecipientKeypair()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".pqc-key-*")
+	if err != nil {
+		return nil, err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(kp.MarshalSeed()); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return nil, err
+	}
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return nil, err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpName)
+		return nil, err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		_ = os.Remove(tmpName)
+		return nil, err
+	}
+	return kp, nil
+}
+
+func (s *Server) rehydrateAutoloops() {
+	if s.ledger == nil || s.harnessReg == nil {
+		return
+	}
+	rows, err := s.ledger.ListLoopStates()
+	if err != nil {
+		return
+	}
+	s.autoresearchMu.Lock()
+	defer s.autoresearchMu.Unlock()
+	for _, p := range rows {
+		if p.HarnessID == "" {
+			continue
+		}
+		if _, exists := s.activeAutoloops[p.ID]; exists {
+			continue
+		}
+		h, err := s.harnessReg.Get(p.HarnessID)
+		if err != nil {
+			slog.Warn("[Kubona Core] skipping rehydrate of loop with unknown harness", "loop_id", p.ID, "harness_id", p.HarnessID)
+			continue
+		}
+		engine := autoresearch.RehydrateLoopEngine(
+			p.ID, p.SessionID, h, s.sandboxRunner, s.llmClient,
+			autoresearch.LoopStatus(p.Status), p.StepCount, p.MaxSteps,
+			p.LastActivity, p.Drain, p.ReservedAmount, p.ConsumedAmount, p.RequestID,
+		)
+		engine.SetMemoryStore(s.memoryStore)
+		s.activeAutoloops[p.ID] = engine
+	}
+}
+
 func (s *Server) handleAutoresearchLoops(w http.ResponseWriter, r *http.Request) {
 	s.autoresearchMu.RLock()
 	defer s.autoresearchMu.RUnlock()
@@ -6428,6 +6523,18 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 
 	if !exists {
 		http.Error(w, fmt.Sprintf("autoresearch loop '%s' not found", loopID), http.StatusNotFound)
+		return
+	}
+
+	sess, _ := s.sessionMgr.GetSession(engine.State().SessionID)
+	if sess == nil {
+		var reservedTenant string
+		_ = s.ledger.DB().QueryRow(`SELECT reserved_tenant FROM loops WHERE id = ?`, loopID).Scan(&reservedTenant)
+		if reservedTenant != "" {
+			sess = &session.Session{ID: engine.State().SessionID, TenantID: reservedTenant}
+		}
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 

@@ -152,20 +152,22 @@ class DiscoveryCampaign:
         orch = Orchestrator(harness, budget_steps=self.budget_steps, seed=7, ledger=ledger)
         history = orch.search()
         best = orch.best(history)
-        stages["experiment"] = {"best_theta": best.artifact, "best_metric": best.metric,
-                                "ledger_ref": best.ledger_ref, "steps": len(history),
-                                "anchor_ref": anchor_ref}
-
-        # 5 ANALYZE — ZNE on the BEST artifact circuit (the campaign's own
-        # physics). If the best artifact cannot build a circuit, run the
-        # X|0> preparation explicitly LABELED as a mitigation health-check —
-        # never presented as analysis of the campaign system.
-        analyze_is_health_check = False
-        try:
-            best_circuit = parse_qasm2(H_ANSATZ.format(theta=round(float(best.artifact), 4)))
-        except Exception:
+        if best is None:
+            stages["experiment"] = {"best_theta": None, "best_metric": None,
+                                    "ledger_ref": None, "steps": len(history),
+                                    "anchor_ref": anchor_ref}
             best_circuit = parse_qasm2("OPENQASM 2.0;\nqreg q[1];\nx q[0];")
             analyze_is_health_check = True
+        else:
+            stages["experiment"] = {"best_theta": best.artifact, "best_metric": best.metric,
+                                    "ledger_ref": best.ledger_ref, "steps": len(history),
+                                    "anchor_ref": anchor_ref}
+            analyze_is_health_check = False
+            try:
+                best_circuit = parse_qasm2(H_ANSATZ.format(theta=round(float(best.artifact), 4)))
+            except Exception:
+                best_circuit = parse_qasm2("OPENQASM 2.0;\nqreg q[1];\nx q[0];")
+                analyze_is_health_check = True
         zne = run_zne(best_circuit, shots=n_shots,
                       noise_rate=0.05, scales=(1, 3, 5), seed=11)
         stages["analyze"] = {

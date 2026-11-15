@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, apiFetch, authHeaders, hasOperatorBearer, versionedApiPath } from './api';
-import { useAuthPhase } from '@/lib/auth-state';
+import { useAuthPhase, useMultiLabAuthRequired } from '@/lib/auth-state';
 import { setSessionStreamLive } from '@/lib/stream-state';
 import { domainsForEventTypes, publishInvalidation } from '@/lib/invalidation';
 import type { LedgerEvent } from '@/types';
@@ -121,9 +121,10 @@ export function useSessionStream(
   }, [onEvents, onGap]);
 
   const authPhase = useAuthPhase();
+  const multiLabAuth = useMultiLabAuthRequired();
   useEffect(() => {
     if (!sessionId || typeof window === 'undefined') return;
-    if (!hasOperatorBearer() && authPhase !== 'authenticated') return;
+    if (multiLabAuth && !hasOperatorBearer() && authPhase !== 'authenticated') return;
     revision.current = 0;
     let stopped = false;
     let attempt = 0;
@@ -131,8 +132,13 @@ export function useSessionStream(
     let controller: AbortController | null = null;
     let pending: TelemetryFrame[] = [];
     let frameHandle = 0;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
       frameHandle = 0;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
       const frames = pending;
       pending = [];
       const batch = coalesceTelemetryFrames(frames);
@@ -143,7 +149,13 @@ export function useSessionStream(
     };
     const enqueue = (incoming: TelemetryFrame) => {
       pending.push(incoming);
-      if (frameHandle === 0) frameHandle = requestAnimationFrame(flush);
+      if (frameHandle !== 0 || fallbackTimer !== null) return;
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      if (hidden || typeof requestAnimationFrame === 'undefined') {
+        fallbackTimer = setTimeout(flush, 50);
+      } else {
+        frameHandle = requestAnimationFrame(flush);
+      }
     };
     const handleFrame = (frame: ParsedSseFrame) => {
       if (frame.event !== 'telemetry' || !frame.data) return;
@@ -214,10 +226,11 @@ export function useSessionStream(
       setSessionStreamLive(false);
       controller?.abort();
       if (retryTimer) clearTimeout(retryTimer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       if (frameHandle !== 0) cancelAnimationFrame(frameHandle);
       pending = [];
     };
-  }, [sessionId, authPhase]);
+  }, [sessionId, authPhase, multiLabAuth]);
 
   return state.sessionId === sessionId && state.status === 'live';
 }

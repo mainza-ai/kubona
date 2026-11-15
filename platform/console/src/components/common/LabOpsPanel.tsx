@@ -30,6 +30,9 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => void }) {
   const [ceiling, setCeiling] = useState('');
   const [autonomyDraft, setAutonomyDraft] = useState(lab.autonomy_level);
+  useEffect(() => {
+    setAutonomyDraft(lab.autonomy_level);
+  }, [lab.id, lab.autonomy_level]);
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeDraft, setRevokeDraft] = useState<string | null>(null);
   const [refundAmount, setRefundAmount] = useState('');

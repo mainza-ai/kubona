@@ -383,7 +383,7 @@ func main() {
 	// 4. Start HTTP / REST / WebSocket Gateway
 	server := api.NewServer(l, sessionMgr, jobRunner, loopSupervisor, taskWatchdog)
 	server.SetDiskGuard(diskGuard)
-	server.SetBridgeAddr(*bridgeAddr)
+	server.SetBridgeAddr(bridgeTarget)
 	jobRunner.SetDiskGuard(diskGuard)
 
 	// 4b. S3: idle-loop sweeper (10 min threshold, 60 s poll).
@@ -393,11 +393,10 @@ func main() {
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", *bindAddr, *port),
 		Handler: server.Handler(),
-		// Write budget covers uncapped local generations (~6 tok/s can run
-		// minutes); the 600s LLM call budget plus margin. Read stays tight
-		// (request bodies are small).
+		// Write budget covers slow local generations (multi-turn tribunals
+		// + discovery protocols on local models). Read stays tight.
 		ReadTimeout:  120 * time.Second,
-		WriteTimeout: 660 * time.Second,
+		WriteTimeout: 900 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 

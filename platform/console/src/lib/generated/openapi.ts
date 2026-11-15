@@ -1146,6 +1146,7 @@ export type ApiOperationResponse = {
   verifyLLMProvider: LlmVerify;
   verifyLedger: LedgerVerify;
   verifySpendMandate: MandateVerify;
+  wakeAutoresearchLoop: AutoresearchLoop;
 };
 
 export const API_OPERATIONS = {
@@ -1162,7 +1163,7 @@ export const API_OPERATIONS = {
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
   cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
   cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
-  clearLLMProviderKey: { method: "delete", path: "/api/llm/providers/${encodeURIComponent}(provider)/key", response: "llm.key.delete" },
+  clearLLMProviderKey: { method: "delete", path: "/api/llm/providers/{provider}/key", response: "llm.key.delete" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
   closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
@@ -1188,15 +1189,15 @@ export const API_OPERATIONS = {
   fetchCampaignResult: { method: "get", path: "/api/sessions/{id}/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
-  fetchClaimReviews: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/reviews", response: "claims.reviews" },
-  fetchClaimsPage: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims", response: "claims.page" },
+  fetchClaimReviews: { method: "get", path: "/api/sessions/{sessionId}/claims/{claimId}/reviews", response: "claims.reviews" },
+  fetchClaimsPage: { method: "get", path: "/api/sessions/{sessionId}/claims", response: "claims.page" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },
   fetchCodesignVerified: { method: "get", path: "/api/codesign/verified", response: "codesign.verified" },
   fetchCostSummary: { method: "get", path: "/api/cost/summary", response: "cost.summary" },
   fetchCustomAgents: { method: "get", path: "/api/agents/custom", response: "agents.custom" },
   fetchEpistemics: { method: "get", path: "/api/epistemics", response: "epistemics" },
   fetchEventsResult: { method: "get", path: "/api/events", response: "events.list" },
-  fetchExperimentExport: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/experiment-export", response: "experiment.export" },
+  fetchExperimentExport: { method: "get", path: "/api/sessions/{sessionId}/experiment-export", response: "experiment.export" },
   fetchFidelity: { method: "get", path: "/api/fidelity", response: "fidelity" },
   fetchFleet: { method: "get", path: "/api/fleet", response: "fleet" },
   fetchJob: { method: "get", path: "/api/jobs/{id}", response: "job" },
@@ -1265,7 +1266,7 @@ export const API_OPERATIONS = {
   resumeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/resume", response: "autoresearch.loop" },
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
-  reviewClaim: { method: "post", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/review", response: "claims.review" },
+  reviewClaim: { method: "post", path: "/api/sessions/{sessionId}/claims/{claimId}/review", response: "claims.review" },
   revokeRunAllowance: { method: "post", path: "/api/run-allowances/{id}/revoke", response: "runAllowance.revoke" },
   revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
   revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
@@ -1304,9 +1305,10 @@ export const API_OPERATIONS = {
   testLLM: { method: "post", path: "/api/llm/test", response: "llm.test" },
   updateTaskStatus: { method: "post", path: "/api/tasks/{id}", response: "task" },
   uploadObservatoryAsset: { method: "post", path: "/api/observatory/assets", response: "lens.asset" },
-  verifyLLMProvider: { method: "post", path: "/api/llm/providers/${encodeURIComponent}(provider)/verify", response: "llm.verify" },
+  verifyLLMProvider: { method: "post", path: "/api/llm/providers/{provider}/verify", response: "llm.verify" },
   verifyLedger: { method: "get", path: "/api/ledger/verify", response: "ledger.verify" },
   verifySpendMandate: { method: "post", path: "/api/mandates/verify", response: "mandate.verify" },
+  wakeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/wake", response: "autoresearch.loop" },
 } as const;
 
 export type ApiOperationName = keyof typeof API_OPERATIONS;

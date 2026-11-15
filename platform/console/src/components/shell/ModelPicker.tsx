@@ -303,6 +303,10 @@ export function ModelPicker({
   };
 
   const pickModel = async (provider: string, modelId: string) => {
+    const cfg = providers[provider];
+    if (airGapped && cfg && !cfg.is_local) {
+      return;
+    }
     if (!writable) {
       onRequestSignIn?.();
       return;

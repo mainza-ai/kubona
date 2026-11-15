@@ -56,6 +56,9 @@ export async function authorizeSpend(
   if (typeof estimated !== 'number' || !Number.isFinite(estimated)) {
     return { ok: false, reason: 'No cost estimate on this campaign — authorization disabled until priced.' };
   }
+  if (estimated <= 0) {
+    return { ok: false, reason: 'Cost estimate must be positive on this campaign — authorization disabled.' };
+  }
   const programQasm = input.programQasm ?? campaign?.quantum_factors?.qasm ?? '';
   if (!programQasm) {
     return { ok: false, reason: 'No program in this campaign — authorization disabled until a circuit is proposed.' };

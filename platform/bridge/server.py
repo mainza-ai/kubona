@@ -99,6 +99,7 @@ def _workflow_auth(caller_label: str, tenant: str = "default"):
 _SESSION_ASSERTION_METHODS = {
     "/kubona.QuantumBridgeService/QuantumSubmit",
     "/kubona.QuantumBridgeService/WorkflowRun",
+    "/kubona.QuantumBridgeService/RunWorkflowStep",
 }
 
 
@@ -699,14 +700,16 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
         try:
             providers = [p for p in request.providers if p] or None
             max_seconds = request.max_seconds if request.max_seconds > 0 else 60
-            with _fut.ThreadPoolExecutor(max_workers=1) as pool:
-                fut = pool.submit(_canary.run_all, None, providers)
-                try:
-                    results = fut.result(timeout=max_seconds)
-                except _fut.TimeoutError:
-                    return kubona_pb2.CanaryRunResponse(
-                        ok=False, error_message=f"canary exceeded {max_seconds}s: "
-                        "treat as unmeasured, fall back to declared catalog", results_json="")
+            pool = _fut.ThreadPoolExecutor(max_workers=1)
+            fut = pool.submit(_canary.run_all, None, providers)
+            try:
+                results = fut.result(timeout=max_seconds)
+            except _fut.TimeoutError:
+                pool.shutdown(wait=False, cancel_futures=True)
+                return kubona_pb2.CanaryRunResponse(
+                    ok=False, error_message=f"canary exceeded {max_seconds}s: "
+                    "treat as unmeasured, fall back to declared catalog", results_json="")
+            pool.shutdown(wait=False)
             return kubona_pb2.CanaryRunResponse(
                 ok=True, error_message="", results_json=_json.dumps(results, default=str))
         except Exception as e:
@@ -725,6 +728,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 source_platforms=list(request.source_platforms),
                 total_engagement=request.total_engagement,
                 contradiction_signal=request.contradiction_signal,
+                anchor_method=(getattr(request, "anchor_method", "") or "unknown"),
+                claim_type=(getattr(request, "claim_type", "") or "measured"),
             )
         except Exception as e:
             logger.exception("EvaluateWavefunction failed for Claim %s", request.claim_id)

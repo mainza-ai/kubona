@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Globe, Lock } from 'lucide-react';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
-import { setLLMAirGap } from '@/lib/api';
+import { fetchLLMSettings, setLLMAirGap } from '@/lib/api';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
@@ -17,6 +17,20 @@ export function useAirGapControl(options: UseAirGapControlOptions = {}) {
   const [airGap, setAirGap] = useState<boolean | null>(options.initialValue ?? null);
   const [error, setError] = useState<string | null>(null);
   const write = useWriteSettlement();
+
+  useEffect(() => {
+    if (typeof options.initialValue === 'boolean') {
+      setAirGap(options.initialValue);
+      return;
+    }
+    let live = true;
+    void fetchLLMSettings().then((s) => {
+      if (live && s && typeof s.air_gapped === 'boolean') {
+        setAirGap(s.air_gapped);
+      }
+    });
+    return () => { live = false; };
+  }, [options.initialValue]);
 
   const toggle = useCallback(async () => {
     if (airGap === null) {

@@ -738,7 +738,7 @@ export interface AutoresearchLoop {
   id: string;
   session_id: string;
   harness_id: string;
-  status: 'idle' | 'running' | 'paused' | 'stagnant' | 'completed' | 'aborted';
+  status: 'idle' | 'running' | 'paused' | 'sleeping' | 'stagnant' | 'completed' | 'aborted';
   current_iteration: number;
   max_iterations: number;
   started_at: string;

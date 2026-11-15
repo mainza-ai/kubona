@@ -357,7 +357,7 @@
     },
     {
       "function": "clearLLMProviderKey",
-      "path": "/api/llm/providers/$:encodeURIComponent(provider)/key",
+      "path": "/api/llm/providers/:provider/key",
       "method": "DELETE",
       "contract": "llm.key.delete"
     },
@@ -513,13 +513,13 @@
     },
     {
       "function": "fetchClaimReviews",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/reviews",
+      "path": "/api/sessions/:sessionId/claims/:claimId/reviews",
       "method": "GET",
       "contract": "claims.reviews"
     },
     {
       "function": "fetchClaimsPage",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims",
+      "path": "/api/sessions/:sessionId/claims",
       "method": "GET",
       "contract": "claims.page"
     },
@@ -561,7 +561,7 @@
     },
     {
       "function": "fetchExperimentExport",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/experiment-export",
+      "path": "/api/sessions/:sessionId/experiment-export",
       "method": "GET",
       "contract": "experiment.export"
     },
@@ -975,7 +975,7 @@
     },
     {
       "function": "reviewClaim",
-      "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
+      "path": "/api/sessions/:sessionId/claims/:claimId/review",
       "method": "POST",
       "contract": "claims.review"
     },
@@ -1209,7 +1209,7 @@
     },
     {
       "function": "verifyLLMProvider",
-      "path": "/api/llm/providers/$:encodeURIComponent(provider)/verify",
+      "path": "/api/llm/providers/:provider/verify",
       "method": "POST",
       "contract": "llm.verify"
     },
@@ -1224,6 +1224,12 @@
       "path": "/api/mandates/verify",
       "method": "POST",
       "contract": "mandate.verify"
+    },
+    {
+      "function": "wakeAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:id/wake",
+      "method": "POST",
+      "contract": "autoresearch.loop"
     }
   ],
   "client_only_functions": [

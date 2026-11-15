@@ -17,7 +17,7 @@ import (
 )
 
 func (s *Server) codesignViaBridge(ctx context.Context, operation string, requestJSON []byte) ([]byte, bool) {
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		return nil, false
 	}

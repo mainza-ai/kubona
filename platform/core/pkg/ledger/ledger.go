@@ -102,6 +102,7 @@ func (l *Ledger) SchemaVersion() (int, error) {
 // PreMigrationBackupPath reports the verified snapshot taken for this open,
 // or empty when no upgrade backup was required.
 func (l *Ledger) PreMigrationBackupPath() string { return l.preMigrationBackup }
+func (l *Ledger) DBPath() string                 { return l.dbPath }
 
 func peekSchemaVersion(db *sql.DB) (int, error) {
 	var exists int
@@ -1979,22 +1980,26 @@ func (l *Ledger) GetCampaignStateWithRevision(sessionID string) ([]byte, int64, 
 func (l *Ledger) SaveCampaignStateAtRevision(sessionID string, stateJSON []byte, trigger string, expected int64) error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
 	now := time.Now().UTC().Format(time.RFC3339)
 	var res sql.Result
-	var err error
 	if expected == 0 {
-		res, err = l.db.Exec(
+		res, err = tx.Exec(
 			`INSERT INTO campaign_states (session_id, state_json, updated_at, revision) VALUES (?, ?, ?, 1)`,
 			sessionID, string(stateJSON), now)
 	} else {
-		res, err = l.db.Exec(
+		res, err = tx.Exec(
 			`UPDATE campaign_states SET state_json = ?, updated_at = ?, revision = revision + 1 WHERE session_id = ? AND revision = ?`,
 			string(stateJSON), now, sessionID, expected)
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			var current int64
-			_ = l.db.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
+			_ = tx.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
 			return &CampaignRevisionConflict{Current: current}
 		}
 		return err
@@ -2005,18 +2010,18 @@ func (l *Ledger) SaveCampaignStateAtRevision(sessionID string, stateJSON []byte,
 	}
 	if n != 1 {
 		var current int64
-		qerr := l.db.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
+		qerr := tx.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
 		if qerr != nil {
 			current = 0
 		}
 		return &CampaignRevisionConflict{Current: current}
 	}
-	if _, err := l.db.Exec(
+	if _, err := tx.Exec(
 		`INSERT INTO campaign_versions (session_id, state_json, trigger, created_at) VALUES (?, ?, ?, ?)`,
 		sessionID, string(stateJSON), trigger, now); err != nil {
 		return err
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (l *Ledger) Close() error {

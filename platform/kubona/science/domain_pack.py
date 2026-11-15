@@ -104,7 +104,15 @@ class DomainPackManifest(BaseModel):
 
 class DomainPackLoader:
     def __init__(self, packs_dir: str | Path | None = None):
-        self.packs_dir = Path(packs_dir or "platform/domain_packs")
+        if packs_dir is not None:
+            self.packs_dir = Path(packs_dir)
+        else:
+            repo_packs = Path(__file__).resolve().parents[2] / "domain_packs"
+            if repo_packs.exists():
+                self.packs_dir = repo_packs
+            else:
+                from kubona import config
+                self.packs_dir = config.state_path("domain_packs")
         self.packs_dir.mkdir(parents=True, exist_ok=True)
 
     def load_pack(self, pack_yaml_path: str | Path) -> DomainPackManifest:

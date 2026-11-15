@@ -176,9 +176,10 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   );
 
   const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }).catch(() => {});
   };
 
   const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {

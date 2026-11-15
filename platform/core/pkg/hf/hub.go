@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 )
 
 const HFAPIBase = "https://huggingface.co/api"
@@ -209,7 +210,7 @@ func (c *HubClient) SearchModels(ctx context.Context, query, library string, lim
 	if err != nil {
 		return c.filterFallback(query, library, limit), nil
 	}
-	req.Header.Set("User-Agent", "Kubona-Platform/0.2.0")
+	req.Header.Set("User-Agent", "Kubona-Platform/"+version.Version)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
@@ -312,7 +313,7 @@ func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFMode
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Kubona-Platform/0.2.0")
+	req.Header.Set("User-Agent", "Kubona-Platform/"+version.Version)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
@@ -475,16 +476,25 @@ func (c *HubClient) setTerminal(task *HFDownloadTask, status, errMsg string) {
 func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask, baseURL string) {
 	downloadURL := fmt.Sprintf("%s/%s/resolve/main/%s", baseURL, task.RepoID, task.Filename)
 
-	// A dedicated client without the metadata client's 10s overall timeout:
-	// weight files are gigabytes and stream for minutes.
-	dlClient := &http.Client{Timeout: 30 * time.Minute}
+	// A dedicated client without an overall Timeout: multi-GB weight files
+	// stream for minutes/hours, while ResponseHeaderTimeout fails stalled
+	// handshakes in 60s.
+	dlClient := &http.Client{
+		Transport: &http.Transport{
+			ResponseHeaderTimeout: 60 * time.Second,
+			IdleConnTimeout:       90 * time.Second,
+		},
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		c.setTerminal(task, "failed", err.Error())
 		return
 	}
-	req.Header.Set("User-Agent", "Kubona-Platform/0.2.0")
+	req.Header.Set("User-Agent", "Kubona-Platform/1.0")
+	if tok := strings.TrimSpace(os.Getenv("HF_TOKEN")); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 
 	resp, err := dlClient.Do(req)
 	if err != nil {

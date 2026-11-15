@@ -189,6 +189,6 @@ func (s *Server) handleTribunalResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tribEventsBefore := s.latestEventID(req.SessionID)
-	res, err := s.collective.ExecuteTribunalResume(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.SessionID, req.Prompt, req.Bundle, s.tribunalTurnRecorder(req.SessionID))
+	res, err := s.collective.ExecuteTribunalResume(r.Context(), s.llmClient, s.bridgeClient(), s.memoryStore, req.SessionID, req.Prompt, req.Bundle, s.tribunalTurnRecorder(req.SessionID))
 	s.finishTribunalRun(w, r, tribIdem, req.SessionID, req.Prompt, tribEventsBefore, res, err)
 }

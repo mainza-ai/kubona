@@ -36,9 +36,9 @@ services:
       - "--image"
       - "${KUBONA_SANDBOX_IMAGE:-kubona-quantum-runner:1.1.0}"
       - "--runtime"
-      - "runsc"
+      - "${KUBONA_SANDBOX_RUNTIME:-runsc}"
       - "--scratch"
-      - "/tmp/kubona-sandboxd"
+      - "${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandboxd}"
       - "--max-concurrent"
       - "${KUBONA_SANDBOX_CONCURRENCY:-2}"
     # The Docker socket is commonly root:docker. This container is the
@@ -58,7 +58,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - sandbox-sock:/run/kubona-sandbox
-      - ${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandbox}:/tmp/kubona-sandboxd
+      - ${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandboxd}:${KUBONA_SANDBOX_SCRATCH:-/tmp/kubona-sandboxd}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "--unix-socket", "/run/kubona-sandbox/sandbox.sock", "http://localhost/health"]

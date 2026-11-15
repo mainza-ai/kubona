@@ -1,14 +1,105 @@
 package memory
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 )
 
-const EmbeddingDimensions = 384
+const (
+	EmbeddingDimensions  = 384
+	LexicalEmbeddingModel = "lexical-hash-v1"
+)
+
+// TextEmbedder computes dense vector embeddings for semantic memory recall.
+type TextEmbedder interface {
+	Embed(ctx context.Context, text string) (vec []float32, model string, err error)
+}
+
+// HTTPEmbedder calls a local OpenAI-compatible (/v1/embeddings) or Ollama
+// (/api/embeddings) endpoint to compute neural embeddings without cloud egress.
+type HTTPEmbedder struct {
+	Endpoint string
+	Model    string
+	Client   *http.Client
+}
+
+// NewEnvEmbedder constructs an HTTPEmbedder when KUBONA_EMBEDDING_URL is set.
+func NewEnvEmbedder() TextEmbedder {
+	endpoint := strings.TrimSpace(os.Getenv("KUBONA_EMBEDDING_URL"))
+	if endpoint == "" {
+		return nil
+	}
+	model := strings.TrimSpace(os.Getenv("KUBONA_EMBEDDING_MODEL"))
+	if model == "" {
+		model = "nomic-embed-text"
+	}
+	return &HTTPEmbedder{
+		Endpoint: endpoint,
+		Model:    model,
+		Client:   &http.Client{Timeout: 5 * time.Second},
+	}
+}
+
+func (e *HTTPEmbedder) Embed(ctx context.Context, text string) ([]float32, string, error) {
+	if e == nil || strings.TrimSpace(e.Endpoint) == "" {
+		return nil, "", fmt.Errorf("embedding endpoint not configured")
+	}
+	client := e.Client
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Second}
+	}
+	isOllama := strings.Contains(e.Endpoint, "/api/embeddings")
+	var reqBody []byte
+	if isOllama {
+		reqBody, _ = json.Marshal(map[string]any{"model": e.Model, "prompt": text})
+	} else {
+		reqBody, _ = json.Marshal(map[string]any{"model": e.Model, "input": text})
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.Endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("embedding endpoint returned HTTP %d", resp.StatusCode)
+	}
+	var raw struct {
+		Embedding []float32 `json:"embedding"`
+		Data      []struct {
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, "", err
+	}
+	vec := raw.Embedding
+	if len(vec) == 0 && len(raw.Data) > 0 {
+		vec = raw.Data[0].Embedding
+	}
+	if len(vec) == 0 {
+		return nil, "", fmt.Errorf("embedding endpoint returned empty vector")
+	}
+	model := raw.Model
+	if model == "" {
+		model = e.Model
+	}
+	return vec, model, nil
+}
 
 // ScoredMemoryItem pairs a memory with its cosine similarity to the search query
 type ScoredMemoryItem struct {

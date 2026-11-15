@@ -53,7 +53,7 @@ func defaultHumanJurisdictions() []string {
 }
 
 func (s *Server) quantumBridge(w http.ResponseWriter, computation string) pb.QuantumBridgeServiceClient {
-	bridge := s.jobRunner.BridgeClient()
+	bridge := s.bridgeClient()
 	if bridge == nil {
 		writeBridgeUnavailable(w, computation, "bridge client is nil.")
 		return nil

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -298,6 +299,35 @@ func NewLoopEngine(
 		// S3: creation is activity; sweeper never sleeps a newborn.
 		lastActivity: time.Now().UTC(),
 	}
+}
+
+// RehydrateLoopEngine reconstructs an in-memory LoopEngine from a persisted
+// loops row on daemon restart so sleeping/completed/aborted loops remain
+// visible and wakeable via /api/autoresearch/loops/{id}/wake.
+func RehydrateLoopEngine(
+	id, sessionID string,
+	harness Harness,
+	runner *sandbox.SandboxRunner,
+	llmClient *llm.Client,
+	status LoopStatus,
+	currentIteration, maxIterations int,
+	lastActivity time.Time,
+	drained bool,
+	reservedAmount, consumedAmount float64,
+	admissionRequestID string,
+) *LoopEngine {
+	e := NewLoopEngine(id, sessionID, harness, runner, llmClient, "", maxIterations)
+	e.state.Status = status
+	e.state.CurrentIteration = currentIteration
+	if !lastActivity.IsZero() {
+		e.state.LastActivity = lastActivity
+		e.lastActivity = lastActivity
+	}
+	e.state.Drained = drained
+	e.state.ReservedAmount = reservedAmount
+	e.state.ConsumedAmount = consumedAmount
+	e.admissionRequestID = admissionRequestID
+	return e
 }
 
 // SetEventCallback registers an event emitter for SSE streaming
@@ -701,7 +731,15 @@ Output only the mutated Python code inside triple backticks.`, e.programMd, cham
 			{Role: "user", Content: prompt},
 		}
 
-		content, resp, _, err := e.llmClient.Complete(ctx, "coder", msgs)
+		callTimeout := 180 * time.Second
+		if raw := strings.TrimSpace(os.Getenv("KUBONA_LLM_TIMEOUT_SECONDS")); raw != "" {
+			if sec, convErr := strconv.Atoi(raw); convErr == nil && sec > 0 {
+				callTimeout = time.Duration(sec) * time.Second
+			}
+		}
+		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+		content, resp, _, err := e.llmClient.CompleteCapped(callCtx, "coder", msgs, 2048)
+		cancel()
 		if err == nil && content != "" {
 			// I3: measured drawdown (usage is guaranteed reported here:
 			// requireMeteredUsage refuses unreported metered calls at

@@ -31,7 +31,7 @@ export function Lean4GoalTreeInspectorWidget({
   axioms,
   sorryAx,
 }: Lean4GoalTreeInspectorWidgetProps) {
-  const [selectedTacticIndex, setSelectedTacticIndex] = useState(2);
+  const [selectedTacticIndex, setSelectedTacticIndex] = useState(0);
   // No hardcoded Bloch/tactics/rho without a live receipt: without all three
   // props the widget renders an empty state, never illustrative proof chrome.
   const hasReceipt = theoremName != null && theoremSignature != null && astHash != null
@@ -141,7 +141,7 @@ export function Lean4GoalTreeInspectorWidget({
               <span>Lean 4 Tactic State</span>
             </div>
             <pre className="text-success-ink whitespace-pre-wrap leading-relaxed">
-              {proofSteps[selectedTacticIndex].state}
+              {(proofSteps[Math.min(selectedTacticIndex, proofSteps.length - 1)] ?? proofSteps[0])?.state ?? ''}
             </pre>
           </div>
 

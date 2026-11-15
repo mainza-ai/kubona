@@ -378,11 +378,81 @@ def _doctor_bridge() -> tuple[str, bool]:
     return "unconfigured (compose uses /run/kubona/bridge.sock)", True
 
 
+def serve_platform(
+    *,
+    host: str = "127.0.0.1",
+    port: int | None = None,
+    bridge_addr: str = "",
+) -> int:
+    """Supervise the full local platform stack: Python gRPC bridge + Go kubonad."""
+    import shutil
+    import signal
+    import subprocess
+    import time
+
+    from kubona.logging import setup_logging
+    setup_logging(log_dir=None)
+
+    core_dir = Path(__file__).resolve().parents[1] / "core"
+    platform_dir = Path(__file__).resolve().parents[1]
+    kubonad_bin = shutil.which("kubonad")
+    kubonad_cmd = [kubonad_bin] if kubonad_bin else ["go", "run", "./cmd/kubonad"]
+
+    bind_port = port if port is not None else int(os.environ.get("KUBONA_PORT", "8080"))
+    bridge_target = bridge_addr or os.environ.get("KUBONA_BRIDGE_ADDR") or "/tmp/kubona-bridge.sock"
+
+    bridge_env = os.environ.copy()
+    bridge_env.setdefault("KUBONA_BRIDGE_ADDR", bridge_target)
+    kubonad_env = os.environ.copy()
+    kubonad_env.setdefault("KUBONA_LISTEN_ADDR", f"{host}:{bind_port}")
+    kubonad_env.setdefault("KUBONA_BRIDGE_ADDR", bridge_target)
+
+    bridge_proc = subprocess.Popen(
+        [sys.executable, "-m", "bridge.server"],
+        cwd=str(platform_dir),
+        env=bridge_env,
+    )
+    time.sleep(0.5)
+    kubonad_proc = subprocess.Popen(
+        kubonad_cmd,
+        cwd=str(core_dir),
+        env=kubonad_env,
+    )
+
+    def _shutdown(*_args: object) -> None:
+        for proc in (kubonad_proc, bridge_proc):
+            if proc.poll() is None:
+                proc.terminate()
+
+    prev_sigint = signal.signal(signal.SIGINT, _shutdown)
+    prev_sigterm = signal.signal(signal.SIGTERM, _shutdown)
+    try:
+        while True:
+            k_rc = kubonad_proc.poll()
+            b_rc = bridge_proc.poll()
+            if k_rc is not None or b_rc is not None:
+                _shutdown()
+                return k_rc if k_rc not in (None, 0) else (b_rc or 0)
+            time.sleep(0.5)
+    finally:
+        signal.signal(signal.SIGINT, prev_sigint)
+        signal.signal(signal.SIGTERM, prev_sigterm)
+        for proc in (kubonad_proc, bridge_proc):
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+
 def _cli(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else "serve"
     if cmd == "serve":
         serve()
         return 0
+    if cmd in ("up", "serve-platform"):
+        return serve_platform()
     if cmd in ("serve-gateway", "gateway"):
         serve_gateway()
         return 0
@@ -454,7 +524,8 @@ def _mandate_check(args: list[str]) -> int:
     except SystemExit:
         return 2
     try:
-        raw = json.loads(open(ns.mandate).read())
+        with open(ns.mandate, encoding="utf-8") as mf:
+            raw = json.loads(mf.read())
     except (OSError, ValueError) as e:
         print(json.dumps({"error": f"mandate file unreadable: {e}"}))
         return 2
@@ -474,7 +545,9 @@ def _mandate_check(args: list[str]) -> int:
     # Admission !== shape: a valid mandate spends nothing until a
     # mandate_verified receipt cites it. Absence in the window is not
     # proof of absence — the window and db path ride along.
-    db = ns.db or str(Path.home() / ".kubona" / "kubona.db")
+    state_db = str(config.state_path("kubona.db"))
+    default_db = state_db if os.path.exists(state_db) else str(Path.home() / ".kubona" / "kubona.db")
+    db = ns.db or os.environ.get("KUBONA_LEDGER_DB") or default_db
     out["db"] = db
     out["admitted"] = False
     if os.path.exists(db):

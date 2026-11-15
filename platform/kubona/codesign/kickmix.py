@@ -514,32 +514,30 @@ def _depth_layers(ops: list) -> list[int]:
             continue
         if o.name not in KICKMIX_ALL:
             raise ValueError(f"non-kickmix op {o.name!r}: refusing")
-    rid_to_hmr: dict[int, int] = {}
+    qubit_layer: dict[int, int] = {}
+    rid_layer: dict[int, int] = {}
     rid = 0
-    for i, o in enumerate(ops):
-        if o.name == "hmr":
-            rid_to_hmr[rid] = i
-            rid += 1
     layers = [0] * len(ops)
     for i, o in enumerate(ops):
         if o.name in ("alloc_marker", "free_marker"):
             continue
         best = 0
-        qi = set(o.qubits)
-        for j in range(i):
-            p = ops[j]
-            if p.name in ("alloc_marker", "free_marker"):
-                continue
-            dep = False
-            if qi & set(p.qubits):
-                dep = True
-            if o.cond:
-                for r in o.cond:
-                    if rid_to_hmr.get(r) == j:
-                        dep = True
-            if dep and layers[j] > best:
-                best = layers[j]
-        layers[i] = best + 1
+        for q in o.qubits:
+            ql = qubit_layer.get(q, 0)
+            if ql > best:
+                best = ql
+        if o.cond:
+            for r in o.cond:
+                rl = rid_layer.get(r, 0)
+                if rl > best:
+                    best = rl
+        layer = best + 1
+        layers[i] = layer
+        for q in o.qubits:
+            qubit_layer[q] = layer
+        if o.name == "hmr":
+            rid_layer[rid] = layer
+            rid += 1
     return layers
 
 

@@ -165,9 +165,50 @@ func NewSupervisor(l *ledger.Ledger) *Supervisor {
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+	_ = s.RehydrateLoops()
 	s.sweepWg.Add(1)
 	go s.heartbeatWatchdogSweep()
 	return s
+}
+
+// RehydrateLoops loads persisted supervisor loops (rows without a harness_id)
+// from SQLite so loops survive daemon restarts instead of vanishing into 404s.
+func (s *Supervisor) RehydrateLoops() int {
+	if s.ledger == nil {
+		return 0
+	}
+	rows, err := s.ledger.ListLoopStates()
+	if err != nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	loaded := 0
+	for _, p := range rows {
+		if p.HarnessID != "" {
+			continue
+		}
+		if _, exists := s.loops[p.ID]; exists {
+			continue
+		}
+		updated := p.LastActivity
+		if updated.IsZero() {
+			updated = time.Now().UTC()
+		}
+		s.loops[p.ID] = &ManagedLoop{
+			ID:        p.ID,
+			SessionID: p.SessionID,
+			Status:    p.Status,
+			StepCount: p.StepCount,
+			MaxSteps:  p.MaxSteps,
+			CreatedAt: updated,
+			UpdatedAt: updated,
+			pauseCh:   make(chan struct{}),
+			killCh:    make(chan struct{}),
+		}
+		loaded++
+	}
+	return loaded
 }
 
 func (s *Supervisor) Close() {

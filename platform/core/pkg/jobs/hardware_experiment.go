@@ -246,7 +246,7 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	if p.FidelityQASM == "" {
 		return "", 0, fmt.Errorf("%s requires fidelity_qasm", jobType)
 	}
-	if err := r.admitFidelity(sessionID, p.Provider, p.FidelityQASM); err != nil {
+	if err := r.admitFidelity(sessionID, p.RequestedBackend, p.FidelityQASM); err != nil {
 		return "", 0, err
 	}
 	if p.MandateRef == "" {

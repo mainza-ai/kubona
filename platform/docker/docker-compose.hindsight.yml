@@ -11,9 +11,10 @@ services:
       # before `docker compose up`; compose refuses to start without it.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD before starting the pgvector sidecar}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - ./sql/init_hindsight.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgvector_data:/var/lib/postgresql/data
     deploy:
       resources:
         limits:
@@ -24,3 +25,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+volumes:
+  pgvector_data:

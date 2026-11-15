@@ -19,6 +19,7 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/session"
@@ -28,6 +29,12 @@ func (s *Server) handleLoopSettle(w http.ResponseWriter, r *http.Request, sessio
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
+	}
+	if !s.singleTenantStore() || os.Getenv("KUBONA_API_TOKEN") != "" {
+		if _, _, code := s.checkAuth(r); code != http.StatusOK {
+			http.Error(w, "authentication required", code)
+			return
+		}
 	}
 	sess, err := s.sessionMgr.GetSession(sessionID)
 	if err != nil {

@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -251,4 +252,41 @@ func TestGetJobReadsIdentityColumns(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].RequestID != "req-live" || listed[0].VendorRef != "ibm-9" {
 		t.Fatalf("list identity: %+v err %v", listed, err)
 	}
+}
+
+func TestBootReconcileOverflowFeedsQueue(t *testing.T) {
+	l, cleanup := openJobDB(t)
+	defer cleanup()
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, created_at, updated_at, status) VALUES ('s', 's', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')`); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		id := fmt.Sprintf("jq-%d", i)
+		if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at) VALUES (?, 's', 'JOB_STATUS_QUEUED', 'circuit_run', '{}', CURRENT_TIMESTAMP)`, id); err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	r := NewRunner(l, nil, 1)
+	r.jobQueue = make(chan *Job, 2)
+	rec, err := r.ReconcileJobsOnBoot()
+	if err != nil {
+		t.Fatalf("ReconcileJobsOnBoot overflow must not fail: %v", err)
+	}
+	if rec.Requeued != 5 {
+		t.Fatalf("expected 5 requeued, got %d", rec.Requeued)
+	}
+	seen := map[string]bool{}
+	for i := 0; i < 5; i++ {
+		select {
+		case j := <-r.jobQueue:
+			seen[j.ID] = true
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out draining overflow job %d", i)
+		}
+	}
+	if len(seen) != 5 {
+		t.Fatalf("expected 5 unique drained jobs, got %d", len(seen))
+	}
+	r.cancel()
+	r.wg.Wait()
 }

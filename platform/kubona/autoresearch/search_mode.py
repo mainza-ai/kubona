@@ -21,7 +21,17 @@ def run_search_mode(harness: Harness, *, budget_steps: int = 60, seed: int = 7,
 
     orch = Orchestrator(harness, budget_steps=budget_steps, seed=seed, ledger=ledger)
     history = orch.search()
-    best: Trial = orch.best(history)
+    best: Trial | None = orch.best(history)
+    if best is None:
+        return {
+            "harness": harness.name,
+            "baseline": {"artifact": baseline_artifact, "score": baseline_score} if baseline_artifact is not None else None,
+            "best": None,
+            "beat_baseline": False,
+            "library_entry_id": None,
+            "archive_refused": "no valid trial found",
+            "steps": len(history),
+        }
 
     entry_id = None
     if library is not None:

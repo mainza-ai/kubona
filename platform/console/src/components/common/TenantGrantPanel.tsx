@@ -22,6 +22,10 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
   const [busy, setBusy] = useState(false);
   const settlement = useWriteSettlement();
 
+  React.useEffect(() => {
+    setSource((cur) => cur || labs[0]?.id || '');
+  }, [labs]);
+
   const issue = async () => {
     setBusy(true);
     setNotice(null);

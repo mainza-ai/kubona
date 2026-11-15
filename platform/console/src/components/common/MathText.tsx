@@ -43,10 +43,11 @@ function renderMath(raw: string, displayMode: boolean, katex: KatexRenderer | nu
 }
 
 // Extract $$..$$ / $..$ spans to placeholders so markdown formatting never
-// touches math contents. Returns [protected text, restore fn].
+// touches math contents, while leaving fenced/inline code spans untouched.
 function protectMath(text: string, katex: KatexRenderer | null): { text: string; restore: (s: string) => string } {
   const slots: string[] = [];
-  const protected_ = text.replace(/\$\$[\s\S]*?\$\$|\$[^\$]*?\$/g, (m) => {
+  const protected_ = text.replace(/```[\s\S]*?```|`[^`\n]+`|\$\$[\s\S]*?\$\$|\$[^$\n]*?\$/g, (m) => {
+    if (m.startsWith('`')) return m;
     let html: string;
     if (m.startsWith('$$')) {
       html = renderMath(m.slice(2, -2), true, katex);

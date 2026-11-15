@@ -8,6 +8,7 @@ import {
   stepAutoresearchLoop,
   pauseAutoresearchLoop,
   resumeAutoresearchLoop,
+  wakeAutoresearchLoop,
   stopAutoresearchLoop,
 } from '@/lib/api';
 import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
@@ -106,6 +107,8 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
               <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded-chip bg-info-wash border border-info-edge text-info-ink disabled:opacity-40">Step</button>
               {loop.status === 'running' ? (
                 <button type="button" disabled={busy !== null} onClick={() => void run('pause', () => pauseAutoresearchLoop(loop.id), 'Paused.')} className="px-2 py-1 rounded-chip bg-warning-wash border border-warning-edge text-warning-ink disabled:opacity-40">Pause</button>
+              ) : loop.status === 'sleeping' ? (
+                <button type="button" disabled={busy !== null} onClick={() => void run('wake', () => wakeAutoresearchLoop(loop.id), 'Woken.')} className="px-2 py-1 rounded-chip bg-success-wash border border-success-edge text-success-ink disabled:opacity-40">Wake</button>
               ) : (
                 <button type="button" disabled={busy !== null} onClick={() => void run('resume', () => resumeAutoresearchLoop(loop.id), 'Resumed.')} className="px-2 py-1 rounded-chip bg-success-wash border border-success-edge text-success-ink disabled:opacity-40">Resume</button>
               )}

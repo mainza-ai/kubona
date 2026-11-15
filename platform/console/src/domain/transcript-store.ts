@@ -48,7 +48,11 @@ function createStore(): TranscriptStore {
 
 function getStore(key: string): TranscriptStore {
   const existing = stores.get(key);
-  if (existing) return existing;
+  if (existing) {
+    stores.delete(key);
+    stores.set(key, existing);
+    return existing;
+  }
   const store = createStore();
   if (stores.size >= MAX_STORES) {
     const oldest = stores.keys().next().value;

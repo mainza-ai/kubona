@@ -1,6 +1,7 @@
 package fidelity
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -11,6 +12,9 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed fidelity-devices.json
+var embeddedFidelityContract []byte
 
 type AdmissionDecision string
 
@@ -73,6 +77,10 @@ func loadFidelityContract() fidelityContract {
 			if readErr == nil {
 				break
 			}
+		}
+		if readErr != nil && len(embeddedFidelityContract) > 0 {
+			raw = embeddedFidelityContract
+			readErr = nil
 		}
 		if readErr != nil {
 			panic(fmt.Sprintf("cannot read fidelity-devices.json contract: %v", readErr))

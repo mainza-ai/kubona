@@ -37,7 +37,8 @@ ENV MALLOC_ARENA_MAX=2 \
 # Unprivileged verification user (never run lake as root).
 RUN useradd --create-home --shell /bin/bash lean \
     && mkdir -p /workspace \
-    && chown lean:lean /workspace
+    && chown lean:lean /workspace \
+    && if [ -d /root/.elan ] && [ ! -d /home/lean/.elan ]; then cp -a /root/.elan /home/lean/.elan && chown -R lean:lean /home/lean/.elan; fi
 
 USER lean
 WORKDIR /workspace

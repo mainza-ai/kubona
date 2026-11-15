@@ -219,21 +219,28 @@ func (s *Server) handleTaskBatch(w http.ResponseWriter, r *http.Request, session
 		return
 	}
 	created := make([]ledger.Task, 0, len(ordered))
+	rollbackCreated := func() {
+		for _, t := range created {
+			_, _ = s.ledger.DB().Exec(`DELETE FROM tasks WHERE id = ?`, t.ID)
+		}
+	}
 	for _, item := range ordered {
 		task, err := s.ledger.CreateTask(sessionID, strings.TrimSpace(item.Title),
 			strings.TrimSpace(item.SourceDomain), strings.TrimSpace(item.SourceID))
 		if err != nil {
+			rollbackCreated()
 			s.idemFinishError(w, ticket, http.StatusInternalServerError, "batch task create failed")
 			return
 		}
+		created = append(created, task)
 		if err := s.ledger.AppendEvent(sessionID, "task_created", map[string]any{
 			"task_id": task.ID, "title": task.Title,
 			"source_domain": task.SourceDomain, "source_id": task.SourceID,
 		}); err != nil {
+			rollbackCreated()
 			s.idemFinishError(w, ticket, http.StatusInternalServerError, "tasks recorded but ledger append failed")
 			return
 		}
-		created = append(created, task)
 	}
 	s.idemFinishJSON(w, ticket, http.StatusOK, map[string]any{"tasks": created, "count": len(created)})
 }

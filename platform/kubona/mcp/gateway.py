@@ -308,9 +308,10 @@ class KubonaGateway:
             return self._loaded_audit + self._audit
         saved = []
         if self._audit_path is not None and os.path.exists(self._audit_path):
-            for line in open(self._audit_path).read().splitlines():
-                if line.strip():
-                    saved.append(json.loads(line))
+            with open(self._audit_path, encoding="utf-8") as af:
+                for line in af.read().splitlines():
+                    if line.strip():
+                        saved.append(json.loads(line))
         return saved + self._audit
 
     def servers(self) -> list[str]:

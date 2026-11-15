@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
 import { publishInvalidation } from '@/domain/invalidation';
@@ -58,6 +58,13 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const [latticeTimes, setLatticeTimes] = useState('0, 0.5, 1');
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -174,12 +181,14 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
     setJob(current);
     for (let i = 0; i < 180; i++) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!mountedRef.current) return;
       current = await fetchJob(current.id, sessionId);
-      if (!current) break;
+      if (!mountedRef.current || !current) break;
       setJob(current);
       const st = jobStatusLabel(current.status).toUpperCase();
       if (st !== 'QUEUED' && st !== 'RUNNING') break;
     }
+    if (!mountedRef.current) return;
     publishInvalidation(new Set(['campaign', 'jobs', 'obligations', 'loops', 'cost']));
     setBusy(false);
   };

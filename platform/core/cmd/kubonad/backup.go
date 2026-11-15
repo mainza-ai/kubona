@@ -87,16 +87,19 @@ func runBackup(args []string) int {
 
 	copyLedger, err := ledger.OpenLedgerReadOnly(target)
 	if err != nil {
+		_ = os.Remove(target)
 		fmt.Fprintln(os.Stderr, "error: backup is unreadable:", err)
 		return 1
 	}
 	faults, verifyErr := copyLedger.VerifyChain("")
 	copyLedger.Close()
 	if verifyErr != nil {
+		_ = os.Remove(target)
 		fmt.Fprintln(os.Stderr, "error: backup verification failed:", verifyErr)
 		return 1
 	}
 	if len(faults) != 0 {
+		_ = os.Remove(target)
 		fmt.Fprintf(os.Stderr, "error: backup has %d chain fault(s); refusing it\n", len(faults))
 		return 1
 	}

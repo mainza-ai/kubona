@@ -29,7 +29,8 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const loadReviews = (sid: string, rowsToLoad: ClaimRecord[]) => {
-    void Promise.all(rowsToLoad.map(async (claim) => [claim.id, (await fetchClaimReviews(sid, claim.id)) ?? []] as const))
+    const slice = rowsToLoad.slice(0, 8);
+    void Promise.all(slice.map(async (claim) => [claim.id, (await fetchClaimReviews(sid, claim.id)) ?? []] as const))
       .then((pairs) => { setReviews((prev) => ({ ...prev, ...Object.fromEntries(pairs) })); });
   };
 

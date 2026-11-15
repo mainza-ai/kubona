@@ -431,7 +431,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 // four capped turns fit the 660s server WriteTimeout with margin for the
 // observe rounds. Cloud models rarely bind here; when they do,
 // finish_reason=length is visible in the sealed transcript (never silent).
-const tribunalTurnMaxTokens = 8192
+const tribunalTurnMaxTokens = 1500
 
 // ExecuteTribunalResume continues a tribunal from an exported bundle
 // (R4 turn-bundle flow): ancestor turns seed the new run's evidence store
@@ -600,7 +600,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	}
 
 	llmTimeout := 90 * time.Second
-	if envTo := os.Getenv("KUBONA_TRIBUNAL_LLM_TIMEOUT_SEC"); envTo != "" {
+	envTo := os.Getenv("KUBONA_TRIBUNAL_LLM_TIMEOUT_SEC")
+	if envTo == "" {
+		envTo = os.Getenv("KUBONA_LLM_TIMEOUT_SECONDS")
+	}
+	if envTo != "" {
 		if sec, err := strconv.Atoi(envTo); err == nil && sec > 0 {
 			llmTimeout = time.Duration(sec) * time.Second
 		}
@@ -614,6 +618,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	// MaxTokens still wins when smaller (a ceiling is a max); the default
 	// 0 (uncapped chat) does not leak into the synchronous debate.
 	turnCap := tribunalTurnMaxTokens
+	if rawCap := os.Getenv("KUBONA_TRIBUNAL_TURN_TOKENS"); rawCap != "" {
+		if n, err := strconv.Atoi(rawCap); err == nil && n >= 256 && n <= 8192 {
+			turnCap = n
+		}
+	}
 	if llmClient != nil {
 		if snapMax := llmClient.SettingsMaxTokens(); snapMax > 0 && snapMax < turnCap {
 			turnCap = snapMax

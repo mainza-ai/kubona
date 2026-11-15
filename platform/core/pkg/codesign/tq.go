@@ -1,6 +1,9 @@
 package codesign
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // TQ scoring — Go serving mirror of platform/kubona/codesign/tq.py.
 // The Python evaluator is ground truth for validity; this package serves
@@ -24,8 +27,16 @@ func Cost(toffoli, qubits, kappa int) (int64, error) {
 		return 0, fmt.Errorf("kappa must be in [%d,%d], got %d: refusing", KappaMin, KappaMax, kappa)
 	}
 	qp := int64(1)
+	q64 := int64(qubits)
 	for i := 0; i < kappa; i++ {
-		qp *= int64(qubits)
+		if q64 > 0 && qp > math.MaxInt64/q64 {
+			return 0, fmt.Errorf("tq cost overflows int64 for qubits=%d kappa=%d", qubits, kappa)
+		}
+		qp *= q64
 	}
-	return int64(toffoli) * qp, nil
+	t64 := int64(toffoli)
+	if qp > 0 && t64 > math.MaxInt64/qp {
+		return 0, fmt.Errorf("tq cost overflows int64 for toffoli=%d qubits=%d kappa=%d", toffoli, qubits, kappa)
+	}
+	return t64 * qp, nil
 }

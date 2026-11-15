@@ -283,8 +283,12 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	if err := os.WriteFile(filepath.Join(benchDir, "eval.py"), []byte(req.Benchmark), 0644); err != nil {
 		return SidecarResponse{Sandboxed: false, Error: err.Error(), ExitCode: 1}
 	}
-	if req.ArtifactName != "" && req.Artifact != "" {
-		if err := os.WriteFile(filepath.Join(workDir, req.ArtifactName), []byte(req.Artifact), 0666); err != nil {
+	if req.ArtifactName != "" {
+		baseName := filepath.Base(req.ArtifactName)
+		if baseName != req.ArtifactName || strings.Contains(req.ArtifactName, "..") {
+			return SidecarResponse{Sandboxed: false, Error: fmt.Sprintf("invalid artifact name %q: path traversal rejected", req.ArtifactName), ExitCode: 1}
+		}
+		if err := os.WriteFile(filepath.Join(workDir, baseName), []byte(req.Artifact), 0666); err != nil {
 			return SidecarResponse{Sandboxed: false, Error: err.Error(), ExitCode: 1}
 		}
 	}
@@ -306,6 +310,10 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "docker", args...)
+	setProcessGroup(cmd)
+	cmd.Cancel = func() error {
+		return killProcessGroup(cmd)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -315,10 +323,15 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	exitCode := 0
 	errText := ""
 	if runErr != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if ctx.Err() != nil {
 			stopSandboxContainer(sandboxName(runID))
-			exitCode = 124
-			errText = ErrExecutionTimeout.Error()
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				exitCode = 124
+				errText = ErrExecutionTimeout.Error()
+			} else {
+				exitCode = 1
+				errText = ctx.Err().Error()
+			}
 		} else if ee, ok := runErr.(*exec.ExitError); ok {
 			exitCode = ee.ExitCode()
 			errText = ee.Error()
@@ -333,13 +346,13 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 		ExitCode:     exitCode,
 		DurationMS:   duration.Milliseconds(),
 		Sandboxed:    true,
-		IsolationTag: fmt.Sprintf("gvisor-runsc:%s (net=none, readonly, cap-drop=ALL)", s.Image),
+		IsolationTag: fmt.Sprintf("%s:%s (net=none, readonly, cap-drop=ALL)", s.Runtime, s.Image),
 		Error:        errText,
 	}
 }
 
 func sidecarDockerArgs(image, runtime, benchmarkDir, workspaceDir, profilePath, runID string) []string {
-	if runID == "" || strings.TrimSpace(image) == "" || runtime != "runsc" {
+	if runID == "" || strings.TrimSpace(image) == "" || (runtime != "runsc" && runtime != "runc") {
 		return nil
 	}
 	return []string{
@@ -383,7 +396,7 @@ func ServeSidecar(ctx context.Context, s *SidecarServer) error {
 	if s.Socket == "" {
 		return fmt.Errorf("sandboxd socket path is required")
 	}
-	if err := os.MkdirAll(filepath.Dir(s.Socket), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.Socket), 0755); err != nil {
 		return err
 	}
 	_ = os.Remove(s.Socket)

@@ -35,6 +35,12 @@ func BudgetHistory(msgs []ChatMessage, maxMsgs, maxChars int) []ChatMessage {
 		turns = turns[1:]
 		dropped++
 	}
+	// Preserve assistant ToolCalls <-> tool result pairing: never leave orphaned
+	// leading "tool" messages whose preceding assistant tool_calls turn was cut.
+	for len(turns) > 0 && turns[0].Role == "tool" {
+		turns = turns[1:]
+		dropped++
+	}
 	out := append([]ChatMessage(nil), system...)
 	if dropped > 0 {
 		out = append(out, ChatMessage{

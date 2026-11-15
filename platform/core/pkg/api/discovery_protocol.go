@@ -1,13 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/llm"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -169,6 +173,106 @@ func planDiscovery(goal string) ([]discoveryStep, string, error) {
 	return steps, strings.Join(reasons, " -> "), nil
 }
 
+var allowedDiscoveryKinds = map[string]bool{
+	"vqe":                   true,
+	"pes":                   true,
+	"excited_state":         true,
+	"spin_chain":            true,
+	"qaoa":                  true,
+	"reaction":              true,
+	"vqe_repeats":           true,
+	"geometry_optimization": true,
+	"lattice_dynamics":      true,
+	"thermodynamic_limit":   true,
+	"conjecture_check":      true,
+}
+
+func discoveryLLMTimeout() time.Duration {
+	if raw := strings.TrimSpace(os.Getenv("KUBONA_LLM_TIMEOUT_SECONDS")); raw != "" {
+		if sec, err := strconv.Atoi(raw); err == nil && sec > 0 {
+			return time.Duration(sec) * time.Second
+		}
+	}
+	return 120 * time.Second
+}
+
+// normalizeDiscoveryStepSpec ensures LLM-emitted specs carry the flat fields
+// Kubona's job runner expects (e.g. molecule + bond_distance) without erasing
+// valid caller/model-supplied fields.
+func normalizeDiscoveryStepSpec(goal string, step *discoveryStep) {
+	if step == nil {
+		return
+	}
+	if step.Spec == nil {
+		step.Spec = map[string]any{}
+	}
+	if _, ok := step.Spec["kind"]; !ok {
+		step.Spec["kind"] = step.Kind
+	}
+	switch step.Kind {
+	case "vqe", "pes", "excited_state", "vqe_repeats", "geometry_optimization", "reaction":
+		defaultMol, defaultBond := targetMoleculeFromGoal(goal)
+		if mol, _ := step.Spec["molecule"].(string); strings.TrimSpace(mol) == "" {
+			step.Spec["molecule"] = defaultMol
+		}
+		if _, ok := step.Spec["bond_distance"]; !ok {
+			if bl, ok := step.Spec["bond_length"]; ok {
+				step.Spec["bond_distance"] = bl
+			} else if step.Kind == "vqe" || step.Kind == "excited_state" || step.Kind == "vqe_repeats" {
+				step.Spec["bond_distance"] = defaultBond
+			}
+		}
+	}
+}
+
+func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]discoveryStep, string, error) {
+	if strings.TrimSpace(goal) == "" {
+		return nil, "", fmt.Errorf("goal is required")
+	}
+	if cli == nil {
+		return planDiscovery(goal)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, discoveryLLMTimeout())
+	defer cancel()
+	content, _, _, err := cli.CompleteCapped(callCtx, "copilot", []llm.ChatMessage{
+		{
+			Role:    "system",
+			Content: "You are Kubona's scientific discovery planner. Output ONLY valid JSON: {\"reason\":\"...\",\"steps\":[{\"kind\":\"vqe|pes|excited_state|spin_chain|qaoa|reaction|vqe_repeats|geometry_optimization|lattice_dynamics|thermodynamic_limit|conjecture_check\",\"spec\":{...},\"budget_usd\":0}]}. Max 5 steps. Use flat Kubona spec fields: for vqe/vqe_repeats/excited_state/geometry_optimization/reaction include \"molecule\" (e.g. \"H2\",\"LiH\",\"H2O\"), \"bond_distance\" (number), \"layers\" (int), \"shots\" (int), \"max_iterations\" (int); for pes include \"molecule\",\"r_min\",\"r_max\",\"steps\",\"layers\",\"shots\",\"max_iterations\"; for spin_chain/lattice_dynamics/thermodynamic_limit include \"num_qubits\",\"layers\",\"shots\",\"max_iterations\".",
+		},
+		{Role: "user", Content: goal},
+	}, 1024)
+	if err == nil && strings.TrimSpace(content) != "" {
+		var parsed struct {
+			Reason string          `json:"reason"`
+			Steps  []discoveryStep `json:"steps"`
+		}
+		raw := strings.TrimSpace(content)
+		if idx := strings.Index(raw, "{"); idx >= 0 {
+			if end := strings.LastIndex(raw, "}"); end > idx {
+				raw = raw[idx : end+1]
+			}
+		}
+		if json.Unmarshal([]byte(raw), &parsed) == nil && len(parsed.Steps) >= 1 && len(parsed.Steps) <= 5 {
+			valid := true
+			for i := range parsed.Steps {
+				if !allowedDiscoveryKinds[parsed.Steps[i].Kind] || parsed.Steps[i].Spec == nil {
+					valid = false
+					break
+				}
+				normalizeDiscoveryStepSpec(goal, &parsed.Steps[i])
+			}
+			if valid {
+				reason := strings.TrimSpace(parsed.Reason)
+				if reason == "" {
+					reason = "llm-structured discovery plan"
+				}
+				return parsed.Steps, reason, nil
+			}
+		}
+	}
+	return planDiscovery(goal)
+}
+
 func terminalJobStatus(status pb.JobStatus) bool {
 	switch status {
 	case pb.JobStatus_JOB_STATUS_COMPLETED, pb.JobStatus_JOB_STATUS_FAILED, pb.JobStatus_JOB_STATUS_CANCELLED:
@@ -225,7 +329,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	steps := req.Steps
 	plannedBy := "caller"
 	if len(steps) == 0 {
-		planned, reason, perr := planDiscovery(req.Goal)
+		planned, reason, perr := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
 		if perr != nil {
 			WriteAPIError(w, "bad_request", perr.Error(), nil)
 			return
@@ -398,7 +502,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
-// POST /api/discovery/plan — inspect the deterministic plan without running.
+// POST /api/discovery/plan — inspect the LLM-assisted or deterministic plan without running.
 func (s *Server) handleDiscoveryPlan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		WriteAPIError(w, "method_not_allowed", "POST required for discovery plan", nil)
@@ -411,7 +515,7 @@ func (s *Server) handleDiscoveryPlan(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid plan request: %v", err), nil)
 		return
 	}
-	steps, reason, err := planDiscovery(req.Goal)
+	steps, reason, err := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
 	if err != nil {
 		WriteAPIError(w, "bad_request", err.Error(), nil)
 		return

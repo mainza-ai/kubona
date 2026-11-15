@@ -1,6 +1,9 @@
 package fidelity
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -167,4 +170,15 @@ func TestCalibrationFreshnessContract(t *testing.T) {
 		t.Fatal("calibration freshness contract must be positive")
 	}
 	_ = StaleCalibrations(time.Now())
+}
+
+func TestEmbeddedFidelityContractParity(t *testing.T) {
+	canonicalPath := filepath.Join("..", "..", "..", "contracts", "fidelity-devices.json")
+	canonicalBytes, err := os.ReadFile(canonicalPath)
+	if err != nil {
+		t.Fatalf("read canonical contract %s: %v", canonicalPath, err)
+	}
+	if !bytes.Equal(embeddedFidelityContract, canonicalBytes) {
+		t.Fatalf("embedded fidelity-devices.json drifted from %s; copy canonical file", canonicalPath)
+	}
 }

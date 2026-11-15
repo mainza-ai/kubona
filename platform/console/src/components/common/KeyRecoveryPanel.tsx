@@ -26,6 +26,10 @@ export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
     peekSignerPubkeyHex().then(setCurrentKey);
   }, []);
 
+  React.useEffect(() => {
+    setTenant((cur) => cur || labs[0]?.id || '');
+  }, [labs]);
+
   const rotate = async () => {
     setNotice(null);
     if (!tenant) { setNotice('select the lab to rotate.'); return; }

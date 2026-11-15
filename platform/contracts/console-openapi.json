@@ -286,7 +286,7 @@
         }
       }
     },
-    "/api/llm/providers/${encodeURIComponent}(provider)/key": {
+    "/api/llm/providers/{provider}/key": {
       "delete": {
         "operationId": "clearLLMProviderKey",
         "tags": [
@@ -294,7 +294,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "provider",
             "in": "path",
             "required": true,
             "schema": {
@@ -1022,7 +1022,7 @@
         }
       }
     },
-    "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/reviews": {
+    "/api/sessions/{sessionId}/claims/{claimId}/reviews": {
       "get": {
         "operationId": "fetchClaimReviews",
         "tags": [
@@ -1030,7 +1030,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "sessionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1038,7 +1038,7 @@
             }
           },
           {
-            "name": "encodeURIComponent",
+            "name": "claimId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1060,7 +1060,7 @@
         }
       }
     },
-    "/api/sessions/${encodeURIComponent}(sessionId)/claims": {
+    "/api/sessions/{sessionId}/claims": {
       "get": {
         "operationId": "fetchClaimsPage",
         "tags": [
@@ -1068,7 +1068,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "sessionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -1190,7 +1190,7 @@
         }
       }
     },
-    "/api/sessions/${encodeURIComponent}(sessionId)/experiment-export": {
+    "/api/sessions/{sessionId}/experiment-export": {
       "get": {
         "operationId": "fetchExperimentExport",
         "tags": [
@@ -1198,7 +1198,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "sessionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -2624,7 +2624,7 @@
         }
       }
     },
-    "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/review": {
+    "/api/sessions/{sessionId}/claims/{claimId}/review": {
       "post": {
         "operationId": "reviewClaim",
         "tags": [
@@ -2632,7 +2632,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "sessionId",
             "in": "path",
             "required": true,
             "schema": {
@@ -2640,7 +2640,7 @@
             }
           },
           {
-            "name": "encodeURIComponent",
+            "name": "claimId",
             "in": "path",
             "required": true,
             "schema": {
@@ -3362,7 +3362,7 @@
         }
       }
     },
-    "/api/llm/providers/${encodeURIComponent}(provider)/verify": {
+    "/api/llm/providers/{provider}/verify": {
       "post": {
         "operationId": "verifyLLMProvider",
         "tags": [
@@ -3370,7 +3370,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "provider",
             "in": "path",
             "required": true,
             "schema": {
@@ -3425,6 +3425,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/mandate.verify"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops/{id}/wake": {
+      "post": {
+        "operationId": "wakeAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loop"
                 }
               }
             }

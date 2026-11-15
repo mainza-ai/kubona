@@ -51,6 +51,26 @@ func ParseEncapsulationKey(keyBytes []byte) (*mlkem.EncapsulationKey768, error) 
 	return mlkem.NewEncapsulationKey768(keyBytes)
 }
 
+// MarshalSeed returns the 64-byte ML-KEM-768 private seed for persistence.
+func (rk *RecipientKeypair) MarshalSeed() []byte {
+	if rk == nil || rk.DecapsulationKey == nil {
+		return nil
+	}
+	return rk.DecapsulationKey.Bytes()
+}
+
+// ParseRecipientKeypair reconstructs a RecipientKeypair from a 64-byte ML-KEM-768 seed.
+func ParseRecipientKeypair(seed []byte) (*RecipientKeypair, error) {
+	dk, err := mlkem.NewDecapsulationKey768(seed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ML-KEM-768 seed: %w", err)
+	}
+	return &RecipientKeypair{
+		DecapsulationKey: dk,
+		EncapsulationKey: dk.EncapsulationKey(),
+	}, nil
+}
+
 // Fingerprint returns the SHA-256 hex fingerprint of the public encapsulation key
 func (rk *RecipientKeypair) Fingerprint() string {
 	sum := sha256.Sum256(rk.EncapsulationKey.Bytes())

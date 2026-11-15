@@ -54,17 +54,20 @@ func normalizeReasoningEffort(pt ProviderType, model, effort string) string {
 	}
 	rate, ok := rates.LookupModelRate(string(pt), model)
 	if !ok {
-		return ""
-	}
-	reasoning := false
-	for _, cap := range rate.Capabilities {
-		if strings.EqualFold(cap, "reasoning") {
-			reasoning = true
-			break
+		if !IsLocalProvider(pt) {
+			return ""
 		}
-	}
-	if !reasoning {
-		return ""
+	} else {
+		reasoning := false
+		for _, cap := range rate.Capabilities {
+			if strings.EqualFold(cap, "reasoning") {
+				reasoning = true
+				break
+			}
+		}
+		if !reasoning {
+			return ""
+		}
 	}
 	switch effort {
 	case "minimal":
