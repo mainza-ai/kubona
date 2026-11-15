@@ -113,6 +113,8 @@ type Props = {
   onInlineGateVisibility?: (ownedByCard: boolean) => void;
   localMode?: boolean;
   multiLab?: boolean;
+  /** Signed in or operator token present: deployment mode no longer means "needs sign-in". */
+  authenticated?: boolean;
   authError?: boolean;
   onSignIn?: () => void;
   access?: AccessState | null;
@@ -157,7 +159,7 @@ function lodForZoom(zoom: number): WorkbenchViewLod {
 }
 
 export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onNeedRemedy, onFactSource, onMakePlanTasks, planTaskBusy = false, onObjectsChange, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authError = false, onSignIn, access,
+  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onNeedRemedy, onFactSource, onMakePlanTasks, planTaskBusy = false, onObjectsChange, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authenticated = false, authError = false, onSignIn, access,
 }, ref) {
   const authPhase = useAuthPhase();
   const canPersistWorkbench =
@@ -1938,7 +1940,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
             </>
           ) : objects.length === 0 ? (
             <div className="space-y-2">
-              <p>{localMode ? 'Local private mode — no sign-in is required to start.' : multiLab ? 'Multi-lab workspace — sign in to create or open a campaign.' : 'Create or open a campaign to give the science a place to stand.'}</p>
+              <p>{localMode ? 'Local private mode — no sign-in is required to start.' : multiLab && !authenticated ? 'Multi-lab workspace — sign in to create or open a campaign.' : 'Create or open a campaign to give the science a place to stand.'}</p>
               <div className="flex flex-wrap justify-center gap-1.5 text-[12px] font-mono">
                 <span className={`px-2 py-0.5 rounded-capsule border ${access ? 'border-success-edge bg-success-wash text-success' : 'border-border bg-fill text-muted'}`}>
                   {access ? 'backend connected' : 'checking backend'}
@@ -1951,7 +1953,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
                 </span>
                 <span className="px-2 py-0.5 rounded-capsule border border-border bg-fill text-muted">no campaign yet</span>
               </div>
-              {multiLab && !sessionId && onSignIn ? (
+              {multiLab && !authenticated && !sessionId && onSignIn ? (
                 <Button type="button" size="compact" data-testid="workbench-sign-in" onClick={onSignIn}>Sign in</Button>
               ) : onCreateCampaign ? (
                 <Button type="button" size="compact" onClick={onCreateCampaign} data-testid="workbench-create-campaign">

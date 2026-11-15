@@ -6234,3 +6234,18 @@ skipped is the exact failure this incident is about:
   `repo-counts.py --check`, `wiki-lint.py --strict`, `secret-scan.sh`, and
   `local-deployment-check.sh` all passed. Hosted CI on `e391a40c` was in progress
   at commit time (do not cite hosted CI as green until those runs finish).
+
+## [2026-11-15] verification | signed-in labels refresh
+
+- **Cause:** `/api/access` was fetched only at mount. Login updated the auth
+  store and session cookie, but the deployment/role snapshot stayed stale, so
+  the workbench kept rendering the multi-lab “sign in” empty state and the
+  pre-login `researcher` badge.
+- **Fix:** refresh `/api/access` on every auth-phase transition; after login,
+  refresh data, reload the selected campaign, or select the first available
+  campaign. Workbench now distinguishes deployment mode from auth state:
+  `authenticated` suppresses the sign-in copy/button and offers campaign
+  creation instead.
+- **Verification:** Workbench unit **32/32** (including signed-in multi-lab),
+  Console **794/794** across **147** files, browser **9/9**, tsc, ESLint,
+  build, token/colour/scale/theme/bundle/repo-counts clean.

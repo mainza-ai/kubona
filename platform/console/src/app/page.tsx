@@ -205,15 +205,19 @@ export default function Home() {
     setDataError(readError);
   }, [currentSessionId, localFailure, setLoops, setSessions]);
 
-  const prevAuthPhase = useRef(authPhase);
+  // /api/access is the deployment + role snapshot, not a live auth stream.
+  // Refresh it on every auth transition so the workbench/labels stop showing
+  // the pre-login role and deployment stance.
   useEffect(() => {
-    const previous = prevAuthPhase.current;
-    prevAuthPhase.current = authPhase;
-    if (authPhase === 'authenticated' && previous !== 'authenticated') {
-      loopsAuthHaltedRef.current = false;
-      void refreshData();
-    }
-  }, [authPhase, refreshData]);
+    let live = true;
+    fetchAccess().then((next) => {
+      if (live && next) setAccess(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [authPhase]);
+
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
@@ -236,6 +240,26 @@ export default function Home() {
     setCanvasWidget(null);
     setCurrentSessionId(id);
   }, []);
+
+  const prevAuthPhase = useRef(authPhase);
+  useEffect(() => {
+    const previous = prevAuthPhase.current;
+    prevAuthPhase.current = authPhase;
+    if (authPhase === 'authenticated' && previous !== 'authenticated') {
+      loopsAuthHaltedRef.current = false;
+      void (async () => {
+        await refreshData();
+        if (currentSessionId) {
+          await reloadCampaign();
+          return;
+        }
+        // A signed-in user with campaigns but no current selection should not
+        // sit on the "sign in" empty state. Select the first visible campaign.
+        const result = await fetchSessionsResult();
+        if (result.ok && result.sessions[0]) switchSession(result.sessions[0].id);
+      })();
+    }
+  }, [authPhase, currentSessionId, refreshData, reloadCampaign, switchSession]);
 
   // U2-a: an imported (or replayed) session becomes current — switch to
   // it and load its campaign, same as a fresh creation.
@@ -1485,6 +1509,7 @@ export default function Home() {
                 onCreateCampaign={handleCreateSession}
                 localMode={access?.anonymous_chat === true}
                 multiLab={access?.mode === 'multi_lab'}
+                authenticated={authPhase === 'authenticated' || bearerConfigured}
                 access={access}
                 onTaskStatus={(taskId, status) => { void handleTaskStatus(taskId, status); }}
                 onCloseObligation={(id) => handleCloseObligation(id)}

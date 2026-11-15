@@ -121,6 +121,21 @@ describe('Workbench', () => {
     expect(onSignIn).toHaveBeenCalledTimes(1);
   });
 
+  it('stops asking a signed-in multi-lab user to sign in', async () => {
+    const onCreateCampaign = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(
+        <Workbench campaign={null} multiLab authenticated onCreateCampaign={onCreateCampaign} />,
+      );
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Create or open a campaign');
+    expect(text).not.toContain('sign in to create or open');
+    expect(tree!.root.findAllByProps({ 'data-testid': 'workbench-sign-in' })).toHaveLength(0);
+    expect(tree!.root.findByProps({ 'data-testid': 'workbench-create-campaign' })).toBeTruthy();
+  });
+
   it('offers a first-campaign action and a sign-in action for auth refusals', async () => {
     const onCreateCampaign = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
