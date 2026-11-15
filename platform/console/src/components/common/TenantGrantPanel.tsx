@@ -12,7 +12,8 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 // cannot mint one. No grant-list endpoint exists yet: issue returns the id,
 // and revocation takes that id explicitly.
 export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
-  const [source, setSource] = useState(labs[0]?.id ?? '');
+  const [sourceState, setSource] = useState(labs[0]?.id ?? '');
+  const source = sourceState || labs[0]?.id || '';
   const [target, setTarget] = useState('');
   const [scope, setScope] = useState('read');
   const [hours, setHours] = useState('24');
@@ -21,10 +22,6 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const settlement = useWriteSettlement();
-
-  React.useEffect(() => {
-    setSource((cur) => cur || labs[0]?.id || '');
-  }, [labs]);
 
   const issue = async () => {
     setBusy(true);

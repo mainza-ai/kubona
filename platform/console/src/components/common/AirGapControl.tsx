@@ -15,12 +15,18 @@ export interface UseAirGapControlOptions {
 
 export function useAirGapControl(options: UseAirGapControlOptions = {}) {
   const [airGap, setAirGap] = useState<boolean | null>(options.initialValue ?? null);
+  const [prevInitial, setPrevInitial] = useState(options.initialValue);
+  if (options.initialValue !== prevInitial) {
+    setPrevInitial(options.initialValue);
+    if (typeof options.initialValue === 'boolean') {
+      setAirGap(options.initialValue);
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const write = useWriteSettlement();
 
   useEffect(() => {
     if (typeof options.initialValue === 'boolean') {
-      setAirGap(options.initialValue);
       return;
     }
     let live = true;

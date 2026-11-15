@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	EmbeddingDimensions  = 384
+	EmbeddingDimensions   = 384
 	LexicalEmbeddingModel = "lexical-hash-v1"
 )
 

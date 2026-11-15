@@ -13,7 +13,8 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 // creates a new key with a passphrase-encrypted PKCS#8 kit, registers the
 // new public key with the OLD key's signature, then commits the new key.
 export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
-  const [tenant, setTenant] = useState(labs[0]?.id ?? '');
+  const [tenantState, setTenant] = useState(labs[0]?.id ?? '');
+  const tenant = tenantState || labs[0]?.id || '';
   const [passphrase, setPassphrase] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [restorePass, setRestorePass] = useState('');
@@ -25,10 +26,6 @@ export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
   React.useEffect(() => {
     peekSignerPubkeyHex().then(setCurrentKey);
   }, []);
-
-  React.useEffect(() => {
-    setTenant((cur) => cur || labs[0]?.id || '');
-  }, [labs]);
 
   const rotate = async () => {
     setNotice(null);

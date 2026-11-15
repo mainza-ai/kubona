@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { refundSessionSpend } from '@/lib/api';
 import { signAdminActionWithCustody } from '@/lib/adminAction';
 import type { Lab, Session } from '@/types';
@@ -10,12 +10,8 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 // Audited session refund. The tenant admin envelope binds tenant, session,
 // amount, and reason; the server independently verifies the session's tenant.
 export function SessionRefundPanel({ labs, sessions }: { labs: Lab[]; sessions: Session[] }) {
-  const [sessionId, setSessionId] = useState(sessions[0]?.id ?? '');
-  useEffect(() => {
-    if (!sessionId && sessions[0]?.id) {
-      setSessionId(sessions[0].id);
-    }
-  }, [sessions, sessionId]);
+  const [sessionIdState, setSessionId] = useState(sessions[0]?.id ?? '');
+  const sessionId = sessionIdState || sessions[0]?.id || '';
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);

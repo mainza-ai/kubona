@@ -29,10 +29,19 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 // Refusals render the backend reason verbatim.
 export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => void }) {
   const [ceiling, setCeiling] = useState('');
-  const [autonomyDraft, setAutonomyDraft] = useState(lab.autonomy_level);
-  useEffect(() => {
-    setAutonomyDraft(lab.autonomy_level);
-  }, [lab.id, lab.autonomy_level]);
+  const [autonomyDraftState, setAutonomyDraftState] = useState<{
+    labId: string;
+    serverLevel: Lab['autonomy_level'];
+    draft: Lab['autonomy_level'];
+  } | null>(null);
+  const autonomyDraft =
+    autonomyDraftState &&
+    autonomyDraftState.labId === lab.id &&
+    autonomyDraftState.serverLevel === lab.autonomy_level
+      ? autonomyDraftState.draft
+      : lab.autonomy_level;
+  const setAutonomyDraft = (draft: Lab['autonomy_level']) =>
+    setAutonomyDraftState({ labId: lab.id, serverLevel: lab.autonomy_level, draft });
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeDraft, setRevokeDraft] = useState<string | null>(null);
   const [refundAmount, setRefundAmount] = useState('');
