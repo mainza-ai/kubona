@@ -679,14 +679,15 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     commitCameraNext(zoomCameraAtPoint(cameraRef.current, targetZoom, focal));
   }, [holdCanvas, viewport.width, viewport.height, commitCameraNext]);
 
-  const fitRect = useCallback((box: WorkbenchRect, minZoom?: number) => {
+  const fitRect = useCallback((box: WorkbenchRect, minZoom?: number): boolean => {
     setFollowLive(false);
     const host = hostRef.current;
-    if (!host) return;
+    if (!host) return false;
     const width = host.clientWidth;
     const height = host.clientHeight;
-    if (!width || !height) return;
+    if (!width || !height) return false;
     commitCameraNext(computeFitCamera(box, { width, height }, { minimapOpen, minZoom }));
+    return true;
   }, [commitCameraNext, minimapOpen]);
 
   const fit = useCallback(() => {
@@ -696,17 +697,14 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     fitRect(box);
   }, [filteredObjects, visibleObjects, fitRect]);
 
-  const frameInitialOrRecover = useCallback(() => {
+  const frameInitialOrRecover = useCallback((): boolean => {
     const active = filteredObjects.length > 0 ? filteredObjects : visibleObjects;
-    if (active.length === 0) return;
+    if (active.length === 0) return false;
     if (filter === 'all') {
       const spine = filterWorkbenchObjects(active, 'spine');
-      if (spine.length > 0) {
-        fitRect(layoutBounds(spine), 0.68);
-        return;
-      }
+      if (spine.length > 0) return fitRect(layoutBounds(spine), 0.68);
     }
-    fitRect(layoutBounds(active));
+    return fitRect(layoutBounds(active));
   }, [filteredObjects, visibleObjects, filter, fitRect]);
 
   const firstRecenterRef = useRef(recenterSignal);
@@ -862,14 +860,44 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
       needsVisibilityCheckRef.current = false;
       return;
     }
-    const rafId = requestAnimationFrame(() => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    const attempt = () => {
       if (heldRef.current || drag.current || cardDrag.current) return;
+      if (frameInitialOrRecover()) {
+        needsInitialFrameRef.current = false;
+        needsVisibilityCheckRef.current = false;
+        return;
+      }
+      // Hydration can arrive before the canvas host has a measurable width.
+      // Keep the flags armed and retry briefly instead of clearing them on a
+      // frame that could not commit.
+      attempts += 1;
+      if (attempts < 40) retryTimer = setTimeout(attempt, 50);
+    };
+    const rafId = requestAnimationFrame(attempt);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [sessionId, viewHydrated, viewMode, viewport, filteredObjects, frameInitialOrRecover]);
+
+  // Safety net for the hydration race: if the host/viewport settles while
+  // the saved camera still shows no card, frame once. Dependencies are
+  // settled layout inputs, not camera moves, so a deliberate user pan is not
+  // fought after load.
+  useEffect(() => {
+    if (!loaded.current || viewMode !== 'canvas' || filteredObjects.length === 0) return;
+    if (viewport.width <= 0 || viewport.height <= 0) return;
+    const timer = setTimeout(() => {
+      if (heldRef.current || drag.current || cardDrag.current) return;
+      if (cameraShowsAnyObject(cameraRef.current, viewport, filteredObjects)) return;
       needsInitialFrameRef.current = false;
       needsVisibilityCheckRef.current = false;
       frameInitialOrRecover();
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, [sessionId, viewHydrated, viewMode, viewport, filteredObjects, frameInitialOrRecover]);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [viewHydrated, viewMode, viewport, filteredObjects, frameInitialOrRecover]);
 
   const reloadLatest = useCallback(async () => {
     if (!sessionId) return;

@@ -6193,3 +6193,13 @@ skipped is the exact failure this incident is about:
   build. Live SSE probe against the rebuilt stack observed the tool loop with
   `: heartbeat` frames at 5s intervals and no provider error; the persisted
   local provider timeouts now read 120s for strata/ollama/omlx/lmstudio.
+
+## [2026-11-15] verification | workbench auto-frame race
+
+- The E2E exposed a real race: hydration could arm initial framing before the
+  canvas host had a measurable width, and the frame callback cleared the retry
+  flags even when it could not commit. The workbench now retries framing until
+  it succeeds and has a bounded post-hydration visibility safety net; a
+  deliberately panned camera is not disturbed after load.
+- Verified: the off-screen-camera E2E passed 5/5 consecutive runs and the full
+  workbench a11y suite 5/5; Workbench/workbench-model unit tests 73/73.
