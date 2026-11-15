@@ -184,24 +184,24 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
     >
       <div
         ref={modalRef}
-        className="w-full max-w-2xl bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-3xl shadow-[var(--shadow-float)] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-float border border-border-strong rounded-sheet shadow-[var(--shadow-float)] overflow-hidden transform transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl flex flex-col max-h-[90vh]"
       >
         {/* Apple-style Window Header */}
-        <div className="h-11 px-5 border-b border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between select-none shrink-0">
+        <div className="h-11 px-5 border-b border-border bg-surface flex items-center justify-between select-none shrink-0">
           <div className="flex items-center space-x-2">
             <button
               onClick={onClose}
               disabled={isSubmitting}
               aria-label="Close dialog"
-              className="w-3 h-3 rounded-full bg-[#FF5F56] hover:brightness-110 active:brightness-90 transition-all flex items-center justify-center group disabled:opacity-50"
+              className="w-3 h-3 rounded-capsule bg-[#FF5F56] hover:brightness-110 active:brightness-90 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-center group disabled:opacity-50"
             >
               <X className="w-2 h-2 text-black/70 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-75" />
-            <div className="w-3 h-3 rounded-full bg-[#27C93F] opacity-75" />
+            <div className="w-3 h-3 rounded-capsule bg-[#FFBD2E] opacity-75" />
+            <div className="w-3 h-3 rounded-capsule bg-[#27C93F] opacity-75" />
           </div>
-          <span className="text-xs font-semibold text-[var(--color-label-secondary)] font-sans tracking-wide flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+          <span className="text-label font-semibold text-label-secondary font-sans tracking-wide flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-accent-ink" />
             <span>New Scientific Research Campaign</span>
           </span>
           <div className="w-12" />
@@ -211,17 +211,17 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Header Introduction */}
           <div>
-            <h2 id="new-campaign-title" className="text-lg font-bold text-[var(--color-text)] tracking-tight">
+            <h2 id="new-campaign-title" className="text-subtitle font-bold text-text tracking-tight">
               Initiate Discovery Exploration
             </h2>
-            <p className="text-xs text-[var(--color-muted)] mt-1 leading-relaxed">
+            <p className="text-label text-muted mt-1 leading-relaxed">
               Configure your molecular target, establish classical ground truth anchors, and set sovereign guardrails.
             </p>
           </div>
 
           {/* Campaign Title / Hypothesis */}
           <div className="space-y-1.5">
-            <label htmlFor="new-campaign-title-input" className="block text-xs font-semibold text-[var(--color-text)]">
+            <label htmlFor="new-campaign-title-input" className="block text-label font-semibold text-text">
               Research Campaign Name / Hypothesis
             </label>
             <input
@@ -236,10 +236,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                 if (titleError) setTitleError(validateTitle(e.target.value));
               }}
               placeholder="e.g., Lithium Hydride Ground State Dissociation"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent-edge)] transition-all font-sans"
+              className="w-full px-3.5 py-2.5 rounded-row bg-field border border-border text-label text-text placeholder:text-faint focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent-edge transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] font-sans"
             />
             {titleError && (
-              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[12px] text-[var(--color-danger-ink)] font-sans">
+              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[12px] text-danger-ink font-sans">
                 {titleError}
               </p>
             )}
@@ -248,10 +248,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
           {/* Molecule Target Presets */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-[var(--color-text)]">
+              <label className="block text-label font-semibold text-text">
                 Target Chemical System
               </label>
-              <span className="text-[12px] text-[var(--color-muted)] font-mono">
+              <span className="text-[12px] text-muted font-mono">
                 PySCF ab-initio anchor available on run
               </span>
             </div>
@@ -264,24 +264,24 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                     key={p.id}
                     type="button"
                     onClick={() => handleSelectPreset(p)}
-                    className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between space-y-1 relative group ${
+                    className={`p-3 rounded-card border text-left transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex flex-col justify-between space-y-1 relative group ${
                       isSelected
-                        ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] ring-1 ring-[var(--color-info-edge)] text-[var(--color-text)] shadow-sm'
-                        : 'bg-[var(--color-card)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-label-secondary)]'
+                        ? 'bg-info-wash border-info-edge ring-1 ring-info-edge text-text shadow-sm'
+                        : 'bg-card hover:bg-fill-hover border-border hover:border-border-strong text-label-secondary'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold font-mono tracking-tight text-[var(--color-text)]">
+                      <span className="text-body-strong font-bold font-mono tracking-tight text-text">
                         {p.symbol}
                       </span>
-                      <span className="text-[12px] font-mono px-1.5 py-0.2 rounded bg-[var(--color-fill)] text-[var(--color-info-ink)]">
+                      <span className="text-[12px] font-mono px-1.5 py-0.2 rounded-chip bg-fill text-info-ink">
                         {p.qubits}q
                       </span>
                     </div>
-                    <div className="text-[12px] font-medium text-[var(--color-label-secondary)] truncate">
+                    <div className="text-[12px] font-medium text-label-secondary truncate">
                       {p.name}
                     </div>
-                    <div className="text-[12px] text-[var(--color-muted)] font-mono">
+                    <div className="text-[12px] text-muted font-mono">
                       R = {p.bondDist}
                     </div>
                   </button>
@@ -310,10 +310,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                   }
                 }}
                 placeholder="Or specify custom chemical formula or SMILES (e.g. HF, CH4, Caffeine)..."
-                className="w-full px-3.5 py-2 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent)] transition-all font-mono"
+                className="w-full px-3.5 py-2 rounded-row bg-field border border-border text-label text-text placeholder:text-faint focus:outline-none focus:border-accent transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] font-mono"
               />
               {moleculeError && (
-                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[12px] text-[var(--color-danger-ink)] font-sans">
+                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[12px] text-danger-ink font-sans">
                   {moleculeError}
                 </p>
               )}
@@ -321,13 +321,13 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
           </div>
 
           {/* Spend Budget Ceiling */}
-          <div className="p-4 rounded-2xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-semibold text-[var(--color-text)] flex items-center space-x-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+          <div className="p-4 rounded-card bg-card border border-border space-y-2">
+            <div className="flex justify-between items-center text-label">
+              <span className="font-semibold text-text flex items-center space-x-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-success-ink" />
                 <span>Spend Limit Mandate</span>
               </span>
-              <span className="font-mono text-[var(--color-success-ink)] font-bold text-xs">
+              <span className="font-mono text-success-ink font-bold text-label">
                 ${spendLimit.toFixed(2)} Maximum
               </span>
             </div>
@@ -339,10 +339,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               step="25"
               value={spendLimit}
               onChange={(e) => setSpendLimit(parseFloat(e.target.value))}
-              className="w-full h-2 bg-[var(--color-fill)] rounded-lg appearance-none cursor-pointer accent-[var(--color-success)] focus:outline-none"
+              className="w-full h-2 bg-fill rounded-control-compact appearance-none cursor-pointer accent-success focus:outline-none"
             />
 
-            <div className="flex justify-between text-[12px] text-[var(--color-muted)] font-mono">
+            <div className="flex justify-between text-[12px] text-muted font-mono">
               <span>$25.00</span>
               <span>$100.00 (Standard)</span>
               <span>$250.00</span>
@@ -351,18 +351,18 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
           {/* Server refusal (verbatim, modal stays open) */}
           {submitError && (
-            <div role="alert" data-testid="campaign-create-error" className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs">
+            <div role="alert" data-testid="campaign-create-error" className="p-3 rounded-row bg-danger-wash border border-danger-edge text-danger-ink text-label">
               Campaign creation refused — nothing created ({submitError}).
             </div>
           )}
 
           {/* Form Actions Footer */}
-          <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between">
+          <div className="pt-2 border-t border-border flex items-center justify-between">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all disabled:opacity-50"
+              className="px-4 py-2 rounded-row text-label font-medium text-label-secondary hover:text-text hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-50"
             >
               Cancel
             </button>
@@ -370,7 +370,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold flex items-center space-x-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-row bg-accent hover:bg-lit text-on-accent text-label font-semibold flex items-center space-x-2 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-lg active:scale-95 disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Creating Campaign...' : 'Create Research Campaign'}</span>

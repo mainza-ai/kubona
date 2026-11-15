@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { EpistemicTribunalRoom } from './EpistemicTribunalRoom';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { CONSEQUENTIAL_SETTLE_MS } from '@/lib/consequential';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -161,6 +162,12 @@ describe('EpistemicTribunalRoom ledger-commit typed gate (Wave-2)', () => {
     expect(gateConfirm(gateOf(tree)).props.disabled).toBe(true);
     await act(async () => {
       gateOf(tree).findByType('input').props.onChange({ target: { value: 'sess-123' } });
+    });
+    // Exact id is necessary but not sufficient: the settle window keeps a
+    // focus-and-Enter on open from committing the ledger entry.
+    expect(gateConfirm(gateOf(tree)).props.disabled).toBe(true);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, CONSEQUENTIAL_SETTLE_MS + 60));
     });
     expect(gateConfirm(gateOf(tree)).props.disabled).not.toBe(true);
     await act(async () => {

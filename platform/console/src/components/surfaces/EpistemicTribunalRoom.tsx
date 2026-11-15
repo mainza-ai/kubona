@@ -122,7 +122,7 @@ export function EpistemicTribunalRoom({
         name: 'Ansatz Scout',
         role: 'ansatz_scout',
         avatar_emoji: '🌌',
-        badge_color: 'border-[var(--color-info-edge)] text-[var(--color-info-ink)] bg-[var(--color-info-wash)]',
+        badge_color: 'border-info-edge text-info-ink bg-info-wash',
         description: 'Proposes active space partitioning and low-depth variational quantum circuits.',
         thinking_horizon_seconds: 180,
       },
@@ -136,7 +136,7 @@ export function EpistemicTribunalRoom({
         name: 'Disconfirmation Officer',
         role: 'disconfirmation_officer',
         avatar_emoji: '⚔️',
-        badge_color: 'border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] bg-[var(--color-danger-wash)]',
+        badge_color: 'border-danger-edge text-danger-ink bg-danger-wash',
         description: 'Red-teams claims against classical anchors, probes barren plateaus, enforces realism.',
         thinking_horizon_seconds: 240,
       },
@@ -150,7 +150,7 @@ export function EpistemicTribunalRoom({
         name: 'Device Auditor',
         role: 'device_auditor',
         avatar_emoji: '⚖️',
-        badge_color: 'border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] bg-[var(--color-warning-wash)]',
+        badge_color: 'border-warning-edge text-warning-ink bg-warning-wash',
         description: 'Audits hardware noise models, canary probe fidelity, and shot-budget financial caps.',
         thinking_horizon_seconds: 120,
       },
@@ -164,7 +164,7 @@ export function EpistemicTribunalRoom({
         name: 'Epistemic Scribe',
         role: 'epistemic_scribe',
         avatar_emoji: '📐',
-        badge_color: 'border-[var(--color-success-edge)] text-[var(--color-success-ink)] bg-[var(--color-success-wash)]',
+        badge_color: 'border-success-edge text-success-ink bg-success-wash',
         description: 'Synthesizes supermajority consensus, collapses credibility wavefunctions, mints AP2 proposal.',
         thinking_horizon_seconds: 360,
       },
@@ -306,26 +306,26 @@ export function EpistemicTribunalRoom({
   return (
     <div className="space-y-6">
       {/* Header & Chamber Overview */}
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-surface border border-border rounded-row p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-[var(--color-soft-indigo-wash)] text-[var(--color-accent-ink)] border border-[var(--color-soft-indigo-edge)]">
+            <span className="p-1.5 rounded-control-compact bg-soft-indigo-wash text-accent-ink border border-soft-indigo-edge">
               <Scale className="w-5 h-5" />
             </span>
-            <h2 className="text-xl font-bold text-[var(--color-text)] tracking-wide">
+            <h2 className="text-title-small font-bold text-text tracking-wide">
               Epistemic Tribunal Room & Swarm Deliberation
             </h2>
-            <span className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded-full border ${
+            <span className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded-capsule border ${
               isSimulating
-                ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)] animate-pulse'
+                ? 'bg-info-wash border-info-edge text-info-ink animate-pulse'
                 : turns
-                  ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
-                  : 'bg-[var(--color-tile)] border-[var(--color-border)] text-[var(--color-muted)]'
+                  ? 'bg-success-wash border-success-edge text-success-ink'
+                  : 'bg-tile border-border text-muted'
             }`}>
               {isSimulating ? 'Deliberating…' : turns ? 'Chamber Live' : 'Chamber Idle'}
             </span>
           </div>
-          <p className="text-xs text-[var(--color-muted)]">
+          <p className="text-label text-muted">
             Adversarial multi-agent deliberation chamber evaluating candidate discoveries under formal Lean 4 axioms,
             quantum advantage realism, and calibrated supermajority consensus.
           </p>
@@ -335,16 +335,16 @@ export function EpistemicTribunalRoom({
           <button
             onClick={handleRunDeliberation}
             disabled={isSimulating}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] text-xs text-[var(--color-text)] border border-[var(--color-border)] transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-control-compact bg-tile hover:bg-fill-hover text-label text-text border border-border transition"
           >
             {isSimulating ? (
               <>
-                <RotateCcw className="w-3.5 h-3.5 animate-spin text-[var(--color-info-ink)]" />
+                <RotateCcw className="w-3.5 h-3.5 animate-spin text-info-ink" />
                 <span>Deliberating...</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 text-[var(--color-info-ink)]" />
+                <Play className="w-3.5 h-3.5 text-info-ink" />
                 <span>Rerun Tribunal</span>
               </>
             )}
@@ -360,12 +360,12 @@ export function EpistemicTribunalRoom({
               setCommitOpen(true);
             }}
             disabled={quorumPercent == null || quorumPercent < 75.0 || committedReceipt !== null || isCommitting}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-control-compact text-label font-semibold border transition ${
               committedReceipt
-                ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border-[var(--color-success-edge)] cursor-default'
+                ? 'bg-success-wash text-success-ink border-success-edge cursor-default'
                 : quorumPercent != null && quorumPercent >= 75.0
-                ? 'bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] border-[var(--color-accent-edge)] shadow-sm'
-                : 'bg-[var(--color-tile)] text-[var(--color-faint)] border-[var(--color-border)] cursor-not-allowed'
+                ? 'bg-accent hover:bg-lit text-on-accent border-accent-edge shadow-sm'
+                : 'bg-tile text-faint border-border cursor-not-allowed'
             }`}
           >
             <FileCheck className="w-4 h-4" />
@@ -378,10 +378,10 @@ export function EpistemicTribunalRoom({
             onClick={handleSynthesizeCampaign}
             disabled={quorumPercent == null || quorumPercent < 75.0 || isSynthesizing}
             title={quorumPercent == null || quorumPercent < 75.0 ? 'Needs supermajority consensus (≥ 75%) first' : 'Formulate campaign state from this deliberation'}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-control-compact text-label font-semibold border transition ${
               quorumPercent != null && quorumPercent >= 75.0
-                ? 'bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] border-[var(--color-accent-edge)] shadow-sm'
-                : 'bg-[var(--color-tile)] text-[var(--color-faint)] border-[var(--color-border)] cursor-not-allowed'
+                ? 'bg-accent hover:bg-lit text-on-accent border-accent-edge shadow-sm'
+                : 'bg-tile text-faint border-border cursor-not-allowed'
             }`}
           >
             <Sparkles className="w-4 h-4" />
@@ -390,14 +390,14 @@ export function EpistemicTribunalRoom({
         </div>
       </div>
       {synthNotice && (
-        <div className="rounded-xl border border-[var(--color-info-edge)] bg-[var(--color-info-wash)] px-4 py-2 text-xs text-[var(--color-info-ink)]" role="status">
+        <div className="rounded-row border border-info-edge bg-info-wash px-4 py-2 text-label text-info-ink" role="status">
           {synthNotice}
         </div>
       )}
 
       {/* 5-Phase Tribunal Protocol Progression */}
-      <div className="bg-[var(--color-tile)] border border-[var(--color-border)] rounded-xl p-4">
-        <div className="text-xs font-mono text-[var(--color-muted)] uppercase tracking-wider mb-3">
+      <div className="bg-tile border border-border rounded-row p-4">
+        <div className="text-label font-mono text-muted uppercase tracking-wider mb-3">
           Tribunal Phase Progression Protocol (Axis B)
         </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -407,26 +407,26 @@ export function EpistemicTribunalRoom({
             return (
               <div
                 key={p.num}
-                className={`p-3 rounded-lg border transition ${
+                className={`p-3 rounded-control-compact border transition ${
                   isCurrent
-                    ? 'bg-[var(--color-soft-indigo-wash)] border-[var(--color-accent-edge)] shadow-sm'
+                    ? 'bg-soft-indigo-wash border-accent-edge shadow-sm'
                     : isDone
-                    ? 'bg-[var(--color-surface)] border-[var(--color-success-edge)]'
-                    : 'bg-[var(--color-surface)] border-[var(--color-border)] opacity-60'
+                    ? 'bg-surface border-success-edge'
+                    : 'bg-surface border-border opacity-60'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[12px] font-mono text-[var(--color-muted)]">Phase {p.num}</span>
+                  <span className="text-[12px] font-mono text-muted">Phase {p.num}</span>
                   {isDone ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-success-ink" />
                   ) : isCurrent ? (
-                    <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)] animate-pulse" />
+                    <Sparkles className="w-3.5 h-3.5 text-accent-ink animate-pulse" />
                   ) : (
-                    <span className="w-2 h-2 rounded-full bg-[var(--color-faint)]" />
+                    <span className="w-2 h-2 rounded-capsule bg-faint" />
                   )}
                 </div>
-                <div className="text-xs font-bold text-[var(--color-text)] mb-0.5">{p.label}</div>
-                <div className="text-[12px] text-[var(--color-muted)] leading-tight">{p.desc}</div>
+                <div className="text-label font-bold text-text mb-0.5">{p.label}</div>
+                <div className="text-[12px] text-muted leading-tight">{p.desc}</div>
               </div>
             );
           })}
@@ -434,15 +434,15 @@ export function EpistemicTribunalRoom({
       </div>
 
       {/* Active Candidate Hypothesis Card */}
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4">
+      <div className="bg-surface border border-border rounded-row p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
+            <span className="text-label font-mono px-2 py-0.5 rounded-chip bg-info-wash text-info-ink border border-info-edge">
               {effectiveHypothesisId}
             </span>
-            <span className="text-xs font-semibold text-[var(--color-text)]">Target: {effectiveTarget}</span>
+            <span className="text-label font-semibold text-text">Target: {effectiveTarget}</span>
           </div>
-          <div className="flex items-center gap-3 text-xs text-[var(--color-muted)] font-mono">
+          <div className="flex items-center gap-3 text-label text-muted font-mono">
             <span>{turns ? `${turns.length} live turns` : 'no deliberation yet'}</span>
           </div>
         </div>
@@ -454,49 +454,49 @@ export function EpistemicTribunalRoom({
             aria-label="Deliberation topic"
             placeholder="Deliberation topic…"
             maxLength={200}
-            className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] font-mono focus:outline-none focus:border-[var(--color-accent-edge)]"
+            className="flex-1 min-w-[220px] px-3 py-1.5 rounded-control-compact bg-field border border-border text-label text-text font-mono focus:outline-none focus:border-accent-edge"
           />
         </div>
         {delibError && (
-          <div className="p-3 bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] rounded-xl flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-[var(--color-danger-ink)] shrink-0" />
-            <span className="text-xs text-[var(--color-danger-ink)]"><strong>Deliberation failed:</strong> {delibError} Nothing was recorded.</span>
+          <div className="p-3 bg-danger-wash border border-danger-edge rounded-row flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-danger-ink shrink-0" />
+            <span className="text-label text-danger-ink"><strong>Deliberation failed:</strong> {delibError} Nothing was recorded.</span>
           </div>
         )}
 
         {turns ? (
-          <div className="bg-[var(--color-tile)] border border-[var(--color-border)] rounded-lg p-3 font-mono text-xs text-[var(--color-label-secondary)]">
-            <div className="text-[var(--color-muted)] mb-1">Deliberation record ({turns.length} turns):</div>
+          <div className="bg-tile border border-border rounded-control-compact p-3 font-mono text-label text-label-secondary">
+            <div className="text-muted mb-1">Deliberation record ({turns.length} turns):</div>
             {turns.map((t, i) => (
-              <div key={i} className="py-1 border-t border-[var(--color-border)] first:border-0">
-                <span className="text-[var(--color-info-ink)]">[{t.role}]</span>{' '}
-                <span className="text-[var(--color-label-secondary)]">{t.content.slice(0, 220)}{t.content.length > 220 ? '…' : ''}</span>
+              <div key={i} className="py-1 border-t border-border first:border-0">
+                <span className="text-info-ink">[{t.role}]</span>{' '}
+                <span className="text-label-secondary">{t.content.slice(0, 220)}{t.content.length > 220 ? '…' : ''}</span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="bg-[var(--color-tile)] border border-[var(--color-border)] rounded-lg p-3 font-mono text-xs text-[var(--color-faint)]">
+          <div className="bg-tile border border-border rounded-control-compact p-3 font-mono text-label text-faint">
             No deliberation record — convene the tribunal to fill this chamber.
           </div>
         )}
       </div>
 
       {/* Quorum Consensus Gauge */}
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-surface border border-border rounded-row p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <div className="text-xs font-mono text-[var(--color-muted)] uppercase tracking-wider">
+          <div className="text-label font-mono text-muted uppercase tracking-wider">
             Supermajority Quorum Consensus
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold font-mono text-[var(--color-success-ink)]">{quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'}</span>
-            <span className="text-xs text-[var(--color-muted)]">
+            <span className="text-title-large font-bold font-mono text-success-ink">{quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'}</span>
+            <span className="text-label text-muted">
               (Supermajority threshold: 75.0% required to commit discovery to Merkle ledger)
             </span>
           </div>
         </div>
 
         <div
-          className="w-full md:w-64 bg-[var(--color-tile)] rounded-full h-3 overflow-hidden border border-[var(--color-border)]"
+          className="w-full md:w-64 bg-tile rounded-capsule h-3 overflow-hidden border border-border"
           role="progressbar"
           aria-label="Tribunal quorum consensus"
           aria-valuenow={quorumPercent != null ? Math.round(quorumPercent * 10) / 10 : 0}
@@ -504,7 +504,7 @@ export function EpistemicTribunalRoom({
           aria-valuemax={100}
         >
           <div
-            className="bg-[var(--color-success)] h-full rounded-full transition-all duration-500"
+            className="bg-success h-full rounded-capsule transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-500"
             style={{ width: `${quorumPercent != null ? Math.min(quorumPercent, 100) : 0}%` }}
           />
         </div>
@@ -516,8 +516,8 @@ export function EpistemicTribunalRoom({
           title="Commit discovery to Merkle ledger?"
           body={
             <span>
-              Seal hypothesis <strong className="font-mono text-[var(--color-text)]">{effectiveHypothesisId}</strong> for target{' '}
-              <strong className="text-[var(--color-text)]">{effectiveTarget}</strong> at quorum{' '}
+              Seal hypothesis <strong className="font-mono text-text">{effectiveHypothesisId}</strong> for target{' '}
+              <strong className="text-text">{effectiveTarget}</strong> at quorum{' '}
               {quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'} (session{' '}
               <code className="font-mono">{commitRequireText}</code>). Ledger-sealed and irreversible.
             </span>
@@ -538,15 +538,15 @@ export function EpistemicTribunalRoom({
 
       {/* Committed Receipt Notice */}
       {committedReceipt && (
-        <div className="p-3.5 bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] rounded-xl flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-[var(--color-success-ink)]">
-            <CheckCircle2 className="w-4 h-4 text-[var(--color-success-ink)] shrink-0" />
+        <div className="p-3.5 bg-success-wash border border-success-edge rounded-row flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-label text-success-ink">
+            <CheckCircle2 className="w-4 h-4 text-success-ink shrink-0" />
             <span>
               <strong>Discovery Committed to Merkle Ledger:</strong> Receipt SHA256:{' '}
-              <code className="font-mono text-[var(--color-text)]">{committedReceipt}</code>
+              <code className="font-mono text-text">{committedReceipt}</code>
             </span>
           </div>
-          <span className="text-[12px] font-mono uppercase px-2 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]">
+          <span className="text-[12px] font-mono uppercase px-2 py-0.5 rounded-chip bg-surface text-success-ink border border-success-edge">
             Quorum-sealed · server receipt
           </span>
         </div>
@@ -555,9 +555,9 @@ export function EpistemicTribunalRoom({
       {/* Commit Failure Notice (only when the gate dialog is closed —
           while open, the refusal lives in the dialog error slot) */}
       {commitError && !committedReceipt && !commitOpen && (
-        <div className="p-3.5 bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] rounded-xl flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-[var(--color-danger-ink)] shrink-0" />
-          <span className="text-xs text-[var(--color-danger-ink)]">
+        <div className="p-3.5 bg-danger-wash border border-danger-edge rounded-row flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-danger-ink shrink-0" />
+          <span className="text-label text-danger-ink">
             <strong>Ledger commit failed:</strong> {commitError} Nothing was recorded.
           </span>
         </div>
@@ -568,25 +568,25 @@ export function EpistemicTribunalRoom({
         {filledSeats.map((item) => (
           <div
             key={item.persona.id}
-            className="bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition rounded-xl p-4 flex flex-col justify-between"
+            className="bg-surface border border-border hover:border-border-strong transition rounded-row p-4 flex flex-col justify-between"
           >
             <div>
               {/* Persona Header */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">{item.persona.avatar_emoji}</span>
+                  <span className="text-title-small">{item.persona.avatar_emoji}</span>
                   <div>
-                    <h3 className="text-xs font-bold text-[var(--color-text)] leading-tight">{item.persona.name}</h3>
-                    <span className="text-[12px] font-mono text-[var(--color-faint)]">{item.persona.role}</span>
+                    <h3 className="text-label font-bold text-text leading-tight">{item.persona.name}</h3>
+                    <span className="text-[12px] font-mono text-faint">{item.persona.role}</span>
                   </div>
                 </div>
                 <span
-                  className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded border ${
+                  className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded-chip border ${
                     item.vote === 'corroborated'
-                      ? 'border-[var(--color-success-edge)] text-[var(--color-success-ink)] bg-[var(--color-success-wash)]'
+                      ? 'border-success-edge text-success-ink bg-success-wash'
                       : item.vote === 'pending'
-                        ? 'border-[var(--color-border)] text-[var(--color-muted)] bg-[var(--color-tile)]'
-                        : 'border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] bg-[var(--color-danger-wash)]'
+                        ? 'border-border text-muted bg-tile'
+                        : 'border-danger-edge text-danger-ink bg-danger-wash'
                   }`}
                 >
                   {item.vote}
@@ -594,17 +594,17 @@ export function EpistemicTribunalRoom({
               </div>
 
               {/* Seat statement: live turn content, or an honest empty seat */}
-              <div className="p-2.5 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] leading-relaxed my-2">
-                {item.statement ?? <span className="text-[var(--color-faint)] font-mono">— awaiting deliberation</span>}
+              <div className="p-2.5 rounded-control-compact bg-tile border border-border text-label text-label-secondary leading-relaxed my-2">
+                {item.statement ?? <span className="text-faint font-mono">— awaiting deliberation</span>}
               </div>
             </div>
 
             {/* Seat footer */}
-            <div className="pt-2 border-t border-[var(--color-border)] flex items-center justify-between text-[12px] font-mono text-[var(--color-muted)]">
+            <div className="pt-2 border-t border-border flex items-center justify-between text-[12px] font-mono text-muted">
               <div className="flex items-center gap-1">
                 <span>{item.statement ? 'live turn' : 'seat empty'}</span>
               </div>
-              <div className="text-[var(--color-faint)] truncate max-w-[120px]">{item.persona.id}</div>
+              <div className="text-faint truncate max-w-[120px]">{item.persona.id}</div>
             </div>
           </div>
         ))}

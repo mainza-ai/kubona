@@ -1,5 +1,6 @@
 'use client';
 
+import { CitationBadge } from '@/components/common/CitationBadge';
 import React, { useState, useEffect, useRef, useMemo, useImperativeHandle } from 'react';
 import {
   Sparkles,
@@ -39,6 +40,7 @@ import { Tip } from './common/Tip';
 import { MemoryPanel } from './MemoryPanel';
 import ConfirmDialog from './common/ConfirmDialog';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
+import { prefersReducedMotion } from '@/lib/motion';
 
 interface CopilotDrawerProps {
   sessionId: string;
@@ -154,7 +156,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTo({
         top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
       });
     }
   }, [messages, loading, runningTribunal]);
@@ -203,7 +205,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     const next = (searchIndex + dir + matchedIds.length) % matchedIds.length;
     setSearchIndex(next);
     requestAnimationFrame(() => {
-      messageRefs.current[matchedIds[next]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      messageRefs.current[matchedIds[next]]?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
     });
   };
 
@@ -260,11 +262,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       if (m.role !== 'user' && !m.tribunal && typeof m.content === 'string' && m.content.includes('Notice]')) {
         return (
           <div
-            className="w-full max-w-[95%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-warning-edge)] p-3 space-y-1.5"
+            className="w-full max-w-[95%] rounded-card bg-surface border border-warning-edge p-3 space-y-1.5"
             aria-label="No proposal — model unavailable"
           >
-            <div className="text-[12px] font-code text-[var(--color-warning)]">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
-            <p className="text-[12px] text-[var(--color-label-secondary)]">
+            <div className="text-[12px] font-code text-warning">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
+            <p className="text-[12px] text-label-secondary">
               Nothing was dispatched. Classical paths still work: open Autonomy Cockpit → Simulate Offline (needs a campaign with QASM), or ask about H₂ / LiH / BeH₂ / VQE for server-side scaffolding.
             </p>
           </div>
@@ -276,31 +278,31 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     const note = launchedNote[m.id];
     const jobId = launchedJobs[m.id];
     return (
-      <div className="w-full max-w-[95%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] p-3 space-y-2">
-        <div className="flex items-center gap-1.5 text-[12px] font-code text-[var(--color-accent-ink)]">
+      <div className="w-full max-w-[95%] rounded-card bg-surface border border-accent-edge p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-code text-accent-ink">
           <span>✦</span>
-          <span>LAUNCHABLE PROPOSAL</span>
+          <span>{m.proposal_error ? 'PROPOSAL · NOT LAUNCHABLE' : 'LAUNCHABLE PROPOSAL'}</span>
           {p.designed_by === 'server-fallback' && (
             <span
-              className="ml-auto px-1.5 py-0.5 rounded bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning)]"
+              className="ml-auto px-1.5 py-0.5 rounded-chip bg-warning-wash border border-warning-edge text-warning"
               title="Circuit synthesized by the server as scaffolding, not designed by the model — review before launch"
             >
               SERVER FALLBACK
             </span>
           )}
         </div>
-        <div className="text-xs text-[var(--color-text)] font-medium">{p.target}</div>
-        <div className="grid grid-cols-2 gap-2 text-[12px] font-code text-[var(--color-muted)]">
+        <div className="text-label text-text font-medium">{p.target}</div>
+        <div className="grid grid-cols-2 gap-2 text-[12px] font-code text-muted">
           <div>
-            <span className="text-[var(--color-faint)] block">Tier</span>
-            <span className="text-[var(--color-accent-ink)]">{p.recommended_tier}</span>
+            <span className="text-faint block">Tier</span>
+            <span className="text-accent-ink">{p.recommended_tier}</span>
           </div>
           <div>
-            <span className="text-[var(--color-faint)] block">Spend</span>
-            <span className="text-[var(--color-warning)]">{p.spend_estimate}</span>
+            <span className="text-faint block">Spend</span>
+            <span className="text-warning">{p.spend_estimate}</span>
           </div>
         </div>
-        <div className="text-[12px] font-code text-[var(--color-faint)] truncate" title={p.classical_anchor}>
+        <div className="text-[12px] font-code text-faint truncate" title={p.classical_anchor}>
           anchor · {p.classical_anchor}
         </div>
         {note ? (
@@ -308,20 +310,29 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               onClick={() => chat.onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId, m.session_id)}
               title="Open full job detail (params, counts, result)"
-              className="w-full text-left text-[12px] font-code text-[var(--color-success)] hover:bg-[var(--color-fill)] rounded-lg px-1.5 py-1 transition-all"
+              className="w-full text-left text-[12px] font-code text-success hover:bg-fill rounded-control-compact px-1.5 py-1 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
             >
               {note} →
             </button>
           ) : (
-            <div className="text-[12px] font-code text-[var(--color-success)]">{note}</div>
+            <div className="text-[12px] font-code text-success">{note}</div>
           )
+        ) : m.proposal_error ? (
+          // B1: a plan the server cannot price or route honestly stays
+          // display-only. No button, no default budget, no fabricated launch.
+          <div
+            role="status"
+            className="rounded-control-compact border border-warning-edge bg-warning-wash px-2 py-1.5 text-[12px] text-warning-ink"
+          >
+            This plan is not launchable: {m.proposal_error}
+          </div>
         ) : (
           <button
-            onClick={() => void chat.launchProposal(m.id, p)}
+            onClick={() => void chat.launchProposal(m)}
             disabled={launchingId === m.id}
-            className="w-full py-1.5 px-3 rounded-xl bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold transition-all disabled:opacity-50"
+            className="w-full py-1.5 px-3 rounded-row bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-50"
           >
-            {launchingId === m.id ? 'Dispatching…' : 'Launch on local simulator'}
+            {launchingId === m.id ? 'Dispatching…' : 'Launch plan'}
           </button>
         )}
       </div>
@@ -329,19 +340,19 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--color-chrome)] text-[var(--color-text)] font-sovereign overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-chrome text-text font-sovereign overflow-hidden">
       {/* Header: Kubona Copilot identity */}
-      <div className="px-3.5 sm:px-5 py-3 sm:py-4 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0">
+      <div className="px-3.5 sm:px-5 py-3 sm:py-4 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-[11rem]">
-          <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-accent-ink)] shrink-0" />
+          <div className="w-2.5 h-2.5 rounded-capsule bg-accent-ink shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-[var(--color-text)] tracking-wide flex flex-wrap items-center gap-1.5">
+            <div className="text-label font-semibold text-text tracking-wide flex flex-wrap items-center gap-1.5">
               <span>KUBONA COPILOT</span>
-              <span className="px-1.5 py-0.5 rounded bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)] font-code text-[12px]">
+              <span className="px-1.5 py-0.5 rounded-chip bg-accent-soft text-accent-ink font-code text-[12px]">
                 {streamingId ? 'STREAMING' : runningTribunal ? 'DELIBERATING' : 'READY'}
               </span>
             </div>
-            <div className="text-[12px] text-[var(--color-muted)] truncate" title={`Target: ${targetDisplayName} · Δ = ${discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}`}>
+            <div className="text-[12px] text-muted truncate" title={`Target: ${targetDisplayName} · Δ = ${discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}`}>
               Target: {targetDisplayName} · Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
             </div>
           </div>
@@ -352,10 +363,10 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               onClick={() => setSearchOpen((v) => !v)}
               aria-label="Search this conversation"
-              className={`p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+              className={`p-1.5 rounded-control-compact transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
                 searchOpen
-                  ? 'text-[var(--color-accent-ink)] bg-[var(--color-fill)]'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)]'
+                  ? 'text-accent-ink bg-fill'
+                  : 'text-muted hover:text-text hover:bg-fill-hover'
               }`}
             >
               <Search className="w-3.5 h-3.5" />
@@ -367,7 +378,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               onClick={exportTranscript}
               aria-label="Export transcript"
               disabled={messages.length === 0}
-              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              className="p-1.5 rounded-control-compact text-muted hover:text-text hover:bg-fill-hover transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             >
               <Download className="w-3.5 h-3.5" />
             </button>
@@ -378,7 +389,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               onClick={() => void chat.regenerate()}
               aria-label="Regenerate last answer"
               disabled={regenerating || loading || runningTribunal || !canRegenerate}
-              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              className="p-1.5 rounded-control-compact text-muted hover:text-text hover:bg-fill-hover transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             >
               <RotateCcw className={`w-3.5 h-3.5 ${regenerating ? 'animate-spin' : ''}`} />
             </button>
@@ -391,7 +402,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               }}
               aria-label="Clear chat history"
               disabled={clearing || loading || runningTribunal || messages.length === 0}
-              className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-soft-rose-wash)] transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] focus-visible:outline-none"
+              className="p-1.5 rounded-control-compact text-muted hover:text-danger hover:bg-soft-rose-wash transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-danger focus-visible:outline-none"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -401,9 +412,9 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               onClick={handleToggleExpand}
               aria-label={isExpanded ? 'Contract to Side Dock' : 'Expand to Spatial Salon'}
-              className="hidden lg:inline-flex p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+              className="hidden lg:inline-flex p-1.5 rounded-control-compact text-muted hover:text-text hover:bg-fill-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
             >
-              {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />}
+              {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-accent-ink" />}
             </button>
           </Tip>
 
@@ -412,7 +423,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               <button
                 onClick={onClose}
                 aria-label="Close Copilot (⌘J)"
-                className="p-1.5 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                className="p-1.5 rounded-control-compact text-muted hover:text-text hover:bg-fill-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
               >
                 <PanelRightClose className="w-3.5 h-3.5" />
               </button>
@@ -422,17 +433,17 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       </div>
 
       {/* Active Scientific Focus Ribbon */}
-      <div className="mx-5 mt-3 px-3 py-2 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex flex-wrap items-center justify-between gap-2 text-[12px] font-code shrink-0 min-w-0">
-        <div className="flex items-center gap-2 text-[var(--color-label-secondary)] min-w-0 flex-1">
-          <span className="text-[var(--color-accent-ink)] font-bold shrink-0">TARGET:</span>
+      <div className="mx-5 mt-3 px-3 py-2 rounded-row bg-surface border border-border flex flex-wrap items-center justify-between gap-2 text-[12px] font-code shrink-0 min-w-0">
+        <div className="flex items-center gap-2 text-label-secondary min-w-0 flex-1">
+          <span className="text-accent-ink font-bold shrink-0">TARGET:</span>
           <span className="truncate" title={targetDisplayName}>{targetDisplayName}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span
-            className="w-1.5 h-1.5 rounded-full"
+            className="w-1.5 h-1.5 rounded-capsule"
             style={{ background: isChemicalAccuracyMet ? 'var(--color-success)' : 'var(--color-warning)' }}
           />
-          <span className={isChemicalAccuracyMet ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'}>
+          <span className={isChemicalAccuracyMet ? 'text-success' : 'text-warning'}>
             Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
           </span>
         </div>
@@ -440,8 +451,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
       {/* In-chat search bar */}
       {searchOpen && (
-        <div className="mx-5 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] shrink-0">
-          <Search className="w-3.5 h-3.5 text-[var(--color-faint)] shrink-0" />
+        <div className="mx-5 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-row bg-field border border-border shrink-0">
+          <Search className="w-3.5 h-3.5 text-faint shrink-0" />
           <input
             autoFocus
             value={searchQuery}
@@ -455,18 +466,18 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               if (e.key === 'Escape') setSearchOpen(false);
             }}
             placeholder="Find in conversation…"
-            className="flex-1 min-w-0 bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-label text-text placeholder:text-faint focus:outline-none"
           />
-          <span className="text-[12px] font-code text-[var(--color-muted)] shrink-0">
+          <span className="text-[12px] font-code text-muted shrink-0">
             {matchedIds.length === 0 ? '0' : `${searchIndex + 1}/${matchedIds.length}`}
           </span>
           <Tip label="Previous match" position="top">
-            <button onClick={() => jumpToMatch(-1)} aria-label="Previous match" className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]">
+            <button onClick={() => jumpToMatch(-1)} aria-label="Previous match" className="p-0.5 text-muted hover:text-text">
               <ChevronUp className="w-3.5 h-3.5" />
             </button>
           </Tip>
           <Tip label="Next match" position="top">
-            <button onClick={() => jumpToMatch(1)} aria-label="Next match" className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]">
+            <button onClick={() => jumpToMatch(1)} aria-label="Next match" className="p-0.5 text-muted hover:text-text">
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
           </Tip>
@@ -477,7 +488,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                 setSearchQuery('');
               }}
               aria-label="Close search"
-              className="p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)]"
+              className="p-0.5 text-muted hover:text-text"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -488,11 +499,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       {/* Messages Feed */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-thin">
         {messages.length === 0 && (
-          <div className="p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] text-[var(--color-muted)] leading-relaxed">
+          <div className="p-3 rounded-row bg-surface border border-border text-[12px] text-muted leading-relaxed">
             {campaign ? (
               <div className="space-y-1.5">
                 <p>
-                  <span className="text-[var(--color-text)] font-medium">Campaign context:</span> {targetDisplayName}.
+                  <span className="text-text font-medium">Campaign context:</span> {targetDisplayName}.
                 </p>
                 <p>
                   {campaign.epistemics?.status === 'COLLAPSED_VERIFIED' && campaign.notebook
@@ -505,7 +516,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   <button
                     type="button"
                     onClick={() => onSelectSurface('surface7')}
-                    className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] transition-colors"
+                    className="px-2.5 py-1 rounded-control-compact bg-accent-soft border border-accent-edge text-accent-ink text-[12px] hover:bg-accent hover:text-on-accent transition-colors"
                   >
                     Open Results
                   </button>
@@ -518,7 +529,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   <button
                     type="button"
                     onClick={onCreateCampaign}
-                    className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] transition-colors"
+                    className="px-2.5 py-1 rounded-control-compact bg-accent-soft border border-accent-edge text-accent-ink text-[12px] hover:bg-accent hover:text-on-accent transition-colors"
                   >
                     Create campaign
                   </button>
@@ -535,37 +546,37 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           <div className="pt-1 space-y-2 text-left">
             <button
               onClick={() => void chat.send(`Map ${starterSubject} ground state potential energy surface across nuclear coordinates`)}
-              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+              className="w-full p-3 rounded-card bg-surface hover:bg-raised border border-border hover:border-accent-edge text-label text-label-secondary hover:text-text transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-between group"
             >
               <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="text-[var(--color-warning)] text-[12px] shrink-0">✦</span>
+                <span className="text-warning text-[12px] shrink-0">✦</span>
                 <span className="font-medium truncate">
                   {starterTarget ? `${starterTarget} Potential Energy Surface` : 'Potential Energy Surface'}
                 </span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted group-hover:text-accent-ink group-hover:translate-x-0.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]" />
             </button>
 
             <button
               onClick={() => void chat.conveneTribunal(`${starterSubject} ground state electronic structure`)}
-              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-success-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+              className="w-full p-3 rounded-card bg-surface hover:bg-raised border border-border hover:border-success-edge text-label text-label-secondary hover:text-text transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-between group"
             >
               <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="text-[var(--color-success)] text-[12px] shrink-0">✦</span>
+                <span className="text-success text-[12px] shrink-0">✦</span>
                 <span className="font-medium truncate">Convene Tribunal for {starterSubject}</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-success)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted group-hover:text-success group-hover:translate-x-0.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]" />
             </button>
 
             <button
               onClick={() => void chat.send('Verify our variational ansatz on the configured QPU backend with Clifford canary')}
-              className="w-full p-3 rounded-2xl bg-[var(--color-surface)] hover:bg-[var(--color-raised)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-all flex items-center justify-between group"
+              className="w-full p-3 rounded-card bg-surface hover:bg-raised border border-border hover:border-accent-edge text-label text-label-secondary hover:text-text transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-between group"
             >
               <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="text-[var(--color-accent-ink)] text-[12px] shrink-0">✦</span>
+                <span className="text-accent-ink text-[12px] shrink-0">✦</span>
                 <span className="font-medium truncate">Run Clifford Canary Check</span>
               </div>
-              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[var(--color-muted)] group-hover:text-[var(--color-accent-ink)] group-hover:translate-x-0.5 transition-all" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted group-hover:text-accent-ink group-hover:translate-x-0.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]" />
             </button>
           </div>
           );
@@ -581,39 +592,39 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               ref={(el) => {
                 messageRefs.current[m.id] = el;
               }}
-              className={`flex flex-col space-y-1.5 rounded-xl -mx-1 px-1 py-0.5 transition-shadow ${
+              className={`flex flex-col space-y-1.5 rounded-row -mx-1 px-1 py-0.5 transition-shadow ${
                 isUser ? 'items-end' : 'items-start'
-              } ${matchedIds.length > 0 && matchedIds[searchIndex] === m.id ? 'ring-1 ring-[var(--color-accent-edge)]' : ''}`}
+              } ${matchedIds.length > 0 && matchedIds[searchIndex] === m.id ? 'ring-1 ring-accent-edge' : ''}`}
             >
-              <div className="flex items-center space-x-2 text-[12px] text-[var(--color-muted)] font-mono px-1">
-                <span>{isUser ? 'You' : 'Kubona Tribunal Salon'}</span>
+              <div className="flex items-center space-x-2 text-[12px] text-muted font-mono px-1">
+                <span>{isUser ? 'You' : m.role === 'notice' ? 'Notice' : 'Kubona Tribunal Salon'}</span>
                 <span>•</span>
                 <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 {!isUser && m.model && (
                   <>
                     <span>•</span>
-                    <span className="text-[var(--color-faint)]">served by {m.model}</span>
+                    <span className="text-faint">served by {m.model}</span>
                   </>
                 )}
                 {!isUser && m.duration_ms != null && (
                   <>
                     <span>•</span>
-                    <span className="text-[var(--color-faint)]">{(m.duration_ms / 1000).toFixed(1)}s</span>
+                    <span className="text-faint">{(m.duration_ms / 1000).toFixed(1)}s</span>
                   </>
                 )}
                 {!isUser && m.usage?.completion_tokens != null && (
                   <>
                     <span>•</span>
-                    <span className="text-[var(--color-faint)]">{m.usage.completion_tokens} tok</span>
+                    <span className="text-faint">{m.usage.completion_tokens} tok</span>
                   </>
                 )}
                 <Tip label="Copy message" position="top">
                   <button
                     onClick={() => copyToClipboard(m.content, `copy-${m.id}`)}
                     aria-label="Copy message"
-                    className="p-0.5 rounded text-[var(--color-faint)] hover:text-[var(--color-text)] transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                    className="p-0.5 rounded-chip text-faint hover:text-text transition-colors focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none"
                   >
-                    {copiedId === `copy-${m.id}` ? <Check className="w-3 h-3 text-[var(--color-success)]" /> : <Copy className="w-3 h-3" />}
+                    {copiedId === `copy-${m.id}` ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                   </button>
                 </Tip>
                 {isUser && !streamingId && (
@@ -624,7 +635,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         setEditDraft(m.content);
                       }}
                       aria-label="Edit and resend"
-                      className="p-0.5 rounded text-[var(--color-faint)] hover:text-[var(--color-text)] transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                      className="p-0.5 rounded-chip text-faint hover:text-text transition-colors focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -637,8 +648,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         onClick={() => void chat.vote(m.id, 'up')}
                         aria-label="Mark helpful"
                         aria-pressed={votes[m.id] === 'up'}
-                        className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
-                          votes[m.id] === 'up' ? 'text-[var(--color-success)]' : 'text-[var(--color-faint)] hover:text-[var(--color-text)]'
+                        className={`p-0.5 rounded-chip transition-colors focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none ${
+                          votes[m.id] === 'up' ? 'text-success' : 'text-faint hover:text-text'
                         }`}
                       >
                         <ThumbsUp className="w-3 h-3" />
@@ -649,8 +660,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         onClick={() => void chat.vote(m.id, 'down')}
                         aria-label="Mark not helpful"
                         aria-pressed={votes[m.id] === 'down'}
-                        className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
-                          votes[m.id] === 'down' ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)] hover:text-[var(--color-text)]'
+                        className={`p-0.5 rounded-chip transition-colors focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none ${
+                          votes[m.id] === 'down' ? 'text-danger' : 'text-faint hover:text-text'
                         }`}
                       >
                         <ThumbsDown className="w-3 h-3" />
@@ -661,7 +672,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               </div>
 
               {editingId === m.id && isUser ? (
-                <div className="w-full max-w-[92%] rounded-2xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] p-2.5 space-y-2 self-end">
+                <div className="w-full max-w-[92%] rounded-card bg-surface border border-accent-edge p-2.5 space-y-2 self-end">
                   <textarea
                     autoFocus
                     value={editDraft}
@@ -672,20 +683,20 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                     }}
                     rows={3}
                     maxLength={4000}
-                    className="w-full bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none resize-y"
+                    className="w-full bg-transparent text-label text-text placeholder:text-faint focus:outline-none resize-y"
                   />
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       onClick={() => setEditingId(null)}
                       disabled={rewriting}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] text-[12px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-control-compact bg-fill hover:bg-fill-hover text-label-secondary text-[12px] transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => void handleRewriteSave(m.id)}
                       disabled={rewriting || !editDraft.trim()}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-control-compact bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
                     >
                       {rewriting ? 'Resending…' : 'Resend (branches thread)'}
                     </button>
@@ -694,44 +705,45 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               ) : (
                 !hasTribunal && (
                   <div
-                    className={`px-3.5 py-2.5 text-xs leading-relaxed max-w-[92%] ${
+                    className={`px-3.5 py-2.5 text-label leading-relaxed max-w-[92%] ${
                       isUser
-                        ? 'rounded-2xl rounded-tr-sm bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[var(--color-text)]'
-                        : 'rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] shadow-[var(--shadow-raised)]'
+                        ? 'rounded-card rounded-tr-chip bg-accent-soft border border-accent-edge text-text'
+                        : 'rounded-card rounded-tl-chip bg-surface border border-border text-label-secondary shadow-[var(--shadow-raised)]'
                     }`}
                   >
                     <MathText text={m.content} />
-                    {m.id === streamingId && <span className="text-[var(--color-accent-ink)] animate-pulse"> ▍</span>}
+                    {m.id === streamingId && <span className="text-accent-ink animate-pulse"> ▍</span>}
                   </div>
                 )
               )}
               {!isUser && renderProposalCard(m)}
+              {!isUser && <CitationBadge report={m.citations} />}
 
               {hasTribunal && m.tribunal && (
                 <div className="w-full space-y-2">
-                  <div className="flex items-center gap-1.5 text-[12px] font-code text-[var(--color-accent-ink)] px-1">
+                  <div className="flex items-center gap-1.5 text-[12px] font-code text-accent-ink px-1">
                     <Bot className="w-3 h-3" />
                     <span>TRIBUNAL SYNTHESIS</span>
                   </div>
-                  <div className="w-full rounded-2xl rounded-tl-sm bg-[var(--color-surface)] border border-[var(--color-border)] p-3.5 space-y-4 shadow-[var(--shadow-raised)]">
-                    <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+                  <div className="w-full rounded-card rounded-tl-chip bg-surface border border-border p-3.5 space-y-4 shadow-[var(--shadow-raised)]">
+                    <div className="flex items-center justify-between border-b border-border pb-3">
                       <div className="flex items-center space-x-2.5">
-                        <div className="w-7 h-7 rounded-xl bg-[var(--color-soft-indigo-wash)] border border-[var(--color-soft-indigo-edge)] flex items-center justify-center">
-                          <Scale className="w-3.5 h-3.5 text-[var(--color-info)]" />
+                        <div className="w-7 h-7 rounded-row bg-soft-indigo-wash border border-soft-indigo-edge flex items-center justify-center">
+                          <Scale className="w-3.5 h-3.5 text-info" />
                         </div>
                         <div>
-                          <div className="font-bold text-[var(--color-text)] text-xs">Autonomous Tribunal Deliberation</div>
-                          <div className="text-[12px] text-[var(--color-muted)] font-mono">
+                          <div className="font-bold text-text text-label">Autonomous Tribunal Deliberation</div>
+                          <div className="text-[12px] text-muted font-mono">
                             Target: {m.tribunal.target || m.tribunal.molecule}
                           </div>
                         </div>
                       </div>
 
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-bold border flex items-center space-x-1.5 ${
+                        className={`px-2.5 py-0.5 rounded-capsule text-[12px] font-mono font-bold border flex items-center space-x-1.5 ${
                           m.tribunal.consensus_passed
-                            ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success)]'
-                            : 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning)]'
+                            ? 'bg-success-wash border-success-edge text-success'
+                            : 'bg-warning-wash border-warning-edge text-warning'
                         }`}
                       >
                         {m.tribunal.consensus_passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
@@ -740,7 +752,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-[12px] text-[var(--color-muted)]">{m.tribunal.turns.length} turns</span>
+                      <span className="text-[12px] text-muted">{m.tribunal.turns.length} turns</span>
                       <div className="flex gap-2">
                         <button
                           onClick={() =>
@@ -748,11 +760,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                               Object.fromEntries((m.tribunal?.turns ?? []).map((_, idx) => [`${m.id}-turn-${idx}`, true])),
                             )
                           }
-                          className="text-[12px] text-[var(--color-accent-ink)] hover:underline"
+                          className="text-[12px] text-accent-ink hover:underline"
                         >
                           Expand all
                         </button>
-                        <button onClick={() => setExpandedTurns({})} className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)]">
+                        <button onClick={() => setExpandedTurns({})} className="text-[12px] text-muted hover:text-text">
                           Collapse all
                         </button>
                       </div>
@@ -763,20 +775,20 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         const turnKey = `${m.id}-turn-${idx}`;
                         const isTurnExpanded = expandedTurns[turnKey] === true;
 
-                        let accentColor = 'border-[var(--color-accent-edge)] text-[var(--color-accent-ink)]';
+                        let accentColor = 'border-accent-edge text-accent-ink';
                         let roleIcon = Atom;
                         let roleTitle = 'Ansatz Scout';
 
                         if (turn.role.includes('disconfirmation') || turn.name.includes('Disconfirmation')) {
-                          accentColor = 'border-[var(--color-warning-edge)] text-[var(--color-warning)]';
+                          accentColor = 'border-warning-edge text-warning';
                           roleIcon = Scale;
                           roleTitle = 'Disconfirmation Officer';
                         } else if (turn.role.includes('auditor') || turn.name.includes('Auditor')) {
-                          accentColor = 'border-[var(--color-soft-indigo-edge)] text-[var(--color-info)]';
+                          accentColor = 'border-soft-indigo-edge text-info';
                           roleIcon = Cpu;
                           roleTitle = 'Device Auditor';
                         } else if (turn.role.includes('scribe') || turn.name.includes('Scribe')) {
-                          accentColor = 'border-[var(--color-success-edge)] text-[var(--color-success)]';
+                          accentColor = 'border-success-edge text-success';
                           roleIcon = BookOpen;
                           roleTitle = 'Epistemic Scribe';
                         }
@@ -786,7 +798,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         return (
                           <div
                             key={idx}
-                            className="rounded-2xl bg-[var(--color-fill)] border border-[var(--color-border)] p-3.5 space-y-2 hover:border-[var(--color-border-strong)] transition-all"
+                            className="rounded-card bg-fill border border-border p-3.5 space-y-2 hover:border-border-strong transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                           >
                             <button
                               onClick={() => toggleTurnExpand(turnKey)}
@@ -796,21 +808,21 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                             >
                               <div className="flex items-center space-x-2">
                                 <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
-                                <span className="font-bold text-[var(--color-text)] text-xs tracking-tight">{turn.name || roleTitle}</span>
-                                <span className={`text-[12px] font-mono uppercase px-1.5 py-0.2 rounded border bg-[var(--color-field)] ${accentColor}`}>
+                                <span className="font-bold text-text text-label tracking-tight">{turn.name || roleTitle}</span>
+                                <span className={`text-[12px] font-mono uppercase px-1.5 py-0.2 rounded-chip border bg-field ${accentColor}`}>
                                   {turn.verdict || 'ANALYZED'}
                                 </span>
                               </div>
 
                               <Tip label={isTurnExpanded ? 'Collapse turn' : 'Expand turn'} position="left">
-                                <span className="text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors inline-flex">
+                                <span className="text-muted hover:text-text transition-colors inline-flex">
                                   {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 </span>
                               </Tip>
                             </button>
 
                             {isTurnExpanded && (
-                              <div className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans pt-1 border-t border-[var(--color-border)]">
+                              <div className="text-label text-label-secondary leading-relaxed font-sans pt-1 border-t border-border">
                                 <MathText text={turn.content} />
                               </div>
                             )}
@@ -820,12 +832,12 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                     </div>
 
                     {m.tribunal.synthesis && (
-                      <div className="p-3 rounded-2xl bg-[var(--color-raised)] border border-[var(--color-border)] space-y-2">
-                        <div className="flex items-center space-x-1.5 text-xs font-bold text-[var(--color-success)]">
+                      <div className="p-3 rounded-card bg-raised border border-border space-y-2">
+                        <div className="flex items-center space-x-1.5 text-label font-bold text-success">
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>Tribunal Synthesis &amp; Proposed Action</span>
                         </div>
-                        <div className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans">
+                        <div className="text-label text-label-secondary leading-relaxed font-sans">
                           <MathText text={m.tribunal.synthesis} />
                         </div>
 
@@ -833,7 +845,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                           {onSelectSurface && (
                             <button
                               onClick={() => onSelectSurface('surface1')}
-                              className="px-3 py-1.5 rounded-xl bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                              className="px-3 py-1.5 rounded-row bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-[12px] font-semibold flex items-center space-x-1.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                             >
                               <Atom className="w-3.5 h-3.5" />
                               <span>View on Living Canvas</span>
@@ -842,7 +854,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                           {onSelectSurface && (
                             <button
                               onClick={() => onSelectSurface('surface7')}
-                              className="px-3 py-1.5 rounded-xl bg-[var(--color-soft-indigo-wash)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-soft-indigo-edge)] text-[var(--color-info)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                              className="px-3 py-1.5 rounded-row bg-soft-indigo-wash hover:bg-fill-hover border border-soft-indigo-edge text-info text-[12px] font-semibold flex items-center space-x-1.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                             >
                               <BookOpen className="w-3.5 h-3.5" />
                               <span>Pin to Living Paper</span>
@@ -850,9 +862,9 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                           )}
                           <button
                             onClick={() => copyToClipboard(m.tribunal?.synthesis || '', m.id)}
-                            className="px-3 py-1.5 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
+                            className="px-3 py-1.5 rounded-row bg-fill hover:bg-fill-hover border border-border text-label-secondary text-[12px] font-semibold flex items-center space-x-1.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                           >
-                            {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-[var(--color-success)]" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                             <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
                           </button>
                         </div>
@@ -861,27 +873,27 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                           <div className="pt-1 flex flex-wrap items-center gap-1.5">
                             <button
                               onClick={() => onMaterialize('circuit', 'Circuit · live')}
-                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-capsule bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1"
                             >
-                              <span className="text-[var(--color-accent-ink)]">✦</span> Inspect circuit
+                              <span className="text-accent-ink">✦</span> Inspect circuit
                             </button>
                             <button
                               onClick={() => onMaterialize('shadows', 'Shadow estimates')}
-                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-capsule bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1"
                             >
-                              <span className="text-[var(--color-accent-ink)]">✦</span> Shadow estimates
+                              <span className="text-accent-ink">✦</span> Shadow estimates
                             </button>
                             <button
                               onClick={() => onMaterialize('molecule', 'Active space')}
-                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-capsule bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1"
                             >
-                              <span className="text-[var(--color-warning)]">✦</span> Active space
+                              <span className="text-warning">✦</span> Active space
                             </button>
                             <button
                               onClick={() => onMaterialize('mandate', 'Spend mandate')}
-                              className="px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-capsule bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1"
                             >
-                              <span className="text-[var(--color-warning)]">✦</span> Spend card
+                              <span className="text-warning">✦</span> Spend card
                             </button>
                           </div>
                         )}
@@ -889,6 +901,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                     )}
                   </div>
                   {!isUser && renderProposalCard(m)}
+              {!isUser && <CitationBadge report={m.citations} />}
                 </div>
               )}
             </div>
@@ -896,15 +909,15 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         })}
 
         {(loading || runningTribunal) && (
-          <div className="p-4 rounded-3xl bg-[var(--color-surface)] border border-[var(--color-accent-edge)] space-y-2.5 shadow-[var(--shadow-raised)]">
-            <div className="flex items-center justify-between text-xs font-mono text-[var(--color-accent-ink)]">
+          <div className="p-4 rounded-sheet bg-surface border border-accent-edge space-y-2.5 shadow-[var(--shadow-raised)]">
+            <div className="flex items-center justify-between text-label font-mono text-accent-ink">
               <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 animate-spin text-[var(--color-accent-ink)]" />
+                <Sparkles className="w-4 h-4 animate-spin text-accent-ink" />
                 <span className="font-bold">Autonomous Scientific Reasoning</span>
               </div>
               <span>{elapsedSeconds}s</span>
             </div>
-            <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed font-sans">
+            <p className="text-label text-label-secondary leading-relaxed font-sans">
               {runningTribunal ? tribunalStage : 'Reasoning with the configured model…'}
             </p>
           </div>
@@ -912,7 +925,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
         {needsLogin && (
           <div
-            className="p-3.5 rounded-2xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning)] text-xs font-sans flex items-center justify-between gap-2"
+            className="p-3.5 rounded-card bg-warning-wash border border-warning-edge text-warning text-label font-sans flex items-center justify-between gap-2"
             role="alert"
           >
             <span>
@@ -925,7 +938,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <button
               type="button"
               onClick={() => onSelectSurface?.('labs')}
-              className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-warning-edge)] text-[var(--color-text)] text-[12px] font-semibold transition-all"
+              className="shrink-0 px-2.5 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-warning-edge text-text text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
             >
               Sign in
             </button>
@@ -934,7 +947,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
         {errorMessage && (
           <div
-            className="p-3.5 rounded-2xl bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] text-[var(--color-danger)] text-xs font-sans"
+            className="p-3.5 rounded-card bg-soft-rose-wash border border-soft-rose-edge text-danger text-label font-sans"
             role="alert"
           >
             <div className="flex items-start justify-between gap-2">
@@ -944,7 +957,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   type="button"
                   aria-label="Retry stalled stream"
                   onClick={() => chat.retryStalled()}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-soft-rose-edge)] text-[var(--color-text)] text-[12px] font-semibold transition-all"
+                  className="shrink-0 px-2.5 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-soft-rose-edge text-text text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                 >
                   Retry
                 </button>
@@ -954,18 +967,18 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         )}
 
         {infoMessage && (
-          <div className="p-3.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs font-sans">
+          <div className="p-3.5 rounded-card bg-surface border border-border text-label-secondary text-label font-sans">
             {infoMessage}
           </div>
         )}
 
         {chatWriteLabel && (
-          <p role="status" className="px-1 text-[12px] font-mono text-[var(--color-muted)]">
+          <p role="status" className="px-1 text-[12px] font-mono text-muted">
             {chatWriteLabel}
           </p>
         )}
         {feedbackWriteLabel && (
-          <p role="status" className="px-1 text-[12px] font-mono text-[var(--color-muted)]">
+          <p role="status" className="px-1 text-[12px] font-mono text-muted">
             {feedbackWriteLabel}
           </p>
         )}
@@ -974,16 +987,16 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       </div>
 
       {!dockComposer && (
-        <div className="shrink-0 p-4 border-t border-[var(--color-border)] bg-[var(--color-chrome)] space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div className="shrink-0 p-4 border-t border-border bg-chrome space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-label">
             {followUps.map((f) => (
               <button
                 key={f.label}
                 onClick={() => chat.runFollowUp(f.key)}
                 title={f.label}
-                className="max-w-full min-w-0 px-2.5 py-1 rounded-full bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] transition-all flex items-center gap-1"
+                className="max-w-full min-w-0 px-2.5 py-1 rounded-capsule bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1"
               >
-                <span className={`shrink-0 ${f.tone === 'success' ? 'text-[var(--color-success)]' : f.tone === 'warning' ? 'text-[var(--color-warning)]' : 'text-[var(--color-accent-ink)]'}`}>✦</span>
+                <span className={`shrink-0 ${f.tone === 'success' ? 'text-success' : f.tone === 'warning' ? 'text-warning' : 'text-accent-ink'}`}>✦</span>
                 <span className="truncate">{f.label}</span>
               </button>
             ))}
@@ -999,18 +1012,18 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               setInput('');
               void chat.send(textToSend);
             }}
-            className="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-2 focus-within:border-[var(--color-accent-edge)] transition-all"
+            className="relative bg-surface border border-border rounded-card p-2 focus-within:border-accent-edge transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
           >
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
                 {attachments.map((a) => (
                   <span
                     key={a.name}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-accent-soft)] border border-[var(--color-accent-edge)] text-[12px] font-code text-[var(--color-accent-ink)]"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-capsule bg-accent-soft border border-accent-edge text-[12px] font-code text-accent-ink"
                   >
                     <Paperclip className="w-3 h-3" />
                     {a.name}
-                    <button type="button" onClick={() => chat.detach(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-[var(--color-text)]">
+                    <button type="button" onClick={() => chat.detach(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-text">
                       <X className="w-3 h-3" />
                     </button>
                   </span>
@@ -1018,10 +1031,10 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               </div>
             )}
             {input.startsWith('/') && (
-              <div className="px-2 pb-1.5 text-[12px] font-code text-[var(--color-muted)]">
-                <span className="text-[var(--color-accent-ink)]">/tribunal</span> convene ·{' '}
-                <span className="text-[var(--color-accent-ink)]">/launch</span> last proposal ·{' '}
-                <span className="text-[var(--color-accent-ink)]">/help</span>
+              <div className="px-2 pb-1.5 text-[12px] font-code text-muted">
+                <span className="text-accent-ink">/tribunal</span> convene ·{' '}
+                <span className="text-accent-ink">/launch</span> last proposal ·{' '}
+                <span className="text-accent-ink">/help</span>
               </div>
             )}
             <textarea
@@ -1040,7 +1053,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                 }
               }}
               placeholder="Command swarm, query proofs, or adjust target..."
-              className="w-full bg-transparent text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none resize-none px-2 py-1 font-sovereign"
+              className="w-full bg-transparent text-label text-text placeholder:text-faint focus:outline-none resize-none px-2 py-1 font-sovereign"
             />
             <input
               ref={attachInputRef}
@@ -1057,19 +1070,19 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                 onSessionChanged={(id) => onSessionChange?.(id)}
               />
             </div>
-            <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)] px-1">
+            <div className="flex items-center justify-between pt-1 border-t border-border px-1">
               <div className="flex items-center gap-1">
                 <Tip label="Attach file" sub="PDB · CIF · XYZ · text" position="top">
                   <button
                     type="button"
                     onClick={() => attachInputRef.current?.click()}
                     aria-label="Attach molecular file (PDB/CIF/XYZ)"
-                    className="p-1 rounded-lg text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                    className="p-1 rounded-control-compact text-muted hover:text-text hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                   >
                     <Paperclip className="w-4 h-4" />
                   </button>
                 </Tip>
-                <span className="text-[12px] font-code text-[var(--color-muted)] ml-1">⌘K</span>
+                <span className="text-[12px] font-code text-muted ml-1">⌘K</span>
                 <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
               </div>
               <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
@@ -1078,10 +1091,10 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   onClick={streamingId ? chat.stop : undefined}
                   disabled={!streamingId && (!input.trim() || loading || runningTribunal)}
                   aria-label={streamingId ? 'Stop generation' : 'Send directive'}
-                  className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+                  className={`w-7 h-7 rounded-row flex items-center justify-center transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
                     streamingId
-                      ? 'bg-[var(--color-danger)] text-[var(--color-on-accent)]'
-                      : 'bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] disabled:opacity-40'
+                      ? 'bg-danger text-on-accent'
+                      : 'bg-accent hover:bg-lit text-on-accent disabled:opacity-40'
                   }`}
                 >
                   {streamingId ? <span className="w-3 h-3 rounded-[2px] bg-current" /> : <ArrowUp className="w-4 h-4 font-bold" />}
@@ -1094,13 +1107,13 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             type="button"
             onClick={() => void chat.conveneTribunal(input.trim() || `${targetSystem || targetDisplayName || 'Active campaign'} ground state electronic structure`)}
             disabled={loading || runningTribunal}
-            className="w-full py-2 px-3 rounded-2xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-40 active:scale-[0.99]"
+            className="w-full py-2 px-3 rounded-card bg-fill hover:bg-fill-hover border border-border text-label text-label-secondary font-semibold flex items-center justify-center space-x-2 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40 active:scale-[0.99]"
           >
-            <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+            <Sparkles className="w-3.5 h-3.5 text-accent-ink" />
             <span>Convene Multi-Agent Research Tribunal</span>
           </button>
           <div className="text-center">
-            <span className="text-[12px] text-[var(--color-muted)] font-code">Autonomous AI Swarm · Local-first</span>
+            <span className="text-[12px] text-muted font-code">Autonomous AI Swarm · Local-first</span>
           </div>
         </div>
       )}
@@ -1112,7 +1125,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           body={
             <span>
               Messages are deleted; the session, campaign, and ledger history survive. Type{' '}
-              <code className="rounded bg-[var(--color-fill)] px-1 font-mono">CLEAR</code> to confirm.
+              <code className="rounded-chip bg-fill px-1 font-mono">CLEAR</code> to confirm.
             </span>
           }
           requireText="CLEAR"

@@ -3,12 +3,17 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { CampaignState } from '@/types';
 import { Workbench, type WorkbenchHandle } from './Workbench';
+import { publishWorkflowPlan, setWorkflowPlanTaskIds } from '@/domain/workflow-plan-store';
 
 vi.mock('@/lib/api', () => ({
   fetchCanvasLayout: vi.fn(async () => ({})),
   fetchWorkbenchLayout: vi.fn(async () => null),
   fetchWorkbenchView: vi.fn(async () => null),
   fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
+  fetchLoopParts: vi.fn(async () => ({ ok: true, data: [] })),
+  fetchRunAllowances: vi.fn(async () => ({ ok: true, allowances: [] })),
+  mintRunAllowance: vi.fn(async () => ({ ok: false, error: 'not configured in tests' })),
+  revokeRunAllowance: vi.fn(async () => ({ ok: true })),
   hasOperatorBearer: vi.fn(() => false),
   saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
   saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
@@ -295,6 +300,74 @@ describe('Workbench', () => {
       );
     });
     expect(tree!.root.findAllByProps({ 'data-kind': 'job' }).length).toBe(1);
+    // C9: every job fact names its producing record and can focus it.
+    const chips = tree!.root.findAllByProps({ 'data-testid': 'fact-source' });
+    expect(chips.length).toBeGreaterThan(0);
+    await act(async () => { chips[0].props.onClick({ stopPropagation: () => {} }); });
+  });
+
+  it('renders one sentence and one typed remedy for a needed job (C2)', async () => {
+    const onNeedRemedy = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(
+        <Workbench
+          campaign={campaign}
+          sessionId="s1"
+          onNeedRemedy={onNeedRemedy}
+          jobs={[
+            {
+              id: 'job-need',
+              session_id: 's1',
+              status: 'FAILED',
+              job_type: 'vqe',
+              params_json: { requested_backend: 'ibm_fez' },
+              created_at: '2026-11-01T00:00:00Z',
+              need: { kind: 'backend_offline', target: 'ibm_fez', reason: 'bridge unreachable' },
+            },
+          ]}
+        />,
+      );
+    });
+    const need = tree!.root.findAll((node) => node.props['data-need'] === 'backend_offline');
+    expect(need.length).toBeGreaterThan(0);
+    const text = JSON.stringify(tree!.toJSON());
+    // The server's reason is verbatim; the button is the contract's one remedy.
+    expect(text).toContain('bridge unreachable');
+    expect(text).toContain('Open hardware settings');
+    const button = tree!.root.findAll(
+      (node) => node.type === 'button' && node.props.className === 'k-workbench-need-remedy',
+    )[0];
+    expect(button).toBeTruthy();
+    await act(async () => {
+      button.props.onClick({ stopPropagation: () => {} });
+    });
+    expect(onNeedRemedy).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'backend_offline' }),
+    );
+  });
+
+  it('projects a published plan and flips Make tasks to Open in Tasks (C8)', async () => {
+    const onMakePlanTasks = vi.fn();
+    publishWorkflowPlan({
+      workflowId: 'wf-test',
+      name: 'audit plan',
+      steps: [{ id: 's1', tool: 'execution/list_provider_registry', cost_usd: 0.5 }],
+      unresolved: [],
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = createTree(
+        <Workbench campaign={campaign} sessionId="s1" onMakePlanTasks={onMakePlanTasks} />,
+      );
+    });
+    const make = tree!.root.findByProps({ 'data-testid': 'plan-make-tasks' });
+    await act(async () => { make.props.onClick({ stopPropagation: () => {} }); });
+    expect(onMakePlanTasks).toHaveBeenCalledTimes(1);
+    // The page attaches ids after the batch; the card then offers Open in Tasks.
+    await act(async () => { setWorkflowPlanTaskIds(['task-1']); });
+    expect(tree!.root.findAllByProps({ 'data-testid': 'plan-open-tasks' })).toHaveLength(1);
+    expect(tree!.root.findAllByProps({ 'data-testid': 'plan-make-tasks' })).toHaveLength(0);
   });
 
   it('announces the selected object to the shell inspector', async () => {
@@ -713,8 +786,14 @@ describe('Workbench', () => {
     await act(async () => { minimapToggle.props.onClick(); });
     expect(tree!.root.findByProps({ 'data-testid': 'workbench-minimap-toggle' }).props['aria-expanded']).toBe(true);
     expect(tree!.root.findByProps({ 'data-testid': 'workbench-minimap' })).toBeTruthy();
-    const followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
+    // C5: follow-live is on by default, and the toggle pauses/resumes it.
+    let followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
+    expect(followBtn.props['aria-pressed']).toBe(true);
     await act(async () => { followBtn.props.onClick(); });
+    followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
+    expect(followBtn.props['aria-pressed']).toBe(false);
+    await act(async () => { followBtn.props.onClick(); });
+    followBtn = tree!.root.findByProps({ 'data-testid': 'workbench-follow-live' });
     expect(followBtn.props['aria-pressed']).toBe(true);
 
     // Open on a selected card routes to onLiftObject when provided.

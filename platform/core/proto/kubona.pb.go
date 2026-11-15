@@ -31,6 +31,11 @@ const (
 	JobStatus_JOB_STATUS_FAILED      JobStatus = 4
 	JobStatus_JOB_STATUS_PAUSED      JobStatus = 5
 	JobStatus_JOB_STATUS_CANCELLED   JobStatus = 6
+	// Host-only work interrupted by a restart. The reservation is released.
+	JobStatus_JOB_STATUS_INTERRUPTED JobStatus = 7
+	// A vendor may have the job and neither result nor usage is confirmed.
+	// Not terminal, not live, reservation kept. See Q-59.
+	JobStatus_JOB_STATUS_OUTCOME_UNKNOWN JobStatus = 8
 )
 
 // Enum value maps for JobStatus.
@@ -43,15 +48,19 @@ var (
 		4: "JOB_STATUS_FAILED",
 		5: "JOB_STATUS_PAUSED",
 		6: "JOB_STATUS_CANCELLED",
+		7: "JOB_STATUS_INTERRUPTED",
+		8: "JOB_STATUS_OUTCOME_UNKNOWN",
 	}
 	JobStatus_value = map[string]int32{
-		"JOB_STATUS_UNSPECIFIED": 0,
-		"JOB_STATUS_QUEUED":      1,
-		"JOB_STATUS_RUNNING":     2,
-		"JOB_STATUS_COMPLETED":   3,
-		"JOB_STATUS_FAILED":      4,
-		"JOB_STATUS_PAUSED":      5,
-		"JOB_STATUS_CANCELLED":   6,
+		"JOB_STATUS_UNSPECIFIED":     0,
+		"JOB_STATUS_QUEUED":          1,
+		"JOB_STATUS_RUNNING":         2,
+		"JOB_STATUS_COMPLETED":       3,
+		"JOB_STATUS_FAILED":          4,
+		"JOB_STATUS_PAUSED":          5,
+		"JOB_STATUS_CANCELLED":       6,
+		"JOB_STATUS_INTERRUPTED":     7,
+		"JOB_STATUS_OUTCOME_UNKNOWN": 8,
 	}
 )
 
@@ -3589,7 +3598,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\vresult_json\x18\x04 \x01(\tR\n" +
 	"resultJson\x12\x1b\n" +
 	"\tspent_usd\x18\x05 \x01(\x01R\bspentUsd\x12!\n" +
-	"\fstep_records\x18\x06 \x03(\tR\vstepRecords*\xb8\x01\n" +
+	"\fstep_records\x18\x06 \x03(\tR\vstepRecords*\xf4\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -3597,7 +3606,9 @@ const file_kubona_proto_rawDesc = "" +
 	"\x14JOB_STATUS_COMPLETED\x10\x03\x12\x15\n" +
 	"\x11JOB_STATUS_FAILED\x10\x04\x12\x15\n" +
 	"\x11JOB_STATUS_PAUSED\x10\x05\x12\x18\n" +
-	"\x14JOB_STATUS_CANCELLED\x10\x06*\xb1\x01\n" +
+	"\x14JOB_STATUS_CANCELLED\x10\x06\x12\x1a\n" +
+	"\x16JOB_STATUS_INTERRUPTED\x10\a\x12\x1e\n" +
+	"\x1aJOB_STATUS_OUTCOME_UNKNOWN\x10\b*\xb1\x01\n" +
 	"\x10DegradationLevel\x12\x1b\n" +
 	"\x17DEGRADATION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DEGRADATION_QPU_HARDWARE\x10\x01\x12\x1d\n" +

@@ -27,6 +27,14 @@ type jobView struct {
 	CompilerUsed     string          `json:"compiler_used,omitempty"`
 	FallbackEstimate bool            `json:"fallback_estimate,omitempty"`
 	MandateRef       string          `json:"mandate_ref,omitempty"`
+	OwnerEpoch       int64           `json:"owner_epoch"`
+	AttemptID        string          `json:"attempt_id,omitempty"`
+	DispatchedAt     *time.Time      `json:"dispatched_at,omitempty"`
+	VendorRef        string          `json:"vendor_ref,omitempty"`
+	RequestID        string          `json:"request_id,omitempty"`
+	// Need is the typed missing precondition (C2), persisted with the failure
+	// result. Omitted when the cause is not known from structured evidence.
+	Need *jobs.Need `json:"need,omitempty"`
 }
 
 func jobStatusWire(status pb.JobStatus) string {
@@ -56,7 +64,32 @@ func jobViewFrom(job *jobs.Job) *jobView {
 		CompilerUsed:     job.CompilerUsed,
 		FallbackEstimate: job.FallbackEstimate,
 		MandateRef:       job.MandateRef,
+		OwnerEpoch:       job.OwnerEpoch,
+		AttemptID:        job.AttemptID,
+		DispatchedAt:     job.DispatchedAt,
+		VendorRef:        job.VendorRef,
+		RequestID:        job.RequestID,
+		Need:             needFromResult(job.ResultJSON),
 	}
+}
+
+// needFromResult reads the persisted need and refuse-ships anything whose
+// kind is outside the closed vocabulary: an unknown kind is treated as
+// absent, so the console never receives a remedy it cannot render.
+func needFromResult(raw json.RawMessage) *jobs.Need {
+	if len(raw) == 0 {
+		return nil
+	}
+	var probe struct {
+		Need *jobs.Need `json:"need"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return nil
+	}
+	if probe.Need == nil || !probe.Need.Valid() {
+		return nil
+	}
+	return probe.Need
 }
 
 func jobViews(items []*jobs.Job) []*jobView {

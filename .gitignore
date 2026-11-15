@@ -14,6 +14,7 @@ dev-docs/
 bench/work/
 bench/results/
 scratch/
+.opencode/
 
 # platform build/test artifacts
 .pytest_cache/
@@ -39,6 +40,7 @@ platform/console/.dart_tool/
 platform/console/build/
 platform/console/test-results/
 platform/console/playwright-report/
+platform/console/.vitest/
 platform/console/pubspec.lock
 
 # Go binaries (path-anchored: a bare `kubonad` pattern once silently

@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, apiFetch, authHeaders, hasOperatorBearer, versionedApiPath } from './api';
-import { useAuthPhase } from '@/domain/auth-state';
-import { setSessionStreamLive } from '@/domain/stream-state';
-import { domainsForEventTypes, publishInvalidation } from '@/domain/invalidation';
+import { useAuthPhase } from '@/lib/auth-state';
+import { setSessionStreamLive } from '@/lib/stream-state';
+import { domainsForEventTypes, publishInvalidation } from '@/lib/invalidation';
 import type { LedgerEvent } from '@/types';
 
 export type StreamStatus = 'idle' | 'connecting' | 'live' | 'closed';

@@ -2150,7 +2150,7 @@ func TestSessionAttributionStrictness(t *testing.T) {
 	// before any worker sees the job).
 	spendBases := map[string]map[string]any{
 		"/api/jobs":               {"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 8},
-		"/api/chat/launch":        {"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"},
+		"/api/chat/launch":        {},
 		"/api/chat/tribunal":      {"prompt": "g7 drill"},
 		"/api/autoresearch/start": {"harness_id": "ansatz-search", "max_iterations": 1},
 	}
@@ -2251,17 +2251,36 @@ func TestLLMSettingsWriteGated(t *testing.T) {
 	if fullW.Code != http.StatusOK {
 		t.Fatalf("authenticated full-object settings write must succeed, got %d (%s)", fullW.Code, fullW.Body.String())
 	}
-	// Plaintext remote endpoint refuses even when authenticated.
+	currentRevision := func() any {
+		req := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+		ww := httptest.NewRecorder()
+		h.ServeHTTP(ww, req)
+		var body map[string]any
+		if err := json.Unmarshal(ww.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode settings: %v", err)
+		}
+		return body["revision"]
+	}
+	// Plaintext remote endpoint refuses even when authenticated. The
+	// revision is current, so the refusal is the URL rule (400), not a
+	// missing precondition.
 	if code := put("op-token", map[string]any{
+		"expected_revision": currentRevision(),
 		"providers": map[string]any{
 			"opencode": map[string]any{"base_url": "http://evil.example.com/v1"},
 		},
 	}); code != http.StatusBadRequest {
 		t.Fatalf("plaintext remote endpoint must 400, got %d", code)
 	}
+	// A write that names no revision is a missing precondition (428), not
+	// a validation failure and not a 500 from an uncatalogued code.
+	if code := put("op-token", map[string]any{}); code != http.StatusPreconditionRequired {
+		t.Fatalf("settings write without a revision must 428, got %d", code)
+	}
 	// Audit 2026-10-26: Update validation failures (empty model, unknown
-	// provider, fragments) surfaced as HTTP 500. Validation is 400.
-	raw, _ := json.Marshal(map[string]any{})
+	// provider, fragments) surfaced as HTTP 500. Validation is 400 once
+	// the revision precondition is satisfied.
+	raw, _ := json.Marshal(map[string]any{"expected_revision": currentRevision()})
 	r := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(raw))
 	r.Header.Set("Authorization", "Bearer op-token")
 	ww := httptest.NewRecorder()

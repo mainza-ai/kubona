@@ -511,6 +511,10 @@ class QiskitProvider(Provider):
                 sampler = SamplerV2(backend=backend)
         job = sampler.run([qc], shots=shots)
         job_id = str(job.job_id())
+        # Durable pin before the result wait and before any ack. The
+        # callback remains for the in-process job store.
+        from kubona.hardware_pin import persist_vendor_job
+        persist_vendor_job(job_id)
         if on_hardware_job is not None:
             on_hardware_job(job_id)
         if not wait_for_result:
@@ -596,6 +600,8 @@ class QiskitProvider(Provider):
             circuits.append(qc)
         job = sampler.run(circuits, shots=shots)
         job_id = str(job.job_id())
+        from kubona.hardware_pin import persist_vendor_job
+        persist_vendor_job(job_id)
         try:
             result = job.result()
             counts_out = []

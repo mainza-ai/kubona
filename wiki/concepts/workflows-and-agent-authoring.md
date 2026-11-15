@@ -2,7 +2,7 @@
 type: concept
 name: Workflows & Agent Authoring
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-11-14
 tags: [workflows, agents, authoring, science]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -63,3 +63,26 @@ provenance lineage, so trust is inspectable, not assumed.
 - Authoring surface in the control plane ([[agent-ux-control-plane]]) + workflow/agent
   registry as MCP resources so any agent can discover and invoke them.
 - Phase 6 scope ([[roadmap]]), with identity groundwork in Phase 2.
+
+## Runtime skills (adopted 2026-11-14)
+
+A skill is a **`SKILL.md` instruction file**, not a workflow and not a capability grant.
+The copilot prompt carries only each skill's name and ≤200-character description; the body
+is fetched on demand through the read-only `load_skill` tool. An advisory `tools:` list
+names the observations the instructions expect, but the registry allow-list still decides
+what may run — a skill cannot widen its own authority.
+
+The loader is closed and fail-visible: 16 KiB per file, 64 skills total, lowercase
+`[a-z0-9-]` names, one-line descriptions, no symlinks, and a fixed `SkillFault` vocabulary
+(`skill_name_invalid`, `skill_description_invalid`, `skill_frontmatter_invalid`,
+`skill_tool_invalid`, `skill_role_invalid`, `skill_too_large`, `skill_too_many`,
+`skill_duplicate`, `skill_symlink`, `skill_unreadable`, `skill_missing`, `skill_unknown`).
+A rejected file never disappears silently: `GET /api/skills` returns the body-free
+catalogue and the faults, and Settings → Runtime skills renders both. User skills live in
+`~/.kubona/skills/<name>/SKILL.md` (overridable with `KUBONA_SKILLS_DIR`); the six seeds
+(`pes-scan`, `vqe-campaign`, `classical-anchor-check`, `hardware-readiness`,
+`literature-review`, `mitigation-choice`) are embedded in the binary.
+
+The split keeps the cacheable system prefix small and stable while still letting an
+operator add local method without a rebuild. It is the same shape Zephium uses for its
+work-lead skills: only the advertised surface is cached, and the body is a read.

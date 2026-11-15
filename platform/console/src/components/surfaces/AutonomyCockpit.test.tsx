@@ -77,6 +77,17 @@ function stubBackend(s: Scenario) {
       if (u.includes('/api/metasearch/proposals')) {
         return { ok: true, json: async () => ({ proposals: [] }) };
       }
+      if (u.includes('/api/proposals')) {
+        // B1: the surface mints a server-owned plan before launching.
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            ok: true,
+            proposal: { id: 'pr_auto', digest: 'sha256:auto', body: { backend: 'ibm_brisbane' } },
+          }),
+        };
+      }
       if (u.includes('/api/chat/launch')) {
         return { ok: true, json: async () => ({ job: { id: 'job-auto-1' }, loop: { id: 'loop-auto-1' } }) };
       }
@@ -200,7 +211,7 @@ describe('AutonomyCockpit Wave-2 money copy + toggle staging', () => {
       async (url: string, init?: RequestInit) => {
         const u = String(url);
         if (u.includes('/api/llm/settings')) {
-          if ((init as RequestInit | undefined)?.method === 'POST') {
+          if ((init as RequestInit | undefined)?.method === 'PATCH') {
             return (onSave?.(init) ?? { ok: true, json: async () => ({}) }) as Response;
           }
           return { ok: true, json: async () => ({ air_gapped: airGapped }) } as unknown as Response;
@@ -249,6 +260,10 @@ describe('AutonomyCockpit Wave-2 money copy + toggle staging', () => {
     await act(async () => {
       await airGapToggle(tree).props.onClick();
     });
+    const release = tree.root.findAllByType('button').find((b) => b.props.children === 'Release air-gap')!;
+    await act(async () => {
+      await release.props.onClick();
+    });
     await vi.waitFor(() => expect(fullText(tree)).toContain('released (persisted)'));
     expect(saved).toHaveLength(1);
     expect(JSON.parse(saved[0]).air_gapped).toBe(false);
@@ -260,6 +275,10 @@ describe('AutonomyCockpit Wave-2 money copy + toggle staging', () => {
     await vi.waitFor(() => expect(airGapToggle(tree).props.disabled).toBe(false));
     await act(async () => {
       await airGapToggle(tree).props.onClick();
+    });
+    const release = tree.root.findAllByType('button').find((b) => b.props.children === 'Release air-gap')!;
+    await act(async () => {
+      await release.props.onClick();
     });
     await vi.waitFor(() => expect(fullText(tree)).toContain('reverted'));
     expect(fullText(tree)).toContain('disk blocked');

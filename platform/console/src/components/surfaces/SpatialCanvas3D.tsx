@@ -1335,10 +1335,10 @@ export function SpatialCanvas3D({
     return (
       <div
         role="alert"
-        className="relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[var(--color-canvas)] border border-[var(--color-border-strong)] flex flex-col items-center justify-center gap-2 p-8 text-center"
+        className="relative w-full h-full min-h-[520px] rounded-card overflow-hidden bg-canvas border border-border-strong flex flex-col items-center justify-center gap-2 p-8 text-center"
       >
-        <span className="text-sm font-medium text-[var(--color-warning)]">{WEBGL_UNAVAILABLE_MESSAGE}</span>
-        <span className="text-[12px] font-mono text-[var(--color-muted)] max-w-sm">
+        <span className="text-body-strong font-medium text-warning">{WEBGL_UNAVAILABLE_MESSAGE}</span>
+        <span className="text-[12px] font-mono text-muted max-w-sm">
           The GPU renderer could not start ({webglError}). Your campaign data
           is intact — continue in the 2D workbench.
         </span>
@@ -1348,9 +1348,9 @@ export function SpatialCanvas3D({
 
   if (!anchorComputed) {
     return (
-      <div className="relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[var(--color-canvas)] border border-[var(--color-border-strong)] flex flex-col items-center justify-center gap-2 p-8 text-center">
-        <span className="text-sm font-medium text-[var(--color-warning)]">Observatory requires a computed classical anchor.</span>
-        <span className="text-[12px] font-mono text-[var(--color-muted)] max-w-sm">
+      <div className="relative w-full h-full min-h-[520px] rounded-card overflow-hidden bg-canvas border border-border-strong flex flex-col items-center justify-center gap-2 p-8 text-center">
+        <span className="text-body-strong font-medium text-warning">Observatory requires a computed classical anchor.</span>
+        <span className="text-[12px] font-mono text-muted max-w-sm">
           No PySCF anchor is recorded for this campaign. Use the 2D workbench;
           the 3D terrain stays hidden rather than inventing a reference surface.
         </span>
@@ -1364,7 +1364,7 @@ export function SpatialCanvas3D({
       data-testid="observatory-3d"
       data-render-frames="0"
       data-render-state="idle"
-      className={`relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[var(--color-canvas)] border border-[var(--color-border)] ${
+      className={`relative w-full h-full min-h-[520px] rounded-card overflow-hidden bg-canvas border border-border ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
       }`}
     >
@@ -1373,29 +1373,29 @@ export function SpatialCanvas3D({
 
       {/* Diegetic Top HUD: Target System & Analytical Ground Truth */}
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-3 pointer-events-auto bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-full px-4 py-2 shadow-[var(--shadow-float)]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-success)]" />
+        <div className="flex items-center gap-3 pointer-events-auto bg-float border border-border-strong rounded-capsule px-4 py-2 shadow-[var(--shadow-float)]">
+          <span className="w-2.5 h-2.5 rounded-capsule bg-success" />
           <ProvenanceBadge kind="model" detail="Terrain is the Morse model rendered against the computed anchor." />
-          <span className="font-code text-xs text-[var(--color-text)] font-medium tracking-wide">
+          <span className="font-code text-label text-text font-medium tracking-wide">
             {targetSystem} Potential Energy Surface
           </span>
-          <span className="text-[var(--color-faint)]">|</span>
-          <span className="font-code text-[12px] text-[var(--color-info-ink)]">
+          <span className="text-faint">|</span>
+          <span className="font-code text-[12px] text-info-ink">
             Re: {equilibriumR.toFixed(4)} Å
           </span>
-          <span className="text-[var(--color-faint)]">|</span>
-          <span className="font-code text-[12px] text-[var(--color-label-secondary)]" title="Computed classical anchor">
+          <span className="text-faint">|</span>
+          <span className="font-code text-[12px] text-label-secondary" title="Computed classical anchor">
             FCI Anchor: {anchorComputed ? `${fciGround.toFixed(4)} Ha` : 'UNVERIFIED'}
           </span>
           {anchorComputed && <ProvenanceBadge kind="measured" detail="Live PySCF anchor." />}
-          <span className="text-[var(--color-faint)]">|</span>
-          <div className="flex items-center gap-1.5 text-[12px] font-code text-[var(--color-warning-ink)]">
-            <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+          <span className="text-faint">|</span>
+          <div className="flex items-center gap-1.5 text-[12px] font-code text-warning-ink">
+            <ShieldCheck className="w-3.5 h-3.5 text-success-ink" />
             <span title={anchorComputed ? 'Correlated fraction from the live campaign' : 'No computed anchor — confidence uncomputed'}>{anchorComputed && campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ uncomputed'}</span>
           </div>
-          <span className="text-[var(--color-faint)]">|</span>
+          <span className="text-faint">|</span>
           {process.env.NODE_ENV !== 'production' && (
-            <span className="font-code text-[12px] text-[var(--color-muted)]" title="Measured render-loop rate (R-23, development only)">
+            <span className="font-code text-[12px] text-muted" title="Measured render-loop rate (R-23, development only)">
               {fps == null ? '… fps' : `${fps} fps`}
             </span>
           )}
@@ -1409,17 +1409,17 @@ export function SpatialCanvas3D({
             <button
               onClick={() => setShowGhostContour((prev) => !prev)}
               title={`Sealed expectation μ=${sealed?.expected_mean ?? viewMean} ± ${sealed?.expected_std ?? viewStd} Ha; amber/rose = divergence gap`}
-              className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 shadow-[var(--shadow-float)] ${
+              className={`px-3 py-1.5 rounded-capsule border text-[12px] font-code transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1.5 shadow-[var(--shadow-float)] ${
                 showGhostContour
-                  ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)]'
-                  : 'bg-[var(--color-float)] border-[var(--color-border-strong)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-info-wash border-info-edge text-info-ink'
+                  : 'bg-float border-border-strong text-muted hover:text-text'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Vault Ghost (μ±σ bound)</span>
             </button>
           ) : (
-            <span className="px-3 py-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[12px] font-code text-[var(--color-faint)]">
+            <span className="px-3 py-1.5 rounded-capsule border border-border bg-surface text-[12px] font-code text-faint">
               No sealed prediction
             </span>
           )}
@@ -1428,7 +1428,7 @@ export function SpatialCanvas3D({
           <button
             onClick={() => setIsFullscreen((prev) => !prev)}
             title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            className="w-8 h-8 rounded-full bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] flex items-center justify-center transition-all shadow-[var(--shadow-float)]"
+            className="w-8 h-8 rounded-capsule bg-float border border-border-strong text-label-secondary hover:text-text flex items-center justify-center transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-[var(--shadow-float)]"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -1437,45 +1437,45 @@ export function SpatialCanvas3D({
 
       {/* One collapsed control surface keeps the 3D plot readable at rest. */}
       <details className="absolute bottom-4 left-4 right-4 z-20">
-        <summary className="pointer-events-auto w-fit cursor-default rounded-full border border-[var(--color-border-strong)] bg-[var(--color-float)] px-3 py-1.5 text-[12px] font-code text-[var(--color-label-secondary)] shadow-[var(--shadow-float)]">
+        <summary className="pointer-events-auto w-fit cursor-default rounded-capsule border border-border-strong bg-float px-3 py-1.5 text-[12px] font-code text-label-secondary shadow-[var(--shadow-float)]">
           Observatory controls · probe, vault, Atlas
         </summary>
         <div className="mt-2 flex items-end justify-between pointer-events-none">
         <div className="pointer-events-auto flex flex-col gap-2 max-w-sm">
         {/* Raycasted Coordinates Readout */}
-        <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-xl p-3 shadow-[var(--shadow-float)]">
-          <div className="text-[12px] uppercase font-code tracking-wider text-[var(--color-muted)] mb-1 flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3 text-[var(--color-accent-ink)]" />
+        <div className="bg-float border border-border-strong rounded-row p-3 shadow-[var(--shadow-float)]">
+          <div className="text-[12px] uppercase font-code tracking-wider text-muted mb-1 flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-accent-ink" />
             <span>Spatial Inspection Probe</span>
           </div>
           {hoveredCoordinates || selectedCoordinates ? (
-            <div className="space-y-1 font-code text-xs">
+            <div className="space-y-1 font-code text-label">
               <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Bond Dist (R):</span>
-                <span className="text-[var(--color-text)] font-medium">
+                <span className="text-muted">Bond Dist (R):</span>
+                <span className="text-text font-medium">
                   {(hoveredCoordinates?.r || selectedCoordinates?.r || 0).toFixed(4)} Å
                 </span>
               </div>
                 <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Energy V(R):</span>
-                <span className="text-[var(--color-info-ink)] font-medium">
+                <span className="text-muted">Energy V(R):</span>
+                <span className="text-info-ink font-medium">
                   {(hoveredCoordinates?.energy || selectedCoordinates?.energy || 0).toFixed(5)} Ha
                 </span>
               </div>
               {!hoveredCoordinates && selectedCoordinates?.ledgerHash && (
                 <div className="flex justify-between gap-4">
-                  <span className="text-[var(--color-muted)]">Ledger stain:</span>
-                  <span className="text-[var(--color-warning-ink)] font-medium truncate" title={selectedCoordinates.ledgerHash}>
+                  <span className="text-muted">Ledger stain:</span>
+                  <span className="text-warning-ink font-medium truncate" title={selectedCoordinates.ledgerHash}>
                     #{selectedCoordinates.ledgerHash.slice(0, 12)}…
                   </span>
                 </div>
               )}
-              <div className="text-[12px] text-[var(--color-faint)] pt-1 border-t border-[var(--color-border)]">
+              <div className="text-[12px] text-faint pt-1 border-t border-border">
                 {touchProbeHint(isCoarsePointer)}
               </div>
             </div>
           ) : (
-            <div className="font-code text-xs text-[var(--color-muted)]">
+            <div className="font-code text-label text-muted">
               {isCoarsePointer
                 ? 'Tap to pin, drag to orbit — Hamiltonian coordinates read out here.'
                 : 'Hover or click anywhere on the PES landscape to read exact Hamiltonian coordinates.'}
@@ -1486,31 +1486,31 @@ export function SpatialCanvas3D({
         {/* Vault Pre-registration (P3): seal expectations before compute,
             evaluate pinned measurements against them. Ghost binds to the
             sealed μ; the badge renders the ledger-scored surprise. */}
-        <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-xl p-3 shadow-[var(--shadow-float)]">
-          <div className="text-[12px] uppercase font-code tracking-wider text-[var(--color-muted)] mb-1 flex items-center gap-1.5">
-            <ShieldCheck className="w-3 h-3 text-[var(--color-success-ink)]" />
+        <div className="bg-float border border-border-strong rounded-row p-3 shadow-[var(--shadow-float)]">
+          <div className="text-[12px] uppercase font-code tracking-wider text-muted mb-1 flex items-center gap-1.5">
+            <ShieldCheck className="w-3 h-3 text-success-ink" />
             <span>Vault Pre-registration</span>
             {sealed && (
-              <span className="text-[var(--color-info-ink)] normal-case">{sealed.prediction_hash.slice(0, 8)}…</span>
+              <span className="text-info-ink normal-case">{sealed.prediction_hash.slice(0, 8)}…</span>
             )}
           </div>
           {sealed ? (
-            <div className="font-code text-xs space-y-1">
+            <div className="font-code text-label space-y-1">
               <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-muted)]">Sealed μ ± σ:</span>
-                <span className="text-[var(--color-text)] font-medium">
+                <span className="text-muted">Sealed μ ± σ:</span>
+                <span className="text-text font-medium">
                   {sealed.expected_mean.toFixed(5)} ± {sealed.expected_std.toFixed(5)} Ha
                 </span>
               </div>
               {evaluation && (
                 <div
                   title={`Brier ${evaluation.brier_score.toExponential(2)} · measured ${evaluation.measured_value.toFixed(5)} Ha`}
-                  className={`rounded-lg px-2 py-1.5 text-[12px] font-medium border ${
+                  className={`rounded-control-compact px-2 py-1.5 text-[12px] font-medium border ${
                     evaluation.level === 'anomalous'
-                      ? 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] animate-pulse'
+                      ? 'bg-danger-wash border-danger-edge text-danger-ink animate-pulse'
                       : evaluation.level === 'notable'
-                        ? 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]'
-                        : 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
+                        ? 'bg-warning-wash border-warning-edge text-warning-ink'
+                        : 'bg-success-wash border-success-edge text-success-ink'
                   }`}
                 >
                   {`z = ${evaluation.surprise_z.toFixed(3)} · ${evaluation.level ?? 'unscored'}`}
@@ -1518,7 +1518,7 @@ export function SpatialCanvas3D({
               )}
             </div>
           ) : (
-            <div className="font-code text-xs text-[var(--color-faint)]">
+            <div className="font-code text-label text-faint">
               {anchorComputed
                 ? 'No sealed prediction — ghost is hidden.'
                 : 'No FCI anchor — sealing refused (nothing to anchor μ to).'}
@@ -1532,7 +1532,7 @@ export function SpatialCanvas3D({
               title="Expected mean energy in Hartrees (defaults to the FCI anchor)"
               disabled={!anchorComputed || sealBusy}
               inputMode="decimal"
-              className="w-24 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-xs font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)] disabled:opacity-40"
+              className="w-24 bg-field border border-border rounded-chip px-2 py-1 text-label font-code text-text placeholder:text-faint disabled:opacity-40"
             />
             <input
               value={sealStdStr}
@@ -1541,13 +1541,13 @@ export function SpatialCanvas3D({
               title="Expected spread in Hartrees (floor 1e-4 enforced server-side)"
               disabled={!anchorComputed || sealBusy}
               inputMode="decimal"
-              className="w-24 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-xs font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)] disabled:opacity-40"
+              className="w-24 bg-field border border-border rounded-chip px-2 py-1 text-label font-code text-text placeholder:text-faint disabled:opacity-40"
             />
             <button
               onClick={handleSeal}
               disabled={!anchorComputed || sealBusy}
               title={anchorComputed ? 'Seal expectation in the Vault ledger' : 'Requires a computed FCI anchor'}
-              className="px-3 py-1 rounded-lg text-xs font-medium bg-[var(--color-success)] hover:opacity-90 text-[var(--color-on-accent)] font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="px-3 py-1 rounded-control-compact text-label font-medium bg-success hover:opacity-90 text-on-accent font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
             >
               {sealBusy ? '…' : 'Seal'}
             </button>
@@ -1562,18 +1562,18 @@ export function SpatialCanvas3D({
                   ? 'Pin a terrain point first (click) — the pin is the measurement'
                   : `Score pinned E=${selectedCoordinates.energy} Ha against sealed μ`
             }
-            className="mt-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-info-edge)] text-[var(--color-info-ink)] hover:bg-[var(--color-info-wash)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            className="mt-2 w-full px-3 py-1.5 rounded-control-compact text-label font-medium border border-info-edge text-info-ink hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
           >
             Evaluate pinned point
           </button>
           {assertion && (
-            <div className="mt-1.5 rounded-lg px-2 py-1 text-[12px] font-code bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)]" title={`Evidence: ${(assertion.evidence_refs ?? []).join(', ') || '—'}`}>
+            <div className="mt-1.5 rounded-control-compact px-2 py-1 text-[12px] font-code bg-soft-lilac-wash border border-soft-lilac-edge text-soft-lilac-ink" title={`Evidence: ${(assertion.evidence_refs ?? []).join(', ') || '—'}`}>
               Asserted ρ={typeof assertion.rho === 'number' ? assertion.rho.toFixed(2) : '?'}
             </div>
           )}
           {sealed && evaluation && !assertion && (
-            <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-              <div className="text-[12px] uppercase font-code tracking-wider text-[var(--color-faint)] mb-1">Formal assertion (R-09)</div>
+            <div className="mt-2 rounded-control-compact border border-border bg-surface p-2">
+              <div className="text-[12px] uppercase font-code tracking-wider text-faint mb-1">Formal assertion (R-09)</div>
               <div className="flex items-center gap-2">
                 <input
                   value={assertRho}
@@ -1582,7 +1582,7 @@ export function SpatialCanvas3D({
                   title="Credibility you assert — judged by you, never computed"
                   disabled={sealBusy}
                   inputMode="decimal"
-                  className="w-20 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-xs font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)] disabled:opacity-40"
+                  className="w-20 bg-field border border-border rounded-chip px-2 py-1 text-label font-code text-text placeholder:text-faint disabled:opacity-40"
                 />
                 <input
                   value={assertEvidence}
@@ -1590,25 +1590,25 @@ export function SpatialCanvas3D({
                   placeholder="evidence refs, comma-separated"
                   title="Evidence references this claim rests on (required)"
                   disabled={sealBusy}
-                  className="flex-1 min-w-0 bg-[var(--color-field)] border border-[var(--color-border)] rounded px-2 py-1 text-xs font-code text-[var(--color-text)] placeholder:text-[var(--color-faint)] disabled:opacity-40"
+                  className="flex-1 min-w-0 bg-field border border-border rounded-chip px-2 py-1 text-label font-code text-text placeholder:text-faint disabled:opacity-40"
                 />
                 <button
                   onClick={handleAssert}
                   disabled={sealBusy}
                   title="Mint a prediction_asserted event binding hash + rho + evidence"
-                  className="px-3 py-1 rounded-lg text-xs font-medium bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  className="px-3 py-1 rounded-control-compact text-label font-medium bg-accent hover:bg-lit text-on-accent disabled:opacity-40 disabled:cursor-not-allowed transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                 >
                   Assert
                 </button>
               </div>
-              {assertMsg && <div className="mt-1 text-[12px] font-code text-[var(--color-danger-ink)]">{assertMsg}</div>}
+              {assertMsg && <div className="mt-1 text-[12px] font-code text-danger-ink">{assertMsg}</div>}
             </div>
           )}
           {calibration && Object.keys(calibration).length > 0 && (
-            <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-              <div className="text-[12px] uppercase font-code tracking-wider text-[var(--color-faint)] mb-1">Author calibration (read-only)</div>
+            <div className="mt-2 rounded-control-compact border border-border bg-surface p-2">
+              <div className="text-[12px] uppercase font-code tracking-wider text-faint mb-1">Author calibration (read-only)</div>
               {Object.entries(calibration).slice(0, 4).map(([author, c]) => (
-                <div key={author} className="flex justify-between gap-2 text-[12px] font-code text-[var(--color-label-secondary)]">
+                <div key={author} className="flex justify-between gap-2 text-[12px] font-code text-label-secondary">
                   <span className="truncate">{author || 'unknown'}</span>
                   <span>
                     {c.evaluated}/{c.sealed} eval
@@ -1620,8 +1620,8 @@ export function SpatialCanvas3D({
             </div>
           )}
           {history.length > 0 && (
-            <div className="mt-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-              <div className="text-[12px] uppercase font-code tracking-wider text-[var(--color-faint)] mb-1">
+            <div className="mt-2 rounded-control-compact border border-border bg-surface p-2">
+              <div className="text-[12px] uppercase font-code tracking-wider text-faint mb-1">
                 Trajectory replay {replayEntry ? `(step ${history.length - (replayIdx ?? 0)}/${history.length})` : '(live)'}
               </div>
               <div className="flex items-center gap-2">
@@ -1629,7 +1629,7 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx((i) => (i == null ? history.length - 1 : Math.min(history.length - 1, i + 1)))}
                   disabled={replayIdx != null && replayIdx >= history.length - 1}
                   title="Step one event older (time travel is newest-first: older = forward in time)"
-                  className="px-2 py-1 rounded-md text-[12px] font-code border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-40"
+                  className="px-2 py-1 rounded-inset text-[12px] font-code border border-border text-label-secondary hover:bg-fill-hover disabled:opacity-40"
                 >
                   ‹ older
                 </button>
@@ -1637,7 +1637,7 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx((i) => (i == null ? null : i - 1 < 0 ? null : i - 1))}
                   disabled={replayIdx == null}
                   title="Step one event newer"
-                  className="px-2 py-1 rounded-md text-[12px] font-code border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-40"
+                  className="px-2 py-1 rounded-inset text-[12px] font-code border border-border text-label-secondary hover:bg-fill-hover disabled:opacity-40"
                 >
                   newer ›
                 </button>
@@ -1645,13 +1645,13 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx(null)}
                   disabled={replayIdx == null}
                   title="Return to the live ledger tip"
-                  className="px-2 py-1 rounded-md text-[12px] font-code border border-[var(--color-info-edge)] text-[var(--color-info-ink)] hover:bg-[var(--color-info-wash)] disabled:opacity-40"
+                  className="px-2 py-1 rounded-inset text-[12px] font-code border border-info-edge text-info-ink hover:bg-info-wash disabled:opacity-40"
                 >
                   live
                 </button>
               </div>
               {replayEntry && (
-                <div className="mt-1 text-[12px] font-code text-[var(--color-label-secondary)] truncate" title={replayEntry.label}>
+                <div className="mt-1 text-[12px] font-code text-label-secondary truncate" title={replayEntry.label}>
                   ◷ {replayEntry.label}
                   {replayEntry.z != null ? ` · z=${replayEntry.z.toFixed(2)}` : ''}
                   {replayEntry.mean != null ? ` · μ=${replayEntry.mean.toFixed(4)}` : ''}
@@ -1661,12 +1661,12 @@ export function SpatialCanvas3D({
             </div>
           )}
           {gazes.length > 0 && (
-            <div className="mt-1 text-[12px] font-code text-[var(--color-faint)]">
+            <div className="mt-1 text-[12px] font-code text-faint">
               {gazes.length} agent gaze{gazes.length === 1 ? '' : 's'} in view
             </div>
           )}
           {sealMsg && (
-            <div className={`mt-1.5 text-[12px] font-code ${sealMsg.startsWith('Sealed') ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-danger-ink)]'}`}>
+            <div className={`mt-1.5 text-[12px] font-code ${sealMsg.startsWith('Sealed') ? 'text-success-ink' : 'text-danger-ink'}`}>
               {sealMsg}
             </div>
           )}
@@ -1676,22 +1676,22 @@ export function SpatialCanvas3D({
         {/* Generative Lens (Atlas Marble 2) Action Panel */}
         <div className="pointer-events-auto flex flex-col items-end gap-2">
           {lensError && (
-            <div className="bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 max-w-xs shadow-[var(--shadow-float)]">
-              <ShieldAlert className="w-4 h-4 text-[var(--color-danger-ink)] shrink-0" />
+            <div className="bg-danger-wash border border-danger-edge text-danger-ink text-label px-3 py-1.5 rounded-control-compact flex items-center gap-2 max-w-xs shadow-[var(--shadow-float)]">
+              <ShieldAlert className="w-4 h-4 text-danger-ink shrink-0" />
               <span>{lensError}</span>
             </div>
           )}
 
-          <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-xl p-3 shadow-[var(--shadow-float)] flex flex-col gap-2">
+          <div className="bg-float border border-border-strong rounded-row p-3 shadow-[var(--shadow-float)] flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-xs font-medium text-[var(--color-text)] flex items-center gap-1.5 justify-end">
-                <Camera className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+              <div className="text-label font-medium text-text flex items-center gap-1.5 justify-end">
+                <Camera className="w-3.5 h-3.5 text-accent-ink" />
                 <span>World Labs Atlas Lens</span>
               </div>
-              <div className="text-[12px] font-code text-[var(--color-muted)]">
+              <div className="text-[12px] font-code text-muted">
                 {airGapped ? (
-                  <span className="text-[var(--color-warning-ink)]">Air-Gap Locked (Offline)</span>
+                  <span className="text-warning-ink">Air-Gap Locked (Offline)</span>
                 ) : isGeneratingLens ? (
                   <span>Dispatching — reserving against session cap…</span>
                 ) : (
@@ -1708,12 +1708,12 @@ export function SpatialCanvas3D({
                   ? 'Sovereign Air-Gap active: external cloud synthesis disabled'
                   : 'Pose the live terrain snapshot via Atlas Marble 2 (billed to the session cap on dispatch)'
               }
-              className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-sm ${
+              className={`px-3.5 py-2 rounded-control-compact text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1.5 shadow-sm ${
                 airGapped
-                  ? 'bg-[var(--color-fill)] border border-[var(--color-border)] text-[var(--color-faint)] cursor-not-allowed'
+                  ? 'bg-fill border border-border text-faint cursor-not-allowed'
                   : isGeneratingLens
-                    ? 'bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] animate-pulse'
-                    : 'bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] font-semibold'
+                    ? 'bg-info-wash border border-info-edge text-info-ink animate-pulse'
+                    : 'bg-accent hover:bg-lit text-on-accent font-semibold'
               }`}
             >
               {isGeneratingLens ? (
@@ -1750,25 +1750,25 @@ export function SpatialCanvas3D({
                   ? 'Requires a computed FCI anchor (depth needs ground truth)'
                   : 'Render terrain depth offscreen, upload as an Atlas asset, chisel the current view (billed to the session cap on dispatch)'
             }
-            className="px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 shadow-sm border border-[var(--color-info-edge)] text-[var(--color-info-ink)] hover:bg-[var(--color-info-wash)] disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3.5 py-2 rounded-control-compact text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-center gap-1.5 shadow-sm border border-info-edge text-info-ink hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Layers className="w-3.5 h-3.5" />
             <span>{chiselBusy ? 'Encoding depth…' : 'Depth Chisel (P1)'}</span>
           </button>
           {chiselMsg && (
-            <div className="text-[12px] font-code text-[var(--color-danger-ink)]">{chiselMsg}</div>
+            <div className="text-[12px] font-code text-danger-ink">{chiselMsg}</div>
           )}
           {/* P6: our reservation ledger — rated invoices live on the Atlas
               billing dashboard, never here. */}
           {lensHistory.length > 0 && (
             <details className="text-[12px] font-code">
-              <summary className="text-[var(--color-muted)] cursor-pointer hover:text-[var(--color-text)]">
+              <summary className="text-muted cursor-pointer hover:text-text">
                 Reservations ({lensHistory.length}) — not billed amounts
               </summary>
               <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
                 {lensHistory.map((op) => (
-                  <div key={op.operation_id} className="text-[var(--color-faint)] truncate" title={op.prompt_used || op.operation_id}>
-                    <span className="text-[var(--color-label-secondary)]">{op.operation_id.slice(0, 8)}…</span>
+                  <div key={op.operation_id} className="text-faint truncate" title={op.prompt_used || op.operation_id}>
+                    <span className="text-label-secondary">{op.operation_id.slice(0, 8)}…</span>
                     {' · '}{op.task_type ?? 'lens'}
                     {op.cost_usd != null ? ` · $${op.cost_usd.toFixed(2)} reserved` : ''}
                     {op.resolved ? ' · resolved' : ' · pending'}
@@ -1785,28 +1785,28 @@ export function SpatialCanvas3D({
       {/* Atlas Synthetic Lens Non-Evidential Watermark & Preview */}
       {lensImageUrl && (
         <div className="absolute top-16 right-4 z-20 flex flex-col items-end gap-2">
-          <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-code text-[var(--color-label-secondary)] px-2.5 py-1 rounded tracking-wider shadow-[var(--shadow-float)]">
+          <div className="bg-float border border-border-strong text-[12px] font-code text-label-secondary px-2.5 py-1 rounded-chip tracking-wider shadow-[var(--shadow-float)]">
             [{lensWatermark}]
           </div>
           {lensPromptUsed && (
-            <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-code text-[var(--color-muted)] px-2.5 py-1 rounded max-w-56 truncate shadow-[var(--shadow-float)]" title={lensPromptUsed}>
+            <div className="bg-float border border-border-strong text-[12px] font-code text-muted px-2.5 py-1 rounded-chip max-w-56 truncate shadow-[var(--shadow-float)]" title={lensPromptUsed}>
               promptUsed: {lensPromptUsed.slice(0, 80)}
             </div>
           )}
           {lensCostUsd != null && (
-            <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-code text-[var(--color-label-secondary)] px-2.5 py-1 rounded tracking-wider shadow-[var(--shadow-float)]">
+            <div className="bg-float border border-border-strong text-[12px] font-code text-label-secondary px-2.5 py-1 rounded-chip tracking-wider shadow-[var(--shadow-float)]">
               Reserved ${lensCostUsd.toFixed(2)} against session cap
             </div>
           )}
           {lensImageUrl.startsWith('http') && (
-            <div className="w-56 h-32 rounded-lg overflow-hidden border border-[var(--color-accent-edge)] shadow-[var(--shadow-float)] relative group bg-[var(--color-canvas)]">
+            <div className="w-56 h-32 rounded-control-compact overflow-hidden border border-accent-edge shadow-[var(--shadow-float)] relative group bg-canvas">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={lensImageProxyUrl(lensImageUrl) ?? lensImageUrl}
                 alt="Atlas Marble 2 Observatory Synthetic Lens"
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              <div className="absolute bottom-1 right-1.5 text-[12px] font-mono text-[var(--color-info-ink)] bg-[var(--color-float)] px-1 rounded">
+              <div className="absolute bottom-1 right-1.5 text-[12px] font-mono text-info-ink bg-float px-1 rounded-chip">
                 Atlas Lens
               </div>
             </div>

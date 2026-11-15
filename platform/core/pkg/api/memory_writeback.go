@@ -2,16 +2,20 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
+
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
+	"github.com/mainza-ai/kubona/core/pkg/secret"
 )
 
 // Memory write-back: recall_memory can only find what was written, and until
@@ -146,6 +150,7 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 				"Evaluated claim: "+draft.Statement,
 				draft.Alpha, draft.Beta, draft.Gamma, draft.Verdict, string(evBytes)); merr == nil {
 				cite = rec.ID
+				s.linkJobEvidence(j.SessionID, rec.ID, j)
 			}
 		}
 	}
@@ -173,6 +178,7 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "qaoa_hardware",
 				boundRunes(statement, 400), -1, -1, -1, "contested", string(evBytes)); merr == nil {
 				cite = rec.ID
+				s.linkJobEvidence(j.SessionID, rec.ID, j)
 			}
 		}
 	}
@@ -238,27 +244,85 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, claimKind,
 				boundRunes(statement, 400), -1, -1, -1, verdict, string(evBytes)); merr == nil {
 				cite = rec.ID
+				s.linkJobEvidence(j.SessionID, rec.ID, j)
 			}
 		}
-	}
-	rawState, err := s.ledger.GetCampaignState(j.SessionID)
-	if err != nil || len(rawState) == 0 {
-		return
-	}
-	updated, changed, note := agents.ReplanWithJobResult(rawState, j.ID, j.JobType, j.ResultJSON, cite)
-	if !changed {
-		return
 	}
 	shortID := j.ID
 	if len(shortID) > 8 {
 		shortID = shortID[:8]
 	}
-	s.ledger.SaveCampaignStateWithTrigger(j.SessionID, updated, "replan:"+j.JobType+":"+shortID)
+	_, changed, note := s.foldCampaign(j.SessionID, "replan:"+j.JobType+":"+shortID, func(raw []byte) ([]byte, bool, string) {
+		return agents.ReplanWithJobResult(raw, j.ID, j.JobType, j.ResultJSON, cite)
+	})
+	if !changed {
+		return
+	}
 	_ = s.ledger.AppendEvent(j.SessionID, "campaign_replanned", map[string]any{
 		"job":      j.ID,
 		"job_type": j.JobType,
 		"note":     note,
 	})
+}
+
+func (s *Server) putCampaignAtRevision(w http.ResponseWriter, r *http.Request, sessionID string) {
+	var body struct {
+		ExpectedRevision *int64          `json:"expected_revision"`
+		State            json.RawMessage `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		WriteAPIError(w, "bad_request", "campaign body must be JSON", nil)
+		return
+	}
+	if body.ExpectedRevision == nil {
+		WriteAPIError(w, "precondition_required", "expected_revision is required", nil)
+		return
+	}
+	if len(body.State) == 0 || !json.Valid(body.State) {
+		WriteAPIError(w, "bad_request", "state must be a JSON value", nil)
+		return
+	}
+	err := s.ledger.SaveCampaignStateAtRevision(sessionID, body.State, "user-edit", *body.ExpectedRevision)
+	var conflict *ledger.CampaignRevisionConflict
+	if errors.As(err, &conflict) {
+		WriteAPIError(w, "revision_conflict", "campaign revision conflict", map[string]any{"current_revision": conflict.Current})
+		return
+	}
+	if err != nil {
+		WriteAPIError(w, "internal", "campaign save failed", nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "saved", "revision": *body.ExpectedRevision + 1})
+}
+
+// foldCampaign re-reads and re-folds when another worker won the revision.
+// Four attempts, then the fold is dropped rather than overwritten.
+func (s *Server) foldCampaign(sessionID, trigger string, fold func([]byte) ([]byte, bool, string)) ([]byte, bool, string) {
+	if s.ledger == nil {
+		return nil, false, ""
+	}
+	var last string
+	for attempt := 0; attempt < 4; attempt++ {
+		raw, rev, err := s.ledger.GetCampaignStateWithRevision(sessionID)
+		if err != nil || len(raw) == 0 {
+			return nil, false, ""
+		}
+		updated, changed, note := fold(raw)
+		last = note
+		if !changed {
+			return nil, false, note
+		}
+		err = s.ledger.SaveCampaignStateAtRevision(sessionID, updated, trigger, rev)
+		if err == nil {
+			return updated, true, note
+		}
+		var conflict *ledger.CampaignRevisionConflict
+		if errors.As(err, &conflict) {
+			continue
+		}
+		return nil, false, ""
+	}
+	return nil, false, last
 }
 
 // recordFailedJobResult is the failure hook: an experiment that reached a
@@ -275,10 +339,6 @@ func (s *Server) recordFailedJobResult(j *jobs.Job) {
 	default:
 		return
 	}
-	rawState, err := s.ledger.GetCampaignState(j.SessionID)
-	if err != nil || len(rawState) == 0 {
-		return
-	}
 	reason := ""
 	var res struct {
 		Error   string `json:"error"`
@@ -293,11 +353,12 @@ func (s *Server) recordFailedJobResult(j *jobs.Job) {
 	if reason == "" {
 		reason = "job failed without a recorded reason"
 	}
-	updated, changed, note := agents.RecordJobFailure(rawState, j.ID, j.JobType, reason)
+	_, changed, note := s.foldCampaign(j.SessionID, "failure:"+j.JobType+":"+shortJob(j.ID), func(raw []byte) ([]byte, bool, string) {
+		return agents.RecordJobFailure(raw, j.ID, j.JobType, reason)
+	})
 	if !changed {
 		return
 	}
-	s.ledger.SaveCampaignStateWithTrigger(j.SessionID, updated, "failure:"+j.JobType+":"+shortJob(j.ID))
 	_ = s.ledger.AppendEvent(j.SessionID, "campaign_negative_result", map[string]any{
 		"job": j.ID, "job_type": j.JobType, "note": note, "reason": reason,
 	})
@@ -498,6 +559,20 @@ func (s *Server) handleMemoryRecall(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+	// Defense for rows written before the screen existed: never echo a
+	// recognised secret shape out of recall.
+	for _, raw := range out {
+		snippet, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if content, ok := snippet["content"].(string); ok {
+			if clean, _ := secret.Redact(content); clean != content {
+				snippet["content"] = clean
+				snippet["redacted"] = true
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"snippets": out, "tenant": tenant, "session_id": sessionID,
 	})
@@ -550,6 +625,9 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "content exceeds 4000 characters", http.StatusBadRequest)
 		return
 	}
+	// B10: never store a credential shape. The value is replaced by a visible
+	// marker; the response tells the caller it happened.
+	content, redactionKinds := secret.Redact(content)
 	bank, ok := memoryBankOrDefault(req.Bank)
 	if !ok {
 		http.Error(w, "bank must be experiences, world-facts, or mental-models", http.StatusBadRequest)
@@ -571,6 +649,7 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": item.ID, "bank": string(item.Bank), "importance": item.Importance,
 		"tenant": item.TenantID, "created_at": item.CreatedAt,
+		"redacted": len(redactionKinds) > 0, "redaction_kinds": redactionKinds,
 	})
 }
 
@@ -582,8 +661,8 @@ func (s *Server) retainTurnExperience(sessionID, kind, prompt, outcome string, t
 	if s.memoryStore == nil {
 		return
 	}
-	prompt = boundRunes(prompt, 400)
-	outcome = boundRunes(outcome, 120)
+	prompt, promptKinds := secret.Redact(boundRunes(prompt, 400))
+	outcome, outcomeKinds := secret.Redact(boundRunes(outcome, 120))
 	if prompt == "" && outcome == "" {
 		return
 	}
@@ -596,6 +675,9 @@ func (s *Server) retainTurnExperience(sessionID, kind, prompt, outcome string, t
 	if len(tools) > 0 {
 		b.WriteString(" | tools: ")
 		b.WriteString(strings.Join(tools, ","))
+	}
+	if kinds := append(promptKinds, outcomeKinds...); len(kinds) > 0 {
+		b.WriteString(secret.RedactionNote(kinds))
 	}
 	content := boundRunes(b.String(), maxExperienceRunes)
 
@@ -614,4 +696,72 @@ func (s *Server) retainTurnExperience(sessionID, kind, prompt, outcome string, t
 		return
 	}
 	s.memoryStore.RetainScoped(tenant, tenant, memory.BankExperiences, content, importance, nil)
+}
+
+// linkJobEvidence records the measured job as the claim's provenance row
+// (B4). The digest pins the exact result bytes the verdict was minted from.
+func (s *Server) linkJobEvidence(sessionID, claimID string, job *jobs.Job) {
+	if s.ledger == nil || job == nil {
+		return
+	}
+	kind := "job_result"
+	if job.JobType == "classical_anchor" {
+		kind = "classical_anchor"
+	}
+	_ = s.ledger.AddClaimEvidence(sessionID, claimID, ledger.ClaimEvidence{
+		Kind:         kind,
+		JobID:        job.ID,
+		ResultSHA256: ledger.ResultDigest(job.ResultJSON),
+	})
+}
+
+// handleMemoryRetract tombstones one memory: content cleared, embedding
+// removed, row kept for audit, and a `memory_retracted` event sealed. Session
+// scoping decides the tenant; unknown or foreign ids refuse without an oracle.
+func (s *Server) handleMemoryRetract(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "memory retraction is POST-only", nil)
+		return
+	}
+	if s.memoryStore == nil {
+		WriteAPIError(w, "not_ready", "memory store unavailable", nil)
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+		MemoryID  string `json:"memory_id"`
+		Reason    string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteAPIError(w, "bad_request", "invalid request body", nil)
+		return
+	}
+	req.SessionID = strings.TrimSpace(req.SessionID)
+	req.MemoryID = strings.TrimSpace(req.MemoryID)
+	if req.SessionID == "" || req.MemoryID == "" {
+		WriteAPIError(w, "bad_request", "session_id and memory_id are required", nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
+	tenant, err := s.resolveMemoryTenant(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "not_found", "session not found", nil)
+		return
+	}
+	reason := boundRunes(strings.TrimSpace(req.Reason), 200)
+	reason, _ = secret.Redact(reason) // a reason must not smuggle a secret either
+	if err := s.memoryStore.RetractScoped(tenant, req.MemoryID, reason); err != nil {
+		if errors.Is(err, memory.ErrMemoryNotFound) {
+			WriteAPIError(w, "not_found", "unknown memory for this tenant", nil)
+			return
+		}
+		WriteAPIError(w, "internal", "memory retraction failed", nil)
+		return
+	}
+	_ = s.ledger.AppendEvent(req.SessionID, "memory_retracted", map[string]any{
+		"memory_id": req.MemoryID, "reason": reason,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": req.MemoryID, "retracted": true})
 }

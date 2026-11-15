@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CONSEQUENTIAL_SETTLE_MS, useConsequentialSettle } from '@/lib/consequential';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 
 type ConfirmDialogProps = {
@@ -10,6 +11,8 @@ type ConfirmDialogProps = {
   confirmLabel: string;
   danger?: boolean;
   busy?: boolean;
+  /** Inert window before confirm can be chosen. 0 only for tests of other gates. */
+  settleMs?: number;
   error?: string | null;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
@@ -18,8 +21,9 @@ type ConfirmDialogProps = {
 /**
  * Typed confirmation dialog for irreversible or money-moving actions.
  * Replaces native confirm() (invisible to screen readers, no typed
- * acknowledgement). Trapped + returns focus; Escape cancels. The confirm
- * button stays disabled until the typed text matches exactly.
+ * acknowledgement). Trapped + returns focus. Escape closes without
+ * confirming. Confirm stays inert for the settle window, and focus lands
+ * on Cancel unless the operator must type.
  */
 export default function ConfirmDialog(props: ConfirmDialogProps) {
   if (!props.open) return null;
@@ -36,17 +40,20 @@ function DialogBody({
   danger,
   busy,
   error,
+  settleMs = CONSEQUENTIAL_SETTLE_MS,
   onConfirm,
   onCancel,
 }: Omit<ConfirmDialogProps, 'open'>) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [typed, setTyped] = useState('');
+  const settled = useConsequentialSettle(true, settleMs);
   useFocusTrap(true, panelRef);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         e.stopPropagation();
         onCancel();
       }
@@ -55,7 +62,7 @@ function DialogBody({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onCancel]);
 
-  const canConfirm = !busy && (requireText == null || typed === requireText);
+  const canConfirm = settled && !busy && (requireText == null || typed === requireText);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4" role="presentation" onClick={onCancel}>
@@ -65,28 +72,29 @@ function DialogBody({
         aria-modal="true"
         aria-label={title}
         aria-describedby="confirm-dialog-body"
-        className="w-[min(28rem,calc(100vw-3rem))] rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-float)] p-5 shadow-[var(--shadow-float)]"
+        className="w-[min(28rem,calc(100vw-3rem))] rounded-row border border-border-strong bg-float p-5 shadow-[var(--shadow-float)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-[var(--color-text)]">{title}</h2>
-        <div id="confirm-dialog-body" className="mt-2 text-sm text-[var(--color-label-secondary)]">
+        <h2 className="text-body-large font-semibold text-text">{title}</h2>
+        <div id="confirm-dialog-body" className="mt-2 text-body-strong text-label-secondary">
           {body}
         </div>
         {requireText != null && (
-          <label className="mt-3 block text-xs text-[var(--color-muted)]">
-            Type <code className="rounded bg-[var(--color-fill)] px-1 font-mono">{requireText}</code> to confirm
+          <label className="mt-3 block text-label text-muted">
+            Type <code className="rounded-chip bg-fill px-1 font-mono">{requireText}</code> to confirm
             <input
               type="text"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               disabled={busy}
+              autoFocus
               autoComplete="off"
-              className="mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1.5 text-sm text-[var(--color-text)] placeholder:text-[var(--color-faint)]"
+              className="mt-1 block w-full rounded-inset border border-border bg-field px-2 py-1.5 text-body-strong text-text placeholder:text-faint"
             />
           </label>
         )}
         {error != null && (
-          <p role="alert" className="mt-2 text-sm text-[var(--color-danger-ink)]">
+          <p role="alert" className="mt-2 text-body-strong text-danger-ink">
             {error}
           </p>
         )}
@@ -94,17 +102,19 @@ function DialogBody({
           <button
             type="button"
             onClick={onCancel}
+            autoFocus={requireText == null}
             disabled={busy}
-            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-50"
+            className="rounded-inset border border-border px-3 py-1.5 text-body-strong text-label-secondary hover:bg-fill-hover disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => void onConfirm()}
+            data-settle={settled ? 'ready' : 'pending'}
             disabled={!canConfirm}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-              danger ? 'bg-rose-600 text-[var(--color-on-accent)] hover:bg-rose-500' : 'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:bg-[var(--color-lit)]'
+            className={`rounded-inset px-3 py-1.5 text-body-strong font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+              danger ? 'bg-rose-600 text-on-accent hover:bg-rose-500' : 'bg-accent text-on-accent hover:bg-lit'
             }`}
           >
             {busy ? 'Working…' : confirmLabel}

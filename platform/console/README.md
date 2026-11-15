@@ -24,7 +24,9 @@ Open http://localhost:3000. Optional: local oMLX LLM on `:8787` powers chat/trib
 
 ```bash
 pnpm run build   # production build (required green)
-pnpm test        # vitest suite
+pnpm test        # vitest suite (Node; excludes *.component.test.tsx)
+pnpm test:browser # component tests in real Chromium; once per machine:
+                 #   pnpm exec playwright install chromium
 pnpm lint        # eslint, zero warnings
 ```
 
@@ -33,6 +35,17 @@ pnpm lint        # eslint, zero warnings
 Ten adopted co-pilot scenarios (local simulation only, $0.00, no QPU):
 [`wiki/concepts/local-simulation-test-scenarios.md`](../../wiki/concepts/local-simulation-test-scenarios.md).
 Golden rule: if the Action Gate appears during testing, deny it or leave it pending.
+
+## Runtime skills & decision evals
+
+- **Settings → Runtime skills** shows the body-free skill catalogue and every
+  rejected `SKILL.md` fault. User skills live in `~/.kubona/skills/`.
+- `GET /api/skills` is the same catalogue (names/descriptions only); the
+  copilot reads a body through the tool-gated `load_skill` rail, optionally
+  scoped to a section heading.
+- `kubonad eval-llm --role copilot --predictions recorded.json` scores
+  sha-pinned decision fixtures with Brier/ECE; `GET /api/evals/llm` and the
+  model picker show `evaluated`/`unevaluated`/`stale`.
 
 ## Layout
 

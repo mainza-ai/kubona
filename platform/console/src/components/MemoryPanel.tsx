@@ -114,14 +114,14 @@ export function MemoryPanel({
   };
 
   return (
-    <div className="border-t border-[var(--color-border)]">
+    <div className="border-t border-border">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between px-5 py-2.5 text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+        className="w-full flex items-center justify-between px-5 py-2.5 text-[12px] text-muted hover:text-text transition-colors"
       >
         <span className="flex items-center gap-1.5">
-          <span className="text-[var(--color-accent-ink)]">◈</span> SESSION MEMORY
+          <span className="text-accent-ink">◈</span> SESSION MEMORY
         </span>
         <span className="font-code">{open ? '−' : '+'}</span>
       </button>
@@ -140,13 +140,13 @@ export function MemoryPanel({
               }}
               placeholder="Recall query (empty lists newest)"
               aria-label="Memory recall query"
-              className="flex-1 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent-edge)]"
+              className="flex-1 bg-field border border-border rounded-control-compact px-2.5 py-1.5 text-label text-text placeholder:text-faint focus:outline-none focus:border-accent-edge"
             />
             <select
               value={bank}
               onChange={(e) => setBank(e.target.value)}
               aria-label="Memory bank"
-              className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-1.5 py-1.5 text-xs text-[var(--color-label-secondary)] focus:outline-none"
+              className="bg-field border border-border rounded-control-compact px-1.5 py-1.5 text-label text-label-secondary focus:outline-none"
             >
               {BANKS.map((b) => (
                 <option key={b} value={b}>{b}</option>
@@ -157,14 +157,14 @@ export function MemoryPanel({
                 onClick={() => void runRecall()}
                 disabled={loading}
                 aria-label="Recall memory"
-                className="px-2.5 py-1.5 rounded-lg bg-[var(--color-accent-soft)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] border border-[var(--color-accent-edge)] text-[var(--color-accent-ink)] text-xs transition-all disabled:opacity-40"
+                className="px-2.5 py-1.5 rounded-control-compact bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-label transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
               >
                 {loading ? '…' : 'Recall'}
               </button>
             </Tip>
           </div>
 
-          {status && <div className="text-[12px] font-code text-[var(--color-muted)]">{status}</div>}
+          {status && <div className="text-[12px] font-code text-muted">{status}</div>}
 
           {snippets !== null && snippets.length > 0 && (
             <ul className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -176,9 +176,9 @@ export function MemoryPanel({
                   return Number.isNaN(d.getTime()) ? 'UNVERIFIED (bad date)' : d.toLocaleString();
                 })();
                 return (
-                <li key={`${s.created_at}-${i}`} className="rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] px-2.5 py-1.5">
-                  <div className="text-xs text-[var(--color-label-secondary)] leading-relaxed">{s.content}</div>
-                  <div className="mt-0.5 text-[12px] font-code text-[var(--color-faint)]">
+                <li key={`${s.created_at}-${i}`} className="rounded-control-compact bg-surface border border-border px-2.5 py-1.5">
+                  <div className="text-label text-label-secondary leading-relaxed">{s.content}</div>
+                  <div className="mt-0.5 text-[12px] font-code text-faint">
                     {s.bank} · {sim} · {when}
                   </div>
                 </li>
@@ -194,14 +194,14 @@ export function MemoryPanel({
               placeholder="Retain an operator note…"
               aria-label="Operator note to retain"
               maxLength={4000}
-              className="flex-1 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent-edge)]"
+              className="flex-1 bg-field border border-border rounded-control-compact px-2.5 py-1.5 text-label text-text placeholder:text-faint focus:outline-none focus:border-accent-edge"
             />
             <select
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
               aria-label="Note importance weight"
               title="Retention weight: low 0.3 · normal 0.5 · high 0.8"
-              className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-1.5 py-1.5 text-xs text-[var(--color-label-secondary)] focus:outline-none"
+              className="bg-field border border-border rounded-control-compact px-1.5 py-1.5 text-label text-label-secondary focus:outline-none"
             >
               <option value="0.3">low</option>
               <option value="0.5">normal</option>
@@ -212,7 +212,7 @@ export function MemoryPanel({
                 onClick={() => void runRetain()}
                 disabled={!note.trim()}
                 aria-label="Retain operator note"
-                className="px-2.5 py-1.5 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] text-xs transition-all disabled:opacity-40"
+                className="px-2.5 py-1.5 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-label-secondary hover:text-text text-label transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
               >
                 Retain
               </button>
@@ -221,7 +221,7 @@ export function MemoryPanel({
               <button
                 type="button"
                 onClick={() => setNote(lastSavedContent)}
-                className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-fill)] text-[12px] text-[var(--color-label-secondary)] hover:text-[var(--color-text)]"
+                className="px-2 py-1.5 rounded-control-compact border border-border bg-fill text-[12px] text-label-secondary hover:text-text"
                 title="Restore last retained text into the draft field to supersede or revise"
               >
                 Restore draft
@@ -235,13 +235,13 @@ export function MemoryPanel({
                 <li
                   key={r.id}
                   data-testid="remembered-receipt"
-                  className="flex items-center justify-between gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-fill)] px-2.5 py-1.5 text-[12px]"
+                  className="flex items-center justify-between gap-2 rounded-control-compact border border-border bg-fill px-2.5 py-1.5 text-[12px]"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-[var(--color-label-secondary)]">
+                    <div className="truncate font-medium text-label-secondary">
                       {r.retracted ? 'Retracted' : 'Remembered'} · {r.bank} · {r.id.slice(0, 12)}
                     </div>
-                    <div className="truncate text-[var(--color-muted)]">{r.content}</div>
+                    <div className="truncate text-muted">{r.content}</div>
                   </div>
                   <button
                     type="button"
@@ -255,7 +255,7 @@ export function MemoryPanel({
                           : 'Append-only ledger: server delete/retract endpoint is not exposed'
                     }
                     onClick={() => void runUndoReceipt(r)}
-                    className="shrink-0 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-control)] px-2 py-1 text-[11px] text-[var(--color-label-secondary)] hover:bg-[var(--color-control-hover)] disabled:opacity-45"
+                    className="shrink-0 rounded-control-compact border border-border-strong bg-control px-2 py-1 text-[11px] text-label-secondary hover:bg-control-hover disabled:opacity-45"
                   >
                     {r.retracted ? 'Undone' : onRetract ? (retractingId === r.id ? 'Undoing…' : 'Undo') : 'Undo (ledger append-only)'}
                   </button>

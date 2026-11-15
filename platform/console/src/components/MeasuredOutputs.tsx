@@ -296,22 +296,22 @@ export function MeasuredOutputs({ sessionId, targetScope }: MeasuredOutputsProps
   if (!sessionId) return null;
 
   return (
-    <div data-provenance="measured" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2">
+    <div data-provenance="measured" className="rounded-card border border-border bg-surface p-4 space-y-2">
       <div className="flex items-center gap-2">
-        <div className="text-xs font-semibold text-[var(--color-text)]">Measured outputs</div>
+        <div className="text-label font-semibold text-text">Measured outputs</div>
         <ProvenanceBadge kind="measured" detail="Latest completed job per type." />
         {excludedCount > 0 && (
-          <span className="ml-auto rounded-[var(--radius-inset)] border border-[var(--color-border)] bg-[var(--color-fill)] px-2 py-0.5 text-[11px] font-code text-[var(--color-muted)]">
+          <span className="ml-auto rounded-[var(--radius-inset)] border border-border bg-fill px-2 py-0.5 text-[11px] font-code text-muted">
             {`${excludedCount} off-target job${excludedCount === 1 ? '' : 's'} excluded`}
           </span>
         )}
       </div>
-      <p className="text-[12px] text-[var(--color-muted)]">
+      <p className="text-[12px] text-muted">
         Latest completed job per type — what ran, not what was planned. Notebook energies describe the plan.
       </p>
-      {rows === null && <p className="text-[12px] font-code text-[var(--color-muted)]">Loading job outputs…</p>}
+      {rows === null && <p className="text-[12px] font-code text-muted">Loading job outputs…</p>}
       {rows !== null && rows.length === 0 && (
-        <p className="text-[12px] font-code text-[var(--color-muted)]">No completed jobs yet — measured outputs appear here.</p>
+        <p className="text-[12px] font-code text-muted">No completed jobs yet — measured outputs appear here.</p>
       )}
       {activeIds !== null && activeIds.length > 0 && (
         <div className="space-y-1.5">
@@ -325,10 +325,10 @@ export function MeasuredOutputs({ sessionId, targetScope }: MeasuredOutputsProps
           {rows.map((r) => (
             <li
               key={r.type}
-              className="flex items-baseline justify-between gap-3 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] px-2.5 py-1.5"
+              className="flex items-baseline justify-between gap-3 rounded-control-compact bg-fill border border-border px-2.5 py-1.5"
             >
-              <span className="text-[12px] font-code text-[var(--color-info-ink)] shrink-0">{r.type}</span>
-              <span data-metric className="text-[12px] font-code text-[var(--color-label-secondary)] text-right">{r.text}</span>
+              <span className="text-[12px] font-code text-info-ink shrink-0">{r.type}</span>
+              <span data-metric className="text-[12px] font-code text-label-secondary text-right">{r.text}</span>
             </li>
           ))}
         </ul>

@@ -19,6 +19,11 @@ import {
   freeSpot,
   getNodeRenderSize,
   hasExplicitCameraRecord,
+  arrivalDiff,
+  withinNearViewport,
+  followCamera,
+  pendingForJob,
+  isIssueWorkbenchObject,
   nextZoomTier,
   readCamera,
   readPositions,
@@ -26,7 +31,11 @@ import {
   readWorkbenchView,
   reflowUnpinnedObjects,
   resolveFocusObjectId,
+  resolveFactSource,
   routeOrthogonalBusEdges,
+  sanitizeWorkbenchLinks,
+  sanitizeWorkbenchObjects,
+  WORKBENCH_TEXT_LIMITS,
   selectFocusedLinks,
   totalOverlapArea,
   workbenchDocument,
@@ -479,8 +488,228 @@ describe('workbench model', () => {
     expect(resolveFocusObjectId('td-1', objects)).toBe('job-td-1');
     expect(resolveFocusObjectId('td-2', objects)).toBe('job-td-1');
   });
+
+  it('marks issues from typed needs, never from failure words in prose (C2)', () => {
+    const base = {
+      session_id: 's1',
+      status: 'COMPLETED' as const,
+      job_type: 'thermodynamic_limit',
+      params_json: { requested_backend: 'aer' },
+      result_json: { error: 'failed to converge' },
+      created_at: '2026-11-01T00:00:00Z',
+    };
+    // A fact/result that merely contains "failed" no longer manufactures an
+    // issue: the word is not evidence of a missing precondition.
+    const proseObjects = buildWorkbench(campaign(), [], [{ ...base, id: 'j-prose' }]);
+    const proseJob = proseObjects.find((o) => o.id === 'job-j-prose');
+    expect(proseJob).toBeTruthy();
+    expect(proseJob!.meta?.need).toBeUndefined();
+    expect(isIssueWorkbenchObject(proseJob!)).toBe(false);
+
+    // A typed need is the issue signal, and it rides onto the card.
+    const needObjects = buildWorkbench(campaign(), [], [
+      {
+        ...base,
+        id: 'j-need',
+        status: 'FAILED',
+        need: { kind: 'backend_offline', target: 'ibm_fez', reason: 'bridge unreachable' },
+      },
+    ]);
+    const needJob = needObjects.find((o) => o.id === 'job-j-need');
+    expect(needJob?.meta?.need?.kind).toBe('backend_offline');
+    expect(isIssueWorkbenchObject(needJob!)).toBe(true);
+    expect(filterWorkbenchObjects(needObjects, 'issues').some((o) => o.id === 'job-j-need')).toBe(true);
+  });
 });
 
+
+describe('scene sanitizer (C3)', () => {
+  const base = {
+    kind: 'job' as const,
+    label: 'Job',
+    title: 'A job',
+    detail: 'recorded',
+    position: { x: 0, y: 0 },
+    size: { width: 320, height: 220 },
+    facts: [{ label: 'Status', value: 'COMPLETED' }],
+  };
+
+  it('drops blank and duplicate ids and clips oversized text and facts', () => {
+    const objects = sanitizeWorkbenchObjects([
+      { ...base, id: 'job-a', title: 'x'.repeat(500), facts: Array.from({ length: 30 }, (_, i) => ({ label: `f${i}`, value: 'y'.repeat(400) })) },
+      { ...base, id: 'job-a', title: 'duplicate' },
+      { ...base, id: '   ' },
+    ]);
+    expect(objects.map((o) => o.id)).toEqual(['job-a']);
+    expect(objects[0].title.length).toBe(WORKBENCH_TEXT_LIMITS.title);
+    expect(objects[0].title.endsWith('…')).toBe(true);
+    expect(objects[0].facts).toHaveLength(WORKBENCH_TEXT_LIMITS.facts);
+    expect(objects[0].facts[0].value.length).toBe(WORKBENCH_TEXT_LIMITS.factValue);
+  });
+
+  it('drops dangling, self, duplicate, and uncatalogued links', () => {
+    const objects = sanitizeWorkbenchObjects([
+      { ...base, id: 'a' },
+      { ...base, id: 'b' },
+    ]);
+    const links = sanitizeWorkbenchLinks(
+      [
+        { id: 'l1', source: 'a', target: 'b', kind: 'supports' },
+        { id: 'l1', source: 'a', target: 'b', kind: 'supports' },
+        { id: 'l2', source: 'a', target: 'b', kind: 'supports' },
+        { id: 'l3', source: 'a', target: 'ghost', kind: 'uses' },
+        { id: 'l4', source: 'a', target: 'a', kind: 'uses' },
+        { id: 'l5', source: 'a', target: 'b', kind: 'invented' as never },
+      ],
+      objects,
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0].id).toBe('l1');
+  });
+});
+
+describe('plan card (C8)', () => {
+  const draft = {
+    workflowId: 'wf-1',
+    name: 'provider audit',
+    steps: [
+      { id: 's1', tool: 'execution/list_provider_registry', cost_usd: 0.5 },
+      { id: 's2', tool: 'execution/submit', cost_usd: 1.25, requires_approval: true },
+    ],
+    unresolved: ['execution/missing'],
+    createdAt: 1,
+  };
+
+  it('projects steps, planned cost, approvals, and unresolved refs', () => {
+    const objects = buildWorkbench(campaign(), [], [], [], [], undefined, {}, draft);
+    const card = objects.find((object) => object.kind === 'plan');
+    expect(card).toBeTruthy();
+    expect(card!.title).toContain('provider audit');
+    const facts = Object.fromEntries(card!.facts.map((fact) => [fact.label, fact.value]));
+    expect(facts.Steps).toBe('2');
+    expect(facts['Planned cost']).toBe('$1.75');
+    expect(facts['Needs approval']).toBe('1');
+    expect(facts.Unresolved).toContain('execution/missing');
+    expect(facts['1. s1']).toContain('execution/list_provider_registry');
+    expect(card!.meta?.plan).toMatchObject({ id: 'wf-1', steps: 2 });
+    expect(card!.meta?.plan?.taskIds).toBeUndefined();
+  });
+
+  it('flips to a task-bound plan when task ids are attached', () => {
+    const objects = buildWorkbench(campaign(), [], [], [], [], undefined, {}, { ...draft, taskIds: ['t1', 't2'] });
+    const card = objects.find((object) => object.kind === 'plan');
+    expect(card!.meta?.plan?.taskIds).toEqual(['t1', 't2']);
+    expect(card!.detail).toContain('Tasks created');
+  });
+});
+
+describe('fact source chips (C9)', () => {
+  it('job facts name their producing job, measurement facts name the measured job', () => {
+    const objects = buildWorkbench(campaign(), [], [
+      { id: 'job-123456789', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' },
+    ]);
+    const job = objects.find((object) => object.kind === 'job');
+    expect(job).toBeTruthy();
+    expect(job!.facts.length).toBeGreaterThan(0);
+    expect(job!.facts.every((fact) => fact.from?.domain === 'job' && fact.from.id === 'job-123456789')).toBe(true);
+  });
+
+  it('resolves a source to the owning card by ref, prefixed id, or id', () => {
+    const objects = buildWorkbench(campaign(), [], [
+      { id: 'job-abc', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' },
+    ]);
+    const jobCard = objects.find((object) => object.kind === 'job')!;
+    expect(resolveFactSource(objects, { domain: 'job', id: 'job-abc' })?.id).toBe(jobCard.id);
+    expect(resolveFactSource(objects, { domain: 'job', id: jobCard.id })?.id).toBe(jobCard.id);
+    expect(resolveFactSource(objects, { domain: 'obligation', id: 'missing' })).toBeNull();
+  });
+
+  it('resolves a folded member run to the owning folded card', () => {
+    const objects = buildWorkbench(campaign(), [], [
+      { id: 'job-root', session_id: 's1', status: 'COMPLETED', job_type: 'vqe', params_json: {}, result_json: { energy: -1.1 }, created_at: '2026-11-01T00:00:00Z' },
+      { id: 'job-latest', session_id: 's1', status: 'COMPLETED', job_type: 'vqe', params_json: { revises: 'job-root' }, result_json: { energy: -1.2 }, created_at: '2026-11-01T00:01:00Z' },
+    ]);
+    const folded = objects.find((object) => object.kind === 'job')!;
+    expect(resolveFactSource(objects, { domain: 'job', id: 'job-root' })?.id).toBe(folded.id);
+  });
+});
+
+describe('pending placeholders (C4)', () => {
+  it('labels only states that genuinely mean data is expected', () => {
+    expect(pendingForJob('QUEUED', 'ibm_fez', '2026-11-14T10:00:00Z')).toEqual({
+      label: 'Queued — awaiting dispatch on ibm_fez',
+      sinceMs: Date.parse('2026-11-14T10:00:00Z'),
+    });
+    expect(pendingForJob('RUNNING', 'not recorded')?.label).toBe('Running');
+    expect(pendingForJob('OUTCOME_UNKNOWN', 'ibm_fez')?.label).toContain('reservation held');
+    expect(pendingForJob('COMPLETED', 'ibm_fez')).toBeUndefined();
+    expect(pendingForJob('FAILED', 'ibm_fez')).toBeUndefined();
+  });
+});
+
+describe('follow camera (C5)', () => {
+  const viewport = { width: 1000, height: 600 };
+
+  it('returns null when the target is already inside the lead band', () => {
+    expect(followCamera({ x: 0, y: 0, zoom: 1 }, { position: { x: 300, y: 200 }, size: { width: 200, height: 100 } }, viewport)).toBeNull();
+  });
+
+  it('pans the minimum needed and never changes zoom', () => {
+    const next = followCamera({ x: 0, y: 0, zoom: 0.5 }, { position: { x: 5000, y: 100 }, size: { width: 200, height: 100 } }, viewport);
+    expect(next).not.toBeNull();
+    expect(next!.zoom).toBe(0.5);
+    // Right edge lands exactly on the 86% lead line: 1000*0.86 = 860.
+    const right = (5000 + 200) * 0.5 + next!.x;
+    expect(Math.round(right)).toBe(860);
+    // Vertically the target's top (50) sits above the 14% line (84), so the
+    // minimum y pan is 34 — not a recentre.
+    expect(next!.y).toBe(34);
+  });
+
+  it('pans only leading edges for a target to the top-left', () => {
+    const next = followCamera({ x: 0, y: 0, zoom: 1 }, { position: { x: -400, y: -300 }, size: { width: 100, height: 100 } }, viewport);
+    expect(next).not.toBeNull();
+    // The target's left edge lands on the 14% line (140): dx = 540.
+    expect(next!.x).toBe(540);
+    // Its top lands on the 14% line (84): dy = 384.
+    expect(next!.y).toBe(384);
+  });
+
+  it('refuses an unmeasured viewport', () => {
+    expect(followCamera({ x: 0, y: 0, zoom: 1 }, { position: { x: 0, y: 0 }, size: { width: 1, height: 1 } }, { width: 0, height: 0 })).toBeNull();
+  });
+});
+
+describe('near-viewport culling (C7)', () => {
+  const viewport = { width: 1000, height: 600 };
+  const camera = { x: 0, y: 0, zoom: 1 };
+
+  it('keeps one viewport of lead on each side and refuses far cards', () => {
+    // Visible area is x 0..1000; the near box is -1000..2000.
+    expect(withinNearViewport({ position: { x: 1900, y: 0 }, size: { width: 50, height: 50 } }, camera, viewport)).toBe(true);
+    expect(withinNearViewport({ position: { x: 2100, y: 0 }, size: { width: 50, height: 50 } }, camera, viewport)).toBe(false);
+    expect(withinNearViewport({ position: { x: -1100, y: 0 }, size: { width: 50, height: 50 } }, camera, viewport)).toBe(false);
+  });
+
+  it('scales the near box with zoom', () => {
+    // At 0.5× zoom the world viewport doubles: x 0..1000 world is 2000 wide.
+    expect(withinNearViewport({ position: { x: 3500, y: 0 }, size: { width: 50, height: 50 } }, { ...camera, zoom: 0.5 }, viewport)).toBe(true);
+    expect(withinNearViewport({ position: { x: 4500, y: 0 }, size: { width: 50, height: 50 } }, { ...camera, zoom: 0.5 }, viewport)).toBe(false);
+  });
+
+  it('refuses an unmeasured viewport', () => {
+    expect(withinNearViewport({ position: { x: 0, y: 0 }, size: { width: 1, height: 1 } }, camera, { width: 0, height: 0 })).toBe(false);
+  });
+});
+
+describe('arrivals (C6)', () => {
+  it('diffs ids without re-announcing existing cards', () => {
+    const known = new Set(['a', 'b']);
+    expect(arrivalDiff(known, ['a', 'b', 'c']).fresh).toEqual(['c']);
+    expect([...arrivalDiff(known, ['a']).next]).toEqual(['a']);
+    expect(arrivalDiff(new Set(), ['a', 'b']).fresh).toEqual(['a', 'b']);
+  });
+});
 
 describe('energyChart outlier framing', () => {
   it('preserves raw outlier points in series while clamping y axis to target band', () => {

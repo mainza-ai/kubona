@@ -164,9 +164,9 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-center px-6">
-          <GitBranch className="w-8 h-8 text-[var(--color-faint)]" />
-          <p className="text-xs text-[var(--color-muted)] font-code">No circuit DAG is recorded for this campaign.</p>
-          <p className="text-[12px] text-[var(--color-faint)]">Propose a circuit to populate it; no DAG is synthesized from a template.</p>
+          <GitBranch className="w-8 h-8 text-faint" />
+          <p className="text-label text-muted font-code">No circuit DAG is recorded for this campaign.</p>
+          <p className="text-[12px] text-faint">Propose a circuit to populate it; no DAG is synthesized from a template.</p>
         </div>
       </div>
     );
@@ -174,7 +174,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
 
   return (
     <div data-testid="proof-dag" data-layout-engine={graph.engine} className="absolute inset-0 flex flex-col">
-      <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-[var(--color-muted)] shrink-0">
+      <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-muted shrink-0">
         <ProvenanceBadge kind={proposedOnly ? 'proposed' : 'measured'} detail={proposedOnly ? 'Synthesized proposal; the execution result is in Measurement/Claim.' : 'Executed circuit evidence.'} />
         <span>{dagLabel} · {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}</span>
       </div>
@@ -191,7 +191,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 <span
                   key={i}
                   title={`Cut job ${String(w.job_id ?? '?')}`}
-                  className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]"
+                  className="px-2 py-0.5 rounded-capsule font-code text-[12px] border bg-success-wash border-success-edge text-success-ink"
                 >
                   {`measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`}
                 </span>
@@ -206,7 +206,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
               <span
                 key={i}
                 title="Proposed cut — not executed"
-                className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]"
+                className="px-2 py-0.5 rounded-capsule font-code text-[12px] border bg-warning-wash border-warning-edge text-warning-ink"
               >
                 {known.length > 0 ? `planned: ${known.join(' · ')} (not executed)` : 'planned cut (not executed)'}
               </span>
@@ -218,7 +218,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         <div className="px-6 pb-1 flex justify-center shrink-0">
           <span
             title="The edge set contains a cycle — layering is a fallback, not a proof order"
-            className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]"
+            className="px-2 py-0.5 rounded-capsule font-code text-[12px] border bg-danger-wash border-danger-edge text-danger-ink"
           >
             cycle detected — layout is fallback, not proof order
           </span>
@@ -231,10 +231,10 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <span
               key={i}
               title={s.title}
-              className={`px-2 py-0.5 rounded-full font-code text-[12px] border ${
+              className={`px-2 py-0.5 rounded-capsule font-code text-[12px] border ${
                 s.tone === 'amber'
-                  ? 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]'
-                  : 'bg-[var(--color-danger-wash)] border-[var(--color-danger-edge)] text-[var(--color-danger-ink)]'
+                  ? 'bg-warning-wash border-warning-edge text-warning-ink'
+                  : 'bg-danger-wash border-danger-edge text-danger-ink'
               }`}
             >
               {s.text}
@@ -269,7 +269,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 strokeWidth={1.25}
                 strokeDasharray="5 4"
               />
-              <text x={cluster.x + 12} y={cluster.y + 15} className="fill-[var(--color-muted)]" fontSize="10" fontFamily="monospace">
+              <text x={cluster.x + 12} y={cluster.y + 15} className="fill-muted" fontSize="10" fontFamily="monospace">
                 {cluster.label}
               </text>
             </g>
@@ -330,13 +330,13 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                   width={DAG_NODE_W}
                   height={DAG_NODE_H}
                   rx="10"
-                  className={isSel ? 'fill-[var(--color-accent-soft)] stroke-[var(--color-accent-edge)]' : 'fill-[var(--color-surface)] stroke-[var(--color-border-strong)]'}
+                  className={isSel ? 'fill-accent-soft stroke-accent-edge' : 'fill-surface stroke-border-strong'}
                   strokeWidth="1"
                 />
-                <text x="12" y="15" className="fill-[var(--color-text)]" fontSize="10" fontFamily="monospace">
+                <text x="12" y="15" className="fill-text" fontSize="10" fontFamily="monospace">
                   {n.label.length > 26 ? `${n.label.slice(0, 25)}…` : n.label}
                 </text>
-                <text x="12" y="28" className="fill-[var(--color-muted)]" fontSize="9" fontFamily="monospace">
+                <text x="12" y="28" className="fill-muted" fontSize="9" fontFamily="monospace">
                   {n.kind}
                   {typeof n.angle === 'number' && Number.isFinite(n.angle) ? ` · θ=${n.angle.toFixed(3)}` : ''}
                 </text>
@@ -347,27 +347,27 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
       </div>
       <div className="shrink-0 px-6 pb-6">
         {selected ? (
-          <div className="max-w-2xl mx-auto p-3.5 rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-info-edge)] space-y-1.5 shadow-[var(--shadow-card)]">
-            <div className="text-xs font-code text-[var(--color-info-ink)]">{selected.label}</div>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">
+          <div className="max-w-2xl mx-auto p-3.5 rounded-card bg-surface-elev border border-info-edge space-y-1.5 shadow-[var(--shadow-card)]">
+            <div className="text-label font-code text-info-ink">{selected.label}</div>
+            <div className="text-[12px] font-code text-muted">
               id {selected.id} · {selected.kind}
               {typeof selected.angle === 'number' && Number.isFinite(selected.angle) ? ` · θ=${selected.angle}` : ''}
             </div>
-            <div className="text-[12px] font-code text-[var(--color-faint)]">
+            <div className="text-[12px] font-code text-faint">
               {provenance ? `ledger receipt ${provenance}` : 'no provenance receipt on this campaign'}
             </div>
           </div>
         ) : (
-          <p className="text-center text-[12px] font-code text-[var(--color-faint)]">
+          <p className="text-center text-[12px] font-code text-faint">
             Select a node to trace its record.
           </p>
         )}
         {/* Compile receipt: original QASM vs backend-transpiled QIR. */}
-        <div className="max-w-2xl mx-auto mt-2 rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-border)] shadow-[var(--shadow-card)]">
+        <div className="max-w-2xl mx-auto mt-2 rounded-card bg-surface-elev border border-border shadow-[var(--shadow-card)]">
           <button
             onClick={() => setCompileOpen((v) => !v)}
             aria-expanded={compileOpen}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-code text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors"
+            className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-code text-label-secondary hover:text-text transition-colors"
           >
             <span>Compile receipt (QASM → QIR via backend)</span>
             <span>{compileOpen ? '−' : '+'}</span>
@@ -376,38 +376,38 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <div className="px-3.5 pb-3.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[12px] font-code text-[var(--color-faint)] mb-1">ORIGINAL QASM (campaign)</div>
-                  <pre className="max-h-40 overflow-auto text-[12px] font-code text-[var(--color-label-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-2 whitespace-pre-wrap">
+                  <div className="text-[12px] font-code text-faint mb-1">ORIGINAL QASM (campaign)</div>
+                  <pre className="max-h-40 overflow-auto text-[12px] font-code text-label-secondary bg-surface border border-border rounded-control-compact p-2 whitespace-pre-wrap">
                     {campaign?.quantum_factors?.qasm || 'no circuit in this campaign'}
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[12px] font-code text-[var(--color-faint)] mb-1">TRANSPILED QIR (backend)</div>
+                  <div className="text-[12px] font-code text-faint mb-1">TRANSPILED QIR (backend)</div>
                   {!receipt && !compileError && (
                     <button
                       onClick={() => void runCompile()}
                       disabled={compiling || !campaign?.quantum_factors?.qasm}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-info-wash)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1.5 rounded-control-compact bg-info-wash hover:bg-fill-hover border border-info-edge text-info-ink text-[12px] transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
                     >
                       {compiling ? 'Compiling…' : 'Compile via backend'}
                     </button>
                   )}
                   {receipt === null && !compileError && (
-                    <p className="text-[12px] font-code text-[var(--color-danger-ink)]">Compile refused — nothing transpiled.</p>
+                    <p className="text-[12px] font-code text-danger-ink">Compile refused — nothing transpiled.</p>
                   )}
                   {compileError && (
-                    <p className="text-[12px] font-code text-[var(--color-warning-ink)]">
+                    <p className="text-[12px] font-code text-warning-ink">
                       Compile transport failed — bridge unreachable, not a refusal ({compileError.slice(0, 160)}). Nothing transpiled.
                     </p>
                   )}
                   {receipt && (
                     <div className="space-y-1.5">
-                      <div className="text-[12px] font-code text-[var(--color-muted)]">
+                      <div className="text-[12px] font-code text-muted">
                         {receipt.compiler_used || 'unanalyzed'}
                         {receipt.fallback_estimate ? ' · ESTIMATE (not compiler-verified)' : ' · compiler-verified'}
                         {' · '}qubits {receipt.num_qubits}{receipt.fallback_estimate ? ' (EST)' : ''} · depth {receipt.depth}{receipt.fallback_estimate ? ' (EST)' : ''} · gates {receipt.gate_count}{receipt.fallback_estimate ? ' (EST)' : ''} · T {receipt.t_count}{receipt.fallback_estimate ? ' (EST)' : ''}
                       </div>
-                      <pre className="max-h-40 overflow-auto text-[12px] font-code text-[var(--color-label-secondary)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-2 whitespace-pre-wrap">
+                      <pre className="max-h-40 overflow-auto text-[12px] font-code text-label-secondary bg-surface border border-border rounded-control-compact p-2 whitespace-pre-wrap">
                         {receiptLineCapped(receipt.llvm_ir)}
                       </pre>
                     </div>

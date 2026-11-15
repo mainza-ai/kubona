@@ -29,7 +29,8 @@ func TestEventTypesRegistered(t *testing.T) {
 	if code, _, _ := idemPost(t, h, "/api/jobs", qasm); code != 201 {
 		t.Fatalf("jobs: %d", code)
 	}
-	if code, _, _ := idemPost(t, h, "/api/chat/launch", map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator"}); code != 201 {
+	pid, digest := mintTestProposal(t, srv, sid, idemQASM, "local_simulator", 1.0)
+	if code, _, _ := idemPost(t, h, "/api/chat/launch", map[string]any{"session_id": sid, "proposal_id": pid, "digest": digest}); code != 201 {
 		t.Fatalf("launch: %d", code)
 	}
 	if code, _, _ := idemPost(t, h, "/api/autoresearch/start", map[string]any{"session_id": sid, "harness_id": "ansatz-search", "max_iterations": 1}); code != 201 {

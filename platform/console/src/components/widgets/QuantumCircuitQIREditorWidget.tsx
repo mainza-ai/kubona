@@ -46,18 +46,18 @@ export function QuantumCircuitQIREditorWidget({
   };
 
   return (
-    <div data-provenance={hasReceipt ? 'measured' : undefined} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+    <div data-provenance={hasReceipt ? 'measured' : undefined} className="rounded-card border border-border bg-surface p-5 text-text space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)]">
+          <div className="p-2 rounded-row bg-info-wash border border-info-edge text-info-ink">
             <Cpu className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-text)]">Post-QIR Quantum Circuit</h3>
+              <h3 className="text-body-strong font-semibold text-text">Post-QIR Quantum Circuit</h3>
               {hasReceipt && <ProvenanceBadge kind="measured" detail="Backend compiler receipt." />}
             </div>
-            <p className="text-xs text-[var(--color-muted)]">
+            <p className="text-label text-muted">
               {displayQubits != null ? displayQubits : '—'} Qubits • Depth {displayDepth != null ? displayDepth : '—'}
             </p>
           </div>
@@ -65,41 +65,41 @@ export function QuantumCircuitQIREditorWidget({
       </div>
 
       {!hasReceipt ? (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 text-center space-y-1.5">
-          <p className="text-xs font-medium text-[var(--color-text)]">No post-QIR synthesis receipt is recorded for this campaign.</p>
-          <p className="text-[12px] text-[var(--color-muted)]">
+        <div className="rounded-row border border-border bg-card p-5 text-center space-y-1.5">
+          <p className="text-label font-medium text-text">No post-QIR synthesis receipt is recorded for this campaign.</p>
+          <p className="text-[12px] text-muted">
             The editor appears only after the backend returns compiler QIR; no schematic circuit is substituted.
           </p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-3 text-xs">
-            <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)] block text-[12px]">T-Count</span>
-              <span data-metric className="font-mono text-base font-semibold text-[var(--color-warning-ink)]">{displayTCount ?? '—'}</span>
+          <div className="grid grid-cols-4 gap-3 text-label">
+            <div className="p-2.5 rounded-row bg-card border border-border">
+              <span className="text-muted block text-[12px]">T-Count</span>
+              <span data-metric className="font-mono text-body-large font-semibold text-warning-ink">{displayTCount ?? '—'}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)] block text-[12px]">T-Depth</span>
-              <span data-metric className="font-mono text-base font-semibold text-[var(--color-success-ink)]">{displayTDepth ?? '—'}</span>
+            <div className="p-2.5 rounded-row bg-card border border-border">
+              <span className="text-muted block text-[12px]">T-Depth</span>
+              <span data-metric className="font-mono text-body-large font-semibold text-success-ink">{displayTDepth ?? '—'}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)] block text-[12px]">Qubits</span>
-              <span data-metric className="font-mono text-base font-semibold text-[var(--color-info-ink)]">{displayQubits ?? '—'}</span>
+            <div className="p-2.5 rounded-row bg-card border border-border">
+              <span className="text-muted block text-[12px]">Qubits</span>
+              <span data-metric className="font-mono text-body-large font-semibold text-info-ink">{displayQubits ?? '—'}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-              <span className="text-[var(--color-muted)] block text-[12px]">Depth</span>
-              <span data-metric className="font-mono text-base font-semibold text-[var(--color-soft-lilac-ink)]">{displayDepth ?? '—'}</span>
+            <div className="p-2.5 rounded-row bg-card border border-border">
+              <span className="text-muted block text-[12px]">Depth</span>
+              <span data-metric className="font-mono text-body-large font-semibold text-soft-lilac-ink">{displayDepth ?? '—'}</span>
             </div>
           </div>
-          <div className="relative rounded-xl border border-[var(--color-border)] bg-[var(--color-field)] p-4 font-mono text-xs text-[var(--color-text)] overflow-x-auto h-64 scrollbar-thin">
+          <div className="relative rounded-row border border-border bg-field p-4 font-mono text-label text-text overflow-x-auto h-64 scrollbar-thin">
             <button
               onClick={copyQir}
               aria-label={copied ? 'QIR copied to clipboard' : 'Copy QIR to clipboard'}
-              className="absolute top-3 right-3 p-1.5 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] transition text-[var(--color-label-secondary)]"
+              className="absolute top-3 right-3 p-1.5 rounded-control-compact bg-fill hover:bg-fill-hover transition text-label-secondary"
             >
-              {copied ? <Check className="w-4 h-4 text-[var(--color-success-ink)]" /> : <Copy className="w-4 h-4" />}
+              {copied ? <Check className="w-4 h-4 text-success-ink" /> : <Copy className="w-4 h-4" />}
             </button>
-            <pre className="text-[var(--color-info-ink)] leading-relaxed">{qirCode}</pre>
+            <pre className="text-info-ink leading-relaxed">{qirCode}</pre>
           </div>
         </>
       )}

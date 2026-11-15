@@ -1,8 +1,23 @@
-import type { ArenaView } from '@/components/sovereign/ArenaHud';
+import type { ArenaView } from '@/types';
 
 export type DockSurface = 'arena' | 'recorder' | 'manifold' | 'fleet' | 'proofs' | 'mesh';
 export type ProofsTab = 'manuscripts' | 'tribunal' | 'gallery' | 'circuits';
 export type MeshTab = 'fleet' | 'mesh' | 'guardrails' | 'models' | 'labs' | 'settings';
+export type SettingsSection = 'models' | 'quantum' | 'dispatch' | 'vault' | 'skills' | 'readiness' | 'appearance';
+
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
+  'models',
+  'quantum',
+  'dispatch',
+  'vault',
+  'skills',
+  'readiness',
+  'appearance',
+];
+
+export function isSettingsSection(value: unknown): value is SettingsSection {
+  return typeof value === 'string' && (SETTINGS_SECTIONS as readonly string[]).includes(value);
+}
 
 export interface ShellParams {
   surface: DockSurface;

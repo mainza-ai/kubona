@@ -145,7 +145,7 @@ describe('observatory Wave-3 contracts (pure helpers, no DOM/GL)', () => {
     expect(roundHoverReading(1.59567, -7.8820123)).toEqual({ r: 1.5957, energy: -7.88201 });
   });
 
-  it('hoverReadingChanged fires only on real rounded change', () => {
+  it('hoverReadingChanged fires only on real rounded-chip change', () => {
     expect(hoverReadingChanged(null, { r: 1, energy: 2 })).toBe(true);
     // Sub-display-precision jitter collapses after rounding.
     const a = roundHoverReading(0.74141, -1.137);

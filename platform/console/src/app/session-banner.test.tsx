@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { API_PROBLEM_EVENT, UNAUTH_EVENT } from '@/lib/api';
-import { ApiProblemBanner, BannerStack, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
+import { ApiProblemChip, BannerStack, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -72,31 +72,81 @@ describe('SessionExpiredBanner', () => {
   });
 });
 
-describe('ApiProblemBanner', () => {
-  it('surfaces a refusal that a legacy wrapper may have collapsed to empty', () => {
-    const target = stubWindow();
+describe('ApiProblemChip', () => {
+  it('renders a non-blocking API refusal chip that dismisses, never role=alert', () => {
+    const onDismiss = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {
-      tree = TestRenderer.create(<ApiProblemBanner />);
+      tree = TestRenderer.create(
+        <ApiProblemChip
+          problem={{ path: '/api/loops', status: 500, message: 'Internal Server Error', at: Date.now() }}
+          onDismiss={onDismiss}
+        />,
+      );
     });
-    expect(tree!.toJSON()).toBeNull();
-    act(() => {
-      target.dispatchEvent(new CustomEvent(API_PROBLEM_EVENT, {
-        detail: { path: '/api/loops', status: 500, message: 'Internal Server Error', at: Date.now() },
-      }));
-    });
-    const banner = tree!.root.findByProps({ 'data-testid': 'api-problem-banner' });
-    const text = textOf(banner);
-    expect(text).toContain('/api/loops');
-    expect(text).toContain('500');
-    expect(text).toContain('empty data');
+    const chip = tree!.root.findByProps({ 'data-testid': 'api-problem-chip' });
+    expect(textOf(chip)).toContain('/api/loops');
+    expect(textOf(chip)).toContain('500');
+    // Status is polite; the only role="alert" in the shell is blocking auth.
+    expect(chip.props.role).toBe('status');
     act(() => {
       tree!.root.findByProps({ 'aria-label': 'Dismiss API refusal' }).props.onClick();
     });
-    expect(tree!.toJSON()).toBeNull();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders contract drift as its own chip with the schema name', () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <ApiProblemChip
+          problem={{ path: 'contract:loops.list', status: null, message: 'response contract drifted: loops: expected array', at: Date.now() }}
+          onDismiss={() => {}}
+        />,
+      );
+    });
+    const chip = tree!.root.findByProps({ 'data-testid': 'contract-drift-chip' });
+    expect(textOf(chip)).toContain('contract drift');
+    expect(textOf(chip)).toContain('loops.list');
+    expect(chip.props.title).toContain('expected array');
+    expect(tree!.root.findByProps({ 'aria-label': 'Dismiss contract drift' })).toBeTruthy();
   });
 });
 
+describe('BannerStack', () => {
+  it('shows one banner and lets auth expiry outrank an API refusal', () => {
+    const target = stubWindow();
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<BannerStack onOpenLabs={vi.fn()} />);
+    });
+    act(() => {
+      target.dispatchEvent(new CustomEvent(API_PROBLEM_EVENT, {
+        detail: { path: '/api/jobs', status: 500, message: 'failed', at: Date.now() },
+      }));
+      target.dispatchEvent(new CustomEvent(UNAUTH_EVENT));
+    });
+    expect(tree!.root.findAllByProps({ 'data-testid': 'auth-expired-banner' })).toHaveLength(1);
+    expect(tree!.root.findAllByProps({ 'data-testid': 'api-problem-banner' })).toHaveLength(0);
+  });
+});
+
+describe('describeCreateFailure', () => {
+  it('returns null on success', () => {
+    expect(describeCreateFailure({ id: 's1' } as never, null)).toBeNull();
+  });
+
+  it('renders refusal verbatim when createSession returns null', () => {
+    const msg = describeCreateFailure(null, null);
+    expect(msg).toContain('createSession returned null');
+    expect(msg).toContain('nothing was created');
+  });
+
+  it('renders thrown errors verbatim', () => {
+    expect(describeCreateFailure(null, new Error('boom-123'))).toContain('boom-123');
+    expect(describeCreateFailure(null, 'plain-failure-456')).toContain('plain-failure-456');
+  });
+});
 describe('BannerStack', () => {
   it('shows one banner and lets auth expiry outrank an API refusal', () => {
     const target = stubWindow();

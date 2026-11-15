@@ -4,9 +4,11 @@ import React, { useMemo, useState } from 'react';
 import { ArrowDownToLine, CheckCircle2, Fingerprint, ShieldAlert } from 'lucide-react';
 import type { CampaignState, Session } from '@/types';
 import { authorizeSpend } from '@/lib/authorizeSpend';
-import { launchProposal } from '@/lib/api';
+import { launchProposal, mintProposal, type LaunchProposalResult, type RunAllowanceView } from '@/lib/api';
+import { RunAllowancePanel } from '@/components/common/RunAllowancePanel';
 import { canonicalJobBinding } from '@/lib/mandates';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
+import { launchJobId, reconcileOperationFull, UNCONFIRMED_LAUNCH } from '@/domain/write-settlement';
 
 export type ConfirmGateConfig = {
   campaign: CampaignState;
@@ -17,7 +19,7 @@ export type ConfirmGateConfig = {
 };
 
 export type AskReceipt = {
-  outcome: 'authorized' | 'downgraded' | 'denied' | 'closed';
+  outcome: 'authorized' | 'downgraded' | 'denied' | 'closed' | 'working' | 'unknown';
   label: string;
   detail: string;
   at: string;
@@ -25,7 +27,27 @@ export type AskReceipt = {
 
 export type MeteredAuthorizationOutcome =
   | { ok: true; jobId: string; backend: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; unknown?: boolean };
+
+async function settleLostLaunch(
+  sessionId: string,
+  launched: Extract<LaunchProposalResult, { outcome: 'unknown' }>,
+  onWorking?: () => void,
+): Promise<MeteredAuthorizationOutcome> {
+  if (!launched.requestId) {
+    return { ok: false, unknown: true, message: UNCONFIRMED_LAUNCH };
+  }
+  onWorking?.();
+  const settled = await reconcileOperationFull(launched.requestId, sessionId);
+  if (settled.phase === 'refused') {
+    return { ok: false, message: `Mandate verified, but dispatch was refused: ${settled.detail}` };
+  }
+  if (settled.phase === 'applied') {
+    const jobId = launchJobId(settled.receipt);
+    if (jobId) return { ok: true, jobId, backend: '' };
+  }
+  return { ok: false, unknown: true, message: UNCONFIRMED_LAUNCH };
+}
 
 /**
  * Shared metered hardware authorization + dispatch flow:
@@ -35,6 +57,8 @@ export type MeteredAuthorizationOutcome =
 export async function executeMeteredAuthorization(
   campaign: CampaignState | null | undefined,
   session: Session | null | undefined,
+  onWorking?: () => void,
+  allowanceId?: string,
 ): Promise<MeteredAuthorizationOutcome> {
   const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd;
   const costKnown = typeof estimatedCost === 'number' && Number.isFinite(estimatedCost);
@@ -52,9 +76,15 @@ export async function executeMeteredAuthorization(
   }
 
   try {
-    const res = await authorizeSpend({ session, campaign });
-    if (!res.ok) {
-      return { ok: false, message: `${res.reason} Halted fail-closed — nothing dispatched, nothing spent.` };
+    // C11: a run allowance replaces the per-job mandate. Admission still
+    // enforces every scope/budget/taint rule; the client only names it.
+    let mandateRef: string | undefined;
+    if (!allowanceId) {
+      const res = await authorizeSpend({ session, campaign });
+      if (!res.ok) {
+        return { ok: false, message: `${res.reason} Halted fail-closed — nothing dispatched, nothing spent.` };
+      }
+      mandateRef = JSON.stringify(res.mandate);
     }
     if (!session?.id) {
       return { ok: false, message: 'No session bound — authorization was verified but nothing could be dispatched.' };
@@ -62,30 +92,33 @@ export async function executeMeteredAuthorization(
     const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `launch-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    // B1: the server prices and owns the plan. If it cannot be minted honestly
+    // (unknown backend, unpriced metered hardware, no stored circuit), nothing
+    // is dispatched — the refusal is shown, never papered over with a default
+    // budget or a client-built proposal.
+    const minted = await mintProposal(session.id, 'campaign');
+    if (!minted.ok) {
+      return { ok: false, message: `No launchable plan: ${minted.error}` };
+    }
+    const backend = minted.proposal.body.backend || recommendedBackend;
     const launched = await launchProposal(
       session.id,
+      { proposalId: minted.proposal.id, digest: minted.proposal.digest },
       {
-        target: campaign?.target_system || campaign?.quantum_factors?.target_molecule || 'Campaign run',
-        recommended_tier: recommendedBackend,
-        spend_estimate: `$${(estimatedCost as number).toFixed(2)}`,
-        classical_anchor: campaign?.classical_anchor?.method || 'campaign anchor',
-        qasm: programQasm,
-      },
-      {
-        mandateRef: JSON.stringify(res.mandate),
+        ...(mandateRef ? { mandateRef } : {}),
+        ...(allowanceId ? { runAllowanceId: allowanceId } : {}),
         requestId,
-        backend: recommendedBackend,
-        budgetUsd: estimatedCost as number,
-        qasm: programQasm,
       },
     );
-    if (!launched) {
-      return { ok: false, message: 'Mandate verified, but the launch transport failed — no job was created. Re-check and retry.' };
+    if ('outcome' in launched) {
+      const settled = await settleLostLaunch(session.id, launched, onWorking);
+      if (settled.ok) return { ...settled, backend };
+      return settled;
     }
     if ('error' in launched) {
       return { ok: false, message: `Mandate verified, but dispatch was refused: ${launched.error}` };
     }
-    return { ok: true, jobId: String(launched.job.id), backend: recommendedBackend };
+    return { ok: true, jobId: String(launched.job.id), backend };
   } catch (err) {
     console.error('Failed to authorize pulse:', err);
     return { ok: false, message: 'Failed to sign mandate envelope. Halted fail-closed.' };
@@ -99,7 +132,9 @@ export function AskReceiptBanner({ receipt }: { receipt: AskReceipt }) {
       data-testid="ask-receipt"
       data-outcome={receipt.outcome}
     >
-      <CheckCircle2 size={14} />
+      {receipt.outcome === 'unknown' || receipt.outcome === 'working'
+        ? <ShieldAlert size={14} />
+        : <CheckCircle2 size={14} />}
       <div>
         <strong>{receipt.label}</strong>
         <span>{receipt.detail}</span>
@@ -143,6 +178,8 @@ export function ConfirmCard({
   }, [sessionBound, programKnown, session, programQasm, packet.programHash]);
 
   const [busy, setBusy] = useState(false);
+  const [allowance, setAllowance] = useState<RunAllowanceView | null>(null);
+  const [unresolved, setUnresolved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDeny, setShowDeny] = useState(false);
   const [denyReason, setDenyReason] = useState('');
@@ -160,8 +197,26 @@ export function ConfirmCard({
     setBusy(true);
     setError(null);
     try {
-      const outcome = await executeMeteredAuthorization(campaign, session);
+      const outcome = await executeMeteredAuthorization(campaign, session, () => {
+        onSettled?.({
+          outcome: 'working',
+          label: 'Checking the launch receipt',
+          detail: 'Retry stays disabled until this request is reconciled.',
+          at: new Date().toISOString(),
+        });
+      }, allowance?.id);
       if (!outcome.ok) {
+        if (outcome.unknown) {
+          setUnresolved(true);
+          setError(outcome.message);
+          onSettled?.({
+            outcome: 'unknown',
+            label: 'Launch outcome unknown',
+            detail: outcome.message,
+            at: new Date().toISOString(),
+          });
+          return;
+        }
         setError(outcome.message);
         return;
       }
@@ -210,6 +265,13 @@ export function ConfirmCard({
           Budget breached — ceiling exceeded. Authorization refuses until funded.
         </div>
       )}
+      <RunAllowancePanel
+        sessionId={session?.id ?? ''}
+        tenantId={session?.tenant_id ?? ''}
+        backend={packet.backend}
+        perJobEstimateUsd={costKnown ? (estimatedCost as number) : 1}
+        onSelect={setAllowance}
+      />
       <p className="k-confirm-trust">
         <ShieldAlert size={13} />
         <span>Untrusted circuit/prompt input: Ed25519 binds exact QASM digest at Go admission.</span>
@@ -225,7 +287,7 @@ export function ConfirmCard({
             type="button"
             className="k-confirm-btn-primary"
             data-testid="confirm-card-authorize"
-            disabled={busy || !canAuthorize}
+            disabled={busy || unresolved || !canAuthorize}
             title={!canAuthorize ? 'Disabled: needs bound session, proposed QASM, and cost estimate' : undefined}
             onClick={() => void handleApprove()}
           >

@@ -198,10 +198,10 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const claimable = result?.claimable === true;
   const statusLabel = jobStatusLabel(job?.status);
   return (
-    <div className="rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-3 text-[var(--color-text)]" aria-label="Experiment launcher">
+    <div className="rounded-card border border-border-strong bg-surface p-4 space-y-3 text-text" aria-label="Experiment launcher">
       <div>
-        <span className="text-xs font-semibold text-[var(--color-text)]">Real experiment launcher</span>
-        <p className="text-[12px] text-[var(--color-muted)]">Submits a ledger-bound VQE/PES/QAOA/spin-chain/conjecture job. The result below is read from the job record; no client-side simulation.</p>
+        <span className="text-label font-semibold text-text">Real experiment launcher</span>
+        <p className="text-[12px] text-muted">Submits a ledger-bound VQE/PES/QAOA/spin-chain/conjecture job. The result below is read from the job record; no client-side simulation.</p>
       </div>
       <div className="grid grid-cols-2 gap-2 text-[12px]">
         <label className="space-y-1">Kind
@@ -215,7 +215,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
                 setMolecule('H2');
               }
             }}
-            className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]"
+            className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text"
           >
             <option value="vqe">VQE</option><option value="geometry_optimization">Geometry optimization</option>
             <option value="vqe_repeats">Repeated VQE (variance)</option>
@@ -229,35 +229,35 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
         {kind === 'spin_chain' ? (
           <>
             <label className="space-y-1">Model
-              <select aria-label="Spin model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]">
+              <select aria-label="Spin model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text">
                 <option value="tfim">Transverse-field Ising</option>
                 <option value="heisenberg">Heisenberg</option>
                 <option value="xxz">XXZ</option>
               </select>
             </label>
             <label className="space-y-1">Sites
-              <input aria-label="Spin sites" value={nSites} onChange={(e) => setNSites(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Spin sites" value={nSites} onChange={(e) => setNSites(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Coupling J
-              <input aria-label="Spin coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Spin coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Field h
-              <input aria-label="Spin field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Spin field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             {model === 'xxz' && (
               <label className="space-y-1">Anisotropy Δ
-                <input aria-label="Spin anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                <input aria-label="Spin anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
               </label>
             )}
-            <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+            <label className="col-span-2 flex items-center gap-2 text-[12px] text-muted">
               <input type="checkbox" aria-label="Periodic boundary" checked={periodic} onChange={(e) => setPeriodic(e.target.checked)} />
               Periodic boundary
             </label>
             <label className="space-y-1">Target error
-              <input aria-label="Spin target error" value={targetError} onChange={(e) => setTargetError(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Spin target error" value={targetError} onChange={(e) => setTargetError(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">State mode
-              <select aria-label="Spin state mode" value={stateMode} onChange={(e) => setStateMode(e.target.value as 'vqe' | 'exact')} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]">
+              <select aria-label="Spin state mode" value={stateMode} onChange={(e) => setStateMode(e.target.value as 'vqe' | 'exact')} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text">
                 <option value="vqe">VQE (variational, may not reach ground)</option>
                 <option value="exact">Exact state preparation + shot readout</option>
               </select>
@@ -266,68 +266,68 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
         ) : kind === 'lattice_dynamics' ? (
           <>
             <label className="space-y-1">Rows
-              <input aria-label="Lattice rows" value={latticeRows} onChange={(e) => setLatticeRows(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Lattice rows" value={latticeRows} onChange={(e) => setLatticeRows(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Columns
-              <input aria-label="Lattice columns" value={latticeCols} onChange={(e) => setLatticeCols(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Lattice columns" value={latticeCols} onChange={(e) => setLatticeCols(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Coupling J
-              <input aria-label="Lattice coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Lattice coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Initial field
-              <input aria-label="Initial field" value={initialField} onChange={(e) => setInitialField(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Initial field" value={initialField} onChange={(e) => setInitialField(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Quench field
-              <input aria-label="Quench field" value={quenchField} onChange={(e) => setQuenchField(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Quench field" value={quenchField} onChange={(e) => setQuenchField(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="col-span-2 space-y-1">Times
-              <input aria-label="Lattice times" value={latticeTimes} onChange={(e) => setLatticeTimes(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Lattice times" value={latticeTimes} onChange={(e) => setLatticeTimes(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
           </>
         ) : kind === 'thermodynamic_limit' ? (
           <>
             <label className="space-y-1">Model
-              <select aria-label="Thermodynamic model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]">
+              <select aria-label="Thermodynamic model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text">
                 <option value="tfim">Transverse-field Ising</option>
                 <option value="heisenberg">Heisenberg</option>
                 <option value="xxz">XXZ (finite-size only)</option>
               </select>
             </label>
             <label className="space-y-1">Sizes
-              <input aria-label="Thermodynamic sizes" value={thermoSizes} onChange={(e) => setThermoSizes(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Thermodynamic sizes" value={thermoSizes} onChange={(e) => setThermoSizes(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Coupling J
-              <input aria-label="Thermodynamic coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Thermodynamic coupling" value={coupling} onChange={(e) => setCoupling(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Field h
-              <input aria-label="Thermodynamic field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Thermodynamic field" value={field} onChange={(e) => setField(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             {model === 'xxz' && (
               <label className="space-y-1">Anisotropy Δ
-                <input aria-label="Thermodynamic anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                <input aria-label="Thermodynamic anisotropy" value={anisotropy} onChange={(e) => setAnisotropy(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
               </label>
             )}
             <label className="space-y-1">Bond dimension
-              <input aria-label="DMRG bond dimension" value={bondDim} onChange={(e) => setBondDim(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="DMRG bond dimension" value={bondDim} onChange={(e) => setBondDim(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Sweeps
-              <input aria-label="DMRG sweeps" value={sweeps} onChange={(e) => setSweeps(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="DMRG sweeps" value={sweeps} onChange={(e) => setSweeps(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
-            <p className="col-span-2 text-[11px] text-[var(--color-muted)]">Open boundary; exact thermodynamic values only for TFIM and isotropic Heisenberg. No finite-size extrapolation is promoted to a limit.</p>
+            <p className="col-span-2 text-[11px] text-muted">Open boundary; exact thermodynamic values only for TFIM and isotropic Heisenberg. No finite-size extrapolation is promoted to a limit.</p>
           </>
         ) : kind === 'conjecture' ? (
           <>
             <label className="col-span-2 space-y-1">Exact sequence terms
-              <textarea aria-label="Sequence terms" value={conjValues} onChange={(e) => setConjValues(e.target.value)} rows={2} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <textarea aria-label="Sequence terms" value={conjValues} onChange={(e) => setConjValues(e.target.value)} rows={2} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
             <label className="space-y-1">Holdout terms
-              <input aria-label="Holdout terms" value={holdout} onChange={(e) => setHoldout(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+              <input aria-label="Holdout terms" value={holdout} onChange={(e) => setHoldout(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
             </label>
           </>
         ) : (
           <>
             <label className="space-y-1">Molecule
-              <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); if (next === 'H2') { setRMin('0.6'); setRMax('0.9'); } else if (next === 'H2O') { setRMin('0.8'); setRMax('1.2'); } else { setRMin('1.2'); setRMax('2.0'); } }} disabled={kind === 'qaoa'} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40">
+              <select aria-label="Experiment molecule" value={molecule} onChange={(e) => { const next = e.target.value; setMolecule(next); if (next === 'H2') setFullSpace(false); if (next === 'H2') { setRMin('0.6'); setRMax('0.9'); } else if (next === 'H2O') { setRMin('0.8'); setRMax('1.2'); } else { setRMin('1.2'); setRMax('2.0'); } }} disabled={kind === 'qaoa'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40">
                 <option value="H2">H2</option><option value="LiH">LiH</option><option value="BeH2">BeH2</option><option value="H2O">H2O</option>
                 {(kind === 'vqe' || kind === 'geometry_optimization') && (
                   <option value="custom">Custom PySCF geometry</option>
@@ -336,41 +336,41 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             </label>
             {molecule !== 'custom' && (
               <label className="space-y-1">Bond distance (Å)
-                <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40" />
+                <input aria-label="Bond distance" value={bond} onChange={(e) => setBond(e.target.value)} disabled={kind === 'qaoa'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
               </label>
             )}
             {molecule === 'custom' && (kind === 'vqe' || kind === 'geometry_optimization') && (
               <>
                 <label className="col-span-2 space-y-1">PySCF atom geometry
-                  <textarea aria-label="Custom atom geometry" value={customAtom} onChange={(e) => setCustomAtom(e.target.value)} rows={2} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                  <textarea aria-label="Custom atom geometry" value={customAtom} onChange={(e) => setCustomAtom(e.target.value)} rows={2} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
                 </label>
                 <label className="space-y-1">Active orbitals (ncas)
-                  <input aria-label="Active orbitals" value={ncas} onChange={(e) => setNcas(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                  <input aria-label="Active orbitals" value={ncas} onChange={(e) => setNcas(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
                 </label>
                 <label className="space-y-1">Active electrons (nelecas)
-                  <input aria-label="Active electrons" value={nelecas} onChange={(e) => setNelecas(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                  <input aria-label="Active electrons" value={nelecas} onChange={(e) => setNelecas(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
                 </label>
               </>
             )}
             {kind === 'pes' && (
               <>
                 <label className="space-y-1">PES r min (Å)
-                  <input aria-label="PES r min" value={rMin} onChange={(e) => setRMin(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                  <input aria-label="PES r min" value={rMin} onChange={(e) => setRMin(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
                 </label>
                 <label className="space-y-1">PES r max (Å)
-                  <input aria-label="PES r max" value={rMax} onChange={(e) => setRMax(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+                  <input aria-label="PES r max" value={rMax} onChange={(e) => setRMax(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
                 </label>
               </>
             )}
             {(kind === 'vqe' || kind === 'pes') && molecule !== 'custom' && (
-              <label className="col-span-2 flex items-center gap-2 text-[12px] text-[var(--color-muted)]">
+              <label className="col-span-2 flex items-center gap-2 text-[12px] text-muted">
                 <input type="checkbox" aria-label="Full orbital space" checked={fullSpace} disabled={molecule === 'H2'} onChange={(e) => setFullSpace(e.target.checked)} />
                 Full orbital space (LiH/BeH2/H2O; slower, refuses above the CPU qubit cap)
               </label>
             )}
             {fullSpace && (
               <label className="col-span-2 space-y-1">Full-space operator pool
-                <select aria-label="Full-space operator pool" value={fullSpacePool} onChange={(e) => setFullSpacePool(e.target.value as 'uccsd' | 'ceo')} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]">
+                <select aria-label="Full-space operator pool" value={fullSpacePool} onChange={(e) => setFullSpacePool(e.target.value as 'uccsd' | 'ceo')} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text">
                   <option value="ceo">CEO-ADAPT-VQE · coupled exchange pool (validated)</option>
                   <option value="uccsd">ADAPT-VQE · UCCSD pool (validated reference)</option>
                 </select>
@@ -379,39 +379,39 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
           </>
         )}
         <label className="space-y-1">Shots
-          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40" />
+          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         <label className="space-y-1">Layers
-          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40" />
+          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         <label className="space-y-1">Max iterations
-          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)] disabled:opacity-40" />
+          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         {kind === 'vqe_repeats' && (
           <label className="space-y-1">Repeats
-            <input aria-label="VQE repeats" value={repeats} onChange={(e) => setRepeats(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+            <input aria-label="VQE repeats" value={repeats} onChange={(e) => setRepeats(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
           </label>
         )}
         {kind === 'excited_state' && (
           <label className="space-y-1">Deflation penalty
-            <input aria-label="Deflation penalty" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+            <input aria-label="Deflation penalty" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
           </label>
         )}
         {kind === 'reaction' && molecule === 'H2' && (
           <label className="space-y-1">Product distance (Å)
-            <input aria-label="Product distance" value={productDistance} onChange={(e) => setProductDistance(e.target.value)} className="w-full rounded bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[var(--color-text)]" />
+            <input aria-label="Product distance" value={productDistance} onChange={(e) => setProductDistance(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text" />
           </label>
         )}
       </div>
-      {error && <p role="alert" className="text-[12px] text-[var(--color-danger-ink)]">{error}</p>}
-      <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-info-wash)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] disabled:opacity-40">
+      {error && <p role="alert" className="text-[12px] text-danger-ink">{error}</p>}
+      <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-control-compact bg-info-wash hover:bg-fill-hover border border-info-edge text-info-ink text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
       {job && statusLabel === 'COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'].includes(job.job_type) && (
         <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={job} />
       )}
       {job && (
-        <div className="rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
+        <div className="rounded-row bg-card border border-border p-2 text-[12px] font-code text-text space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>
           {statusLabel === 'COMPLETED' && kind === 'reaction' && result?.reaction_energy != null && (() => {
             const rxn = typeof result.reaction_energy === 'number' ? result.reaction_energy : null;
@@ -457,7 +457,7 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
           })()}
           {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && kind !== 'geometry_optimization' && kind !== 'vqe_repeats' && kind !== 'lattice_dynamics' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
           {statusLabel === 'COMPLETED' && cut != null && <div>classical optimum {cut}</div>}
-          {statusLabel === 'FAILED' && <div className="text-[var(--color-danger-ink)]">failed — see job record</div>}
+          {statusLabel === 'FAILED' && <div className="text-danger-ink">failed — see job record</div>}
         </div>
       )}
     </div>

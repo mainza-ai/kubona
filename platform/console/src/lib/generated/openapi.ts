@@ -60,6 +60,41 @@ export type Capabilities = {
   "flags": Record<string, unknown>;
 };
 
+export type Skills = {
+  "skills": {
+  "name": string;
+  "description": string;
+  "role": string;
+  "tools": string[];
+  "source": string;
+}[];
+  "faults": {
+  "code": string;
+  "skill": string;
+  "detail": string;
+}[];
+  "limits": {
+  "max_skills": number;
+  "max_skill_bytes": number;
+  "max_description": number;
+};
+};
+
+export type LlmEvalStatus = {
+  "role": string;
+  "provider": string;
+  "model": string;
+  "status": string;
+  "evaluated": number;
+  "total": number;
+  "unscored": number;
+  "evaluated_at": string | null;
+  "fixtures_sha256": string;
+  "brier": number | null;
+  "ece": number | null;
+  "labels": string[];
+};
+
 export type CanvasLayout = Record<string, unknown>;
 
 export type WorkbenchLayout = {
@@ -94,6 +129,12 @@ export type ObligationsOpen = {
   "owner": string;
   "disposition": string;
   "close_ready": boolean;
+  "unknowns_detail"?: {
+  "id": string;
+  "description": string;
+}[];
+  "created_at"?: string | null;
+  "updated_at"?: string | null;
 }[];
 };
 
@@ -105,6 +146,7 @@ export type LlmSettings = {
   "temperature"?: number;
   "max_tokens"?: number;
   "disable_dsml_fallback"?: boolean;
+  "revision"?: number;
   "providers"?: Record<string, unknown>;
   "role_assignments"?: Record<string, unknown>;
   "role_catalog"?: {
@@ -184,6 +226,68 @@ export type TribunalRun = {
 export type ChatLaunch = {
   "job": unknown;
   "loop": unknown;
+};
+
+export type ProposalMint = {
+  "ok": boolean;
+  "proposal": {
+  "id": string;
+  "session_id": string;
+  "message_id"?: string;
+  "digest": string;
+  "body": unknown;
+  "basis_campaign_rev"?: number;
+  "basis_calibration_digest"?: string;
+  "status": string;
+  "launched_job_id"?: string;
+  "created_at": string;
+};
+};
+
+export type LoopParts = {
+  "ok": boolean;
+  "loop_id": string;
+  "parts": unknown[];
+  "count": number;
+};
+
+export type LoopSteer = {
+  "ok": boolean;
+  "steer": {
+  "id": string;
+  "loop_id": string;
+  "text": string;
+  "status": string;
+  "created_at": string;
+};
+};
+
+export type TasksBatch = {
+  "tasks": unknown[];
+  "count": number;
+};
+
+export type RunAllowancesList = {
+  "ok": boolean;
+  "allowances": unknown[];
+  "count": number;
+};
+
+export type RunAllowanceMint = {
+  "ok": boolean;
+  "allowance": unknown;
+};
+
+export type RunAllowanceRevoke = {
+  "ok": boolean;
+  "id": string;
+  "status": string;
+};
+
+export type ProposalDismiss = {
+  "ok": boolean;
+  "id": string;
+  "status": string;
 };
 
 export type AutoresearchHarnesses = {
@@ -444,6 +548,12 @@ export type JobsList = {
   "completed_at"?: string;
   "compiler_used"?: string;
   "fallback_estimate"?: boolean;
+  "need"?: {
+  "kind": string;
+  "target"?: string;
+  "reason": string;
+  "past"?: boolean;
+};
 }[];
 };
 
@@ -460,6 +570,12 @@ export type Job = {
   "completed_at"?: string;
   "compiler_used"?: string;
   "fallback_estimate"?: boolean;
+  "need"?: {
+  "kind": string;
+  "target"?: string;
+  "reason": string;
+  "past"?: boolean;
+};
 };
 };
 
@@ -515,6 +631,7 @@ export type MetasearchChange = {
 
 export type SettingsUpdate = {
   "status": string;
+  "changed"?: boolean;
   "settings": unknown;
 };
 
@@ -889,9 +1006,11 @@ export type ApiOperationResponse = {
   createLab: Lab;
   createSession: SessionCreate;
   createTask: Task;
+  createTasksBatch: TasksBatch;
   deleteCustomAgent: AgentsCustomDelete;
   deleteSession: SessionDelete;
   discoverLocalLLMProviders: LlmDiscover;
+  dismissProposal: ProposalDismiss;
   emergencyAbort: Abort;
   evaluateCodesignArtifact: CodesignEvaluate;
   evaluateCodesignBatch: CodesignBatch;
@@ -919,12 +1038,14 @@ export type ApiOperationResponse = {
   fetchFleet: Fleet;
   fetchJob: Job;
   fetchJobsResult: JobsList;
+  fetchLLMEvalStatus: LlmEvalStatus;
   fetchLLMModels: LlmModels;
   fetchLLMSettings: LlmSettings;
   fetchLabs: LabsList;
   fetchLatestPrediction: VaultLatest;
   fetchLedgerExport: LedgerExportDocument;
   fetchLensHistory: LensHistory;
+  fetchLoopParts: LoopParts;
   fetchLoopsResult: LoopsList;
   fetchMemoryRecall: MemoryRecall;
   fetchMessages: MessagesList;
@@ -939,9 +1060,11 @@ export type ApiOperationResponse = {
   fetchQuantumJob: QuantumJob;
   fetchQuantumSettings: QuantumSettings;
   fetchRadar: Radar;
+  fetchRunAllowances: RunAllowancesList;
   fetchSession: Session;
   fetchSessionContext: SessionContext;
   fetchSessionsResult: SessionsList;
+  fetchSkills: Skills;
   fetchSystemAgents: AgentsSystem;
   fetchTasksResult: TasksList;
   fetchWorkbenchLayout: WorkbenchLayout;
@@ -957,6 +1080,8 @@ export type ApiOperationResponse = {
   launchVQEHardware: HardwareLaunch;
   listHFDownloads: HfDownloads;
   loopAction: LoopAction;
+  mintProposal: ProposalMint;
+  mintRunAllowance: RunAllowanceMint;
   pauseAutoresearchLoop: AutoresearchLoop;
   planDiscovery: DiscoveryPlan;
   planWorkflow: WorkflowPlan;
@@ -978,6 +1103,7 @@ export type ApiOperationResponse = {
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
   reviewClaim: ClaimsReview;
+  revokeRunAllowance: RunAllowanceRevoke;
   revokeTenantAutonomy: TenantWrite;
   revokeTenantGrant: TenantGrantRevoke;
   revokeVaultLease: VaultLeaseRevoke;
@@ -1000,11 +1126,13 @@ export type ApiOperationResponse = {
   searchLiterature: Literature;
   sendChatMessage: ChatSend;
   sendFeedback: ChatFeedback;
+  setLLMAirGap: SettingsUpdate;
   setTenantAutonomy: TenantWrite;
   setTenantCeiling: TenantWrite;
   setTenantStatus: TenantWrite;
   startAutoresearchLoop: AutoresearchLoop;
   startHFDownload: HfDownload;
+  steerLoop: LoopSteer;
   stepAutoresearchLoop: AutoresearchStep;
   stopAutoresearchLoop: AutoresearchLoop;
   streamChatMessage: ChatStreamDone;
@@ -1039,9 +1167,11 @@ export const API_OPERATIONS = {
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   createTask: { method: "post", path: "/api/tasks", response: "task" },
+  createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   discoverLocalLLMProviders: { method: "get", path: "/api/llm/discover", response: "llm.discover" },
+  dismissProposal: { method: "post", path: "/api/proposals/{id}/dismiss", response: "proposal.dismiss" },
   emergencyAbort: { method: "post", path: "/api/supervisor/abort", response: "abort" },
   evaluateCodesignArtifact: { method: "post", path: "/api/codesign/evaluate", response: "codesign.evaluate" },
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
@@ -1069,12 +1199,14 @@ export const API_OPERATIONS = {
   fetchFleet: { method: "get", path: "/api/fleet", response: "fleet" },
   fetchJob: { method: "get", path: "/api/jobs/{id}", response: "job" },
   fetchJobsResult: { method: "get", path: "/api/jobs", response: "jobs.list" },
+  fetchLLMEvalStatus: { method: "get", path: "/api/evals/llm", response: "llm.eval.status" },
   fetchLLMModels: { method: "get", path: "/api/llm/models", response: "llm.models" },
   fetchLLMSettings: { method: "get", path: "/api/llm/settings", response: "llm.settings" },
   fetchLabs: { method: "get", path: "/api/tenants", response: "labs.list" },
   fetchLatestPrediction: { method: "get", path: "/api/vault/predictions/latest", response: "vault.latest" },
   fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   fetchLensHistory: { method: "get", path: "/api/observatory/lens/history", response: "lens.history" },
+  fetchLoopParts: { method: "get", path: "/api/loops/{id}/parts", response: "loop.parts" },
   fetchLoopsResult: { method: "get", path: "/api/loops", response: "loops.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
   fetchMessages: { method: "get", path: "/api/sessions/{id}/messages", response: "messages.list" },
@@ -1089,9 +1221,11 @@ export const API_OPERATIONS = {
   fetchQuantumJob: { method: "get", path: "/api/quantum/jobs/{id}", response: "quantum.job" },
   fetchQuantumSettings: { method: "get", path: "/api/quantum/settings", response: "quantum.settings" },
   fetchRadar: { method: "get", path: "/api/radar", response: "radar" },
+  fetchRunAllowances: { method: "get", path: "/api/run-allowances", response: "runAllowances.list" },
   fetchSession: { method: "get", path: "/api/sessions/{id}", response: "session" },
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
   fetchSessionsResult: { method: "get", path: "/api/sessions", response: "sessions.list" },
+  fetchSkills: { method: "get", path: "/api/skills", response: "skills" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchTasksResult: { method: "get", path: "/api/tasks", response: "tasks.list" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
@@ -1107,6 +1241,8 @@ export const API_OPERATIONS = {
   launchVQEHardware: { method: "post", path: "/api/experiments/vqe/hardware", response: "hardware.launch" },
   listHFDownloads: { method: "get", path: "/api/hf/downloads", response: "hf.downloads" },
   loopAction: { method: "post", path: "/api/loops/{id}/{action}", response: "loop.action" },
+  mintProposal: { method: "post", path: "/api/proposals", response: "proposal.mint" },
+  mintRunAllowance: { method: "post", path: "/api/run-allowances", response: "runAllowance.mint" },
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
   planDiscovery: { method: "post", path: "/api/discovery/plan", response: "discovery.plan" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
@@ -1128,6 +1264,7 @@ export const API_OPERATIONS = {
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
   reviewClaim: { method: "post", path: "/api/sessions/${encodeURIComponent}(sessionId)/claims/${encodeURIComponent}(claimId)/review", response: "claims.review" },
+  revokeRunAllowance: { method: "post", path: "/api/run-allowances/{id}/revoke", response: "runAllowance.revoke" },
   revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
   revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
   revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
@@ -1150,11 +1287,13 @@ export const API_OPERATIONS = {
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },
   sendChatMessage: { method: "post", path: "/api/chat/messages", response: "chat.send" },
   sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
+  setLLMAirGap: { method: "patch", path: "/api/llm/settings", response: "settings.update" },
   setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
   setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
   startHFDownload: { method: "post", path: "/api/hf/download", response: "hf.download" },
+  steerLoop: { method: "post", path: "/api/loops/{id}/steer", response: "loop.steer" },
   stepAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/step", response: "autoresearch.step" },
   stopAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/stop", response: "autoresearch.loop" },
   streamChatMessage: { method: "post", path: "/api/chat/stream", response: "chat.stream.done" },

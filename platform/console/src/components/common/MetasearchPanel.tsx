@@ -72,32 +72,32 @@ export function MetasearchPanel() {
   };
 
   return (
-    <div className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Meta-search proposals">
+    <div className="w-full rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Meta-search proposals">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-[var(--color-text)]">Strategy proposals · human approval</span>
+        <span className="text-label font-semibold text-text">Strategy proposals · human approval</span>
         <button
           type="button"
           onClick={() => load()}
-          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)]"
+          className="px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-[12px] text-label-secondary"
         >
           Refresh
         </button>
       </div>
       {writeSettlementLabel(settlement.write) && (
-        <p role="status" className="text-[12px] font-code text-[var(--color-label-secondary)]">{writeSettlementLabel(settlement.write)}</p>
+        <p role="status" className="text-[12px] font-code text-label-secondary">{writeSettlementLabel(settlement.write)}</p>
       )}
       {proposals === null && (
-        <p className="text-[12px] font-code text-[var(--color-faint)]">Loading proposals…</p>
+        <p className="text-[12px] font-code text-faint">Loading proposals…</p>
       )}
       {proposals !== null && proposals.length === 0 && (
-        <p className="text-[12px] text-[var(--color-muted)]">No proposals pending — meta-search has proposed nothing.</p>
+        <p className="text-[12px] text-muted">No proposals pending — meta-search has proposed nothing.</p>
       )}
       {(proposals ?? []).map((p) => {
         const isBusy = busy.has(p.id);
         return (
-          <div key={p.id} className="px-2.5 py-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-[12px] space-y-1.5">
+          <div key={p.id} className="px-2.5 py-2 rounded-row bg-card border border-border text-[12px] space-y-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-code text-[var(--color-label-secondary)] truncate" title={p.id}>
+              <span className="font-code text-label-secondary truncate" title={p.id}>
                 {p.id.slice(0, 8)} · {p.status}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
@@ -108,7 +108,7 @@ export function MetasearchPanel() {
                       disabled={isBusy}
                       onClick={() => act(p.id, 'approve')}
                       aria-label={`Approve proposal ${p.id}`}
-                      className="px-2 py-1 rounded-lg bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] hover:opacity-90 disabled:opacity-40"
+                      className="px-2 py-1 rounded-control-compact bg-success-wash border border-success-edge text-success-ink hover:opacity-90 disabled:opacity-40"
                     >
                       Approve
                     </button>
@@ -117,7 +117,7 @@ export function MetasearchPanel() {
                       disabled={isBusy}
                       onClick={() => setRejectDraft(p.id)}
                       aria-label={`Reject proposal ${p.id}`}
-                      className="px-2 py-1 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] hover:opacity-90 disabled:opacity-40"
+                      className="px-2 py-1 rounded-control-compact bg-danger-wash border border-danger-edge text-danger-ink hover:opacity-90 disabled:opacity-40"
                     >
                       Reject
                     </button>
@@ -129,19 +129,19 @@ export function MetasearchPanel() {
                     disabled={isBusy}
                     onClick={() => act(p.id, 'apply')}
                     aria-label={`Apply proposal ${p.id}`}
-                    className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] hover:opacity-90 disabled:opacity-40"
+                    className="px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink hover:opacity-90 disabled:opacity-40"
                   >
                     Apply
                   </button>
                 )}
               </span>
             </div>
-            <p className="text-[var(--color-muted)] truncate" title={p.rationale}>
+            <p className="text-muted truncate" title={p.rationale}>
               {p.rationale || p.target_file}
             </p>
-            <details className="text-[var(--color-faint)]">
-              <summary className="cursor-pointer hover:text-[var(--color-label-secondary)]">proposed diff</summary>
-              <pre className="mt-1 p-2 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] text-[var(--color-text)] overflow-x-auto font-code text-[12px] whitespace-pre-wrap">
+            <details className="text-faint">
+              <summary className="cursor-pointer hover:text-label-secondary">proposed diff</summary>
+              <pre className="mt-1 p-2 rounded-control-compact bg-field border border-border text-text overflow-x-auto font-code text-[12px] whitespace-pre-wrap">
                 {p.proposed_diff || '(no diff recorded)'}
               </pre>
             </details>
@@ -149,7 +149,7 @@ export function MetasearchPanel() {
         );
       })}
       {notice && (
-        <div className="text-[12px] text-[var(--color-warning-ink)]" role="alert">
+        <div className="text-[12px] text-warning-ink" role="alert">
           {notice}
         </div>
       )}
@@ -160,7 +160,7 @@ export function MetasearchPanel() {
           body={
             <span>
               The strategy change is closed, loop work stays as-is. Type{' '}
-              <code className="rounded bg-[var(--color-fill)] px-1 font-mono">{rejectDraft.slice(0, 8)}</code> to confirm.
+              <code className="rounded-chip bg-fill px-1 font-mono">{rejectDraft.slice(0, 8)}</code> to confirm.
             </span>
           }
           requireText={rejectDraft.slice(0, 8)}

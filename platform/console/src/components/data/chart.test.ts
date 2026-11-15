@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hasChartValues } from './chart';
 import {
   alignedRows,
   chartSummary,
@@ -114,5 +115,18 @@ describe('chart spec', () => {
     expect(crowded.length).toBeLessThanOrEqual(7);
     expect(crowded[0]).toBe(0);
     expect(crowded[crowded.length - 1]).toBe(23);
+  });
+});
+
+describe('hasChartValues (D5)', () => {
+  const base = (points: Array<{ x: string | number; y: number | null; y2?: number }>) => ({
+    kind: 'line' as const,
+    title: 't',
+    series: [{ name: 's', points }],
+  });
+  it('treats null gaps as no value and any finite point as a value', () => {
+    expect(hasChartValues(base([{ x: 1, y: null }, { x: 2, y: null }]))).toBe(false);
+    expect(hasChartValues(base([{ x: 1, y: null }, { x: 2, y: 0 }]))).toBe(true);
+    expect(hasChartValues(base([{ x: 1, y: null, y2: 2 }]))).toBe(true);
   });
 });

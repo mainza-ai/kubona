@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -45,14 +46,27 @@ func obligationRow(s *Server, ob *ledger.Obligation) (map[string]any, error) {
 		return nil, err
 	}
 	unknownIDs := make([]string, 0, len(ob.Unknowns))
+	unknownDetail := make([]map[string]string, 0, len(ob.Unknowns))
 	for _, u := range ob.Unknowns {
 		unknownIDs = append(unknownIDs, u.ID)
+		unknownDetail = append(unknownDetail, map[string]string{"id": u.ID, "description": u.Description})
+	}
+	// Timestamps are facts, not decoration: the tray sorts by real waiting
+	// time and renders "unknown" (null) when the row carries no readable
+	// clock rather than inventing one.
+	var createdAt, updatedAt any
+	if !ob.CreatedAt.IsZero() {
+		createdAt = ob.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	if !ob.UpdatedAt.IsZero() {
+		updatedAt = ob.UpdatedAt.UTC().Format(time.RFC3339)
 	}
 	return map[string]any{
 		"id": ob.ID, "subject_kind": ob.SubjectKind, "subject_id": ob.SubjectID,
 		"owner": ob.Owner, "disposition": ob.Disposition,
 		"required_cases": ob.RequiredCases, "required_authorities": ob.RequiredAuthorities,
-		"cases": rendered, "unknowns": unknownIDs,
+		"cases": rendered, "unknowns": unknownIDs, "unknowns_detail": unknownDetail,
+		"created_at": createdAt, "updated_at": updatedAt,
 		"close_ready": ready, "close_reasons": reasons,
 	}, nil
 }

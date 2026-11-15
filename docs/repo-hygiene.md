@@ -34,6 +34,20 @@ assets or Git LFS. Do not commit build output: `platform/core/bin/`,
 `platform/core/kubonad`, `platform/crates/*/target/`, and
 `platform/console/.next/` are gitignored.
 
+## Console design/architecture ratchets
+
+- `scripts/console-scale-lint.mjs` — no size-named radius/text utilities
+  (the Tailwind scales are reset; role names only).
+- `scripts/console-color-utility-lint.mjs` — no arbitrary
+  `bg/text/border/ring/...-[var(--color-*)]` utilities; semantic tokens only.
+- `scripts/console-theme-check.mjs` — reads the built CSS and proves the
+  default scales are gone and role utilities resolve.
+- `scripts/console-bundle-budgets.mjs` — per-route first-load ceilings plus
+  recorded lazy chunks; forbidden libraries stay lazy.
+- `scripts/console-boundaries.mjs` — `types < lib < domain < components < app`.
+- `scripts/console-test-renderer-ratchet.mjs` — the 95-file
+  `react-test-renderer` baseline may only shrink.
+
 ## Coverage
 
 Go, Python, and console have hold-the-line coverage floors in CI. At the

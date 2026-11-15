@@ -142,6 +142,30 @@ type LoopEngine struct {
 	spendRecorder      func(role string, promptTokens, completionTokens int) (float64, error)
 	spendReservedTotal float64
 	spendConsumed      float64
+	// admissionRequestID is the caller's idempotency key, copied onto the
+	// loop row at birth. It is not part of the client-visible loop state.
+	admissionRequestID string
+}
+
+// SetAdmissionRequestID records the caller key that must ride the loop row.
+func (e *LoopEngine) SetAdmissionRequestID(id string) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	e.admissionRequestID = id
+	e.mu.Unlock()
+}
+
+// AdmissionRequestID returns the key set at admission. Empty when the
+// caller did not send one.
+func (e *LoopEngine) AdmissionRequestID() string {
+	if e == nil {
+		return ""
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.admissionRequestID
 }
 
 // SetBudgetCheck wires the mid-run spend bound (S3). Nil clears it.

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -135,6 +136,51 @@ func TestObligationsOpenScoping(t *testing.T) {
 	// Anonymous on a multi-lab store refuses (D-09 shaped).
 	if code, _ := queueGet(t, srv, "", "", ""); code != http.StatusUnauthorized {
 		t.Fatalf("anon multi-lab list must 401, got %d", code)
+	}
+}
+
+func TestObligationRowCarriesWaitingFacts(t *testing.T) {
+	srv, cleanup := setupTenantDrill(t)
+	defer cleanup()
+	drillTenant(t, srv, "lab-a")
+	sess := drillSession(t, srv, "waiting", "lab-a", "test-token")
+	ob, err := srv.Ledger().OpenObligation("job", "job-42", []string{"receipt"}, []string{"reviewer"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.Ledger().SetObligationOwner(ob.ID, "session:"+sess); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.Ledger().RecordObligationUnknown(ob.ID, ledger.Unknown{
+		ID: "u-budget", Description: "budget approval pending",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	code, out := queueGet(t, srv, "", "test-token", "?subject_kind=job")
+	if code != http.StatusOK {
+		t.Fatalf("queue must 200, got %d: %v", code, out)
+	}
+	rows := out["obligations"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(rows))
+	}
+	row := rows[0].(map[string]any)
+	// Waiting time is a fact the tray sorts on; unreadable time would be
+	// null, never a substituted clock.
+	created, ok := row["created_at"].(string)
+	if !ok || created == "" {
+		t.Fatalf("created_at must be a timestamp string, got %#v", row["created_at"])
+	}
+	if _, err := time.Parse(time.RFC3339, created); err != nil {
+		t.Fatalf("created_at must be RFC3339, got %q: %v", created, err)
+	}
+	detail := row["unknowns_detail"].([]any)
+	if len(detail) != 1 {
+		t.Fatalf("unknowns_detail must carry the blocking unknown, got %#v", row["unknowns_detail"])
+	}
+	if got := detail[0].(map[string]any)["description"]; got != "budget approval pending" {
+		t.Fatalf("unknown description must be verbatim, got %#v", got)
 	}
 }
 

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "note": "D7 per-route first-load budgets measured from the real Next build (`next build` → client reference manifest + build manifest). The recorded size is the measured baseline; the allowance is the growth permitted over it before the build fails (ordinary work must not need a new baseline, a new dependency must). Forbidden libraries must stay lazy. Large lazy chunks are recorded by a stable content marker plus a reason, because hashed filenames change every build. Run `node scripts/console-bundle-budgets.mjs` after `next build`.",
+  "routes": {
+    "/": {
+      "recorded_raw_kb": 1108.5,
+      "recorded_gzip_kb": 326.8,
+      "allowance_raw_kb": 40,
+      "allowance_gzip_kb": 24,
+      "max_single_chunk_kb": 410,
+      "max_lazy_chunk_kb": 256
+    }
+  },
+  "forbidden_in_first_load": {
+    "/": [
+      {
+        "name": "three",
+        "markers": ["THREE.WebGLRenderer", "WebGLRenderer"]
+      },
+      {
+        "name": "elkjs",
+        "markers": ["elkjs", "ELK."]
+      },
+      {
+        "name": "katex",
+        "markers": ["katex-overlay", "katex-base"]
+      }
+    ]
+  },
+  "recorded_lazy_chunks": [
+    {
+      "marker": "katex-overlay",
+      "reason": "KaTeX renderer (≈258 KiB) loads only when chat prose contains $…$; MathText dynamic-imports it, so it is absent from first load. Recorded 2026-11-14."
+    },
+    {
+      "marker": "WebGLRenderer",
+      "reason": "three.js renderer (≈543 KiB) enters only when the observatory opens; SpatialCanvas3D dynamic-imports it so first paint never pays for it. Recorded 2026-11-14."
+    },
+    {
+      "marker": "ELK",
+      "reason": "elkjs bundled layout engine (≈1.4 MiB) is used by the proof-DAG Web Worker on demand; it is never in the document first load. Recorded 2026-11-14."
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Cpu, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { fetchLLMEvalStatus, type LLMEvalStatus } from '@/lib/api';
 
 export interface PickerModelCapabilities {
   vision?: boolean;
@@ -104,17 +105,17 @@ function writePins(storageKey: string, pins: ModelPin[]): void {
 }
 
 function standingDotClass(provider: PickerProviderConfig): string {
-  if (!provider.enabled) return 'bg-[var(--color-faint)]';
+  if (!provider.enabled) return 'bg-faint';
   if (provider.key_status === 'invalid' || (provider.last_fault && provider.last_fault !== 'none')) {
-    return 'bg-[var(--color-danger)]';
+    return 'bg-danger';
   }
   if (!provider.is_local && provider.has_key === false) {
-    return 'bg-[var(--color-faint)]';
+    return 'bg-faint';
   }
   if (provider.key_status === 'valid' || provider.is_local) {
-    return 'bg-[var(--color-success)]';
+    return 'bg-success';
   }
-  return 'bg-[var(--color-warning)]';
+  return 'bg-warning';
 }
 
 function formatContextBadge(item: PickerModelItem): string | null {
@@ -185,6 +186,20 @@ export function ModelPicker({
     typeof copilotSampling?.seed === 'number' ? String(copilotSampling.seed) : '',
   );
   const [reasoningEffort, setReasoningEffort] = useState(copilotSampling?.reasoning_effort || '');
+  const [evalStatus, setEvalStatus] = useState<{ key: string; status: LLMEvalStatus } | null>(null);
+  const evalKey = `${activeProvider ?? ''}|${activeModel ?? ''}`;
+  const visibleEvalStatus = evalStatus?.key === evalKey ? evalStatus.status : null;
+
+  useEffect(() => {
+    if (!activeProvider || !activeModel || typeof window === 'undefined') return;
+    let cancelled = false;
+    fetchLLMEvalStatus('copilot', activeProvider, activeModel).then((status) => {
+      if (!cancelled && status) setEvalStatus({ key: `${activeProvider}|${activeModel}`, status });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProvider, activeModel]);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
@@ -337,12 +352,12 @@ export function ModelPicker({
     return (
       <div
         key={`${badgeHint ?? 'list'}-${item.id}`}
-        className={`flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 transition-colors ${
+        className={`flex items-center justify-between gap-2 rounded-row border px-2.5 py-1.5 transition-colors ${
           selected
-            ? 'border-[var(--color-accent-edge)] bg-[var(--color-raised)] shadow-[var(--row-rim)]'
+            ? 'border-accent-edge bg-raised shadow-[var(--row-rim)]'
             : highlighted
-              ? 'border-[var(--color-border-strong)] bg-[var(--color-raised)]'
-              : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-fill-hover)]'
+              ? 'border-border-strong bg-raised'
+              : 'border-border bg-surface hover:bg-fill-hover'
         }`}
       >
         <button
@@ -353,53 +368,53 @@ export function ModelPicker({
           className="min-w-0 flex-1 text-left disabled:opacity-50"
         >
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className={`truncate font-code text-[12px] ${selected ? 'font-semibold text-[var(--color-accent-ink)]' : 'text-[var(--color-text)]'}`}>
+            <span className={`truncate font-code text-[12px] ${selected ? 'font-semibold text-accent-ink' : 'text-text'}`}>
               {item.id}
             </span>
             {badgeHint && (
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-code text-[11px] text-[var(--color-label-secondary)]">
+              <span className="rounded-capsule border border-border bg-surface px-1.5 py-0.5 font-code text-[11px] text-label-secondary">
                 {badgeHint}
               </span>
             )}
             {selected && (
-              <span className="rounded-full bg-[var(--color-accent)] px-1.5 py-0.5 font-code text-[11px] font-medium text-[var(--color-on-accent)]">
+              <span className="rounded-capsule bg-accent px-1.5 py-0.5 font-code text-[11px] font-medium text-on-accent">
                 Active
               </span>
             )}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1 font-code text-[11px] text-[var(--color-label-secondary)]">
+          <div className="mt-1 flex flex-wrap items-center gap-1 font-code text-[11px] text-label-secondary">
             {ctxBadge && (
-              <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-[var(--color-label-secondary)]">
+              <span className="rounded-chip border border-border bg-surface px-1 py-0.5 text-label-secondary">
                 {ctxBadge}
               </span>
             )}
             {caps?.tools && (
-              <span className="rounded border border-[var(--color-info-edge)] bg-[var(--color-info-wash)] px-1 py-0.5 text-[var(--color-info-ink)]">
+              <span className="rounded-chip border border-info-edge bg-info-wash px-1 py-0.5 text-info-ink">
                 Tools
               </span>
             )}
             {caps?.vision && (
-              <span className="rounded border border-[var(--color-info-edge)] bg-[var(--color-info-wash)] px-1 py-0.5 text-[var(--color-info-ink)]">
+              <span className="rounded-chip border border-info-edge bg-info-wash px-1 py-0.5 text-info-ink">
                 Vision
               </span>
             )}
             {caps?.reasoning && (
-              <span className="rounded border border-[var(--color-soft-indigo-edge)] bg-[var(--color-soft-indigo-wash)] px-1 py-0.5 text-[var(--color-accent-ink)]">
+              <span className="rounded-chip border border-soft-indigo-edge bg-soft-indigo-wash px-1 py-0.5 text-accent-ink">
                 Reasoning
               </span>
             )}
             {caps?.structured_output && (
-              <span className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1 py-0.5 text-[var(--color-label-secondary)]">
+              <span className="rounded-chip border border-border bg-surface px-1 py-0.5 text-label-secondary">
                 JSON
               </span>
             )}
             {priceBadge && (
               <span
                 title={priceBadge.title}
-                className={`inline-flex items-center gap-1 rounded border px-1 py-0.5 ${
+                className={`inline-flex items-center gap-1 rounded-chip border px-1 py-0.5 ${
                   priceBadge.warn
-                    ? 'border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-label-secondary)]'
+                    ? 'border-warning-edge bg-warning-wash text-warning-ink'
+                    : 'border-border bg-surface text-label-secondary'
                 }`}
               >
                 {priceBadge.warn && <AlertTriangle className="h-3 w-3 shrink-0" />}
@@ -413,10 +428,10 @@ export function ModelPicker({
           aria-label={fav ? `Unfavorite ${item.id}` : `Favorite ${item.id}`}
           aria-pressed={fav}
           onClick={() => toggleFavorite(selectedProvider, item.id)}
-          className={`shrink-0 rounded-lg p-1 transition-colors ${
+          className={`shrink-0 rounded-control-compact p-1 transition-colors ${
             fav
-              ? 'text-[var(--color-warning-ink)] hover:bg-[var(--color-warning-wash)]'
-              : 'text-[var(--color-faint)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]'
+              ? 'text-warning-ink hover:bg-warning-wash'
+              : 'text-faint hover:bg-fill hover:text-text'
           }`}
         >
           <Star className={`h-3.5 w-3.5 ${fav ? 'fill-current' : ''}`} />
@@ -431,24 +446,53 @@ export function ModelPicker({
       role="region"
       aria-label="Quick model switcher"
       onKeyDown={handleKeyDown}
-      className="mb-2.5 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-float)] p-3 shadow-[var(--shadow-float)] space-y-2.5"
+      className="mb-2.5 rounded-card border border-border-strong bg-float p-3 shadow-[var(--shadow-float)] space-y-2.5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Cpu className="h-3.5 w-3.5 text-[var(--color-accent-ink)]" />
-          <span className="font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+          <Cpu className="h-3.5 w-3.5 text-accent-ink" />
+          <span className="font-code text-[11px] uppercase tracking-wider text-muted">
             Copilot Model {activeProvider ? `· ${activeProvider}` : ''}
           </span>
+          {visibleEvalStatus && (
+            <span
+              data-testid="llm-eval-status"
+              title={
+                visibleEvalStatus.status === 'evaluated'
+                  ? `Brier ${visibleEvalStatus.brier?.toFixed(3) ?? '—'}, ECE ${visibleEvalStatus.ece?.toFixed(3) ?? '—'} on the pinned copilot fixtures`
+                  : visibleEvalStatus.status === 'stale'
+                    ? 'The recorded evaluation predates the current fixtures'
+                    : 'No recorded decision evaluation for this model'
+              }
+              className={`rounded-chip border px-1.5 py-0.5 font-code text-[11px] ${
+                visibleEvalStatus.status === 'evaluated'
+                  ? 'border-success-edge bg-success-wash text-success-ink'
+                  : visibleEvalStatus.status === 'stale'
+                    ? 'border-warning-edge bg-warning-wash text-warning-ink'
+                    : 'border-border bg-tile text-muted'
+              }`}
+            >
+              {visibleEvalStatus.status === 'evaluated'
+                ? `evaluated ${visibleEvalStatus.evaluated}/${visibleEvalStatus.total} · ${
+                    visibleEvalStatus.evaluated_at && !Number.isNaN(new Date(visibleEvalStatus.evaluated_at).getTime())
+                      ? new Date(visibleEvalStatus.evaluated_at).toLocaleDateString()
+                      : 'date unknown'
+                  }`
+                : visibleEvalStatus.status === 'stale'
+                  ? 'evaluation stale'
+                  : 'unevaluated'}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onToggleSyncMatchingRoles}
             aria-pressed={syncMatchingRoles}
-            className={`rounded-lg border px-2 py-0.5 text-[11px] font-code transition-colors ${
+            className={`rounded-control-compact border px-2 py-0.5 text-[11px] font-code transition-colors ${
               syncMatchingRoles
-                ? 'border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)]'
-                : 'border-[var(--color-border)] bg-[var(--color-tile)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                ? 'border-accent-edge bg-accent-soft text-accent-ink'
+                : 'border-border bg-tile text-muted hover:text-text'
             }`}
           >
             {syncMatchingRoles ? 'Copilot + default roles' : 'Copilot only'}
@@ -457,10 +501,10 @@ export function ModelPicker({
             type="button"
             aria-expanded={showSampling}
             onClick={() => setShowSampling((v) => !v)}
-            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-code transition-colors ${
+            className={`inline-flex items-center gap-1 rounded-control-compact border px-2 py-0.5 text-[11px] font-code transition-colors ${
               showSampling
-                ? 'border-[var(--color-info-edge)] bg-[var(--color-info-wash)] text-[var(--color-info-ink)]'
-                : 'border-[var(--color-border)] bg-[var(--color-tile)] text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                ? 'border-info-edge bg-info-wash text-info-ink'
+                : 'border-border bg-tile text-muted hover:text-text'
             }`}
           >
             <SlidersHorizontal className="h-3 w-3" />
@@ -473,7 +517,7 @@ export function ModelPicker({
                 onClose();
                 onOpenSettings();
               }}
-              className="text-[12px] text-[var(--color-accent-ink)] hover:underline"
+              className="text-[12px] text-accent-ink hover:underline"
             >
               Open LLM Settings →
             </button>
@@ -485,7 +529,7 @@ export function ModelPicker({
                 onClose();
                 onOpenDownloadHub();
               }}
-              className="text-[12px] text-[var(--color-muted)] hover:text-[var(--color-text)] hover:underline"
+              className="text-[12px] text-muted hover:text-text hover:underline"
             >
               Local Downloads →
             </button>
@@ -494,7 +538,7 @@ export function ModelPicker({
             type="button"
             onClick={handleClose}
             aria-label="Close model switcher"
-            className="rounded-lg p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill)]"
+            className="rounded-control-compact p-0.5 text-muted hover:text-text hover:bg-fill"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -521,17 +565,17 @@ export function ModelPicker({
                   setHighlightedIdx(0);
                   onSelectProviderTab(pt);
                 }}
-                className={`flex shrink-0 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-left text-[12px] transition-colors ${
+                className={`flex shrink-0 items-center justify-between gap-2 rounded-row border px-2.5 py-1.5 text-left text-[12px] transition-colors ${
                   isTabSelected
-                    ? 'border-[var(--color-accent-edge)] bg-[var(--color-raised)] text-[var(--color-text)] font-medium shadow-[var(--row-rim)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]'
+                    ? 'border-accent-edge bg-raised text-text font-medium shadow-[var(--row-rim)]'
+                    : 'border-border bg-surface text-label-secondary hover:bg-fill-hover'
                 }`}
               >
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${standingDotClass(cfg)}`} />
+                  <span className={`h-2 w-2 shrink-0 rounded-capsule ${standingDotClass(cfg)}`} />
                   <span className="truncate font-code">{pt}</span>
                 </span>
-                <span className={`font-code text-[11px] ${isTabSelected ? 'text-[var(--color-label-secondary)]' : 'text-[var(--color-muted)]'}`}>
+                <span className={`font-code text-[11px] ${isTabSelected ? 'text-label-secondary' : 'text-muted'}`}>
                   {cfg.is_local ? 'local' : 'cloud'}
                 </span>
               </button>
@@ -541,8 +585,8 @@ export function ModelPicker({
 
         {/* Searchable Models & Sampling */}
         <div className="min-w-0 space-y-2">
-          <div className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-field)] px-2.5 py-1.5 focus-within:border-[var(--color-accent-edge)]">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--color-muted)]" />
+          <div className="flex items-center gap-1.5 rounded-row border border-border bg-field px-2.5 py-1.5 focus-within:border-accent-edge">
+            <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
             <input
               ref={searchRef}
               type="text"
@@ -553,14 +597,14 @@ export function ModelPicker({
               }}
               aria-label="Search models"
               placeholder={`Filter ${selectedProvider} models or type custom slug…`}
-              className="min-w-0 flex-1 bg-transparent font-code text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent font-code text-[12px] text-text placeholder:text-faint focus:outline-none"
             />
             {query && (
               <button
                 type="button"
                 aria-label="Clear model search"
                 onClick={() => setQuery('')}
-                className="text-[var(--color-muted)] hover:text-[var(--color-text)]"
+                className="text-muted hover:text-text"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -568,10 +612,10 @@ export function ModelPicker({
           </div>
 
           {showSampling && (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 space-y-2">
+            <div className="rounded-row border border-border bg-surface p-2.5 space-y-2">
               <div className="grid grid-cols-3 gap-2 text-[11px]">
                 <div>
-                  <label htmlFor="picker-copilot-reasoning" className="block font-code text-[var(--color-muted)] mb-1">
+                  <label htmlFor="picker-copilot-reasoning" className="block font-code text-muted mb-1">
                     Reasoning
                   </label>
                   <select
@@ -579,7 +623,7 @@ export function ModelPicker({
                     aria-label="Copilot reasoning effort"
                     value={reasoningEffort}
                     onChange={(e) => setReasoningEffort(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1 font-code text-[12px] text-[var(--color-text)]"
+                    className="w-full rounded-control-compact border border-border bg-field px-2 py-1 font-code text-[12px] text-text"
                   >
                     <option value="">default</option>
                     <option value="none">none</option>
@@ -589,7 +633,7 @@ export function ModelPicker({
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="picker-copilot-temp" className="block font-code text-[var(--color-muted)] mb-1">
+                  <label htmlFor="picker-copilot-temp" className="block font-code text-muted mb-1">
                     Temp (0–2)
                   </label>
                   <input
@@ -602,11 +646,11 @@ export function ModelPicker({
                     placeholder="global"
                     value={temperatureInput}
                     onChange={(e) => setTemperatureInput(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1 font-code text-[12px] text-[var(--color-text)]"
+                    className="w-full rounded-control-compact border border-border bg-field px-2 py-1 font-code text-[12px] text-text"
                   />
                 </div>
                 <div>
-                  <label htmlFor="picker-copilot-seed" className="block font-code text-[var(--color-muted)] mb-1">
+                  <label htmlFor="picker-copilot-seed" className="block font-code text-muted mb-1">
                     Seed
                   </label>
                   <input
@@ -617,7 +661,7 @@ export function ModelPicker({
                     placeholder="unset"
                     value={seedInput}
                     onChange={(e) => setSeedInput(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-2 py-1 font-code text-[12px] text-[var(--color-text)]"
+                    className="w-full rounded-control-compact border border-border bg-field px-2 py-1 font-code text-[12px] text-text"
                   />
                 </div>
               </div>
@@ -627,7 +671,7 @@ export function ModelPicker({
                     type="button"
                     disabled={saving}
                     onClick={() => void onApplySampling(parsedSampling())}
-                    className="rounded-lg border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-2.5 py-1 font-code text-[11px] text-[var(--color-accent-ink)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] disabled:opacity-40"
+                    className="rounded-control-compact border border-accent-edge bg-accent-soft px-2.5 py-1 font-code text-[11px] text-accent-ink hover:bg-accent hover:text-on-accent disabled:opacity-40"
                   >
                     Save Copilot sampling
                   </button>
@@ -637,27 +681,27 @@ export function ModelPicker({
           )}
 
           {providerAirGapBlocked && (
-            <p className="rounded-xl border border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] px-2.5 py-1.5 text-[12px] text-[var(--color-warning-ink)]">
+            <p className="rounded-row border border-warning-edge bg-warning-wash px-2.5 py-1.5 text-[12px] text-warning-ink">
               Cloud provider {selectedProvider} is blocked while Sovereign Air-Gap is active.
             </p>
           )}
 
           {providerError && (
-            <p className="rounded-xl border border-[var(--color-danger-edge)] bg-[var(--color-danger-wash)] px-2.5 py-1.5 text-[12px] text-[var(--color-danger-ink)]">
+            <p className="rounded-row border border-danger-edge bg-danger-wash px-2.5 py-1.5 text-[12px] text-danger-ink">
               Model list error ({selectedProvider}): {providerError}
             </p>
           )}
 
           <div className="max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
             {loadingProvider === selectedProvider ? (
-              <p className="py-3 text-xs font-code text-[var(--color-muted)]">
+              <p className="py-3 text-label font-code text-muted">
                 Loading configured models for {selectedProvider}…
               </p>
             ) : (
               <>
                 {pinnedForSelected.length > 0 && (
                   <div className="space-y-1">
-                    <div className="font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+                    <div className="font-code text-[11px] uppercase tracking-wider text-muted">
                       Pinned &amp; Recent
                     </div>
                     {pinnedForSelected.map((item) =>
@@ -669,14 +713,14 @@ export function ModelPicker({
                 {filteredModels.length > 0 ? (
                   <div className="space-y-1">
                     {pinnedForSelected.length > 0 && (
-                      <div className="pt-1 font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+                      <div className="pt-1 font-code text-[11px] uppercase tracking-wider text-muted">
                         Catalog ({filteredModels.length})
                       </div>
                     )}
                     {filteredModels.map((item, idx) => renderModelRow(item, idx))}
                   </div>
                 ) : (
-                  <p className="py-1 text-xs text-[var(--color-muted)]">
+                  <p className="py-1 text-label text-muted">
                     No models listed for {selectedProvider}. {trimmedQuery ? 'Apply the typed model ID below or open LLM Settings.' : 'Open LLM Settings to verify endpoint or configure a default.'}
                   </p>
                 )}
@@ -687,7 +731,7 @@ export function ModelPicker({
                     data-model-id={trimmedQuery}
                     disabled={saving}
                     onClick={() => void pickModel(selectedProvider, trimmedQuery)}
-                    className="w-full rounded-xl border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-2.5 py-1.5 text-left font-code text-[12px] text-[var(--color-accent-ink)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] disabled:opacity-50"
+                    className="w-full rounded-row border border-accent-edge bg-accent-soft px-2.5 py-1.5 text-left font-code text-[12px] text-accent-ink hover:bg-accent hover:text-on-accent disabled:opacity-50"
                   >
                     Use custom model &ldquo;{trimmedQuery}&rdquo; on {selectedProvider}
                   </button>
@@ -699,7 +743,7 @@ export function ModelPicker({
       </div>
 
       {statusMessage && (
-        <p className="text-[12px] font-code text-[var(--color-label-secondary)]">{statusMessage}</p>
+        <p className="text-[12px] font-code text-label-secondary">{statusMessage}</p>
       )}
     </div>
   );

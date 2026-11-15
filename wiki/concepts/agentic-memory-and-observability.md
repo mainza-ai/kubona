@@ -10,6 +10,22 @@ sources: [source-frontier-repo-audit-2026]
 
 # Agentic Memory and Observability
 
+> **Memory hygiene (B10, 2026-11-14).** Every write path screens for
+> credential shapes with one shared implementation (`pkg/secret`: PEM private
+> keys, JWT, OpenAI/GitHub/AWS/Slack tokens, bearer tokens, and
+> `key = value` assignment shapes). Explicit retention redacts before the
+> row is written and reports `redacted: true` plus the generic kinds;
+> automatic turn write-back does the same and appends a visible
+> `[secret redacted: …]` note; recall applies the same screen again so a
+> legacy row cannot echo a secret. Retraction is a tombstone:
+> `POST /api/memory/retract` clears the content, removes the embedding, keeps
+> the row for audit with `retracted_at`/`retract_reason`, seals a
+> `memory_retracted` event, and recall/list never return it. Tenant scoping
+> decides ownership; unknown or cross-tenant ids refuse without an oracle.
+> Explicit facts keep their own bank (`world-facts`) separate from the
+> automatic `experiences` log, and retention remains bounded (600 runes per
+> experience).
+
 **Definition.** One inspectable surface where every agent thought, tool call, refusal and
 revision is *simultaneously* remembered (so the collective learns) and visible (so a human can
 audit it in minutes). These are the same pipe: a fact that is not retrievable later is not

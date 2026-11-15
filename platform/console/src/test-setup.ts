@@ -4,6 +4,9 @@ import { resetTranscriptStoresForTests } from '@/domain/transcript-store';
 import { resetAuthStateForTests } from '@/domain/auth-state';
 import { resetInvalidationForTests } from '@/domain/invalidation';
 import { resetStreamStateForTests } from '@/domain/stream-state';
+import { resetNeedsYouSeenForTests } from '@/domain/needs-you-seen';
+import { resetApiProblemForTests } from '@/domain/api-problem-state';
+import { resetWorkflowPlanForTests } from '@/domain/workflow-plan-store';
 
 // Keep component tests synchronous; production still crosses the lazy boundary.
 vi.mock('@/components/data/LazyChart', () => import('@/components/data/DataChart').then((module) => ({ Chart: module.Chart })));
@@ -14,4 +17,7 @@ afterEach(() => {
   resetAuthStateForTests();
   resetInvalidationForTests();
   resetStreamStateForTests();
+  resetNeedsYouSeenForTests();
+  resetApiProblemForTests();
+  resetWorkflowPlanForTests();
 });

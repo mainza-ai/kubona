@@ -122,6 +122,7 @@ export const ELEVATION = {
 /** Radius rule: r = nearest even px of (height x 0.3), for the element's height. */
 export const RADIUS_RATIO = 0.3;
 export const RADIUS_HEIGHTS = {
+  '--radius-chip': 14,            // 4px: a small inline chip or bare `rounded`
   '--radius-inset': 20,          // glyph plate / keycap inside a control
   '--radius-control-compact': 28, // .k-button-compact
   '--radius-control': 32,         // .k-button-regular
@@ -129,12 +130,29 @@ export const RADIUS_HEIGHTS = {
   '--radius-control-large': 46,
 };
 
-/** Modular type scale: s(k) = 13 * 1.2^(k/2) px (minor third, half steps). */
+/** Modular type scale: s(k) = 13 * 1.2^(k/2) px (minor third, half steps).
+    A few fractional steps pin legacy Tailwind sizes exactly (16, 18, 20, 24,
+    36) so the size-scale reset is appearance-preserving rather than a
+    silent restyle. */
 export const TYPE_BASE = 13;
 export const TYPE_RATIO = 1.2;
 export const TYPE_STEPS = {
   '--text-caption': -2, '--text-label': -1, '--text-body': 0, '--text-page-body': 0,
-  '--text-page-title': 1, '--text-title': 6, '--text-headline': 8, '--text-display': 10,
+  '--text-body-strong': 1, '--text-page-title': 1,
+  '--text-body-large': 2.28, '--text-subtitle': 3.57,
+  '--text-title-small': 4.73, '--text-title': 6, '--text-title-large': 6.73,
+  '--text-headline': 8, '--text-display-small': 9, '--text-display': 10,
+  '--text-display-large': 11.17,
+};
+
+/** Utility line heights paired with each size, matching the Tailwind defaults
+    the codemod replaced (13px body keeps the 20px leading). */
+export const TYPE_LINE_HEIGHTS = {
+  '--text-caption': '16px', '--text-label': '16px', '--text-body': '20px',
+  '--text-page-body': '20px', '--text-body-strong': '20px', '--text-page-title': '20px',
+  '--text-body-large': '24px', '--text-subtitle': '28px', '--text-title-small': '28px',
+  '--text-title': '28px', '--text-title-large': '32px', '--text-headline': '32px',
+  '--text-display-small': '36px', '--text-display': '40px', '--text-display-large': '40px',
 };
 
 // ---------------------------------------------------------------------------
@@ -358,14 +376,22 @@ function deriveTintOverrides() {
 }
 
 function deriveScale() {
+  /** @type {Record<string, string>} */
   const radii = { '--radius-swatch': '2px' };
   for (const [token, h] of Object.entries(RADIUS_HEIGHTS)) radii[token] = `${evenPx(h * RADIUS_RATIO)}px`;
   const large = parseInt(radii['--radius-control-large'], 10);
   radii['--radius-card'] = `${large + 2}px`;
   radii['--radius-panel'] = `${large + 6}px`;
+  radii['--radius-sheet'] = `${parseInt(radii['--radius-panel'], 10) + 4}px`;
   radii['--radius-capsule'] = '999px';
+  /** @type {Record<string, string>} */
   const type = {};
-  for (const [token, k] of Object.entries(TYPE_STEPS)) type[token] = `${Math.round(TYPE_BASE * TYPE_RATIO ** (k / 2))}px`;
+  for (const [token, k] of Object.entries(TYPE_STEPS)) {
+    type[token] = `${Math.round(TYPE_BASE * TYPE_RATIO ** (k / 2))}px`;
+    const lineHeight = TYPE_LINE_HEIGHTS[token];
+    if (!lineHeight) throw new Error(`missing line height for ${token}`);
+    type[`${token}--line-height`] = lineHeight;
+  }
   return { ...radii, ...type, '--wash-raised': `${SOFT.washRaised}%` };
 }
 

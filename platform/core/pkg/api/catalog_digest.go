@@ -5,4 +5,4 @@ package api
 // EmbeddedCatalogDigest pins the reviewed tool surface at build time.
 // The capabilities endpoint 500s when the live registry disagrees
 // (fail-closed discovery: regen, never hand-edit).
-const EmbeddedCatalogDigest = "c9fa086c4a1e3e51f5b966d0347d111c61a5e1de769449d13f4d295f2a1f5a6f"
+const EmbeddedCatalogDigest = "edf6c3a02cf47660c85178d8a534036c34504f80ca07e441734cf554f88438d7"

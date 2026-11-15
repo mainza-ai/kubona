@@ -31,6 +31,22 @@ const arr = (items: ResponseSchema): ResponseSchema => ({ type: 'array', items }
 // numeric compatibility field for one release window.
 const jobStatus = str;
 
+const proposalSchema = obj(
+  {
+    id: str,
+    session_id: str,
+    message_id: str,
+    digest: str,
+    body: any,
+    basis_campaign_rev: num,
+    basis_calibration_digest: str,
+    status: str,
+    launched_job_id: str,
+    created_at: str,
+  },
+  ['id', 'session_id', 'digest', 'body', 'status', 'created_at'],
+);
+
 export const RESPONSE_SCHEMAS = {
   'sessions.list': obj({
     sessions: arr(obj({ id: str, title: str, status: str, created_at: str, updated_at: str })),
@@ -66,6 +82,33 @@ export const RESPONSE_SCHEMAS = {
     budget: obj(),
     flags: obj(),
   }),
+  skills: obj({
+    skills: arr(
+      obj({
+        name: str,
+        description: str,
+        role: str,
+        tools: arr(str),
+        source: str,
+      }),
+    ),
+    faults: arr(obj({ code: str, skill: str, detail: str })),
+    limits: obj({ max_skills: num, max_skill_bytes: num, max_description: num }),
+  }),
+  'llm.eval.status': obj({
+    role: str,
+    provider: str,
+    model: str,
+    status: str,
+    evaluated: num,
+    total: num,
+    unscored: num,
+    evaluated_at: { type: 'string', nullable: true },
+    fixtures_sha256: str,
+    brier: { type: 'number', nullable: true },
+    ece: { type: 'number', nullable: true },
+    labels: arr(str),
+  }),
   'canvas.layout': obj(),
   'workbench.layout': obj({ session_id: str, revision: num, document: obj() }),
   'workbench.save': obj({ status: str, session_id: str, revision: num }),
@@ -73,14 +116,22 @@ export const RESPONSE_SCHEMAS = {
   'workbench.view.save': obj({ status: str, session_id: str, view_revision: num }),
   'obligations.open': obj({
     obligations: arr(
-      obj({
-        id: str,
-        subject_kind: str,
-        subject_id: str,
-        owner: str,
-        disposition: str,
-        close_ready: bool,
-      }),
+      obj(
+        {
+          id: str,
+          subject_kind: str,
+          subject_id: str,
+          owner: str,
+          disposition: str,
+          close_ready: bool,
+          // Blocking unknowns with their verbatim reasons; older servers omit.
+          unknowns_detail: arr(obj({ id: str, description: str })),
+          // Waiting facts. Null means "no readable clock", never a substitute.
+          created_at: { type: 'string', nullable: true },
+          updated_at: { type: 'string', nullable: true },
+        },
+        ['id', 'subject_kind', 'subject_id', 'owner', 'disposition', 'close_ready'],
+      ),
     ),
   }),
   'llm.settings': obj(
@@ -92,6 +143,7 @@ export const RESPONSE_SCHEMAS = {
       temperature: num,
       max_tokens: num,
       disable_dsml_fallback: bool,
+      revision: num,
       providers: obj(),
       role_assignments: obj(),
       role_catalog: arr(
@@ -158,6 +210,14 @@ export const RESPONSE_SCHEMAS = {
     job: any,
     loop: any,
   }),
+  'proposal.mint': obj({ ok: bool, proposal: proposalSchema }),
+  'loop.parts': obj({ ok: bool, loop_id: str, parts: arr(any), count: num }),
+  'loop.steer': obj({ ok: bool, steer: obj({ id: str, loop_id: str, text: str, status: str, created_at: str }) }),
+  'tasks.batch': obj({ tasks: arr(any), count: num }),
+  'runAllowances.list': obj({ ok: bool, allowances: arr(any), count: num }),
+  'runAllowance.mint': obj({ ok: bool, allowance: any }),
+  'runAllowance.revoke': obj({ ok: bool, id: str, status: str }),
+  'proposal.dismiss': obj({ ok: bool, id: str, status: str }),
   'autoresearch.harnesses': obj({
     harnesses: arr(any),
     docker_runner: any,
@@ -309,6 +369,7 @@ export const RESPONSE_SCHEMAS = {
           completed_at: str,
           compiler_used: str,
           fallback_estimate: bool,
+          need: obj({ kind: str, target: str, reason: str, past: bool }, ['kind', 'reason']),
         },
         ['id', 'session_id', 'status', 'job_type', 'params_json', 'created_at'],
       ),
@@ -328,6 +389,7 @@ export const RESPONSE_SCHEMAS = {
         completed_at: str,
         compiler_used: str,
         fallback_estimate: bool,
+        need: obj({ kind: str, target: str, reason: str, past: bool }, ['kind', 'reason']),
       },
       ['id', 'session_id', 'status', 'job_type', 'params_json', 'created_at'],
     ),
@@ -372,8 +434,9 @@ export const RESPONSE_SCHEMAS = {
   }, ['success']),
   'settings.update': obj({
     status: str,
+    changed: bool,
     settings: any,
-  }),
+  }, ['status', 'settings']),
   'canvas.saved': obj({
     status: str,
     session_id: str,

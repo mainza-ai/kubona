@@ -8,8 +8,8 @@ import type { Job } from '@/types';
 function kv(label: string, value: string) {
   return (
     <div>
-      <span className="text-[var(--color-muted)] block text-[12px]">{label}</span>
-      <span className="font-code text-[var(--color-text)] break-all">{value}</span>
+      <span className="text-muted block text-[12px]">{label}</span>
+      <span className="font-code text-text break-all">{value}</span>
     </div>
   );
 }
@@ -57,7 +57,7 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-[var(--color-danger-edge)] bg-[var(--color-danger-wash)] p-4 text-xs text-[var(--color-danger-ink)] font-code">
+      <div className="rounded-card border border-danger-edge bg-danger-wash p-4 text-label text-danger-ink font-code">
         Job load failed — nothing shown ({error.slice(0, 200)}).
       </div>
     );
@@ -65,7 +65,7 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
 
   if (missing) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-muted)] font-code">
+      <div className="rounded-card border border-border bg-surface p-4 text-label text-muted font-code">
         Job not found — it may belong to another session or have been pruned.
       </div>
     );
@@ -73,7 +73,7 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
 
   if (!job) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-muted)] font-code animate-pulse">
+      <div className="rounded-card border border-border bg-surface p-4 text-label text-muted font-code animate-pulse">
         Loading job {jobId.slice(0, 8)}…
       </div>
     );
@@ -107,10 +107,10 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
         : null;
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3 text-xs">
+    <div className="rounded-card border border-border bg-surface p-4 space-y-3 text-label">
       <div className="flex items-center justify-between">
-        <span className="font-code text-[var(--color-muted)]">job {job.id.slice(0, 8)}</span>
-        <span className="font-code text-[var(--color-info-ink)]">{jobStatusLabel(job.status)}</span>
+        <span className="font-code text-muted">job {job.id.slice(0, 8)}</span>
+        <span className="font-code text-info-ink">{jobStatusLabel(job.status)}</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {kv('Type', String(job.job_type || '—'))}
@@ -120,49 +120,49 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
       </div>
       {typeof params.qasm === 'string' && (
         <div>
-          <span className="text-[var(--color-muted)] block text-[12px] mb-1">QASM</span>
-          <pre className="p-2 rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] overflow-x-auto font-code text-[12px] text-[var(--color-label-secondary)] max-h-32 overflow-y-auto">
+          <span className="text-muted block text-[12px] mb-1">QASM</span>
+          <pre className="p-2 rounded-control-compact bg-field border border-border overflow-x-auto font-code text-[12px] text-label-secondary max-h-32 overflow-y-auto">
             {params.qasm}
           </pre>
         </div>
       )}
       {hasCounts ? (
         <div>
-          <span className="text-[var(--color-muted)] block text-[12px] mb-1">Counts (measured)</span>
+          <span className="text-muted block text-[12px] mb-1">Counts (measured)</span>
           <div className="space-y-1">
             {countsEntries.map(({ bits, raw, n }) => (
               <div key={bits} className="flex items-center gap-2 font-code text-[12px]">
-                <span className="text-[var(--color-info-ink)]">{bits}</span>
+                <span className="text-info-ink">{bits}</span>
                 {n != null ? (
                   <>
-                    <div className="flex-1 h-1.5 rounded bg-[var(--color-fill)] overflow-hidden">
+                    <div className="flex-1 h-1.5 rounded-chip bg-fill overflow-hidden">
                       <div
-                        className="h-full bg-[var(--color-accent)]"
+                        className="h-full bg-accent"
                         style={{ width: `${Math.min(100, (n / Math.max(1, maxCount)) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[var(--color-label-secondary)]">{n}</span>
+                    <span className="text-label-secondary">{n}</span>
                   </>
                 ) : (
-                  <span className="text-[var(--color-warning-ink)]">UNVERIFIED (raw: {String(raw).slice(0, 40)})</span>
+                  <span className="text-warning-ink">UNVERIFIED (raw: {String(raw).slice(0, 40)})</span>
                 )}
               </div>
             ))}
           </div>
         </div>
       ) : errorText ? (
-        <div className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
+        <div className="p-2.5 rounded-row bg-danger-wash border border-danger-edge text-danger-ink text-[12px]">
           {errorText.slice(0, 300)}
         </div>
       ) : (
-        <p className="text-[12px] font-code text-[var(--color-faint)]">No result recorded yet — job still queued or running.</p>
+        <p className="text-[12px] font-code text-faint">No result recorded yet — job still queued or running.</p>
       )}
       {(() => {
         const c = job.completed_at;
         if (!c) return null;
         const d = new Date(c);
         return (
-          <p className="text-[12px] font-code text-[var(--color-faint)]">
+          <p className="text-[12px] font-code text-faint">
             Completed {Number.isNaN(d.getTime()) ? 'UNVERIFIED (bad timestamp)' : d.toLocaleString()}
           </p>
         );

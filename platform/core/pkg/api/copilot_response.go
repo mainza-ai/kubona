@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/untrusted"
 )
 
 // Hardened copilot system prompt (2026-10-11): short role, hard output
@@ -32,6 +33,18 @@ Rules:
 {"target": "...", "spend_estimate": "$0.00 (Local Simulator)", "recommended_tier": "Local Simulator (qiskit-aer-simulator)", "classical_anchor": "...", "qasm": "OPENQASM 2.0;..."}
 ` + "```" + `
 Keep prose tight: short paragraphs, no preamble about what you are about to do.`
+
+// copilotSystemPrompt appends the skill catalogue (names + descriptions only),
+// the shared untrusted-data rule (B6), and the citation rule. The skill bodies
+// stay behind the read-only load_skill tool so the cacheable prefix remains
+// small and stable across turns.
+func (s *Server) copilotSystemPrompt() string {
+	skillSection := ""
+	if s != nil && s.skillStore != nil {
+		skillSection = s.skillStore.PromptSection(CopilotRole)
+	}
+	return copilotSystemPrompt + skillSection + "\n" + untrusted.SystemRule + "\n" + citationPromptRule
+}
 
 // copilotTruncationNotice is appended when the model reports finish_reason
 // "length": a severed paragraph must never pass as an answer.

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -33,6 +34,10 @@ type MemoryItem struct {
 	EffectiveScore float64    `json:"effective_score"`
 	CreatedAt      time.Time  `json:"created_at"`
 	LastAccessedAt time.Time  `json:"last_accessed_at"`
+	// B10: a retracted memory is a tombstone. Its content is cleared and the
+	// embedding removed; recall never returns it.
+	RetractedAt   *time.Time `json:"retracted_at,omitempty"`
+	RetractReason string     `json:"retract_reason,omitempty"`
 }
 
 type StoreConfig struct {
@@ -113,7 +118,9 @@ func (s *HindsightStore) initTable() {
 			importance REAL NOT NULL,
 			effective_score REAL NOT NULL,
 			created_at TIMESTAMP NOT NULL,
-			last_accessed_at TIMESTAMP NOT NULL
+			last_accessed_at TIMESTAMP NOT NULL,
+			retracted_at TIMESTAMP,
+			retract_reason TEXT NOT NULL DEFAULT ''
 		);
 		CREATE INDEX IF NOT EXISTS idx_mem_bank ON hindsight_memories(bank);
 		CREATE INDEX IF NOT EXISTS idx_mem_tenant ON hindsight_memories(tenant_id);
@@ -127,20 +134,27 @@ func (s *HindsightStore) initTable() {
 	// Schema migrations for backward compatibility
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN readership TEXT NOT NULL DEFAULT 'public'`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN retracted_at TIMESTAMP`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN retract_reason TEXT NOT NULL DEFAULT ''`)
 }
 
 func (s *HindsightStore) loadFromDB() {
 	if s.db == nil {
 		return
 	}
-	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at FROM hindsight_memories`)
+	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason FROM hindsight_memories`)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var item MemoryItem
 			var bankStr string
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt); err == nil {
+			var retracted sql.NullTime
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason); err == nil {
 				item.Bank = MemoryBank(bankStr)
+				if retracted.Valid {
+					t := retracted.Time
+					item.RetractedAt = &t
+				}
 				s.items[item.ID] = &item
 			}
 		}
@@ -288,6 +302,9 @@ func (s *HindsightStore) Recall(bank MemoryBank, query string, maxTokens int) []
 	var matched []*MemoryItem
 
 	for _, item := range s.items {
+		if item.RetractedAt != nil {
+			continue // tombstone: never recalled
+		}
 		if bank != "" && item.Bank != bank {
 			continue
 		}
@@ -331,6 +348,9 @@ func (s *HindsightStore) ListRecent(bank MemoryBank, tenant string, maxTokens in
 	}
 	var matched []*MemoryItem
 	for _, item := range s.items {
+		if item.RetractedAt != nil {
+			continue // tombstone: never listed
+		}
 		if bank != "" && item.Bank != bank {
 			continue
 		}
@@ -388,6 +408,9 @@ func (s *HindsightStore) SemanticRecallScoped(
 	var scored []*ScoredMemoryItem
 
 	for id, item := range s.items {
+		if item.RetractedAt != nil {
+			continue // tombstone: never recalled
+		}
 		if bank != "" && item.Bank != bank {
 			continue
 		}
@@ -461,6 +484,43 @@ func (s *HindsightStore) SemanticRecallScoped(
 // Decay applies time-decayed memory consolidation based on mainza-consciousness:
 // E(t) = max(0.1, 1.0 - 0.01 * delta_hours)
 // Updates both in-memory scores and SQLite database records
+// ErrMemoryNotFound is returned when a retraction names a row outside the
+// caller's tenant (or no row at all) — no existence oracle.
+var ErrMemoryNotFound = errors.New("memory not found")
+
+// RetractScoped tombstones one memory: the content is cleared, the embedding
+// removed, and the row kept for audit. Recall never returns a tombstone.
+func (s *HindsightStore) RetractScoped(tenantID, id, reason string) error {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[id]
+	if !ok {
+		return ErrMemoryNotFound
+	}
+	itemTenant := item.TenantID
+	if itemTenant == "" {
+		itemTenant = "default"
+	}
+	if itemTenant != tenantID {
+		return ErrMemoryNotFound
+	}
+	now := time.Now().UTC()
+	item.RetractedAt = &now
+	item.RetractReason = reason
+	item.Content = "[retracted]"
+	item.TokensEstimate = 1
+	delete(s.vectors, id)
+	if s.db != nil {
+		_, _ = s.db.Exec(`UPDATE hindsight_memories SET content = ?, tokens_estimate = 1, retracted_at = ?, retract_reason = ? WHERE id = ?`,
+			item.Content, now, reason, id)
+		_, _ = s.db.Exec(`DELETE FROM hindsight_vectors WHERE memory_id = ?`, id)
+	}
+	return nil
+}
+
 func (s *HindsightStore) Decay(elapsedHours float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

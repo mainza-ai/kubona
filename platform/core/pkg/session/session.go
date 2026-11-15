@@ -70,7 +70,15 @@ type ChatMessage struct {
 	Role         string           `json:"role"` // "user", "assistant", "system"
 	Content      string           `json:"content"`
 	ProposalJSON *json.RawMessage `json:"proposal_json,omitempty"`
-	CreatedAt    time.Time        `json:"created_at"`
+	// B1: the server-minted proposal for this message. Launch names these,
+	// never a client-echoed circuit. Empty when no launchable proposal was
+	// minted (unpriced hardware, unknown backend, or a plain reply).
+	ProposalID     string `json:"proposal_id,omitempty"`
+	ProposalDigest string `json:"proposal_digest,omitempty"`
+	// B5: numeric-claim citation report (verified/unverified), persisted with
+	// the turn so a reloaded reply cannot lose its provenance.
+	Citations *json.RawMessage `json:"citations,omitempty"`
+	CreatedAt time.Time        `json:"created_at"`
 	// Measured generation cost, persisted when the serving path reports it
 	// (streaming usage chunks / unary timing). Nil when unknown — never estimated.
 	DurationMs *int64           `json:"duration_ms,omitempty"`
@@ -275,7 +283,7 @@ func (m *Manager) AddMessage(sessionID, role, content string, proposal *json.Raw
 }
 
 func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
-	query := `SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`
+	query := `SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json, proposal_id, proposal_digest, citations_json FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`
 	rows, err := m.ledger.DB().Query(query, sessionID)
 	if err != nil {
 		return nil, err
@@ -290,8 +298,14 @@ func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
 		var propStr sql.NullString
 		var durMs sql.NullInt64
 		var usageStr sql.NullString
-		if err := rows.Scan(&msg.ID, &msg.SessionID, &msg.Role, &msg.Content, &propStr, &msg.CreatedAt, &durMs, &usageStr); err != nil {
+		var citationStr sql.NullString
+		if err := rows.Scan(&msg.ID, &msg.SessionID, &msg.Role, &msg.Content, &propStr, &msg.CreatedAt, &durMs, &usageStr,
+			&msg.ProposalID, &msg.ProposalDigest, &citationStr); err != nil {
 			return nil, err
+		}
+		if citationStr.Valid {
+			raw := json.RawMessage(citationStr.String)
+			msg.Citations = &raw
 		}
 		if propStr.Valid {
 			raw := json.RawMessage(propStr.String)
@@ -463,6 +477,16 @@ func (m *Manager) SetMessageUsage(messageID string, durationMs int64, usage *jso
 	_, err := m.ledger.DB().Exec(
 		`UPDATE chat_messages SET duration_ms = ?, usage_json = ? WHERE id = ?`,
 		dur, usageStr, messageID)
+	return err
+}
+
+// SetMessageCitations persists the numeric-claim report on a stored turn.
+func (m *Manager) SetMessageCitations(messageID string, citations *json.RawMessage) error {
+	var raw any
+	if citations != nil {
+		raw = string(*citations)
+	}
+	_, err := m.ledger.DB().Exec(`UPDATE chat_messages SET citations_json = ? WHERE id = ?`, raw, messageID)
 	return err
 }
 

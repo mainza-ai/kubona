@@ -1,0 +1,20 @@
+# Indexing scope for codebase-memory-mcp.
+# Excludes vendored/third-party trees and dependency installs that made the
+# graph 9.4 GB for what is a ~1.5k-file repository.
+
+# Git submodules: third-party upstream trees (2.3 GB)
+submodules/
+
+# Local reference material: 22 GB, nothing here is tracked by git
+dev-docs/submodules/
+dev-docs/gather_insights_from/
+
+# Dependency installs
+platform/.venv/
+**/.venv/
+node_modules/
+**/node_modules/
+
+# Build output
+**/dist/
+**/.next/

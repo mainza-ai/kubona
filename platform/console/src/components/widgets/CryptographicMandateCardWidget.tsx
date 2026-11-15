@@ -76,48 +76,48 @@ export function CryptographicMandateCardWidget({
   };
 
   return (
-    <div data-provenance={hasProposal ? 'proposed' : undefined} className="rounded-2xl border border-[var(--color-danger-edge)] bg-[var(--color-danger-wash)] p-5 text-[var(--color-text)] space-y-4">
+    <div data-provenance={hasProposal ? 'proposed' : undefined} className="rounded-card border border-danger-edge bg-danger-wash p-5 text-text space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--color-danger-edge)] pb-3">
+      <div className="flex items-center justify-between border-b border-danger-edge pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] text-[var(--color-danger-ink)]">
+          <div className="p-2 rounded-row bg-soft-rose-wash border border-soft-rose-edge text-danger-ink">
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-danger-ink)]">AP2 High-Friction Spend Mandate Card</h3>
+              <h3 className="text-body-strong font-semibold text-danger-ink">AP2 High-Friction Spend Mandate Card</h3>
               {hasProposal && <ProvenanceBadge kind="proposed" detail="Spend estimate and target are proposal fields." />}
             </div>
-            <p className="text-xs text-[var(--color-muted)]">Autonomous Action Requiring Cryptographic Human Authorization</p>
+            <p className="text-label text-muted">Autonomous Action Requiring Cryptographic Human Authorization</p>
           </div>
         </div>
-        <span className="px-2.5 py-1 rounded-full text-xs font-mono bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] text-[var(--color-soft-rose-ink)]">
+        <span className="px-2.5 py-1 rounded-capsule text-label font-mono bg-soft-rose-wash border border-soft-rose-edge text-soft-rose-ink">
           Autonomy Level 2 Gate
         </span>
       </div>
 
       {/* Target & Cost Details */}
       {!hasProposal ? (
-        <div className="p-4 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-xs text-[var(--color-muted)]">
+        <div className="p-4 rounded-row bg-card border border-border text-label text-muted">
           No action proposed — nothing to authorize. This card signs only explicit proposals.
         </div>
       ) : (
-      <div className="p-4 rounded-xl bg-[var(--color-card)] border border-[var(--color-danger-edge)] space-y-3 text-xs">
+      <div className="p-4 rounded-row bg-card border border-danger-edge space-y-3 text-label">
         <div>
-          <span className="text-[var(--color-muted)] block text-[12px]">Action Request</span>
-          <p className="font-semibold text-[var(--color-text)] text-sm mt-0.5">{actionDescription}</p>
+          <span className="text-muted block text-[12px]">Action Request</span>
+          <p className="font-semibold text-text text-body-strong mt-0.5">{actionDescription}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--color-border)]">
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
           <div>
-            <span className="text-[var(--color-muted)] block text-[12px]">Target QPU Backend</span>
-            <span className="font-mono text-[var(--color-info-ink)]">{targetBackend}</span>
+            <span className="text-muted block text-[12px]">Target QPU Backend</span>
+            <span className="font-mono text-info-ink">{targetBackend}</span>
           </div>
           <div>
-            <span className="text-[var(--color-muted)] block text-[12px]">Estimated QPU Spend</span>
+            <span className="text-muted block text-[12px]">Estimated QPU Spend</span>
             {costFinite ? (
-              <span className="font-mono text-[var(--color-warning-ink)] text-sm font-bold">${(estimatedCostUsd as number).toFixed(2)} USD</span>
+              <span className="font-mono text-warning-ink text-body-strong font-bold">${(estimatedCostUsd as number).toFixed(2)} USD</span>
             ) : (
-              <span className="font-mono text-[var(--color-warning-ink)] text-sm font-bold">UNPRICED — authorization disabled</span>
+              <span className="font-mono text-warning-ink text-body-strong font-bold">UNPRICED — authorization disabled</span>
             )}
           </div>
         </div>
@@ -126,45 +126,45 @@ export function CryptographicMandateCardWidget({
 
       {/* Signature Status or Actions */}
       {signedToken ? (
-        <div className="p-3 rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] flex items-center space-x-2 text-xs text-[var(--color-success-ink)]">
-          <CheckCircle2 className="w-4 h-4 text-[var(--color-success-ink)] flex-shrink-0" />
+        <div className="p-3 rounded-row bg-success-wash border border-success-edge flex items-center space-x-2 text-label text-success-ink">
+          <CheckCircle2 className="w-4 h-4 text-success-ink flex-shrink-0" />
           <div className="truncate">
             <span className="font-bold">Authorized & Server-Verified{verifiedLocal === false ? ' (UNVERIFIED)' : ''}: </span>
-            <span className="font-mono text-[12px] text-[var(--color-success-ink)]">{signedToken}</span>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">canonical session+program mandate — server-verified before dispatch</div>
+            <span className="font-mono text-[12px] text-success-ink">{signedToken}</span>
+            <div className="text-[12px] font-code text-muted">canonical session+program mandate — server-verified before dispatch</div>
           </div>
         </div>
       ) : !hasProposal ? (
-        <p className="text-[12px] font-code text-[var(--color-faint)]">Authorize disabled — no proposal bound.</p>
+        <p className="text-[12px] font-code text-faint">Authorize disabled — no proposal bound.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             onClick={handleSign}
             disabled={isSigning || !costFinite}
             title={!costFinite ? 'Disabled: unpriced — authorization disabled' : undefined}
-            className="flex-1 py-2 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-[var(--color-on-accent)] font-medium text-xs shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50"
+            className="flex-1 py-2 px-4 rounded-row bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-on-accent font-medium text-label shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             <KeyRound className="w-3.5 h-3.5" />
             <span>{isSigning ? 'Signing WebCrypto...' : 'Authorize via Ed25519 Card'}</span>
           </button>
           <button
             onClick={onDowngrade}
-            className="py-2 px-3 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-xs transition flex items-center space-x-1.5"
+            className="py-2 px-3 rounded-row bg-fill hover:bg-fill-hover border border-border text-label-secondary text-label transition flex items-center space-x-1.5"
           >
-            <ArrowDownCircle className="w-3.5 h-3.5 text-[var(--color-info-ink)]" />
+            <ArrowDownCircle className="w-3.5 h-3.5 text-info-ink" />
             <span>Downgrade to simulator</span>
           </button>
           <button
             onClick={onAbort}
-            className="py-2 px-3 rounded-xl bg-[var(--color-fill)] hover:bg-[var(--color-danger-wash)] border border-[var(--color-border)] text-[var(--color-danger-ink)] text-xs transition flex items-center space-x-1.5"
+            className="py-2 px-3 rounded-row bg-fill hover:bg-danger-wash border border-border text-danger-ink text-label transition flex items-center space-x-1.5"
           >
-            <XCircle className="w-3.5 h-3.5 text-[var(--color-danger-ink)]" />
+            <XCircle className="w-3.5 h-3.5 text-danger-ink" />
             <span>Abort</span>
           </button>
         </div>
       )}
       {signError && (
-        <div className="p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
+        <div className="p-2.5 rounded-row bg-danger-wash border border-danger-edge text-danger-ink text-[12px]">
           Sign failed — nothing authorized, nothing dispatched ({signError.slice(0, 200)}).
         </div>
       )}

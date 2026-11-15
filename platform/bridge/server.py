@@ -864,6 +864,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             return kubona_pb2.ExperimentResponse(
                 ok=False, error_message="experiment spec must be a JSON object", result_json="")
         kind = str(spec.get("kind") or "").strip().lower()
+        from kubona.hardware_pin import bind_vendor_pin, reset_vendor_pin
+        pin_token = bind_vendor_pin(str(spec.get("kubona_job_id") or ""), request.session_id or "")
         try:
             if kind == "vqe":
                 from experiments import run_vqe
@@ -930,11 +932,13 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 from kubona.schema import load_provider
                 backend = str(spec.get("backend") or "").strip()
                 if not backend:
+                    reset_vendor_pin(pin_token)
                     return kubona_pb2.ExperimentResponse(
                         ok=False, error_message="calibration refresh requires a backend", result_json="")
                 provider = QiskitProvider(load_provider("ibm-qiskit"), backend_name=backend)
                 snapshot = provider.calibration_snapshot()
                 if snapshot is None:
+                    reset_vendor_pin(pin_token)
                     return kubona_pb2.ExperimentResponse(
                         ok=False, error_message="provider returned no calibration snapshot", result_json="")
                 result = {
@@ -1138,14 +1142,17 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         backend=spec.get("requested_backend"),
                     )
             else:
+                reset_vendor_pin(pin_token)
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
                     error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, thermodynamic_limit, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")
+            reset_vendor_pin(pin_token)
             return kubona_pb2.ExperimentResponse(
                 ok=False, error_message=f"experiment failed: {e}", result_json="")
+        reset_vendor_pin(pin_token)
         return kubona_pb2.ExperimentResponse(
             ok=bool(result.get("success")),
             error_message=str(result.get("error") or result.get("error_message") or ""),

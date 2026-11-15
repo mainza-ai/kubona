@@ -120,7 +120,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       : undefined;
 
   return (
-    <div data-provenance={hasLive ? 'measured' : undefined} className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl flex flex-col justify-between p-8 select-none">
+    <div data-provenance={hasLive ? 'measured' : undefined} className="relative min-h-[640px] rounded-sheet overflow-hidden bg-page border border-border shadow-xl flex flex-col justify-between p-8 select-none">
       {/* Ambient Radial Backlight */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -134,23 +134,23 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       {/* Top Header */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-center">
-            <Compass className="w-5 h-5 text-[var(--color-success-ink)]" />
+          <div className="w-10 h-10 rounded-card bg-tile border border-border flex items-center justify-center">
+            <Compass className="w-5 h-5 text-success-ink" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">Epistemic Truth Gauge</h2>
+              <h2 className="text-body-large font-semibold text-text tracking-tight">Epistemic Truth Gauge</h2>
               {hasLive && <ProvenanceBadge kind="measured" detail="Evaluated claim record or live campaign epistemics." />}
             </div>
-            <p className="text-xs text-[var(--color-muted)] mt-0.5">
+            <p className="text-label text-muted mt-0.5">
               Continuous credibility collapse against classical anchors &amp; quantum evidence
             </p>
           </div>
         </div>
 
-        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[var(--color-surface)] border ${isVerified ? 'border-[var(--color-success-edge)]' : 'border-[var(--color-warning-edge)]'}`}>
-          <ShieldCheck className={`w-4 h-4 ${isVerified ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]'}`} />
-          <span className={`text-xs font-mono font-medium ${isVerified ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]'}`}>
+        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-capsule bg-surface border ${isVerified ? 'border-success-edge' : 'border-warning-edge'}`}>
+          <ShieldCheck className={`w-4 h-4 ${isVerified ? 'text-success-ink' : 'text-warning-ink'}`} />
+          <span className={`text-label font-mono font-medium ${isVerified ? 'text-success-ink' : 'text-warning-ink'}`}>
             {isVerified ? 'Ring 1 Epistemic Gate Active' : 'Gate unattested — no live claim'}
           </span>
         </div>
@@ -165,20 +165,20 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
         >
           {/* Outer Waveform Rings */}
           <div 
-            className={`absolute inset-0 rounded-full border border-dashed transition-all duration-1000 ${
-              isVerified ? 'border-[var(--color-success-edge)]' : 'border-[var(--color-warning-edge)]'
+            className={`absolute inset-0 rounded-capsule border border-dashed transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-1000 ${
+              isVerified ? 'border-success-edge' : 'border-warning-edge'
             }`} 
           />
           <div 
-            className="absolute inset-4 rounded-full border border-[var(--color-border)] transition-all duration-700 group-hover:border-[var(--color-border-strong)]"
+            className="absolute inset-4 rounded-capsule border border-border transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-700 group-hover:border-border-strong"
           />
 
           {/* Central Pulsing Sphere */}
           <div 
-            className={`w-40 h-40 rounded-full transition-all duration-700 flex flex-col items-center justify-center text-center p-4 shadow-xl relative ${
+            className={`w-40 h-40 rounded-capsule transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-700 flex flex-col items-center justify-center text-center p-4 shadow-xl relative ${
               isVerified
-                ? 'bg-gradient-to-tr from-emerald-600/90 via-teal-600/80 to-emerald-500/90 text-[var(--color-on-accent)]'
-                : 'bg-gradient-to-tr from-amber-600/90 via-orange-600/80 to-amber-500/90 text-[var(--color-on-accent)]'
+                ? 'bg-gradient-to-tr from-emerald-600/90 via-teal-600/80 to-emerald-500/90 text-on-accent'
+                : 'bg-gradient-to-tr from-amber-600/90 via-orange-600/80 to-amber-500/90 text-on-accent'
             }`}
           >
             {/* H4: the headline % is the corroborated amplitude mass α (not the
@@ -188,19 +188,19 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
             <div className="text-[12px] uppercase font-bold tracking-widest opacity-85">
               Confidence · α mass
             </div>
-            <div className="text-3xl font-extrabold tracking-tight font-mono mt-0.5">
+            <div className="text-display-small font-extrabold tracking-tight font-mono mt-0.5">
               {hasLive ? `${Math.round(alpha * 100)}%` : '—'}
             </div>
             <div className="text-[12px] font-medium opacity-95 mt-1">
               {hasLive ? (isVerified ? 'Verified True' : 'Evaluating') : 'Unverified'}
             </div>
             {!hasLive && !epistemicsLoading && (
-              <div className="mt-1 px-2 py-0.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] font-mono text-[var(--color-label-secondary)]">
+              <div className="mt-1 px-2 py-0.5 rounded-capsule bg-surface border border-border text-[12px] font-mono text-label-secondary">
                 no live claim — not session data
               </div>
             )}
             {!hasLive && epistemicsLoading && (
-              <div className="mt-1 px-2 py-0.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[12px] font-mono text-[var(--color-label-secondary)] animate-pulse">
+              <div className="mt-1 px-2 py-0.5 rounded-capsule bg-surface border border-border text-[12px] font-mono text-label-secondary animate-pulse">
                 Loading epistemics…
               </div>
             )}
@@ -209,72 +209,72 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
 
         {/* Clear Plain-English Verdict */}
         <div className="max-w-md text-center mt-6 space-y-2">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[var(--color-tile)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)]">
-            <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-capsule bg-tile border border-border text-label text-label-secondary">
+            <CheckCircle2 className="w-3.5 h-3.5 text-success-ink" />
             <span>{hasLive && isVerified ? 'FCI Ground State Energy Verified' : 'No verified claim — run the swarm'}</span>
           </div>
-          <h3 className="text-sm font-semibold text-[var(--color-text)]">
+          <h3 className="text-body-strong font-semibold text-text">
             &ldquo;{active.statement}&rdquo;
           </h3>
           {/* Claim record: the evaluated verdict behind this statement, when one exists. */}
           {active.record_id ? (
-            <p className="text-[12px] font-mono text-[var(--color-info-ink)]">record {active.record_id} · resolvable under session claims</p>
+            <p className="text-[12px] font-mono text-info-ink">record {active.record_id} · resolvable under session claims</p>
           ) : (
-            <p className="text-[12px] text-[var(--color-muted)]">No evaluated record yet.</p>
+            <p className="text-[12px] text-muted">No evaluated record yet.</p>
           )}
-          <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed">
+          <p className="text-label text-label-secondary leading-relaxed">
             {anchorStated ? (
               discrepancy! <= accuracyLimit ? (
-                <>Corroborated within chemical accuracy (<span className="text-[var(--color-success-ink)] font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &le; {typeof accuracyLimit === 'number' && Number.isFinite(accuracyLimit) ? accuracyLimit.toFixed(1) : '—'} mHa</span>) against {anchorMethod} benchmarks.</>
+                <>Corroborated within chemical accuracy (<span className="text-success-ink font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &le; {typeof accuracyLimit === 'number' && Number.isFinite(accuracyLimit) ? accuracyLimit.toFixed(1) : '—'} mHa</span>) against {anchorMethod} benchmarks.</>
               ) : (
-                <>Outside chemical accuracy (<span className="text-[var(--color-warning-ink)] font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &gt; {typeof accuracyLimit === 'number' && Number.isFinite(accuracyLimit) ? accuracyLimit.toFixed(1) : '—'} mHa</span>) against {anchorMethod} benchmarks.</>
+                <>Outside chemical accuracy (<span className="text-warning-ink font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &gt; {typeof accuracyLimit === 'number' && Number.isFinite(accuracyLimit) ? accuracyLimit.toFixed(1) : '—'} mHa</span>) against {anchorMethod} benchmarks.</>
               )
             ) : (
               <>No anchor measured for this session — corroboration unattested.</>
             )}
           </p>
           {!hasLive && epistemicsLoading && (
-            <p className="text-[12px] font-code text-[var(--color-muted)] animate-pulse">Loading epistemics…</p>
+            <p className="text-[12px] font-code text-muted animate-pulse">Loading epistemics…</p>
           )}
         </div>
         {epistemicSpec && (
-          <div className="mt-6 w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="mt-6 w-full max-w-2xl rounded-card border border-border bg-surface p-4">
             <Chart spec={epistemicSpec} />
           </div>
         )}
       </div>
 
       {/* Progressive Disclosure (button reveals deep math; the orb itself is display-only) */}
-      <div className="relative z-10 border-t border-[var(--color-border)] pt-4">
+      <div className="relative z-10 border-t border-border pt-4">
         <button
           onClick={() => setShowDeepMath(!showDeepMath)}
-          className="w-full flex items-center justify-between text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors py-1 font-medium"
+          className="w-full flex items-center justify-between text-label text-label-secondary hover:text-text transition-colors py-1 font-medium"
         >
           <span className="flex items-center space-x-2 font-medium">
-            <Scale className="w-3.5 h-3.5 text-[var(--color-info-ink)]" />
+            <Scale className="w-3.5 h-3.5 text-info-ink" />
             <span>{showDeepMath ? 'Hide Epistemic Wavefunction Mathematics' : 'Inspect Tripartite Wavefunction & Classical Anchors'}</span>
           </span>
           {showDeepMath ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
 
         {showDeepMath && (
-          <div className="mt-4 p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+          <div className="mt-4 p-5 rounded-card bg-surface border border-border grid grid-cols-1 md:grid-cols-3 gap-4 text-label font-mono">
             <div className="space-y-1">
-              <span className="text-[var(--color-label-secondary)] font-semibold">Corroborated (α):</span>
-              <div className="text-base text-[var(--color-success-ink)] font-bold">{hasLive && alphaNum != null ? (alphaNum * alphaNum).toFixed(4) : '—'}</div>
-              <p className="text-xs text-[var(--color-muted)] font-sans">Probability mass in agreement with physical anchor</p>
+              <span className="text-label-secondary font-semibold">Corroborated (α):</span>
+              <div className="text-body-large text-success-ink font-bold">{hasLive && alphaNum != null ? (alphaNum * alphaNum).toFixed(4) : '—'}</div>
+              <p className="text-label text-muted font-sans">Probability mass in agreement with physical anchor</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-[var(--color-label-secondary)] font-semibold">Contested (β):</span>
-              <div className="text-base text-[var(--color-warning-ink)] font-bold">{hasLive && betaNum != null ? (betaNum * betaNum).toFixed(4) : '—'}</div>
-              <p className="text-xs text-[var(--color-muted)] font-sans">Active disconfirmation signal from tribunal</p>
+              <span className="text-label-secondary font-semibold">Contested (β):</span>
+              <div className="text-body-large text-warning-ink font-bold">{hasLive && betaNum != null ? (betaNum * betaNum).toFixed(4) : '—'}</div>
+              <p className="text-label text-muted font-sans">Active disconfirmation signal from tribunal</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-[var(--color-label-secondary)] font-semibold">Unverified (γ):</span>
-              <div className="text-base text-[var(--color-text)] font-bold">{hasLive && gammaNum != null ? (gammaNum * gammaNum).toFixed(4) : '—'}</div>
-              <p className="text-xs text-[var(--color-muted)] font-sans">Remaining epistemic uncertainty interval</p>
+              <span className="text-label-secondary font-semibold">Unverified (γ):</span>
+              <div className="text-body-large text-text font-bold">{hasLive && gammaNum != null ? (gammaNum * gammaNum).toFixed(4) : '—'}</div>
+              <p className="text-label text-muted font-sans">Remaining epistemic uncertainty interval</p>
             </div>
           </div>
         )}

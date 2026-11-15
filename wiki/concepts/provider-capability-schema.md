@@ -10,6 +10,24 @@ status: adopted
 
 # Provider Capability Schema
 
+> **Declared capabilities, normalized efforts (B13, 2026-11-14).** Vision and
+> reasoning are no longer guessed from model-name substrings. They come from
+> the reviewed rate card and provider metadata — OpenRouter's
+> `architecture.input_modalities` / `supported_parameters` on the model list,
+> and Ollama's `POST /api/show` capability list (completion / tools / vision /
+> thinking) during discovery. Verification remains **metadata-only**: the
+> Ollama probe is skipped there so `VerifyProvider` still issues only GETs.
+> Unknown models claim nothing; absence of a capability is honest.
+> Reasoning effort is normalized before the wire: a level is sent only when
+> the provider accepts effort control *and* the model's declared capabilities
+> include reasoning; `minimal`→`low`, `xhigh`→`high`, and `none` is never sent
+> (no model advertises it). Anthropic maps the level to its thinking budget,
+> the OpenAI-compatible wires send `reasoning_effort`, and the Responses wire
+> sends `reasoning.effort`. `ModelCapabilities.reasoning_efforts` exposes the
+> accepted set (low/medium/high) for the UI. Honest gaps: no `light` role yet,
+> and the tool-context system note still carries the session id (relevant to
+> cross-session prompt-cache prefix sharing).
+
 Replaces the fixed four-row pricing table in the architecture paper with a **data-driven
 contract** describing each backend, so onboarding a new provider (IQM, a future entrant) is
 a data change, not a code change (source-gap-analysis-plan).

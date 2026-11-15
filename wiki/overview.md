@@ -321,6 +321,19 @@ Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
 
+> ⚑ Snapshot update (2026-11-14, `develop` working tree): `docs/repo-counts.md`
+> records **151** HTTP routes, **41** Go packages (**1007** Go test functions),
+> **185** Python test files, **150** console test files (**797** test cases),
+> **32** Rust tests, **6** MCP servers (**38** tools), and **158** wiki pages.
+> Console contracts stand at **158 modeled / 14 client-only / 0 unmodeled**
+> (`136` schemas, `143` OpenAPI paths). The raw-palette debt baseline is **1**
+> after the role-named scale/colour migration; `transition-all` is
+> zero-tolerance in CSS and source. New rails: runtime skills
+> (`SKILL.md`, body-free prompt, `load_skill` sections), recorded decision
+> evals (`kubonad eval-llm`, Brier/ECE, ModelPicker status, opt-in gate), and
+> real-Chromium component tests. Re-verify the gate on the exact pushed commit
+> before citing “green”; hosted CI remains tied to that commit.
+
 > ⚑ Snapshot update (2026-11-11): `docs/repo-counts.md` records **141** HTTP
 > routes, **37** Go packages (**868** Go test functions), **183** Python test
 > files, **127** console test files (**667** test cases), **32** Rust tests,

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT } from './shortcuts';
+import { BROWSER_RESERVED_UNSHIFTED, SHORTCUTS, SHORTCUT_CHORDS, SHORTCUT_TARGETS, shortcutFromEvent } from './shortcuts';
 import { CommandPalette } from '@/components/CommandPalette';
 
 // Drift-parity test: the keyboard handler (page.tsx navigates via
@@ -19,14 +19,14 @@ const PINNED_SHORTCUTS = {
   cognitiveMesh: '⌘7',
   previewGallery: '⌘8',
   huggingFaceHub: '⌘9',
-  laboratories: '⌘L',
-  sovereignAirGap: '⌘S',
-  tribunalRoom: '⌘T',
+  laboratories: '⌘⇧L',
+  sovereignAirGap: '⌘⇧S',
+  tribunalRoom: '⌘⇧T',
   commandPalette: '⌘K',
   copilot: '⌘J',
   experimentLab: '⌘E',
-  about: '⌘I',
-  newCampaign: '⌘N',
+  about: '⌘⇧I',
+  newCampaign: '⌘⇧N',
   emergencyAbort: '⌘.',
   help: '?',
   dismiss: 'Esc',
@@ -55,27 +55,27 @@ const PINNED_TARGETS: Record<string, string> = {
   dismiss: 'dismiss',
 };
 
-const PINNED_KEYS: Record<string, string> = {
-  '1': 'livingCanvas',
-  '2': 'flightRecorder',
-  '3': 'epistemicOrb',
-  '4': 'livingNotebook',
-  '5': 'sentinelGuardrails',
-  '6': 'fleetRadar',
-  '7': 'cognitiveMesh',
-  '8': 'previewGallery',
-  '9': 'huggingFaceHub',
-  l: 'laboratories',
-  s: 'sovereignAirGap',
-  t: 'tribunalRoom',
-  k: 'commandPalette',
-  j: 'copilot',
-  e: 'experimentLab',
-  i: 'about',
-  n: 'newCampaign',
-  '.': 'emergencyAbort',
-  '?': 'help',
-};
+const PINNED_CHORDS = {
+  livingCanvas: { key: '1', shift: false },
+  flightRecorder: { key: '2', shift: false },
+  epistemicOrb: { key: '3', shift: false },
+  livingNotebook: { key: '4', shift: false },
+  sentinelGuardrails: { key: '5', shift: false },
+  fleetRadar: { key: '6', shift: false },
+  cognitiveMesh: { key: '7', shift: false },
+  previewGallery: { key: '8', shift: false },
+  huggingFaceHub: { key: '9', shift: false },
+  laboratories: { key: 'l', shift: true },
+  sovereignAirGap: { key: 's', shift: true },
+  tribunalRoom: { key: 't', shift: true },
+  commandPalette: { key: 'k', shift: false },
+  copilot: { key: 'j', shift: false },
+  experimentLab: { key: 'e', shift: false },
+  about: { key: 'i', shift: true },
+  newCampaign: { key: 'n', shift: true },
+  emergencyAbort: { key: '.', shift: false },
+  help: { key: '?', shift: false },
+} as const;
 
 function paletteShortcutGlyphs(): string[] {
   let tree: TestRenderer.ReactTestRenderer;
@@ -108,8 +108,20 @@ describe('shortcuts single source of truth', () => {
     expect(SHORTCUT_TARGETS).toEqual(PINNED_TARGETS);
   });
 
-  it('pins every handler key explicitly', () => {
-    expect(KEY_TO_SHORTCUT).toEqual(PINNED_KEYS);
+  it('pins every handler chord explicitly', () => {
+    expect(SHORTCUT_CHORDS).toEqual(PINNED_CHORDS);
+  });
+
+  it('refuses an unshifted browser-reserved chord', () => {
+    for (const [name, chord] of Object.entries(SHORTCUT_CHORDS)) {
+      if (!chord.shift && BROWSER_RESERVED_UNSHIFTED.has(chord.key)) {
+        throw new Error(`${name} binds ⌘${chord.key.toUpperCase()}, which the browser keeps`);
+      }
+    }
+    expect(shortcutFromEvent({ key: 't', shiftKey: false })).toBeNull();
+    expect(shortcutFromEvent({ key: 'T', shiftKey: true })).toBe('tribunalRoom');
+    expect(shortcutFromEvent({ key: 'n', shiftKey: false })).toBeNull();
+    expect(shortcutFromEvent({ key: 'l', shiftKey: true })).toBe('laboratories');
   });
 
   it('every palette shortcut glyph has a handler branch', () => {
@@ -119,7 +131,9 @@ describe('shortcuts single source of truth', () => {
     for (const glyph of paletteShortcutGlyphs()) {
       const name = glyphToName.get(glyph);
       expect(name, `palette advertises ${glyph} with no SHORTCUTS entry`).toBeDefined();
-      expect(KEY_TO_SHORTCUT[glyph.replace('⌘', '').toLowerCase()], `palette advertises ${glyph} with no handler branch`).toBeDefined();
+      const chord = SHORTCUT_CHORDS[name as keyof typeof SHORTCUT_CHORDS];
+      expect(chord, `palette advertises ${glyph} with no handler chord`).toBeDefined();
+      expect(shortcutFromEvent({ key: chord.key, shiftKey: chord.shift })).toBe(name);
       expect(SHORTCUT_TARGETS[name as keyof typeof SHORTCUTS], `palette advertises ${glyph} with no handler target`).toBeDefined();
     }
   });

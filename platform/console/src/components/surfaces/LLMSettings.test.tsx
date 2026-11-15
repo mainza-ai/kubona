@@ -705,4 +705,38 @@ describe('LLMSettings Phase-2/3 discovery, verify race guard, failover, profiles
     expect(tree.root.findByProps({ 'aria-label': 'copilot provider' }).props.value).toBe('omlx');
     expect(tree.root.findByProps({ 'aria-label': 'copilot model' }).props.value).toBe('local-qwen');
   });
+
+  it('asks for explicit acknowledgement when the eval gate refuses a model change', async () => {
+    const saves: Array<Record<string, unknown>> = [];
+    let settingsWrites = 0;
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) } as Response;
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') {
+        settingsWrites += 1;
+        saves.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        if (settingsWrites === 1) {
+          return {
+            ok: false,
+            status: 409,
+            text: async () => JSON.stringify({ error: 'model_unevaluated', message: 'copilot model nvidia/new-model is unevaluated on the pinned fixtures' }),
+          } as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({ status: 'updated', settings: settings() }) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => settings() } as Response;
+    });
+    const tree = await render();
+    const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save Settings'))!;
+    await act(async () => {
+      await save.props.onClick();
+    });
+    expect(settingsWrites).toBe(1);
+    expect(saves[0].acknowledge_unevaluated).toBeUndefined();
+    const ack = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Acknowledge unevaluated'))!;
+    await act(async () => {
+      await ack.props.onClick();
+    });
+    expect(settingsWrites).toBe(2);
+    expect(saves[1].acknowledge_unevaluated).toBe(true);
+  });
 });

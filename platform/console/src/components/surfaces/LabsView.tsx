@@ -89,18 +89,18 @@ export function LabsView() {
     // existing loaded flag — refused-vs-empty logic below is untouched).
     return (
       <div className="space-y-2.5">
-        <div className="text-[var(--color-muted)] text-sm">Loading laboratories…</div>
+        <div className="text-muted text-body-strong">Loading laboratories…</div>
         <div data-testid="labs-skeleton" className="space-y-2" aria-hidden="true">
-          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
-          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
-          <div className="h-16 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] animate-pulse" />
+          <div className="h-16 rounded-card bg-tile border border-border animate-pulse" />
+          <div className="h-16 rounded-card bg-tile border border-border animate-pulse" />
+          <div className="h-16 rounded-card bg-tile border border-border animate-pulse" />
         </div>
       </div>
     );
   }
   if (error) {
     return (
-      <div className="p-3 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs">
+      <div className="p-3 rounded-row bg-danger-wash border border-danger-edge text-danger-ink text-label">
         Laboratories unavailable — nothing loaded ({error.slice(0, 200)}).
       </div>
     );
@@ -113,7 +113,7 @@ export function LabsView() {
     if (wasRecentAuthFailure() || authed === false) {
       return (
         <div className="space-y-3">
-          <div className="p-3 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs">
+          <div className="p-3 rounded-row bg-warning-wash border border-warning-edge text-warning-ink text-label">
             Sign in to manage laboratories. Research campaigns are under Campaigns.{' '}
             <a href="#operator-session" className="underline hover:opacity-80">
               Sign in below
@@ -125,8 +125,8 @@ export function LabsView() {
           </div>
           <CreateLabPanel onCreated={reload} />
           {authed === true && (
-            <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
+            <details className="rounded-card border border-border bg-surface p-3">
+              <summary className="cursor-pointer text-label font-semibold text-text">Advanced lab administration</summary>
               <div className="mt-3 space-y-3">
                 <TenantGrantPanel labs={labs} />
                 <KeyRecoveryPanel labs={labs} />
@@ -139,7 +139,7 @@ export function LabsView() {
     }
     return (
       <div className="space-y-3">
-        <div className="text-[var(--color-muted)] text-sm">No laboratories registered.</div>
+        <div className="text-muted text-body-strong">No laboratories registered.</div>
         <CreateLabPanel onCreated={reload} />
       </div>
     );
@@ -148,7 +148,7 @@ export function LabsView() {
   if (labs.length > 0 && authed !== true) {
     return (
       <div className="space-y-3">
-        <p className="text-[12px] text-[var(--color-muted)]">
+        <p className="text-[12px] text-muted">
           Laboratories are administered by a lab admin. Sign in to manage this lab; research campaigns remain under Campaigns.
         </p>
         <AuthPanel labs={labs} />
@@ -159,12 +159,12 @@ export function LabsView() {
 
   return (
     <div className="space-y-4">
-      <p className="text-[12px] text-[var(--color-muted)]">
+      <p className="text-[12px] text-muted">
         Laboratories are for multi-lab administration. Research campaigns live under Campaigns.
       </p>
       <AuthPanel labs={labs} />
-      <details className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-        <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
+      <details className="rounded-card border border-border bg-surface p-3">
+        <summary className="cursor-pointer text-label font-semibold text-text">Advanced lab administration</summary>
         <div className="mt-3"><CreateLabPanel onCreated={reload} /></div>
       </details>
       {labs.map((lab) => {
@@ -178,7 +178,7 @@ export function LabsView() {
         return (
           <div
             key={lab.id}
-            className="rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] p-4"
+            className="rounded-card bg-surface border border-border p-4"
           >
             <button
               className="w-full flex items-center justify-between text-left"
@@ -186,31 +186,31 @@ export function LabsView() {
               aria-expanded={expanded}
             >
               <span className="flex items-center space-x-2">
-                <FlaskConical className="w-4 h-4 text-[var(--color-info-ink)]" />
-                <span className="text-[var(--color-text)] font-medium text-sm">
+                <FlaskConical className="w-4 h-4 text-info-ink" />
+                <span className="text-text font-medium text-body-strong">
                   {lab.display_name || lab.id}
                 </span>
-                <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-tile)] text-[var(--color-label-secondary)] border-[var(--color-border)]">
+                <span className="text-[12px] font-mono px-1.5 py-0.5 rounded-chip border bg-tile text-label-secondary border-border">
                   {lab.autonomy_level}
                 </span>
                 {lab.status !== 'active' && (
-                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border-[var(--color-warning-edge)]">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded-chip border bg-warning-wash text-warning-ink border-warning-edge">
                     {lab.status}
                   </span>
                 )}
                 {unbounded && (
-                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)] border-[var(--color-danger-edge)]">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded-chip border bg-danger-wash text-danger-ink border-danger-edge">
                     NO-CEILING · UNBOUNDED
                   </span>
                 )}
               </span>
-              <span className="flex items-center space-x-2 text-xs text-[var(--color-label-secondary)]">
+              <span className="flex items-center space-x-2 text-label text-label-secondary">
                 {unbounded ? (
                   <span>{spent != null ? fmtMoney(spent) : '—'} / UNBOUNDED (no ceiling)</span>
                 ) : (
                   <span>{`${spent != null ? fmtMoney(spent) : '—'} / ${ceiling != null ? fmtMoney(ceiling) : '—'} (${used ?? '—'}%)`}</span>
                 )}
-                {hot && <AlertTriangle className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />}
+                {hot && <AlertTriangle className="w-3.5 h-3.5 text-warning-ink" />}
                 {expanded ? (
                   <ChevronUp className="w-4 h-4" />
                 ) : (
@@ -219,7 +219,7 @@ export function LabsView() {
               </span>
             </button>
             <div
-              className="mt-2 h-1.5 rounded-full bg-[var(--color-tile)]"
+              className="mt-2 h-1.5 rounded-capsule bg-tile"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
@@ -228,10 +228,10 @@ export function LabsView() {
               aria-label={`Spend for ${lab.display_name || lab.id}`}
             >
               {unbounded ? (
-                <div className="h-1.5 rounded-full bg-[var(--color-danger)]" style={{ width: '100%' }} title="No ceiling — unbounded spend alarm" />
+                <div className="h-1.5 rounded-capsule bg-danger" style={{ width: '100%' }} title="No ceiling — unbounded spend alarm" />
               ) : (
                 <div
-                  className={`h-1.5 rounded-full ${hot ? 'bg-[var(--color-warning)]' : 'bg-[var(--color-accent)]'}`}
+                  className={`h-1.5 rounded-capsule ${hot ? 'bg-warning' : 'bg-accent'}`}
                   style={{ width: `${used ?? 0}%` }}
                 />
               )}
@@ -242,15 +242,15 @@ export function LabsView() {
                     bearer + admin envelope, refusals verbatim. */}
                 <LabOpsPanel lab={lab} onChanged={reload} />
                 {labSessions.length === 0 && (
-                  <div className="text-xs text-[var(--color-muted)]">No sessions in this lab.</div>
+                  <div className="text-label text-muted">No sessions in this lab.</div>
                 )}
                 {labSessions.map((s) => (
                   <div
                     key={s.id}
-                    className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)]"
+                    className="flex items-center justify-between text-label px-2 py-1.5 rounded-control-compact bg-tile border border-border"
                   >
-                    <span className="text-[var(--color-label-secondary)]">{s.title || s.id}</span>
-                    <span className="text-[var(--color-muted)] font-mono">
+                    <span className="text-label-secondary">{s.title || s.id}</span>
+                    <span className="text-muted font-mono">
                       {`${typeof s.current_spend_usd === 'number' && Number.isFinite(s.current_spend_usd) ? fmtMoney(s.current_spend_usd) : '—'} / ${typeof s.spend_limit_usd === 'number' && Number.isFinite(s.spend_limit_usd) ? fmtMoney(s.spend_limit_usd) : '—'} · ${s.status}`}
                     </span>
                   </div>

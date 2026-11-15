@@ -6,6 +6,7 @@ import type { WorkflowDefinition } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
+import { publishWorkflowPlan } from '@/domain/workflow-plan-store';
 
 const SAMPLE = `{
   "name": "provider-audit",
@@ -49,6 +50,18 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
     try {
       const out = await planWorkflow({ session_id: sessionId || undefined, workflow });
       setPlan(out as unknown as Record<string, unknown>);
+      if (!out.ok) {
+        // A refused plan never reaches the canvas.
+        setError(out.error || 'workflow plan refused without a reason');
+        return;
+      }
+      // C8: publish the dry-run draft so the watchable plan is on the canvas.
+      publishWorkflowPlan({
+        workflowId: out.workflow_id,
+        name: workflow.name,
+        steps: Array.isArray(out.steps) && out.steps.length > 0 ? out.steps : workflow.steps,
+        unresolved: Array.isArray(out.unresolved_references) ? out.unresolved_references : [],
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -92,43 +105,43 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Workflow planner">
+    <div className="w-full rounded-card border border-border-strong bg-surface p-4 space-y-2" aria-label="Workflow planner">
       <div>
-        <span className="text-xs font-semibold text-[var(--color-text)]">Workflow planner / runner</span>
-        <p className="text-[12px] text-[var(--color-muted)]">Plan validates against the tool registry. Running executes tools and reserves the declared budget — confirm with the workflow name.</p>
+        <span className="text-label font-semibold text-text">Workflow planner / runner</span>
+        <p className="text-[12px] text-muted">Plan validates against the tool registry. Running executes tools and reserves the declared budget — confirm with the workflow name.</p>
       </div>
-      <textarea aria-label="Workflow JSON" value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} spellCheck={false} className="w-full rounded-lg bg-[var(--color-field)] border border-[var(--color-border)] px-2 py-1 text-[12px] font-mono text-[var(--color-text)]" />
-      <label className="block text-[12px] text-[var(--color-muted)]">Approval token (agent-created / approval-required workflows)
-        <input aria-label="Workflow approval token" type="password" value={approvalToken} onChange={(e) => setApprovalToken(e.target.value)} className="mt-1 w-full rounded-lg bg-[var(--color-page)] border border-[var(--color-border)] px-2 py-1 text-[12px] font-mono text-[var(--color-text)]" />
+      <textarea aria-label="Workflow JSON" value={raw} onChange={(e) => setRaw(e.target.value)} rows={6} spellCheck={false} className="w-full rounded-control-compact bg-field border border-border px-2 py-1 text-[12px] font-mono text-text" />
+      <label className="block text-[12px] text-muted">Approval token (agent-created / approval-required workflows)
+        <input aria-label="Workflow approval token" type="password" value={approvalToken} onChange={(e) => setApprovalToken(e.target.value)} className="mt-1 w-full rounded-control-compact bg-page border border-border px-2 py-1 text-[12px] font-mono text-text" />
       </label>
       <div className="flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => void onPlan()} disabled={busy !== null} className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] disabled:opacity-40">
+        <button type="button" onClick={() => void onPlan()} disabled={busy !== null} className="px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink text-[12px] disabled:opacity-40">
           {busy === 'plan' ? 'Planning…' : 'Plan (dry run)'}
         </button>
-        <button type="button" onClick={() => void onApprove()} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-lg bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)] text-[12px] disabled:opacity-40">
+        <button type="button" onClick={() => void onApprove()} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-control-compact bg-soft-lilac-wash border border-soft-lilac-edge text-soft-lilac-ink text-[12px] disabled:opacity-40">
           {busy === 'approve' ? 'Approving…' : 'Approve current workflow'}
         </button>
-        <button type="button" onClick={() => { const wf = parse(); if (wf) setConfirm(wf); }} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-lg bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-[12px] disabled:opacity-40">
+        <button type="button" onClick={() => { const wf = parse(); if (wf) setConfirm(wf); }} disabled={busy !== null || !sessionId} className="px-2 py-1 rounded-control-compact bg-warning-wash border border-warning-edge text-warning-ink text-[12px] disabled:opacity-40">
           Run workflow…
         </button>
       </div>
-      {error && <p role="alert" className="text-[12px] text-[var(--color-danger-ink)]">{error}</p>}
+      {error && <p role="alert" className="text-[12px] text-danger-ink">{error}</p>}
       {writeSettlementLabel(runWrite.write) && (
-        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(runWrite.write)}</p>
+        <p role="status" className="text-[12px] font-mono text-muted">{writeSettlementLabel(runWrite.write)}</p>
       )}
       {plan && (
-        <div className="rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] p-2 text-[12px] font-code text-[var(--color-text)] space-y-0.5">
+        <div className="rounded-row bg-card border border-border p-2 text-[12px] font-code text-text space-y-0.5">
           <div>plan {String(plan.workflow_id ?? '—')} · dry_run {String(plan.dry_run)} · steps {Array.isArray(plan.steps) ? plan.steps.length : 0}</div>
           {Array.isArray(plan.unresolved_references) && plan.unresolved_references.length > 0 && (
-            <div className="text-[var(--color-warning-ink)]">unresolved: {plan.unresolved_references.join(', ')}</div>
+            <div className="text-warning-ink">unresolved: {plan.unresolved_references.join(', ')}</div>
           )}
-          <div className="text-[var(--color-muted)]">Run remains disabled until you use the confirmation dialog.</div>
+          <div className="text-muted">Run remains disabled until you use the confirmation dialog.</div>
         </div>
       )}
       {result && (
-        <div className="rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] p-2 text-[12px] font-code text-[var(--color-success-ink)] space-y-0.5">
+        <div className="rounded-row bg-success-wash border border-success-edge p-2 text-[12px] font-code text-success-ink space-y-0.5">
           <div>workflow {String(result.workflow_id ?? '—')} · completed {String(result.steps_completed ?? '—')} · spent ${String(result.spent_usd ?? '—')}</div>
-          <div className="text-[var(--color-success-ink)] opacity-85 break-all">{JSON.stringify(result.last_results ?? {}).slice(0, 400)}</div>
+          <div className="text-success-ink opacity-85 break-all">{JSON.stringify(result.last_results ?? {}).slice(0, 400)}</div>
         </div>
       )}
       {confirm && (

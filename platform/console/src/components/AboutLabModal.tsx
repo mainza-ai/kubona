@@ -47,22 +47,22 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
     >
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl shadow-[var(--shadow-float)] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl"
+        className="w-full max-w-xl bg-float border border-border-strong rounded-card shadow-[var(--shadow-float)] overflow-hidden transform transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] animate-in fade-in zoom-in-95 duration-150 backdrop-blur-2xl"
       >
         {/* Apple-style Window Header with Traffic Lights */}
-        <div className="h-10 px-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between select-none">
+        <div className="h-10 px-4 border-b border-border bg-surface flex items-center justify-between select-none">
           <div className="flex items-center space-x-2">
             <button
               onClick={onClose}
               aria-label="Close dialog"
-              className="w-3 h-3 rounded-full bg-[#FF5F56] hover:brightness-110 active:brightness-90 transition-all flex items-center justify-center group"
+              className="w-3 h-3 rounded-capsule bg-[#FF5F56] hover:brightness-110 active:brightness-90 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center justify-center group"
             >
               <X className="w-2 h-2 text-black/70 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
-            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-75" />
-            <div className="w-3 h-3 rounded-full bg-[#27C93F] opacity-75" />
+            <div className="w-3 h-3 rounded-capsule bg-[#FFBD2E] opacity-75" />
+            <div className="w-3 h-3 rounded-capsule bg-[#27C93F] opacity-75" />
           </div>
-          <span className="text-[12px] font-medium text-[var(--color-muted)] font-sans tracking-wide">
+          <span className="text-[12px] font-medium text-muted font-sans tracking-wide">
             About Kubona Scientific Laboratory
           </span>
           <div className="w-12" /> {/* Balance spacer */}
@@ -72,7 +72,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
         <div className="p-6 space-y-6">
           {/* Brand Identity Hero: Crest + Name */}
           <div className="flex items-start space-x-5">
-            <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-[var(--color-border-strong)] shadow-xl bg-[var(--color-field)] shrink-0">
+            <div className="relative w-24 h-24 rounded-card overflow-hidden ring-1 ring-border-strong shadow-xl bg-field shrink-0">
               <Image
                 src="/assets/milimo_kubona_logo.png"
                 alt="Kubona logo"
@@ -85,75 +85,75 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
             <div className="flex-1 space-y-1">
               <div className="flex items-center space-x-2">
-                <h2 id="about-lab-title" className="text-xl font-bold text-[var(--color-text)] tracking-tight">
+                <h2 id="about-lab-title" className="text-title-small font-bold text-text tracking-tight">
                   Kubona
                 </h2>
-                <span className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-full bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
+                <span className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-capsule bg-info-wash text-info-ink border border-info-edge">
                   OBSERVATORY PRO
                 </span>
               </div>
-              <p className="text-xs font-semibold text-[var(--color-accent-ink)] tracking-wide uppercase">
+              <p className="text-label font-semibold text-accent-ink tracking-wide uppercase">
                 Tonga (Zambia) — <span className="italic">To see</span>
               </p>
-              <p className="text-xs text-[var(--color-label-secondary)] leading-relaxed pt-1">
+              <p className="text-label text-label-secondary leading-relaxed pt-1">
                 An open-source, sovereign, MCP-native quantum computing and autonomous AI science discovery platform for frontier empirical exploration.
               </p>
             </div>
           </div>
 
           {/* System Architecture Specifications Grid */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+          <div className="grid grid-cols-2 gap-3 text-label">
+            <div className="p-3.5 rounded-row bg-card border border-border space-y-1">
+              <div className="flex items-center space-x-1.5 text-text font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-success-ink" />
                 <span>Cryptographic Posture</span>
               </div>
-              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
+              <div className="font-mono text-label text-label-secondary font-medium">
                 Ed25519 AP2 Mandates (wired)
               </div>
-              <div className="text-[12px] text-[var(--color-muted)]">
+              <div className="text-[12px] text-muted">
                 ML-KEM-768 hybrid encapsulation staged — not wired, no recipient registry yet
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
-                <Lock className="w-3.5 h-3.5 text-[var(--color-warning-ink)]" />
+            <div className="p-3.5 rounded-row bg-card border border-border space-y-1">
+              <div className="flex items-center space-x-1.5 text-text font-semibold">
+                <Lock className="w-3.5 h-3.5 text-warning-ink" />
                 <span>Workload &amp; Secrets</span>
               </div>
-              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
+              <div className="font-mono text-label text-label-secondary font-medium">
                 OpenBao Dynamic TTL Leases
               </div>
-              <div className="text-[12px] text-[var(--color-muted)]">
+              <div className="text-[12px] text-muted">
                 Buzz Information Flow Control
               </div>
-              <div className="text-[12px] text-[var(--color-warning-ink)] font-mono">
+              <div className="text-[12px] text-warning-ink font-mono">
                 Vault is dev-compose only; IFC is partial. Neither is claimed as deployed here.
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
-                <Cpu className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+            <div className="p-3.5 rounded-row bg-card border border-border space-y-1">
+              <div className="flex items-center space-x-1.5 text-text font-semibold">
+                <Cpu className="w-3.5 h-3.5 text-accent-ink" />
                 <span>Quantum &amp; Classical Engines</span>
               </div>
-              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
+              <div className="font-mono text-label text-label-secondary font-medium">
                 PySCF FCI + Qiskit Aer
               </div>
-              <div className="text-[12px] text-[var(--color-muted)]">
+              <div className="text-[12px] text-muted">
                 PennyLane QPD &amp; Mitiq ZNE
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-              <div className="flex items-center space-x-1.5 text-[var(--color-text)] font-semibold">
-                <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+            <div className="p-3.5 rounded-row bg-card border border-border space-y-1">
+              <div className="flex items-center space-x-1.5 text-text font-semibold">
+                <Sparkles className="w-3.5 h-3.5 text-accent-ink" />
                 <span>Cognitive Intelligence</span>
               </div>
-              <div className="font-mono text-xs text-[var(--color-label-secondary)] font-medium">
+              <div className="font-mono text-label text-label-secondary font-medium">
                 Env-Driven Provider Routing (NIM / Local)
               </div>
-              <div className="text-[12px] text-[var(--color-muted)]">
+              <div className="text-[12px] text-muted">
                 4-Turn Epistemic Tribunal Loop
               </div>
             </div>
@@ -161,30 +161,30 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
           {/* Build version is injected at image build time. There is no live
               version endpoint yet; do not present this as a live probe. */}
-          <div className="p-3.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] flex items-center justify-between text-xs font-mono text-[var(--color-label-secondary)]">
+          <div className="p-3.5 rounded-row bg-field border border-border flex items-center justify-between text-label font-mono text-label-secondary">
             <div>
-              <span className="text-[var(--color-muted)] font-medium">Build:</span>{' '}
-              <strong className="text-[var(--color-text)] font-bold">{BUILD_VERSION}</strong>
+              <span className="text-muted font-medium">Build:</span>{' '}
+              <strong className="text-text font-bold">{BUILD_VERSION}</strong>
             </div>
             <div>
-              <span className="text-[var(--color-muted)] font-medium">Bridge:</span>{' '}
-              <strong className="text-[var(--color-info-ink)] font-bold">gRPC</strong>
+              <span className="text-muted font-medium">Bridge:</span>{' '}
+              <strong className="text-info-ink font-bold">gRPC</strong>
             </div>
             <div>
-              <span className="text-[var(--color-muted)] font-medium">License:</span>{' '}
-              <strong className="text-[var(--color-success-ink)] font-bold">Apache-2.0</strong>
+              <span className="text-muted font-medium">License:</span>{' '}
+              <strong className="text-success-ink font-bold">Apache-2.0</strong>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="h-12 px-6 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between">
-          <span className="text-xs text-[var(--color-muted)]">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-fill)] font-mono text-[12px] text-[var(--color-label-secondary)] border border-[var(--color-border)]">Esc</kbd> to dismiss
+        <div className="h-12 px-6 border-t border-border bg-surface flex items-center justify-between">
+          <span className="text-label text-muted">
+            Press <kbd className="px-1.5 py-0.5 rounded-chip bg-fill font-mono text-[12px] text-label-secondary border border-border">Esc</kbd> to dismiss
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] active:scale-95 text-xs font-semibold text-[var(--color-text)] transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            className="px-4 py-1.5 rounded-control-compact bg-fill hover:bg-fill-hover active:scale-95 text-label font-semibold text-text transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
           >
             Done
           </button>

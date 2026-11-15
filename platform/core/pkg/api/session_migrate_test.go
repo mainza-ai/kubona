@@ -94,7 +94,8 @@ func TestSessionExportImportRoundTrip(t *testing.T) {
 	if code, _, _ := idemPost(t, h1, "/api/jobs", map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator", "shots": 8}); code != http.StatusCreated {
 		t.Fatalf("job: %d", code)
 	}
-	if code, _, _ := idemPost(t, h1, "/api/chat/launch", map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator"}); code != http.StatusCreated {
+	pid, digest := mintTestProposal(t, srv1, sid, idemQASM, "local_simulator", 1.0)
+	if code, _, _ := idemPost(t, h1, "/api/chat/launch", map[string]any{"session_id": sid, "proposal_id": pid, "digest": digest}); code != http.StatusCreated {
 		t.Fatalf("launch: %d", code)
 	}
 	// No settle-wait: these servers run no workers, so queued rows are

@@ -1,6 +1,6 @@
 import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
 
-export type WritePhase = 'idle' | 'accepted' | 'applied' | 'refused' | 'unknown';
+export type WritePhase = 'idle' | 'accepted' | 'admitted' | 'applied' | 'refused' | 'unknown';
 
 export type WriteSettlement = {
   phase: WritePhase;
@@ -31,6 +31,8 @@ export function writeSettlementLabel(write: WriteSettlement): string {
   switch (write.phase) {
     case 'accepted':
       return `accepted · ${write.detail}`;
+    case 'admitted':
+      return `admitted · ${write.detail}`;
     case 'applied':
       return `applied · ${write.detail}`;
     case 'refused':
@@ -47,6 +49,8 @@ type OperationReceipt = {
   request_id?: string;
   status?: 'in_progress' | 'complete';
   status_code?: number;
+  disposition?: 'admitted' | 'applied' | 'no_op' | 'refused' | 'outcome_unknown';
+  reason?: string;
   receipt?: unknown;
 };
 
@@ -58,6 +62,78 @@ async function readOperationReceipt(requestId: string, sessionId: string): Promi
   return (await res.json()) as OperationReceipt;
 }
 
+export type ReconciledOperation = {
+  phase: 'admitted' | 'applied' | 'refused' | 'unknown';
+  requestId: string;
+  detail: string;
+  statusCode?: number;
+  receipt?: unknown;
+};
+
+/** Honest copy when a launch reply never came back. Never claims the job was absent. */
+export const UNCONFIRMED_LAUNCH =
+  'The launch reply was lost. Whether a job was created is unknown. Retry stays disabled until this request is reconciled.';
+
+export function launchJobId(receipt: unknown): string | null {
+  if (!receipt || typeof receipt !== 'object') return null;
+  const job = (receipt as { job?: { id?: unknown } }).job;
+  if (job?.id == null || job.id === '') return null;
+  return String(job.id);
+}
+
+function receiptDetail(body: unknown, code: number): string {
+  if (typeof body === 'string') return body.slice(0, 200);
+  if (body && typeof body === 'object') {
+    const record = body as { message?: unknown; error?: unknown; status?: unknown };
+    return String(record.message ?? record.error ?? record.status ?? `HTTP ${code}`).slice(0, 200);
+  }
+  return `HTTP ${code}`;
+}
+
+/** Reconcile a write and keep the receipt body so a lost launch can be read back. */
+export async function reconcileOperationFull(
+  requestId: string,
+  sessionId: string,
+  attempts = 8,
+  delayMs = 250,
+): Promise<ReconciledOperation> {
+  let sawAdmitted = false;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const receipt = await readOperationReceipt(requestId, sessionId);
+      if (receipt?.status === 'in_progress' || receipt?.disposition === 'admitted') {
+        sawAdmitted = true;
+      }
+      if (receipt?.status === 'complete') {
+        const code = receipt.status_code ?? 0;
+        const detail = receipt.reason || receiptDetail(receipt.receipt, code);
+        let phase: ReconciledOperation['phase'] = code >= 400 ? 'refused' : 'applied';
+        if (receipt.disposition === 'refused') phase = 'refused';
+        if (receipt.disposition === 'outcome_unknown') phase = 'unknown';
+        if (receipt.disposition === 'no_op' || receipt.disposition === 'applied') phase = 'applied';
+        return {
+          phase,
+          requestId,
+          detail,
+          statusCode: code,
+          receipt: receipt.receipt,
+        };
+      }
+    } catch {
+      // Keep checking; a transient receipt read is not an outcome.
+    }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  if (sawAdmitted) {
+    return { phase: 'admitted', requestId, detail: 'queued' };
+  }
+  return {
+    phase: 'unknown',
+    requestId,
+    detail: `operation ${requestId.slice(0, 12)} not confirmed after reconciliation`,
+  };
+}
+
 /** Reconcile an accepted-but-unconfirmed write against its server receipt. */
 export async function reconcileOperation(
   requestId: string,
@@ -65,25 +141,6 @@ export async function reconcileOperation(
   attempts = 8,
   delayMs = 250,
 ): Promise<WriteSettlement> {
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const receipt = await readOperationReceipt(requestId, sessionId);
-      if (receipt?.status === 'complete') {
-        const code = receipt.status_code ?? 0;
-        const detail = typeof receipt.receipt === 'string'
-          ? receipt.receipt
-          : receipt.receipt && typeof receipt.receipt === 'object'
-            ? String((receipt.receipt as { message?: unknown; error?: unknown; status?: unknown }).message
-              ?? (receipt.receipt as { error?: unknown }).error
-              ?? (receipt.receipt as { status?: unknown }).status
-              ?? `HTTP ${code}`)
-            : `HTTP ${code}`;
-        return settleWrite(requestId, code >= 400 ? 'refused' : 'applied', detail.slice(0, 200));
-      }
-    } catch {
-      // Keep checking; a transient receipt read is not an outcome.
-    }
-    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  return settleWrite(requestId, 'unknown', `operation ${requestId.slice(0, 12)} not confirmed after reconciliation`);
+  const settled = await reconcileOperationFull(requestId, sessionId, attempts, delayMs);
+  return settleWrite(requestId, settled.phase, settled.detail);
 }

@@ -56,16 +56,16 @@ export function LoopControlList({
   // rendering nothing (a missing panel reads as a load failure).
   if (loops.length === 0) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Live loops">
-        <div className="text-xs font-semibold text-[var(--color-text)]">Live loops · override</div>
-        <div className="text-[12px] text-[var(--color-faint)]">no live loops</div>
+      <div className="rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Live loops">
+        <div className="text-label font-semibold text-text">Live loops · override</div>
+        <div className="text-[12px] text-faint">no live loops</div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Live loops">
-      <div className="text-xs font-semibold text-[var(--color-text)]">Live loops · override</div>
+    <div className="rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Live loops">
+      <div className="text-label font-semibold text-text">Live loops · override</div>
       <div className="space-y-1.5">
         {loops.map((loop) => {
           const st = statusOf(loop);
@@ -76,9 +76,9 @@ export function LoopControlList({
           return (
             <div
               key={loop.id}
-              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-[12px]"
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-row bg-card border border-border text-[12px]"
             >
-              <span className="font-code text-[var(--color-label-secondary)] truncate" title={loop.id}>
+              <span className="font-code text-label-secondary truncate" title={loop.id}>
                 {loop.id.slice(0, 8)} · {st || 'unknown'} · step {loop.step_count}/{loop.max_steps}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
@@ -88,7 +88,7 @@ export function LoopControlList({
                     disabled={isBusy}
                     onClick={() => run(loop, 'pause')}
                     aria-label={`Pause loop ${loop.id}`}
-                    className="px-2 py-1 rounded-lg bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] hover:opacity-90 disabled:opacity-40"
+                    className="px-2 py-1 rounded-control-compact bg-warning-wash border border-warning-edge text-warning-ink hover:opacity-90 disabled:opacity-40"
                   >
                     Pause
                   </button>
@@ -99,7 +99,7 @@ export function LoopControlList({
                     disabled={isBusy}
                     onClick={() => run(loop, 'resume')}
                     aria-label={`Resume loop ${loop.id}`}
-                    className="px-2 py-1 rounded-lg bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] hover:opacity-90 disabled:opacity-40"
+                    className="px-2 py-1 rounded-control-compact bg-success-wash border border-success-edge text-success-ink hover:opacity-90 disabled:opacity-40"
                   >
                     Resume
                   </button>
@@ -110,7 +110,7 @@ export function LoopControlList({
                     disabled={isBusy}
                     onClick={() => setKillDraft(loop)}
                     aria-label={`Kill loop ${loop.id}`}
-                    className="px-2 py-1 rounded-lg bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] hover:opacity-90 disabled:opacity-40"
+                    className="px-2 py-1 rounded-control-compact bg-danger-wash border border-danger-edge text-danger-ink hover:opacity-90 disabled:opacity-40"
                   >
                     Kill
                   </button>
@@ -121,7 +121,7 @@ export function LoopControlList({
         })}
       </div>
       {notice && (
-        <div className="text-[12px] text-[var(--color-warning-ink)]" role="alert">
+        <div className="text-[12px] text-warning-ink" role="alert">
           {notice}
         </div>
       )}
@@ -132,7 +132,7 @@ export function LoopControlList({
           body={
             <span>
               Killed loops never resume — in-flight work is abandoned. Type{' '}
-              <code className="rounded bg-[var(--color-fill)] px-1 font-mono">{killDraft.id.slice(0, 8)}</code> to confirm.
+              <code className="rounded-chip bg-fill px-1 font-mono">{killDraft.id.slice(0, 8)}</code> to confirm.
             </span>
           }
           requireText={killDraft.id.slice(0, 8)}

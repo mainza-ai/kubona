@@ -2,7 +2,8 @@
 
 import React, { useCallback, useState } from 'react';
 import { Globe, Lock } from 'lucide-react';
-import { fetchLLMSettings, saveLLMSettings } from '@/lib/api';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { setLLMAirGap } from '@/lib/api';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
@@ -28,9 +29,7 @@ export function useAirGapControl(options: UseAirGapControlOptions = {}) {
     setAirGap(next);
     setError(null);
     try {
-      const current = await fetchLLMSettings();
-      if (!current) throw new Error('settings unreachable — nothing changed');
-      const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
+      const res = await setLLMAirGap(next);
       if (res.ok) {
         write.applied(requestId, `air-gap ${next ? 'engaged' : 'released'}`);
         options.onStatusMessage?.(`Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).`);
@@ -70,42 +69,79 @@ export interface AirGapToggleButtonProps {
   offLabel?: string;
 }
 
+function AirGapRelease({
+  value,
+  onToggle,
+  children,
+}: {
+  value: boolean | null;
+  onToggle: () => void;
+  children: (request: () => void) => React.ReactNode;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const request = () => {
+    if (value === true) setConfirming(true);
+    else onToggle();
+  };
+  return (
+    <>
+      {children(request)}
+      <ConfirmDialog
+        open={confirming}
+        title="Release sovereign air-gap"
+        body="Cloud models and metered hardware become reachable. This does not release them until you confirm."
+        confirmLabel="Release air-gap"
+        danger
+        onConfirm={() => {
+          setConfirming(false);
+          onToggle();
+        }}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
+  );
+}
+
 export function AirGapToggleButton({
   value,
   onToggle,
   offLabel = 'Air-Gap: OFF',
 }: AirGapToggleButtonProps) {
   return (
+    <AirGapRelease value={value} onToggle={onToggle}>
+      {(request) => (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={request}
       disabled={value === null}
       title={value === null ? 'Air-gap state unknown — settings unreachable' : 'Toggle sovereign air-gap'}
-      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 disabled:opacity-50 ${
+      className={`px-3.5 py-1.5 rounded-row text-label font-semibold flex items-center space-x-2 border transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-sm active:scale-95 disabled:opacity-50 ${
         value === true
-          ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
+          ? 'bg-success-wash border-success-edge text-success-ink'
           : value === false
-            ? 'bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] border-[var(--color-border)] text-[var(--color-label-secondary)]'
-            : 'bg-[var(--color-tile)] border-[var(--color-border)] text-[var(--color-muted)]'
+            ? 'bg-tile hover:bg-fill-hover border-border text-label-secondary'
+            : 'bg-tile border-border text-muted'
       }`}
     >
       {value === true ? (
         <>
-          <Lock className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+          <Lock className="w-3.5 h-3.5 text-success-ink" />
           <span>Air-Gap: ENGAGED</span>
         </>
       ) : value === false ? (
         <>
-          <Globe className="w-3.5 h-3.5 text-[var(--color-muted)]" />
+          <Globe className="w-3.5 h-3.5 text-muted" />
           <span>{offLabel}</span>
         </>
       ) : (
         <>
-          <Globe className="w-3.5 h-3.5 text-[var(--color-faint)]" />
+          <Globe className="w-3.5 h-3.5 text-faint" />
           <span>Air-Gap: UNKNOWN</span>
         </>
       )}
     </button>
+      )}
+    </AirGapRelease>
   );
 }
 
@@ -116,42 +152,46 @@ export interface AirGapSwitchRowProps {
 
 export function AirGapSwitchRow({ value, onToggle }: AirGapSwitchRowProps) {
   return (
-    <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
+    <div className="w-full flex items-center justify-between p-4 rounded-card bg-surface border border-border">
       <div className="flex items-center space-x-3">
         <div
-          className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+          className={`w-8 h-8 rounded-row flex items-center justify-center ${
             value === true
-              ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]'
-              : 'bg-[var(--color-tile)] text-[var(--color-muted)] border border-[var(--color-border)]'
+              ? 'bg-info-wash text-info-ink border border-info-edge'
+              : 'bg-tile text-muted border border-border'
           }`}
         >
           <Lock className="w-4 h-4" />
         </div>
         <div>
-          <div className="text-xs font-semibold text-[var(--color-text)]">Sovereign Air-Gap Mode</div>
-          <div className="text-[12px] text-[var(--color-muted)]">
+          <div className="text-label font-semibold text-text">Sovereign Air-Gap Mode</div>
+          <div className="text-[12px] text-muted">
             {value === null ? 'State unknown — settings unreachable' : 'Strictly keep computations on local Mac hardware'}
           </div>
         </div>
       </div>
 
+      <AirGapRelease value={value} onToggle={onToggle}>
+      {(request) => (
       <button
         type="button"
-        onClick={onToggle}
+        onClick={request}
         disabled={value === null}
         title={value === null ? 'Air-gap state unknown — settings unreachable' : 'Persists to intelligence settings (same control as Cognitive Mesh)'}
-        className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
+        className={`w-11 h-6 rounded-capsule transition-colors relative p-0.5 ${
           value === true
-            ? 'bg-[var(--color-accent)]'
-            : 'bg-[var(--color-tile)] border border-[var(--color-border-strong)]'
+            ? 'bg-accent'
+            : 'bg-tile border border-border-strong'
         } disabled:opacity-40`}
       >
         <div
-          className={`w-5 h-5 rounded-full bg-[var(--color-on-accent)] shadow-md transform transition-transform ${
+          className={`w-5 h-5 rounded-capsule bg-on-accent shadow-md transform transition-transform ${
             value === true ? 'translate-x-5' : 'translate-x-0'
           }`}
         />
       </button>
+      )}
+      </AirGapRelease>
     </div>
   );
 }

@@ -50,7 +50,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_PREPAINT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col bg-[var(--color-canvas)] text-[var(--color-text)] font-sovereign selection:bg-[var(--color-accent-soft)] selection:text-[var(--color-text)]">
+      <body className="min-h-full flex flex-col bg-canvas text-text font-sovereign selection:bg-accent-soft selection:text-text">
         {/* Wave-2 a11y: page.tsx owns the single skip link + <main>
             landmarks; this wrapper stays a plain landmark container. */}
         <h1 className="sr-only">Kubona Sovereign Console</h1>

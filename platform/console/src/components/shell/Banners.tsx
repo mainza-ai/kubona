@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import {
-  API_PROBLEM_EVENT,
   UNAUTH_EVENT,
   type ApiProblem,
 } from '@/lib/api';
 import { useAuthPhase } from '@/domain/auth-state';
+import { isContractDrift, problemChipLabel } from '@/lib/api-problem';
 import type { Session } from '@/types';
 
 function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void; onDismiss: () => void }) {
@@ -15,7 +15,7 @@ function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void;
     <div
       data-testid="auth-expired-banner"
       role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-2 bg-[var(--color-warning-wash)] border-b border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] text-xs"
+      className="flex items-center justify-between gap-3 px-4 py-2 bg-warning-wash border-b border-warning-edge text-warning-ink text-label"
     >
       <span>Session expired — log in again.</span>
       <span className="flex items-center gap-2 shrink-0">
@@ -39,25 +39,34 @@ function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void;
   );
 }
 
-function ApiProblemView({ problem, onDismiss }: { problem: ApiProblem; onDismiss: () => void }) {
+/**
+ * 3.9 — non-blocking API/contract signal. A refused request or drifted
+ * contract is observable in the StatusStrip, not as a page-wide alert:
+ * role="status" (polite), dismissible by problem signature.
+ */
+export function ApiProblemChip({ problem, onDismiss }: { problem: ApiProblem; onDismiss: () => void }) {
+  const drift = isContractDrift(problem);
   return (
-    <div
-      data-testid="api-problem-banner"
-      role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-[var(--color-danger-wash)] border-b border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px] font-code"
+    <span
+      data-testid={drift ? 'contract-drift-chip' : 'api-problem-chip'}
+      role="status"
+      title={`${problem.message}${problem.at ? ` · ${new Date(problem.at).toLocaleTimeString()}` : ''}`}
+      className={`inline-flex max-w-64 shrink-0 items-center gap-1 truncate rounded-chip border px-1.5 py-0.5 font-code text-[11px] ${
+        drift
+          ? 'border-warning-edge bg-warning-wash text-warning-ink'
+          : 'border-danger-edge bg-danger-wash text-danger-ink'
+      }`}
     >
-      <span className="truncate">
-        API refusal — {problem.path} · {problem.status ?? 'transport'} · {problem.message}. Some surfaces may show empty data until this is fixed.
-      </span>
+      <span className="truncate">{problemChipLabel(problem)}</span>
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Dismiss API refusal"
-        className="shrink-0 px-2 py-0.5 rounded border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] hover:bg-[var(--color-fill-hover)]"
+        aria-label={drift ? 'Dismiss contract drift' : 'Dismiss API refusal'}
+        className="shrink-0 rounded-chip px-1 leading-none hover:bg-fill-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
       >
-        Dismiss
+        ×
       </button>
-    </div>
+    </span>
   );
 }
 
@@ -77,46 +86,28 @@ function useExpiredBannerState() {
   };
 }
 
-function useProblemState() {
-  const [problem, setProblem] = useState<ApiProblem | null>(null);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onProblem = (event: Event) => {
-      const detail = (event as CustomEvent<ApiProblem>).detail;
-      if (detail) setProblem(detail);
-    };
-    window.addEventListener(API_PROBLEM_EVENT, onProblem);
-    return () => window.removeEventListener(API_PROBLEM_EVENT, onProblem);
-  }, []);
-  return { problem, dismiss: () => setProblem(null) };
-}
-
 export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
   const state = useExpiredBannerState();
   if (!state.visible) return null;
   return <SessionExpiredView onOpenLabs={onOpenLabs} onDismiss={state.dismiss} />;
 }
 
-export function ApiProblemBanner() {
-  const state = useProblemState();
-  if (!state.problem) return null;
-  return <ApiProblemView problem={state.problem} onDismiss={state.dismiss} />;
-}
-
-/** One global banner slot: expired/forbidden auth outranks API refusal. */
+/**
+ * One global banner slot, reserved for blocking states. Non-blocking API and
+ * contract signals live in StatusStrip as chips (see ApiProblemChip), so a
+ * page-wide alert always means "act now".
+ */
 export function BannerStack({ onOpenLabs }: { onOpenLabs: () => void }) {
   const expired = useExpiredBannerState();
-  const problem = useProblemState();
   if (expired.visible) return <SessionExpiredView onOpenLabs={onOpenLabs} onDismiss={expired.dismiss} />;
-  if (problem.problem) return <ApiProblemView problem={problem.problem} onDismiss={problem.dismiss} />;
   return null;
 }
 
 export function describeCreateFailure(result: Session | null, error: unknown): string | null {
   if (result) return null;
-  if (error !== undefined && error !== null) {
+  if (error != null) {
     const detail = error instanceof Error ? error.message : String(error);
     return `Create campaign failed: ${detail}`;
   }
-  return 'Create campaign failed: backend refused (createSession returned null) — nothing was created.';
+  return 'Create campaign failed: createSession returned null — nothing was created. Retry from Campaigns once the backend is reachable.';
 }

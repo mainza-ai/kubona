@@ -22,7 +22,9 @@ package api
 // All tunables live below — never a copied literal elsewhere.
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -190,8 +192,20 @@ func (s *Server) idemBegin(sessionID, requestID string, content any, rail string
 		// Same content, still running (or orphaned by a crash): reclaim
 		// stale claims, else wait bounded for the leader, else 409.
 		if created, ok := parseSQLiteTime(rec.CreatedAt); ok && time.Since(created) > idemStaleAfter(rec.Rail) {
+			// A job row means the effect already committed. Rebuild the
+			// receipt from that row. Deleting the claim and submitting
+			// again would dispatch a second job.
+			if ticket, refusal := s.rebuildJobReceipt(sessionID, requestID); ticket != nil || refusal != nil {
+				return ticket, refusal
+			}
+			if rec.Rail == idemRailSlow {
+				if ticket, refusal := s.rebuildSlowReceipt(sessionID, requestID); ticket != nil || refusal != nil {
+					return ticket, refusal
+				}
+				return nil, &idemRefusal{http.StatusConflict, fmt.Sprintf("request_in_progress: request_id %q is stale and its effect could not be rebuilt: not re-executed. A new request_id would spend again; inspect this session's loops and tribunal claims before starting another attempt", requestID)}
+			}
 			_ = s.ledger.IdemDelete(sessionID, requestID)
-			continue // re-claim as new leader
+			continue // no job row: the insert never committed
 		}
 		if ticket, refusal := s.idemAwait(sessionID, requestID, hash); ticket != nil || refusal != nil {
 			return ticket, refusal
@@ -199,6 +213,87 @@ func (s *Server) idemBegin(sessionID, requestID string, content any, rail string
 		return nil, &idemRefusal{http.StatusConflict, fmt.Sprintf("request_in_progress: request_id %q is still executing: retry the same ID later for its receipt, or mint a new request_id for a new attempt", requestID)}
 	}
 	return nil, &idemRefusal{http.StatusInternalServerError, "idempotency claim race did not settle: retry with a new request_id"}
+}
+
+// rebuildJobReceipt seals a receipt from the job row when a stale claim
+// already has an admitted job. No row returns (nil, nil) so a job-rail
+// claim that died before the insert can still be reclaimed.
+func (s *Server) rebuildJobReceipt(sessionID, requestID string) (*idemTicket, *idemRefusal) {
+	if s.jobRunner == nil {
+		return nil, nil
+	}
+	job, err := s.jobRunner.JobByRequest(sessionID, requestID)
+	if err != nil {
+		return nil, &idemRefusal{http.StatusInternalServerError, fmt.Sprintf("idempotency rebuild failed: %v", err)}
+	}
+	if job == nil {
+		return nil, nil
+	}
+	view := jobViewFrom(job)
+	raw, err := json.Marshal(map[string]any{
+		"job":          view,
+		"id":           job.ID,
+		"session_id":   job.SessionID,
+		"status":       job.Status.String(),
+		"rebuilt_from": "job_row",
+	})
+	if err != nil {
+		return nil, &idemRefusal{http.StatusInternalServerError, "idempotency rebuild could not seal the job receipt"}
+	}
+	ok, cerr := s.ledger.IdemComplete(sessionID, requestID, http.StatusCreated, "json", string(raw))
+	if cerr != nil || !ok {
+		return nil, &idemRefusal{http.StatusConflict, fmt.Sprintf("request_in_progress: request_id %q already admitted job %s but the receipt could not be sealed", requestID, job.ID)}
+	}
+	return &idemTicket{replay: true, statusCode: http.StatusCreated, kind: "json", receipt: string(raw)}, nil
+}
+
+// rebuildSlowReceipt seals a receipt from a loop or tribunal claim that
+// already committed under this request_id. No row returns (nil, nil): the
+// caller refuses instead of running the spend again.
+func (s *Server) rebuildSlowReceipt(sessionID, requestID string) (*idemTicket, *idemRefusal) {
+	if s.ledger == nil {
+		return nil, nil
+	}
+	if id, status, harness, err := s.ledger.LoopByRequest(sessionID, requestID); err == nil {
+		raw, merr := json.Marshal(map[string]any{
+			"rebuilt_from": "loop_row",
+			"id":           id,
+			"session_id":   sessionID,
+			"harness_id":   harness,
+			"status":       status,
+			"request_id":   requestID,
+		})
+		if merr != nil {
+			return nil, &idemRefusal{http.StatusInternalServerError, "idempotency rebuild could not seal the loop receipt"}
+		}
+		return s.sealRebuiltReceipt(sessionID, requestID, http.StatusCreated, string(raw), id)
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return nil, &idemRefusal{http.StatusInternalServerError, fmt.Sprintf("idempotency rebuild failed: %v", err)}
+	}
+	if id, verdict, err := s.ledger.ClaimByRequest(sessionID, requestID); err == nil {
+		raw, merr := json.Marshal(map[string]any{
+			"rebuilt_from":    "claim_row",
+			"claim_record_id": id,
+			"session_id":      sessionID,
+			"verdict":         verdict,
+			"request_id":      requestID,
+		})
+		if merr != nil {
+			return nil, &idemRefusal{http.StatusInternalServerError, "idempotency rebuild could not seal the claim receipt"}
+		}
+		return s.sealRebuiltReceipt(sessionID, requestID, http.StatusOK, string(raw), id)
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return nil, &idemRefusal{http.StatusInternalServerError, fmt.Sprintf("idempotency rebuild failed: %v", err)}
+	}
+	return nil, nil
+}
+
+func (s *Server) sealRebuiltReceipt(sessionID, requestID string, status int, raw, effectID string) (*idemTicket, *idemRefusal) {
+	ok, cerr := s.ledger.IdemComplete(sessionID, requestID, status, "json", raw)
+	if cerr != nil || !ok {
+		return nil, &idemRefusal{http.StatusConflict, fmt.Sprintf("request_in_progress: request_id %q already admitted %s but the receipt could not be sealed", requestID, effectID)}
+	}
+	return &idemTicket{replay: true, statusCode: status, kind: "json", receipt: raw}, nil
 }
 
 // idemAwait polls a running claim for completion. Returns a replay ticket on

@@ -26,7 +26,12 @@ type Definition struct {
 	Parameters map[string]any
 	Capability string
 	ReadOnly   bool
-	Handler    Handler
+	// AllowAfterUntrusted permits an effectful tool to run after the turn has
+	// already consumed untrusted output (B6). The default is FALSE: a future
+	// spend-capable tool must opt in explicitly, with a reviewed threat
+	// argument, instead of silently trusting injected text.
+	AllowAfterUntrusted bool
+	Handler             Handler
 }
 
 // Snapshot describes one registered tool for catalog generation
@@ -110,6 +115,14 @@ func (r *Registry) Register(d Definition) error {
 	}
 	r.defs[d.Name] = d
 	return nil
+}
+
+// Definition returns a registered tool's contract (ok=false when absent).
+func (r *Registry) Definition(name string) (Definition, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	def, ok := r.defs[name]
+	return def, ok
 }
 
 // Allow grants a role permission to call the named tools. Unknown tool

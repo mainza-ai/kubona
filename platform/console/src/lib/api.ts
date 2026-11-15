@@ -1,6 +1,6 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 import { contract, setContractDriftHandler, type ContractName } from './responseContract';
-import { setAuthPhase, setMultiLabAuthRequired } from '@/domain/auth-state';
+import { setAuthPhase, setMultiLabAuthRequired } from '@/lib/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
 import { OperationError, failedResult, type ApiFailure } from './api-errors';
 
@@ -119,7 +119,13 @@ let lastProblemAt = 0;
 function notifyApiProblem(input: RequestInfo | URL, status: number | null, message: string): void {
   const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : String(input.url || '');
   let path = raw;
-  try { path = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname; } catch { /* keep raw */ }
+  if (raw.startsWith('contract:')) {
+    // Contract drift is not a route: keep the schema marker so the status
+    // strip can render it as a contract chip instead of a bogus API path.
+    path = raw;
+  } else {
+    try { path = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname; } catch { /* keep raw */ }
+  }
   if (path === '/api/config' || path === '/api/health' || path === '/api/ready') return;
   const key = `${path}|${status ?? 'transport'}|${message.slice(0, 80)}`;
   const now = Date.now();
@@ -659,9 +665,20 @@ export interface StreamDone {
   usage?: Record<string, number>;
 }
 
+// StreamAcceptedError means the server already stored this prompt (it sent
+// `started`) and the stream then failed before `done`. A unary retry would
+// insert a second user row. The caller re-answers the stored turn instead.
+export class StreamAcceptedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StreamAcceptedError';
+  }
+}
+
 // Streaming twin of sendChatMessage: tokens arrive live via SSE
 // (token events), then a done event carries the stored records.
 // Throws on transport failure so the caller can fall back to unary.
+// A failure after `started` throws StreamAcceptedError.
 export async function streamChatMessage(
   sessionId: string,
   content: string,
@@ -680,6 +697,10 @@ export async function streamChatMessage(
   const decoder = new TextDecoder();
   let buf = '';
   let done: StreamDone | null = null;
+  let accepted = false;
+  const fail = (message: string): never => {
+    throw accepted ? new StreamAcceptedError(message) : new Error(message);
+  };
   let lastFrameAt = Date.now();
   const stallAfter = (ms: number): Promise<never> =>
     new Promise((_, reject) => {
@@ -716,17 +737,19 @@ export async function streamChatMessage(
         } catch {
           /* partial frame — next read completes it */
         }
+      } else if (event === 'started') {
+        accepted = true;
       } else if (event === 'done') {
         const d = JSON.parse(dataRaw) as StreamDone;
         if (d.assistant && d.model && !d.assistant.model) d.assistant.model = d.model;
         done = d;
       } else if (event === 'error') {
-        throw new Error((JSON.parse(dataRaw) as { error: string }).error || 'stream error');
+        fail((JSON.parse(dataRaw) as { error: string }).error || 'stream error');
       }
     }
     if (readerDone) break;
   }
-  if (!done) throw new Error('stream ended without done event');
+  if (!done) return fail('stream ended without done event');
   return contract('chat.stream.done', done);
 }
 
@@ -772,49 +795,213 @@ export async function resumeTribunal(
   }
 }
 
+/** B1: launch names a server-minted proposal; it never re-states the plan. */
+export interface ProposalRef {
+  proposalId: string;
+  digest: string;
+}
+
+export interface MintedProposal {
+  id: string;
+  session_id: string;
+  message_id?: string;
+  digest: string;
+  body: {
+    source: string;
+    target: string;
+    qasm: string;
+    backend: string;
+    shots: number;
+    seed: number;
+    max_cost_usd: number;
+    classical_anchor?: string;
+    spend_estimate?: string;
+    designed_by?: string;
+  };
+  basis_campaign_rev: number;
+  basis_calibration_digest?: string;
+  status: 'offered' | 'launched' | 'failed' | 'dismissed' | string;
+  launched_job_id?: string;
+  created_at: string;
+}
+
+export type MintProposalResult =
+  | { ok: true; proposal: MintedProposal }
+  | { ok: false; error: string; failure?: ApiFailure };
+
+export async function mintProposal(
+  sessionId: string,
+  source: 'campaign' | 'message',
+  options: { messageId?: string; downgrade?: 'simulator' } = {},
+): Promise<MintProposalResult> {
+  try {
+    const data = (await requestOperation('mintProposal', {
+      body: {
+        session_id: sessionId,
+        source,
+        ...(options.messageId ? { message_id: options.messageId } : {}),
+        ...(options.downgrade ? { downgrade: options.downgrade } : {}),
+      },
+    })) as unknown as { proposal: MintedProposal };
+    if (!data?.proposal?.id || !data.proposal.digest) {
+      return { ok: false, error: 'proposal mint returned no identity' };
+    }
+    return { ok: true, proposal: data.proposal };
+  } catch (err) {
+    return failedResult(err, '/api/proposals');
+  }
+}
+
+export async function dismissProposal(proposalId: string): Promise<{ ok: boolean; error?: string; status?: string }> {
+  try {
+    const data = (await requestOperation('dismissProposal', { params: { id: proposalId }, body: {} })) as unknown as {
+      status?: string;
+    };
+    return { ok: true, status: data.status };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
 export interface LaunchProposalOptions {
   mandateRef?: string;
+  /** C11: launch under a signed run allowance instead of a per-job mandate. */
+  runAllowanceId?: string;
   requestId?: string;
-  backend?: string;
-  budgetUsd?: number;
-  qasm?: string;
   grantChain?: string[];
   inputLabels?: string[];
   callerJurisdictions?: string[];
   callerExportClass?: string;
   exportReviewed?: boolean;
-  shots?: number;
-  seed?: number;
 }
+
+export type LaunchProposalResult =
+  | { job: Job; loop: Loop }
+  | { error: string }
+  | { outcome: 'unknown'; requestId?: string };
 
 export async function launchProposal(
   sessionId: string,
-  proposal: unknown,
+  ref: ProposalRef,
   options: LaunchProposalOptions = {},
-): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
+): Promise<LaunchProposalResult> {
   try {
     return (await requestOperation('launchProposal', {
       body: {
         session_id: sessionId,
-        proposal,
+        proposal_id: ref.proposalId,
+        digest: ref.digest,
         ...(options.mandateRef !== undefined ? { mandate_ref: options.mandateRef } : {}),
+        ...(options.runAllowanceId !== undefined ? { run_allowance_id: options.runAllowanceId } : {}),
         ...(options.requestId !== undefined ? { request_id: options.requestId } : {}),
-        ...(options.backend !== undefined ? { backend: options.backend } : {}),
-        ...(options.budgetUsd !== undefined ? { budget_usd: options.budgetUsd } : {}),
-        ...(options.qasm !== undefined ? { qasm: options.qasm } : {}),
         ...(options.grantChain !== undefined ? { grant_chain: options.grantChain } : {}),
         ...(options.inputLabels !== undefined ? { input_labels: options.inputLabels } : {}),
         ...(options.callerJurisdictions !== undefined ? { caller_jurisdictions: options.callerJurisdictions } : {}),
         ...(options.callerExportClass !== undefined ? { caller_export_class: options.callerExportClass } : {}),
         ...(options.exportReviewed !== undefined ? { export_reviewed: options.exportReviewed } : {}),
-        ...(options.shots !== undefined ? { shots: options.shots } : {}),
-        ...(options.seed !== undefined ? { seed: options.seed } : {}),
       },
     })) as unknown as { job: Job; loop: Loop };
   } catch (err) {
     if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to launch proposal:', err);
-    return null;
+    return { outcome: 'unknown', ...(options.requestId ? { requestId: options.requestId } : {}) };
+  }
+}
+
+export async function steerLoop(
+  loopId: string,
+  text: string,
+): Promise<{ ok: true; steer: import('@/types').LoopSteer } | { ok: false; error: string }> {
+  try {
+    const data = (await requestOperation('steerLoop', { params: { id: loopId }, body: { text } })) as unknown as {
+      steer: import('@/types').LoopSteer;
+    };
+    return { ok: true, steer: data.steer };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export interface RunAllowanceView {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  campaign_id?: string;
+  backend: string;
+  job_types: string[];
+  max_per_job_usd: number;
+  max_total_usd: number;
+  remaining_usd: number;
+  max_jobs: number;
+  jobs_used: number;
+  shots_cap: number;
+  status: 'active' | 'suspended' | 'exhausted' | 'expired' | 'revoked' | string;
+  suspended_reason?: string;
+  issued_at: string;
+  expires_at: string;
+  signer_pubkey_hex: string;
+  scope_digest: string;
+}
+
+export async function fetchRunAllowances(
+  sessionId: string,
+): Promise<{ ok: true; allowances: RunAllowanceView[] } | { ok: false; error: string }> {
+  try {
+    const data = (await requestOperation('fetchRunAllowances', { query: { session_id: sessionId } })) as unknown as {
+      allowances?: RunAllowanceView[];
+    };
+    return { ok: true, allowances: data.allowances ?? [] };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function mintRunAllowance(payload: {
+  session_id: string;
+  campaign_id?: string;
+  backend: string;
+  job_types?: string[];
+  max_per_job_usd: number;
+  max_total_usd: number;
+  max_jobs: number;
+  shots_cap: number;
+  expires_at: string;
+  nonce: string;
+  signer_pubkey_hex: string;
+  signature_hex: string;
+}): Promise<{ ok: true; allowance: RunAllowanceView } | { ok: false; error: string }> {
+  try {
+    const data = (await requestOperation('mintRunAllowance', { body: payload })) as unknown as {
+      allowance: RunAllowanceView;
+    };
+    return { ok: true, allowance: data.allowance };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function revokeRunAllowance(
+  id: string,
+  sessionId: string,
+  reason: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requestOperation('revokeRunAllowance', {
+      params: { id },
+      body: { session_id: sessionId, reason },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function fetchLoopParts(loopId: string): Promise<ApiResult<import('@/types').LoopPart[]>> {
+  try {
+    const data = await requestOperation('fetchLoopParts', { params: { id: loopId } });
+    return { ok: true, data: (data.parts || []) as import('@/types').LoopPart[] };
+  } catch (err) {
+    return failedResult(err, `/api/loops/${loopId}/parts`);
   }
 }
 
@@ -839,6 +1026,30 @@ export async function createTask(
       body: { session_id: sessionId, title, source_domain: sourceDomain, source_id: sourceId, ...(requestId ? { request_id: requestId } : {}) },
     })) as import('@/types').Task;
     return { ok: true, task };
+  } catch (err) {
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
+  }
+}
+
+/** C8: create a plan's tasks in one idempotent batch (order preserved). */
+export async function createTasksBatch(
+  sessionId: string,
+  tasks: Array<{ title: string; source_domain?: string; source_id?: string; order?: number }>,
+  requestId?: string,
+): Promise<{ ok: true; tasks: import('@/types').Task[] } | { ok: false; error: string; unknown: boolean }> {
+  try {
+    const data = (await requestOperation('createTasksBatch', {
+      body: {
+        session_id: sessionId,
+        tasks,
+        ...(requestId ? { request_id: requestId } : {}),
+      },
+    })) as unknown as { tasks?: import('@/types').Task[] };
+    return { ok: true, tasks: data.tasks ?? [] };
   } catch (err) {
     return {
       ok: false,
@@ -1320,6 +1531,68 @@ export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
   }
 }
 
+export interface SkillSummary {
+  name: string;
+  description: string;
+  role: string;
+  tools: string[];
+  source: 'seed' | 'user';
+}
+
+export interface SkillFault {
+  code: string;
+  skill: string;
+  detail: string;
+}
+
+export interface SkillsCatalog {
+  skills: SkillSummary[];
+  faults: SkillFault[];
+  limits: { max_skills: number; max_skill_bytes: number; max_description: number };
+}
+
+export async function fetchSkills(): Promise<SkillsCatalog | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/skills`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return contract('skills', (await res.json()) as Record<string, unknown>) as unknown as SkillsCatalog;
+  } catch (err) {
+    console.error('Failed to fetch skills:', err);
+    return null;
+  }
+}
+
+export interface LLMEvalStatus {
+  role: string;
+  provider: string;
+  model: string;
+  status: 'evaluated' | 'unevaluated' | 'stale';
+  evaluated: number;
+  total: number;
+  unscored: number;
+  evaluated_at: string | null;
+  fixtures_sha256: string;
+  brier: number | null;
+  ece: number | null;
+  labels: string[];
+}
+
+export async function fetchLLMEvalStatus(
+  role: string,
+  provider: string,
+  model: string,
+): Promise<LLMEvalStatus | null> {
+  try {
+    const qs = new URLSearchParams({ role, provider, model });
+    const res = await apiFetch(`${API_BASE}/api/evals/llm?${qs.toString()}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return contract('llm.eval.status', (await res.json()) as Record<string, unknown>) as unknown as LLMEvalStatus;
+  } catch (err) {
+    console.error('Failed to fetch eval status:', err);
+    return null;
+  }
+}
+
 export async function fetchFidelity(device: string, depth: number, twoQubitGates: number): Promise<Record<string, unknown> | null> {
   try {
     return (await requestOperation('fetchFidelity', {
@@ -1639,12 +1912,43 @@ export async function cancelQuantumJob(jobId: string, reason?: string): Promise<
 
 export async function saveLLMSettings(
   settings: Record<string, unknown>
-): Promise<{ ok: boolean; error?: string; unknown?: boolean }> {
+): Promise<{ ok: boolean; error?: string; unknown?: boolean; conflict?: boolean; evalGate?: boolean }> {
+  const body: Record<string, unknown> = { ...settings };
+  // The revision on a GET snapshot is the precondition. A 409 is a refusal:
+  // callers reload and re-apply; they do not resend the stale document.
+  if (body.expected_revision === undefined && typeof body.revision === 'number') {
+    body.expected_revision = body.revision;
+  }
   try {
-    await requestOperation('saveLLMSettings', { body: settings });
+    await requestOperation('saveLLMSettings', { body });
     return { ok: true };
   } catch (err) {
     console.error('Failed to save LLM settings:', err);
+    const message = String(err instanceof Error ? err.message : err);
+    const status = err instanceof OperationError ? err.status : null;
+    const evalGate = status === 409 && /unevaluated/i.test(message);
+    return {
+      ok: false,
+      evalGate,
+      conflict: status === 409 && !evalGate,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: message,
+    };
+  }
+}
+
+// setLLMAirGap writes only the air-gap flag. It does not send the rest of
+// the settings document, so it cannot clobber a provider, role, or model
+// that changed after the switch was drawn.
+export async function setLLMAirGap(
+  airGapped: boolean,
+): Promise<{ ok: boolean; error?: string; unknown?: boolean; changed?: boolean; settings?: Record<string, unknown> }> {
+  try {
+    const data = await requestOperation('setLLMAirGap', { body: { air_gapped: airGapped } });
+    const settings = data.settings && typeof data.settings === 'object' ? (data.settings as Record<string, unknown>) : undefined;
+    return { ok: true, changed: data.changed === true, settings };
+  } catch (err) {
+    console.error('Failed to set air-gap:', err);
     return {
       ok: false,
       unknown: !(err instanceof OperationError) || err.status === null,
@@ -2187,7 +2491,7 @@ export async function rewriteChat(
 // proto int32 enum (1/2/3/4…), not names. Map both numeric wire values and
 // DB/string forms (JOB_STATUS_COMPLETED) to canonical labels. Unknown
 // values pass through verbatim — never invented.
-export { isTerminalJobStatus, jobStatusLabel } from './job-status';
+export { isOutcomeUnknown, isTerminalJobStatus, jobStatusLabel } from './job-status';
 
 // Jobs: session-scoped run list for inline launch tracking.
 export async function fetchJobsResult(sessionId: string): Promise<ApiResult<Job[]>> {
@@ -2688,6 +2992,14 @@ export interface ObligationRow {
   disposition: string;
   required_cases: string[];
   required_authorities: string[];
+  /** Blocking unknown ids, kept for older readers. */
+  unknowns?: string[];
+  /** Blocking unknowns with their verbatim descriptions (the reason a row is stuck). */
+  unknowns_detail?: Array<{ id: string; description: string }>;
+  /** ISO timestamp, or null when the row carries no readable clock. */
+  created_at?: string | null;
+  /** ISO timestamp, or null when the row carries no readable clock. */
+  updated_at?: string | null;
   close_ready: boolean;
   close_reasons: string[];
 }

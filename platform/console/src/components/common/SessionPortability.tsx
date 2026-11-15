@@ -118,15 +118,15 @@ export function SessionPortability({
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Session portability">
-      <div className="text-xs font-semibold text-[var(--color-text)]">Session portability · export / import</div>
+    <div className="rounded-card border border-border-strong bg-surface p-4 space-y-2" aria-label="Session portability">
+      <div className="text-label font-semibold text-text">Session portability · export / import</div>
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         <button
           type="button"
           disabled={busy !== null || !sessionId}
           onClick={() => void doExportSession()}
           aria-label="Export session manifest"
-          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] disabled:opacity-40"
+          className="px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-text disabled:opacity-40"
         >
           Export session
         </button>
@@ -135,7 +135,7 @@ export function SessionPortability({
           disabled={busy !== null || !sessionId}
           onClick={() => void doExportLedger('json')}
           aria-label="Export ledger as JSON"
-          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] disabled:opacity-40"
+          className="px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-text disabled:opacity-40"
         >
           Ledger JSON
         </button>
@@ -144,7 +144,7 @@ export function SessionPortability({
           disabled={busy !== null || !sessionId}
           onClick={() => void doExportLedger('markdown')}
           aria-label="Export ledger as Markdown"
-          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] disabled:opacity-40"
+          className="px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-text disabled:opacity-40"
         >
           Ledger Markdown
         </button>
@@ -153,7 +153,7 @@ export function SessionPortability({
           disabled={busy !== null}
           onClick={() => fileRef.current?.click()}
           aria-label="Import session manifest"
-          className="px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-text)] disabled:opacity-40"
+          className="px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-text disabled:opacity-40"
         >
           Import session
         </button>
@@ -172,7 +172,7 @@ export function SessionPortability({
       </div>
       {notice && (
         <p
-          className={notice.tone === 'ok' ? 'text-[12px] text-[var(--color-success-ink)]' : 'text-[12px] text-[var(--color-warning-ink)]'}
+          className={notice.tone === 'ok' ? 'text-[12px] text-success-ink' : 'text-[12px] text-warning-ink'}
           role="alert"
         >
           {notice.text}

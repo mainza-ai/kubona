@@ -94,7 +94,7 @@ func buildOpenAIResponsesPayload(wr wireRequest, stream bool) ([]byte, error) {
 	if wr.PromptCacheKey != "" {
 		payload["prompt_cache_key"] = wr.PromptCacheKey
 	}
-	if effort := strings.ToLower(strings.TrimSpace(wr.ReasoningEffort)); effort == "low" || effort == "medium" || effort == "high" {
+	if effort := normalizeReasoningEffort(wr.Provider, wr.Model, wr.ReasoningEffort); effort != "" {
 		payload["reasoning"] = map[string]any{"effort": effort}
 	} else {
 		if wr.Temperature != nil {

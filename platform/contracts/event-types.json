@@ -1280,6 +1280,127 @@
         "error",
         "spent_usd"
       ]
+    },
+    "job_interrupted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Host-only job interrupted by a dead owner. Reservation released.",
+      "required": [
+        "job_id"
+      ]
+    },
+    "job_outcome_resolved": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Signed resolution of an outcome-unknown job. Evidence class is the outcome.",
+      "required": [
+        "job_id",
+        "outcome"
+      ]
+    },
+    "job_outcome_unknown": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Vendor-reachable job whose result cannot be confirmed. Reservation kept.",
+      "required": [
+        "job_id"
+      ]
+    },
+    "late_result_quarantined": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Bridge result for a job attempt that is no longer current. Not settled.",
+      "required": [
+        "job_id"
+      ]
+    },
+    "loop_part": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "One recorded run part: a supervisor step, a dispatched quantum job, or a lifecycle transition.",
+      "required": [
+        "loop_id",
+        "part_id",
+        "helper",
+        "title",
+        "state"
+      ]
+    },
+    "loop_steered": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A queued operator steer was applied at a loop step boundary.",
+      "required": [
+        "loop_id",
+        "steer_id"
+      ]
+    },
+    "memory_retracted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A memory row was tombstoned: content cleared, embedding removed, audited.",
+      "required": [
+        "memory_id"
+      ]
+    },
+    "run_allowance_drawn": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "One job consumed a run allowance draw.",
+      "required": [
+        "allowance_id",
+        "job_id",
+        "amount_usd"
+      ]
+    },
+    "run_allowance_minted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Signed run-scoped allowance minted.",
+      "required": [
+        "allowance_id",
+        "backend",
+        "expires_at",
+        "signer"
+      ]
+    },
+    "run_allowance_revoked": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Run allowance revoked by the operator.",
+      "required": [
+        "allowance_id",
+        "reason"
+      ]
+    },
+    "run_allowance_suspended": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Run allowance suspended by a fail-closed trigger.",
+      "required": [
+        "allowance_id",
+        "reason"
+      ]
+    },
+    "tool_taint_refused": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Effectful tool dispatch refused because the turn had already consumed untrusted tool output (B6 default: no effect after untrusted data without an explicit opt-in).",
+      "required": [
+        "tool"
+      ]
     }
   },
   "version": 1

@@ -143,6 +143,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "grants" {
 		os.Exit(runGrants(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "eval-llm" {
+		os.Exit(runEvalLLM(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "verify" {
 		os.Exit(runVerify(os.Args[2:]))
 	}
@@ -366,6 +369,11 @@ func main() {
 	// Compile gate: every circuit_run is analyzed pre-dispatch and the
 	// provenance (compiler + fallback flag) persists on the job row.
 	jobRunner.SetCompiler(qir.NewCompiler())
+	if rec, rerr := jobRunner.ReconcileJobsOnBoot(); rerr != nil {
+		log.Fatalf("Job reconcile refused: %v", rerr)
+	} else if rec.Requeued+rec.Interrupted+rec.Unknown > 0 {
+		slog.Info("[Kubona Core] reconciled jobs", "epoch", rec.Epoch, "requeued", rec.Requeued, "interrupted", rec.Interrupted, "outcome_unknown", rec.Unknown)
+	}
 	jobRunner.Start()
 	defer jobRunner.Stop()
 

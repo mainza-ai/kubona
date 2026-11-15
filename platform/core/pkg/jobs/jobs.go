@@ -46,6 +46,17 @@ var knownJobTypes = map[string]bool{
 	"hardware_experiment": true, "hardware_pes": true, "qaoa_hardware": true, "spin_chain_hardware": true,
 }
 
+// VendorReachableJobTypes is the single list of job types whose dispatch
+// may already be on a vendor when the RPC returns an error. Host-only
+// types are everything else. Do not grow a second copy of this set.
+var VendorReachableJobTypes = map[string]bool{
+	"circuit_run":         true,
+	"hardware_experiment": true,
+	"hardware_pes":        true,
+	"qaoa_hardware":       true,
+	"spin_chain_hardware": true,
+}
+
 // W0.1 — CAS-guard live set, bound once from the single source
 // (session.LiveJobStatuses). The clause fragment and its bind args stay
 // adjacent so they cannot rot apart.
@@ -80,6 +91,18 @@ type Job struct {
 	// entry_hash of the mandate_verified event; "" for unmandated local
 	// work). The settle hook closes the mandate's obligation from this.
 	MandateRef string `json:"mandate_ref,omitempty"`
+	// Runtime identity. owner_epoch is the daemon generation that admitted
+	// the row. request_id is the caller idempotency key (empty when the
+	// caller did not send one). vendor_ref is the pinned vendor job id.
+	OwnerEpoch   int64      `json:"owner_epoch,omitempty"`
+	AttemptID    string     `json:"attempt_id,omitempty"`
+	DispatchedAt *time.Time `json:"dispatched_at,omitempty"`
+	VendorRef    string     `json:"vendor_ref,omitempty"`
+	RequestID    string     `json:"request_id,omitempty"`
+	// C11: run-scoped allowance authority (empty for per-job mandate runs).
+	RunAllowanceID string `json:"run_allowance_id,omitempty"`
+	// AllowanceRemainingMicroUSD is the post-draw remainder (transient audit).
+	AllowanceRemainingMicroUSD int64 `json:"-"`
 }
 
 type Runner struct {
@@ -91,6 +114,7 @@ type Runner struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	started      bool
+	ownerEpoch   int64
 	// aborted marks job IDs a supervisor abort settled as failed. Workers
 	// consult it at execution entry and after bridge calls so an abort that
 	// lands mid-flight still wins over a late completion.
@@ -271,7 +295,13 @@ func (r *Runner) tenantStore() *tenants.Manager {
 }
 
 func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) {
-	return r.submitJob(sessionID, jobType, params, 0)
+	return r.submitJob(sessionID, jobType, params, 0, "")
+}
+
+// SubmitJobWithRequest is SubmitJob with the caller idempotency key written
+// in the same transaction as the reservation and the job row.
+func (r *Runner) SubmitJobWithRequest(sessionID, jobType string, params any, requestID string) (*Job, error) {
+	return r.submitJob(sessionID, jobType, params, 0, requestID)
 }
 
 // SubmitJobWithDeclaredCost submits a job whose params schema carries no
@@ -282,7 +312,7 @@ func (r *Runner) SubmitJobWithDeclaredCost(sessionID, jobType string, params any
 	if jobType == "circuit_run" && maxCostUSD > 0 {
 		return nil, fmt.Errorf("circuit_run carries cost in params: declared cost refused (one cost source)")
 	}
-	return r.submitJob(sessionID, jobType, params, maxCostUSD)
+	return r.submitJob(sessionID, jobType, params, maxCostUSD, "")
 }
 
 // mandateRefOf extracts the spend-mandate receipt reference from submit
@@ -299,7 +329,7 @@ func mandateRefOf(data []byte) string {
 	return p.MandateRef
 }
 
-func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost float64) (*Job, error) {
+func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost float64, requestID string) (*Job, error) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
@@ -379,6 +409,8 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		CompilerUsed:     compilerUsed,
 		FallbackEstimate: fallbackEstimate,
 		MandateRef:       mandateRefOf(data),
+		RunAllowanceID:   allowanceRefOf(data),
+		RequestID:        requestID,
 	}
 
 	// money.FromUSD rejects NaN/Inf/out-of-range before anything moves.
@@ -386,6 +418,13 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		return nil, fmt.Errorf("reservation amount: %w", merr)
 	}
 	if err := r.reserveAndInsertJobTx(j); err != nil {
+		if requestID != "" && strings.Contains(err.Error(), "UNIQUE constraint failed") && strings.Contains(err.Error(), "request_id") {
+			existing, gerr := r.JobByRequest(sessionID, requestID)
+			if gerr != nil {
+				return nil, gerr
+			}
+			return existing, nil
+		}
 		return nil, err
 	}
 
@@ -456,8 +495,21 @@ func (r *Runner) reserveAndInsertJobTx(j *Job) error {
 	if j.FallbackEstimate {
 		fallbackInt = 1
 	}
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, err := tx.Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef); err != nil {
+	if j.AttemptID == "" {
+		j.AttemptID = uuid.NewString()
+	}
+	// C11: consume one allowance draw inside this transaction. A refused draw
+	// (status/expiry/cap change since planning) rolls back the reservation too.
+	if j.RunAllowanceID != "" {
+		remaining, derr := r.ledger.DrawRunAllowanceTx(tx, j.RunAllowanceID, j.ID, j.RequestID, int64(resMicro))
+		if derr != nil {
+			return fmt.Errorf("run allowance draw refused: %w", derr)
+		}
+		j.AllowanceRemainingMicroUSD = remaining
+	}
+	j.OwnerEpoch = r.ownerEpoch
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref, owner_epoch, attempt_id, request_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := tx.Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef, j.OwnerEpoch, j.AttemptID, j.RequestID); err != nil {
 		return fmt.Errorf("failed to save job to db: %w", err)
 	}
 	if testCrashBeforeCommit {
@@ -475,6 +527,13 @@ func (r *Runner) reserveAndInsertJobTx(j *Job) error {
 			"tenant_id": j.ReservedTenant, "amount_usd": j.ReservedAmount})
 		r.appendMoneyEvent(j.SessionID, "session_spend_reserved", map[string]any{
 			"session_id": j.SessionID, "amount_usd": j.ReservedAmount})
+	}
+	if j.RunAllowanceID != "" {
+		r.appendMoneyEvent(j.SessionID, "run_allowance_drawn", map[string]any{
+			"allowance_id": j.RunAllowanceID, "job_id": j.ID,
+			"amount_usd":    j.ReservedAmount,
+			"remaining_usd": float64(j.AllowanceRemainingMicroUSD) / 1e6,
+		})
 	}
 	r.appendMoneyEvent(j.SessionID, "job_queued", j)
 	return nil
@@ -616,6 +675,9 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 	if err != nil || j == nil {
 		return
 	}
+	if r.quarantineLateResult(j, bridgeStatus, resultJSON) {
+		return
+	}
 	switch strings.ToLower(strings.TrimSpace(bridgeStatus)) {
 	case "running":
 		_, _ = r.ledger.DB().Exec(
@@ -625,8 +687,8 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 	case "completed":
 		now := time.Now().UTC()
 		res, err := r.ledger.DB().Exec(
-			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
-			append([]any{pb.JobStatus_JOB_STATUS_COMPLETED.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND (status `+liveStatusClause+` OR status = ?)`,
+			append([]any{pb.JobStatus_JOB_STATUS_COMPLETED.String(), resultJSON, now, jobID}, append(append([]any{}, liveStatusArgs...), pb.JobStatus_JOB_STATUS_OUTCOME_UNKNOWN.String())...)...,
 		)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
@@ -662,8 +724,8 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 			terminal = pb.JobStatus_JOB_STATUS_CANCELLED
 		}
 		res, err := r.ledger.DB().Exec(
-			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
-			append([]any{terminal.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND (status `+liveStatusClause+` OR status = ?)`,
+			append([]any{terminal.String(), resultJSON, now, jobID}, append(append([]any{}, liveStatusArgs...), pb.JobStatus_JOB_STATUS_OUTCOME_UNKNOWN.String())...)...,
 		)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
@@ -863,9 +925,18 @@ func (r *Runner) executeJob(j *Job) {
 		return
 	}
 
-	// Update status to running
+	// Claim the row before any vendor call. A second worker, or a boot
+	// reconcile that already classified this id, must not dispatch again.
+	claimed, err := r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ? WHERE id = ? AND status = ?`,
+		pb.JobStatus_JOB_STATUS_RUNNING.String(), j.ID, pb.JobStatus_JOB_STATUS_QUEUED.String())
+	if err != nil {
+		return
+	}
+	if n, _ := claimed.RowsAffected(); n != 1 {
+		return
+	}
 	j.Status = pb.JobStatus_JOB_STATUS_RUNNING
-	r.ledger.DB().Exec(`UPDATE jobs SET status = ? WHERE id = ?`, j.Status.String(), j.ID)
 	r.ledger.AppendEvent(j.SessionID, "job_started", j)
 
 	var resultData []byte
@@ -883,6 +954,7 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			req.JobId = j.ID
 			req.SessionId = j.SessionID
+			r.markDispatched(j)
 			resp, err := r.bridgeClient.ExecuteCircuit(r.ctx, &req)
 			if err != nil {
 				execErr = err
@@ -1028,11 +1100,12 @@ func (r *Runner) executeJob(j *Job) {
 			// worker owns the ledger job, budget, and settlement. The params
 			// object is the versioned experiment spec.
 			if r.bridgeClient == nil {
-				execErr = fmt.Errorf("bridge unavailable: refusing %s without a compute plane", j.JobType)
+				execErr = fmt.Errorf("%w: refusing %s without a compute plane", ErrBridgeUnavailable, j.JobType)
 				break
 			}
+			r.markDispatched(j)
 			resp, err := r.bridgeClient.RunExperiment(r.ctx, &pb.ExperimentRequest{
-				SpecJson:  string(j.ParamsJSON),
+				SpecJson:  string(experimentSpecForBridge(j)),
 				SessionId: j.SessionID,
 			})
 			if err != nil {
@@ -1056,10 +1129,16 @@ func (r *Runner) executeJob(j *Job) {
 		}
 	}
 
+	if len(resultData) > 0 {
+		r.pinVendorRef(j.ID, resultData)
+	}
 	now := time.Now().UTC()
 	j.CompletedAt = &now
 	if execErr != nil {
-		r.failJob(j, execErr.Error())
+		if r.sealOutcomeUnknown(j, execErr) {
+			return
+		}
+		r.failJobWithNeed(j, execErr.Error(), needForJob(j, execErr))
 		return
 	}
 	if err := validateExperimentResultVersion(j.JobType, resultData); err != nil {
@@ -1278,10 +1357,24 @@ func (r *Runner) settleReservation(j *Job, actualUSD float64) {
 // release (the vendor never ran); a result that reports measured usage
 // settles reserved→actual even on this path.
 func (r *Runner) failJob(j *Job, reason string) {
+	r.failJobWithNeed(j, reason, nil)
+}
+
+// failJobWithNeed fails a job and persists the typed need beside the error
+// text (C2). A nil need means the cause is not classifiable from structured
+// evidence — the error still lands, no remedy is invented.
+func (r *Runner) failJobWithNeed(j *Job, reason string, need *Need) {
 	now := time.Now().UTC()
 	j.CompletedAt = &now
 	j.Status = pb.JobStatus_JOB_STATUS_FAILED
-	errRes, _ := json.Marshal(map[string]string{"error": reason})
+	payload := map[string]any{"error": reason}
+	if need != nil && need.Valid() {
+		if need.Reason == "" {
+			need.Reason = reason
+		}
+		payload["need"] = need
+	}
+	errRes, _ := json.Marshal(payload)
 	j.ResultJSON = errRes
 	r.ledger.DB().Exec(
 		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
@@ -1459,21 +1552,37 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 	return true, nil
 }
 
-func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
-	row := r.ledger.DB().QueryRow(query, id)
+// JobByRequest returns the job admitted under a caller idempotency key.
+// A missing key is (nil, nil), not an error.
+func (r *Runner) JobByRequest(sessionID, requestID string) (*Job, error) {
+	if sessionID == "" || requestID == "" {
+		return nil, nil
+	}
+	var id string
+	err := r.ledger.DB().QueryRow(
+		`SELECT id FROM jobs WHERE session_id = ? AND request_id = ?`, sessionID, requestID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r.GetJob(id)
+}
 
+const jobIdentityColumns = `id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref, owner_epoch, attempt_id, dispatched_at, vendor_ref, request_id`
+
+func scanJob(sc interface{ Scan(...any) error }) (*Job, error) {
 	var j Job
 	var statusStr, paramsStr string
 	var resultStr sql.NullString
-	var compAt sql.NullTime
+	var compAt, dispatchedAt sql.NullTime
 	var resTenant sql.NullString
 	var resAmount sql.NullInt64
 	var compilerUsed sql.NullString
 	var fallbackInt sql.NullInt64
 	var mandateRef sql.NullString
-
-	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &resTenant, &resAmount, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
+	if err := sc.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &resTenant, &resAmount, &compilerUsed, &fallbackInt, &mandateRef, &j.OwnerEpoch, &j.AttemptID, &dispatchedAt, &j.VendorRef, &j.RequestID); err != nil {
 		return nil, err
 	}
 	j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -1485,13 +1594,15 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		t := compAt.Time
 		j.CompletedAt = &t
 	}
+	if dispatchedAt.Valid {
+		t := dispatchedAt.Time
+		j.DispatchedAt = &t
+	}
 	if resTenant.Valid {
 		j.ReservedTenant = resTenant.String
 	}
 	if resAmount.Valid {
-		if resAmount.Valid {
-			j.ReservedAmount = money.MicroUSD(resAmount.Int64).USD()
-		}
+		j.ReservedAmount = money.MicroUSD(resAmount.Int64).USD()
 	}
 	if compilerUsed.Valid {
 		j.CompilerUsed = compilerUsed.String
@@ -1501,6 +1612,11 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		j.MandateRef = mandateRef.String
 	}
 	return &j, nil
+}
+
+func (r *Runner) GetJob(id string) (*Job, error) {
+	row := r.ledger.DB().QueryRow(`SELECT `+jobIdentityColumns+` FROM jobs WHERE id = ?`, id)
+	return scanJob(row)
 }
 
 // ActiveJobCount returns the local Go book's queued/running count. It is a
@@ -1533,12 +1649,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	var err error
 	if sessionID != "" {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+			`SELECT `+jobIdentityColumns+` FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
 			sessionID, limit,
 		)
 	} else {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
+			`SELECT `+jobIdentityColumns+` FROM jobs ORDER BY created_at DESC LIMIT ?`,
 			limit,
 		)
 	}
@@ -1549,43 +1665,11 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 
 	var jobsList []*Job
 	for rows.Next() {
-		var j Job
-		var statusStr, paramsStr string
-		var resultStr sql.NullString
-		var compAt sql.NullTime
-		var resTenant sql.NullString
-		var resAmount sql.NullInt64
-		var compilerUsed sql.NullString
-		var fallbackInt sql.NullInt64
-		var mandateRef sql.NullString
-		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &resTenant, &resAmount, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
+		j, err := scanJob(rows)
+		if err != nil {
 			return nil, err
 		}
-		j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
-		j.ParamsJSON = json.RawMessage(paramsStr)
-		if resultStr.Valid {
-			j.ResultJSON = json.RawMessage(resultStr.String)
-		}
-		if compAt.Valid {
-			t := compAt.Time
-			j.CompletedAt = &t
-		}
-		if resTenant.Valid {
-			j.ReservedTenant = resTenant.String
-		}
-		if resAmount.Valid {
-			if resAmount.Valid {
-				j.ReservedAmount = money.MicroUSD(resAmount.Int64).USD()
-			}
-		}
-		if compilerUsed.Valid {
-			j.CompilerUsed = compilerUsed.String
-		}
-		j.FallbackEstimate = fallbackInt.Valid && fallbackInt.Int64 != 0
-		if mandateRef.Valid {
-			j.MandateRef = mandateRef.String
-		}
-		jobsList = append(jobsList, &j)
+		jobsList = append(jobsList, j)
 	}
 	return jobsList, nil
 }

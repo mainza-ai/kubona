@@ -235,6 +235,12 @@ flowchart TB
   generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
+- Counts at `2026-11-14` (`docs/repo-counts.md`): **151** HTTP routes,
+  **41** Go packages (**1007** Go test funcs), **185** Python test files,
+  **150** console test files (**797** test cases), **32** Rust tests, **6**
+  MCP servers (**38** tools), **158** wiki pages; console contracts **158
+  modeled / 14 client-only / 0 unmodeled** (`136` schemas, `143` OpenAPI
+  paths); token-lint raw-palette debt **1** baseline occurrence.
 - Counts at `2026-11-11` (`docs/repo-counts.md`): **141** HTTP routes,
   **37** Go packages (**868** Go test funcs), **183** Python test files,
   **127** console test files (**667** test cases), **32** Rust tests, **6**

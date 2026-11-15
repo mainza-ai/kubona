@@ -47,6 +47,16 @@ export type ChartSpec = {
   values?: false;
 };
 
+export type ChartHover = {
+  label: string;
+  series: string;
+  value: string;
+  evidence?: string;
+  sources?: ChartPoint['evidence'];
+  px: number;
+  py: number;
+};
+
 const CHART_COLORS = 8;
 
 export function seriesColor(index: number): string {
@@ -180,6 +190,20 @@ export function ticks(low: number, high: number, count = 4): number[] {
   const out: number[] = [];
   for (let value = start; value <= end + step * 0.5; value += step) out.push(Number(value.toFixed(12)));
   return out;
+}
+
+/**
+ * D5: a chart with no measured values must refuse, not draw empty axes.
+ * A gap (null) is not a value; a range point counts when either bound exists.
+ */
+export function hasChartValues(spec: ChartSpec): boolean {
+  for (const series of spec.series) {
+    for (const point of series.points) {
+      if (point.y != null && Number.isFinite(point.y)) return true;
+      if (point.y2 != null && Number.isFinite(point.y2)) return true;
+    }
+  }
+  return false;
 }
 
 export function chartSummary(spec: ChartSpec): string {

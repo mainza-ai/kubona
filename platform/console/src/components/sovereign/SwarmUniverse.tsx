@@ -38,34 +38,34 @@ function HoverCard({
 }) {
   const border =
     accent === 'amber'
-      ? 'border-[var(--color-warning-edge)]'
+      ? 'border-warning-edge'
       : accent === 'emerald'
-        ? 'border-[var(--color-success-edge)]'
+        ? 'border-success-edge'
         : accent === 'cyan'
-          ? 'border-[var(--color-info-edge)]'
-          : 'border-[var(--color-danger-edge)]';
+          ? 'border-info-edge'
+          : 'border-danger-edge';
   const text =
     accent === 'amber'
-      ? 'text-[var(--color-warning-ink)]'
+      ? 'text-warning-ink'
       : accent === 'emerald'
-        ? 'text-[var(--color-success-ink)]'
+        ? 'text-success-ink'
         : accent === 'cyan'
-          ? 'text-[var(--color-info-ink)]'
-          : 'text-[var(--color-danger-ink)]';
+          ? 'text-info-ink'
+          : 'text-danger-ink';
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-12 left-0 w-64 p-3 rounded-xl bg-[var(--color-surface-elev)] border ${border} shadow-[var(--shadow-float)] transition-all duration-200 z-50 ${
+      className={`absolute top-12 left-0 w-64 p-3 rounded-row bg-surface-elev border ${border} shadow-[var(--shadow-float)] transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-200 z-50 ${
         forceOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
       }`}
     >
       <div className={`text-[12px] uppercase font-code ${text} tracking-wider`}>{title}</div>
-      <p className="text-xs text-[var(--color-label-secondary)] mt-1 leading-snug">{body}</p>
-      <div className="mt-2 pt-2 border-t border-[var(--color-border)] space-y-1">
+      <p className="text-label text-label-secondary mt-1 leading-snug">{body}</p>
+      <div className="mt-2 pt-2 border-t border-border space-y-1">
         {rows.map(([k, v, vc]) => (
-          <div key={k} className="flex justify-between text-[12px] font-code text-[var(--color-muted)]">
+          <div key={k} className="flex justify-between text-[12px] font-code text-muted">
             <span>{k}</span>
-            <span className={vc || 'text-[var(--color-text)]'}>{v}</span>
+            <span className={vc || 'text-text'}>{v}</span>
           </div>
         ))}
       </div>
@@ -125,10 +125,10 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
     >
       {/* Coordinate rings + radar sweep (parked at rest) */}
       <div key={recenterSignal} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className={`absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-full border border-[var(--color-info-edge)] opacity-50 ${atRest ? '' : 'animate-orbit-slow'}`} />
-        <div className={`absolute w-[520px] h-[520px] max-w-[75vw] max-h-[75vw] rounded-full border border-dashed border-[var(--color-border)] ${atRest ? '' : 'animate-orbit-reverse'}`} />
-        <div className="absolute w-[340px] h-[340px] max-w-[55vw] max-h-[55vw] rounded-full border border-[var(--color-warning-edge)] opacity-50" />
-        {!atRest && <div className="absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-full animate-sweep" />}
+        <div className={`absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-capsule border border-info-edge opacity-50 ${atRest ? '' : 'animate-orbit-slow'}`} />
+        <div className={`absolute w-[520px] h-[520px] max-w-[75vw] max-h-[75vw] rounded-capsule border border-dashed border-border ${atRest ? '' : 'animate-orbit-reverse'}`} />
+        <div className="absolute w-[340px] h-[340px] max-w-[55vw] max-h-[55vw] rounded-capsule border border-warning-edge opacity-50" />
+        {!atRest && <div className="absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-capsule animate-sweep" />}
       </div>
 
       {/* Resonance beams */}
@@ -159,29 +159,29 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
 
       {/* Central target singularity (display-only: numbers already visible) */}
       <div className="relative z-10 flex flex-col items-center">
-        <div className={`w-36 h-36 rounded-full bg-gradient-to-tr from-[color-mix(in_srgb,var(--color-info)_20%,transparent)] via-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] to-transparent border border-[color-mix(in_srgb,var(--color-info)_35%,transparent)] flex items-center justify-center ${atRest ? '' : 'animate-orb'}`}>
-          <div className="w-24 h-24 rounded-full bg-[var(--color-raised)] border border-[color-mix(in_srgb,var(--color-info)_60%,transparent)] flex items-center justify-center shadow-[var(--shadow-float)] relative">
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" className="text-[var(--color-info)]">
+        <div className={`w-36 h-36 rounded-capsule bg-gradient-to-tr from-[color-mix(in_srgb,var(--color-info)_20%,transparent)] via-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] to-transparent border border-[color-mix(in_srgb,var(--color-info)_35%,transparent)] flex items-center justify-center ${atRest ? '' : 'animate-orb'}`}>
+          <div className="w-24 h-24 rounded-capsule bg-raised border border-[color-mix(in_srgb,var(--color-info)_60%,transparent)] flex items-center justify-center shadow-[var(--shadow-float)] relative">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" className="text-info">
               <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
               <circle cx="12" cy="12" r="2" fill="var(--color-warning)" />
             </svg>
-            {!atRest && <div className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-[var(--color-warning)] animate-ping" />}
+            {!atRest && <div className="absolute -top-1 right-2 w-2 h-2 rounded-capsule bg-warning animate-ping" />}
           </div>
         </div>
         <div className="mt-3 flex flex-col items-center">
           <div className="flex items-center gap-1.5">
-            <div className="px-2.5 py-0.5 rounded-full bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[12px] font-code text-[var(--color-info-ink)] tracking-wider max-w-[220px] truncate">
+            <div className="px-2.5 py-0.5 rounded-capsule bg-info-wash border border-info-edge text-[12px] font-code text-info-ink tracking-wider max-w-[220px] truncate">
               {targetLabel}
             </div>
             {hasCampaign && <ProvenanceBadge kind={anchor?.anchor_computed === true ? 'measured' : 'proposed'} detail={anchor?.anchor_computed === true ? 'Computed anchor and campaign state.' : 'Campaign proposal; no measured anchor yet.'} />}
           </div>
-          <div data-testid="universe-energy" className="font-code text-sm text-[var(--color-text)] font-semibold mt-1">
-            {energyText} <span className="text-xs font-normal text-[var(--color-muted)]">Hartree</span>
+          <div data-testid="universe-energy" className="font-code text-body-strong text-text font-semibold mt-1">
+            {energyText} <span className="text-label font-normal text-muted">Hartree</span>
           </div>
           {atRest && (
-            <div data-testid="universe-rest-note" className="font-code text-[12px] text-[var(--color-faint)] mt-1">
+            <div data-testid="universe-rest-note" className="font-code text-[12px] text-faint mt-1">
               idle · at rest
             </div>
           )}
@@ -191,16 +191,16 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe α · Theorist */}
       <button data-testid="probe-theorist" data-active={activeProbe === 'theorist' ? 'true' : undefined} style={{ animationDelay: '0s' }} onClick={() => toggleCard('theorist')} aria-expanded={openCard === 'theorist'} aria-label="Theorist probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[32%] left-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'theorist' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-warning-edge)] flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-[var(--color-warning)]">
-            <Brain className="w-[18px] h-[18px] text-[var(--color-warning-ink)]" />
+          <div className="w-9 h-9 rounded-row bg-surface-elev border border-warning-edge flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-warning">
+            <Brain className="w-[18px] h-[18px] text-warning-ink" />
           </div>
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-lg px-2.5 py-1 flex flex-col shadow-[var(--shadow-card)]">
+          <div className="bg-surface border border-border-strong rounded-control-compact px-2.5 py-1 flex flex-col shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)]" />
-              <span className="text-[12px] font-bold text-[var(--color-text)] tracking-wide">Theorist</span>
-              <span className="text-[12px] font-code text-[var(--color-warning-ink)] ml-1">ORBITING</span>
+              <span className="w-1.5 h-1.5 rounded-capsule bg-warning" />
+              <span className="text-[12px] font-bold text-text tracking-wide">Theorist</span>
+              <span className="text-[12px] font-code text-warning-ink ml-1">ORBITING</span>
             </div>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">
+            <div className="text-[12px] font-code text-muted">
               {qf ? `${qf.active_electrons}e/${qf.active_orbitals}o · ${qf.ansatz_family}` : 'ansatz uncharted'}
             </div>
           </div>
@@ -210,9 +210,9 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           title="Live Agent Telemetry"
           body={qf ? `Exploring ${targetLabel} under ${qf.ansatz_family} (${qf.fermion_mapping}).` : 'Awaiting campaign state.'}
           rows={[
-            ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-[var(--color-text)]'],
-            ['Entanglement Q', meyerWallach != null ? meyerWallach.toFixed(3) : '—', 'text-[var(--color-text)]'],
-            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-warning-ink)]') : 'text-[var(--color-text)]'],
+            ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-text'],
+            ['Entanglement Q', meyerWallach != null ? meyerWallach.toFixed(3) : '—', 'text-text'],
+            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-success-ink' : 'text-warning-ink') : 'text-text'],
           ]}
           forceOpen={openCard === 'theorist'}
         />
@@ -221,20 +221,20 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe β · Formalist */}
       <button data-testid="probe-formalist" data-active={activeProbe === 'formalist' ? 'true' : undefined} style={{ animationDelay: '0.9s' }} onClick={() => toggleCard('formalist')} aria-expanded={openCard === 'formalist'} aria-label="Formalist probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'formalist' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-lg px-2.5 py-1 flex flex-col text-right shadow-[var(--shadow-card)]">
+          <div className="bg-surface border border-border-strong rounded-control-compact px-2.5 py-1 flex flex-col text-right shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-[12px] font-code text-[var(--color-success-ink)]">
+              <span className="text-[12px] font-code text-success-ink">
                 {pCorr != null ? `ρ ${pCorr.toFixed(3)}` : 'ρ —'}
               </span>
-              <span className="text-[12px] font-bold text-[var(--color-text)] tracking-wide">Formalist</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
+              <span className="text-[12px] font-bold text-text tracking-wide">Formalist</span>
+              <span className="w-1.5 h-1.5 rounded-capsule bg-success" />
             </div>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">
+            <div className="text-[12px] font-code text-muted">
               {campaign?.epistemics?.status || (hasCampaign ? 'Epistemic status' : 'No campaign')}
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-success-edge)] flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-[var(--color-success)]">
-            <ShieldCheck className="w-[18px] h-[18px] text-[var(--color-success-ink)]" />
+          <div className="w-9 h-9 rounded-row bg-surface-elev border border-success-edge flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-success">
+            <ShieldCheck className="w-[18px] h-[18px] text-success-ink" />
           </div>
         </div>
         <HoverCard
@@ -253,20 +253,20 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe γ · Compiler */}
       <button data-testid="probe-compiler" data-active={activeProbe === 'compiler' ? 'true' : undefined} style={{ animationDelay: '1.8s' }} onClick={() => toggleCard('compiler')} aria-expanded={openCard === 'compiler'} aria-label="Compiler probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'compiler' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-lg px-2.5 py-1 flex flex-col text-right shadow-[var(--shadow-card)]">
+          <div className="bg-surface border border-border-strong rounded-control-compact px-2.5 py-1 flex flex-col text-right shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-[12px] font-code text-[var(--color-info-ink)]">
+              <span className="text-[12px] font-code text-info-ink">
                 {qf ? `${qf.qubit_count} Qubits` : '— Qubits'}
               </span>
-              <span className="text-[12px] font-bold text-[var(--color-text)] tracking-wide">Compiler</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-info)]" />
+              <span className="text-[12px] font-bold text-text tracking-wide">Compiler</span>
+              <span className="w-1.5 h-1.5 rounded-capsule bg-info" />
             </div>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">
+            <div className="text-[12px] font-code text-muted">
               {qf ? shortBackend(qf.recommended_backend) : 'backend uncharted'}
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-info-edge)] flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-[var(--color-info)]">
-            <CircuitBoard className="w-[18px] h-[18px] text-[var(--color-info-ink)]" />
+          <div className="w-9 h-9 rounded-row bg-surface-elev border border-info-edge flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-info">
+            <CircuitBoard className="w-[18px] h-[18px] text-info-ink" />
           </div>
         </div>
         <HoverCard
@@ -284,18 +284,18 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe δ · Critic */}
       <button data-testid="probe-critic" data-active={activeProbe === 'critic' ? 'true' : undefined} style={{ animationDelay: '2.7s' }} onClick={() => toggleCard('critic')} aria-expanded={openCard === 'critic'} aria-label="Critic probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[28%] left-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'critic' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-[var(--color-surface-elev)] border border-[var(--color-danger-edge)] flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-[var(--color-danger)]">
-            <Scale className="w-[18px] h-[18px] text-[var(--color-danger-ink)]" />
+          <div className="w-9 h-9 rounded-row bg-surface-elev border border-danger-edge flex items-center justify-center shadow-[var(--shadow-card)] group-hover:border-danger">
+            <Scale className="w-[18px] h-[18px] text-danger-ink" />
           </div>
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-lg px-2.5 py-1 flex flex-col shadow-[var(--shadow-card)]">
+          <div className="bg-surface border border-border-strong rounded-control-compact px-2.5 py-1 flex flex-col shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-danger)]" />
-              <span className="text-[12px] font-bold text-[var(--color-text)] tracking-wide">Critic</span>
-              <span className="text-[12px] font-code text-[var(--color-danger-ink)] ml-1">
+              <span className="w-1.5 h-1.5 rounded-capsule bg-danger" />
+              <span className="text-[12px] font-bold text-text tracking-wide">Critic</span>
+              <span className="text-[12px] font-code text-danger-ink ml-1">
                 {criticState}
               </span>
             </div>
-            <div className="text-[12px] font-code text-[var(--color-muted)]">
+            <div className="text-[12px] font-code text-muted">
               {canaryLabel}
             </div>
           </div>
@@ -305,8 +305,8 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           title="Trap Watch"
           body={!qf ? 'Awaiting campaign — no barren-plateau signal.' : criticCleared ? 'Barren-plateau risk low: variational path clear.' : `Barren-plateau risk ${bpRisk.toLowerCase()}: holding dispatch.`}
           rows={[
-            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-[var(--color-success-ink)]' : 'text-[var(--color-danger-ink)]') : 'text-[var(--color-text)]'],
-            ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-[var(--color-text)]'],
+            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-success-ink' : 'text-danger-ink') : 'text-text'],
+            ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-text'],
           ]}
           forceOpen={openCard === 'critic'}
         />

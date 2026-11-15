@@ -1,7 +1,19 @@
 'use client';
 
-import React, { useMemo } from 'react';
-import katex from 'katex';
+import React, { useEffect, useMemo, useState } from 'react';
+
+// D7: KaTeX must not enter the first-load bundle. It is ~280 KiB of renderer
+// code and only chat prose that actually contains `$…$` needs it. The lazy
+// import below creates a separate chunk; a message with no math never loads
+// it, and an unresolved import fails closed to the escaped source text.
+type KatexRenderer = typeof import('katex')['default'];
+
+let katexPromise: Promise<KatexRenderer> | null = null;
+
+function loadKatex(): Promise<KatexRenderer> {
+  katexPromise ??= import('katex').then((mod) => mod.default ?? (mod as unknown as KatexRenderer));
+  return katexPromise;
+}
 
 interface MathTextProps {
   math?: string;
@@ -19,7 +31,10 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function renderMath(raw: string, displayMode: boolean): string {
+function renderMath(raw: string, displayMode: boolean, katex: KatexRenderer | null): string {
+  if (!katex) {
+    return escapeHtml(displayMode ? `$$${raw}$$` : `$${raw}$`);
+  }
   try {
     return katex.renderToString(raw, { displayMode, throwOnError: false });
   } catch {
@@ -29,14 +44,14 @@ function renderMath(raw: string, displayMode: boolean): string {
 
 // Extract $$..$$ / $..$ spans to placeholders so markdown formatting never
 // touches math contents. Returns [protected text, restore fn].
-function protectMath(text: string): { text: string; restore: (s: string) => string } {
+function protectMath(text: string, katex: KatexRenderer | null): { text: string; restore: (s: string) => string } {
   const slots: string[] = [];
   const protected_ = text.replace(/\$\$[\s\S]*?\$\$|\$[^\$]*?\$/g, (m) => {
     let html: string;
     if (m.startsWith('$$')) {
-      html = renderMath(m.slice(2, -2), true);
+      html = renderMath(m.slice(2, -2), true, katex);
     } else {
-      html = renderMath(m.slice(1, -1), false);
+      html = renderMath(m.slice(1, -1), false, katex);
     }
     slots.push(html);
     return `\u0000MATH${slots.length - 1}\u0000`;
@@ -50,8 +65,8 @@ function protectMath(text: string): { text: string; restore: (s: string) => stri
 function renderInline(s: string): string {
   // s is already HTML-escaped; placeholders contain NUL chars (safe).
   let out = s;
-  out = out.replace(/`([^`]+?)`/g, '<code class="px-1 rounded bg-[var(--color-fill)] text-[var(--color-text)] font-code text-[12px]">$1</code>');
-  out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong class="font-semibold text-[var(--color-text)]">$1</strong>');
+  out = out.replace(/`([^`]+?)`/g, '<code class="px-1 rounded-chip bg-fill text-text font-code text-[12px]">$1</code>');
+  out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong class="font-semibold text-text">$1</strong>');
   out = out.replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, '$1<em>$2</em>');
   return out;
 }
@@ -66,11 +81,11 @@ function isTableDivider(line: string): boolean {
   return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
 }
 
-function renderMarkdownText(text: string): string {
+function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
   // Block parsing runs on raw (math-protected) lines; every emitted text
   // fragment is escaped at the boundary via inlineRaw / escapeHtml, so raw
   // <, >, & from model output can never reach the DOM as markup.
-  const { text: sheltered, restore } = protectMath(text);
+  const { text: sheltered, restore } = protectMath(text, katex);
   const lines = sheltered.split('\n');
   const blocks: string[] = [];
   let i = 0;
@@ -96,7 +111,7 @@ function renderMarkdownText(text: string): string {
       }
       i += 1; // closing fence
       blocks.push(
-        `<pre class="my-2 p-2.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] overflow-x-auto font-code text-[12px] text-[var(--color-text)]">${escapeHtml(code.join('\n'))}</pre>`
+        `<pre class="my-2 p-2.5 rounded-row bg-field border border-border overflow-x-auto font-code text-[12px] text-text">${escapeHtml(code.join('\n'))}</pre>`
       );
       continue;
     }
@@ -106,7 +121,7 @@ function renderMarkdownText(text: string): string {
       flushPara();
       const level = header[1].length;
       blocks.push(
-        `<div class="mt-2 mb-1 font-semibold text-[var(--color-text)] ${level <= 2 ? 'text-[13px]' : 'text-xs'}">${inlineRaw(header[2])}</div>`
+        `<div class="mt-2 mb-1 font-semibold text-text ${level <= 2 ? 'text-[13px]' : 'text-label'}">${inlineRaw(header[2])}</div>`
       );
       i += 1;
       continue;
@@ -121,15 +136,15 @@ function renderMarkdownText(text: string): string {
         rows.push(lines[i].trim().split('|').map((c) => c.trim()).filter(Boolean));
         i += 1;
       }
-      const th = headerCells.map((c) => `<th class="px-2 py-1 text-left font-semibold text-[var(--color-text)] border-b border-[var(--color-border)]">${inlineRaw(c)}</th>`).join('');
+      const th = headerCells.map((c) => `<th class="px-2 py-1 text-left font-semibold text-text border-b border-border">${inlineRaw(c)}</th>`).join('');
       const tb = rows
         .map(
           (r) =>
-            `<tr class="border-b border-[var(--color-border)]">${r.map((c) => `<td class="px-2 py-1 text-[var(--color-label-secondary)]">${inlineRaw(c)}</td>`).join('')}</tr>`
+            `<tr class="border-b border-border">${r.map((c) => `<td class="px-2 py-1 text-label-secondary">${inlineRaw(c)}</td>`).join('')}</tr>`
         )
         .join('');
       blocks.push(
-        `<div class="my-2 overflow-x-auto rounded-xl border border-[var(--color-border)]"><table class="w-full text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`
+        `<div class="my-2 overflow-x-auto rounded-row border border-border"><table class="w-full text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`
       );
       continue;
     }
@@ -146,7 +161,7 @@ function renderMarkdownText(text: string): string {
         i += 1;
       }
       blocks.push(
-        `<ul class="my-1.5 space-y-1">${items.map((it) => `<li class="flex gap-1.5"><span class="text-[var(--color-accent)]">•</span><span>${inlineRaw(it)}</span></li>`).join('')}</ul>`
+        `<ul class="my-1.5 space-y-1">${items.map((it) => `<li class="flex gap-1.5"><span class="text-accent">•</span><span>${inlineRaw(it)}</span></li>`).join('')}</ul>`
       );
       continue;
     }
@@ -163,7 +178,7 @@ function renderMarkdownText(text: string): string {
         i += 1;
       }
       blocks.push(
-        `<ol class="my-1.5 space-y-1 list-decimal list-inside marker:text-[var(--color-accent)]">${items.map((it) => `<li>${inlineRaw(it)}</li>`).join('')}</ol>`
+        `<ol class="my-1.5 space-y-1 list-decimal list-inside marker:text-accent">${items.map((it) => `<li>${inlineRaw(it)}</li>`).join('')}</ol>`
       );
       continue;
     }
@@ -180,7 +195,7 @@ function renderMarkdownText(text: string): string {
         i += 1;
       }
       blocks.push(
-        `<div class="my-1.5 pl-2.5 border-l-2 border-[var(--color-accent-edge)] text-[var(--color-label-secondary)]">${parts.map(inlineRaw).join('<br/>')}</div>`
+        `<div class="my-1.5 pl-2.5 border-l-2 border-accent-edge text-label-secondary">${parts.map(inlineRaw).join('<br/>')}</div>`
       );
       continue;
     }
@@ -199,24 +214,46 @@ function renderMarkdownText(text: string): string {
 }
 
 export function MathText({ math, text, block = false, className = '' }: MathTextProps) {
+  const needsKatex = Boolean(math) || Boolean(text?.includes('$'));
+  const [katex, setKatex] = useState<KatexRenderer | null>(null);
+  const [katexFailed, setKatexFailed] = useState(false);
+
+  useEffect(() => {
+    if (!needsKatex || katex !== null || katexFailed) return;
+    let cancelled = false;
+    loadKatex()
+      .then((renderer) => {
+        if (!cancelled) setKatex(renderer);
+      })
+      .catch(() => {
+        if (!cancelled) setKatexFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsKatex, katex, katexFailed]);
+
   const html = useMemo(() => {
     if (math) {
+      if (!katex) {
+        return `<span class="text-label-secondary">${escapeHtml(block ? `$$${math}$$` : `$${math}$`)}</span>`;
+      }
       try {
         return katex.renderToString(math, {
           displayMode: block,
           throwOnError: false,
         });
       } catch {
-        return `<span class="text-[var(--color-danger-ink)]">${escapeHtml(math)}</span>`;
+        return `<span class="text-danger-ink">${escapeHtml(math)}</span>`;
       }
     }
 
     if (text) {
-      return renderMarkdownText(text);
+      return renderMarkdownText(text, katex);
     }
 
     return '';
-  }, [math, text, block]);
+  }, [math, text, block, katex]);
 
   return (
     <span

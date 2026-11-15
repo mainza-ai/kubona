@@ -1,6 +1,6 @@
 module github.com/mainza-ai/kubona/core
 
-go 1.27.2
+go 1.27.4
 
 require (
 	github.com/google/uuid v1.6.0
@@ -27,10 +27,10 @@ require (
 	github.com/polydawn/refmt v0.90.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/ucan-wg/go-varsig v1.0.0 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	lukechampine.com/blake3 v1.3.0 // indirect
 )

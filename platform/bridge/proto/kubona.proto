@@ -12,6 +12,11 @@ enum JobStatus {
   JOB_STATUS_FAILED = 4;
   JOB_STATUS_PAUSED = 5;
   JOB_STATUS_CANCELLED = 6;
+  // Host-only work interrupted by a restart. The reservation is released.
+  JOB_STATUS_INTERRUPTED = 7;
+  // A vendor may have the job and neither result nor usage is confirmed.
+  // Not terminal, not live, reservation kept. See Q-59.
+  JOB_STATUS_OUTCOME_UNKNOWN = 8;
 }
 
 enum DegradationLevel {

@@ -15,6 +15,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
     fetchMessages: vi.fn(),
     sendChatMessage: vi.fn(),
     streamChatMessage: vi.fn(),
+    regenerateChat: vi.fn(),
     createSession: vi.fn(),
     authWhoami: vi.fn(),
     wasRecentAuthFailure: vi.fn(() => false),
@@ -328,5 +329,23 @@ describe('CopilotDrawer stream stall UX', () => {
     expect(calls[1][0]).toBe(calls[0][0]);
     expect(calls[1][1]).toBe(calls[0][1]);
     expect(calls[1][1]).toContain('canary on heron');
+  });
+
+  it('re-answers a prompt the stream already stored instead of posting it again', async () => {
+    const { StreamAcceptedError } = await import('@/lib/api');
+    vi.mocked(api.streamChatMessage).mockRejectedValueOnce(
+      new StreamAcceptedError('stream ended without done event'),
+    );
+    vi.mocked(api.regenerateChat).mockResolvedValue({ assistant: assistantMsg('recovered answer') });
+
+    let tree: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = TestRenderer.create(<CopilotDrawer sessionId="s" />);
+    });
+    await sendPrompt(tree!, 'stored once', () => JSON.stringify(tree!.toJSON()).includes('recovered answer'));
+
+    expect(api.sendChatMessage).not.toHaveBeenCalled();
+    expect(api.regenerateChat).toHaveBeenCalledWith('s');
+    expect(JSON.stringify(tree!.toJSON())).toContain('recovered answer');
   });
 });

@@ -21,6 +21,14 @@ describe('write settlement', () => {
     expect(writeSettlementLabel(settled)).toBe('applied · saved');
   });
 
+  it('reads an in-progress launch as admitted, not unknown', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ status: 'in_progress', disposition: 'admitted', reason: 'queued' }),
+    }));
+    const settled = await reconcileOperation('req-3', 's1', 1, 0);
+    expect(writeSettlementLabel(settled)).toBe('admitted · queued');
+  });
+
   it('keeps refusal and unknown distinct', () => {
     expect(writeSettlementLabel(settleWrite('req-1', 'refused', 'revision conflict'))).toBe('refused · revision conflict');
     expect(writeSettlementLabel(settleWrite('req-1', 'unknown', 'network lost'))).toBe('unknown · network lost');

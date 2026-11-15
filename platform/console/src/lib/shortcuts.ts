@@ -17,14 +17,14 @@ export const SHORTCUTS = {
   cognitiveMesh: '⌘7',
   previewGallery: '⌘8',
   huggingFaceHub: '⌘9',
-  laboratories: '⌘L',
-  sovereignAirGap: '⌘S',
-  tribunalRoom: '⌘T',
+  laboratories: '⌘⇧L',
+  sovereignAirGap: '⌘⇧S',
+  tribunalRoom: '⌘⇧T',
   commandPalette: '⌘K',
   copilot: '⌘J',
   experimentLab: '⌘E',
-  about: '⌘I',
-  newCampaign: '⌘N',
+  about: '⌘⇧I',
+  newCampaign: '⌘⇧N',
   emergencyAbort: '⌘.',
   help: '?',
   dismiss: 'Esc',
@@ -64,28 +64,42 @@ export const SHORTCUT_TARGETS: Record<ShortcutKey, string> = {
 };
 
 /**
- * Normalized KeyboardEvent.key (lowercased) -> SHORTCUTS key name.
- * Digits are meta-only (see page handler: Ctrl+digits must keep driving
- * browser tab switching on non-macOS); letters accept Cmd or Ctrl.
+ * Unshifted Cmd/Ctrl chords browsers keep for themselves. preventDefault
+ * does not win. A shell shortcut on one of these keys must use Shift.
  */
-export const KEY_TO_SHORTCUT: Record<string, ShortcutKey> = {
-  '1': 'livingCanvas',
-  '2': 'flightRecorder',
-  '3': 'epistemicOrb',
-  '4': 'livingNotebook',
-  '5': 'sentinelGuardrails',
-  '6': 'fleetRadar',
-  '7': 'cognitiveMesh',
-  '8': 'previewGallery',
-  '9': 'huggingFaceHub',
-  l: 'laboratories',
-  s: 'sovereignAirGap',
-  t: 'tribunalRoom',
-  k: 'commandPalette',
-  j: 'copilot',
-  i: 'about',
-  n: 'newCampaign',
-  e: 'experimentLab',
-  '.': 'emergencyAbort',
-  '?': 'help',
+export const BROWSER_RESERVED_UNSHIFTED = new Set([
+  't', 'n', 'w', 'l', 'q', 'r', 'p', 'd', 'o', 's', 'i', 'h', 'a',
+]);
+
+export type ShortcutChord = { key: string; shift: boolean };
+
+/** dismiss is Escape, handled by the overlay that is open, not this table. */
+export const SHORTCUT_CHORDS: Record<Exclude<ShortcutKey, 'dismiss'>, ShortcutChord> = {
+  livingCanvas: { key: '1', shift: false },
+  flightRecorder: { key: '2', shift: false },
+  epistemicOrb: { key: '3', shift: false },
+  livingNotebook: { key: '4', shift: false },
+  sentinelGuardrails: { key: '5', shift: false },
+  fleetRadar: { key: '6', shift: false },
+  cognitiveMesh: { key: '7', shift: false },
+  previewGallery: { key: '8', shift: false },
+  huggingFaceHub: { key: '9', shift: false },
+  laboratories: { key: 'l', shift: true },
+  sovereignAirGap: { key: 's', shift: true },
+  tribunalRoom: { key: 't', shift: true },
+  commandPalette: { key: 'k', shift: false },
+  copilot: { key: 'j', shift: false },
+  experimentLab: { key: 'e', shift: false },
+  about: { key: 'i', shift: true },
+  newCampaign: { key: 'n', shift: true },
+  emergencyAbort: { key: '.', shift: false },
+  help: { key: '?', shift: false },
 };
+
+export function shortcutFromEvent(event: { key: string; shiftKey: boolean }): Exclude<ShortcutKey, 'dismiss'> | null {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  for (const [name, chord] of Object.entries(SHORTCUT_CHORDS) as Array<[Exclude<ShortcutKey, 'dismiss'>, ShortcutChord]>) {
+    if (chord.key === key && chord.shift === event.shiftKey) return name;
+  }
+  return null;
+}

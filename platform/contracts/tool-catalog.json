@@ -1,5 +1,5 @@
 {
-  "digest": "c9fa086c4a1e3e51f5b966d0347d111c61a5e1de769449d13f4d295f2a1f5a6f",
+  "digest": "edf6c3a02cf47660c85178d8a534036c34504f80ca07e441734cf554f88438d7",
   "generated_by": "go test ./pkg/api/ -run TestToolCatalogMatchesCheckedIn -update",
   "tools": [
     {
@@ -59,6 +59,14 @@
         "device-auditor",
         "disconfirmation-officer",
         "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "load_skill",
+      "capability": "skills:read",
+      "read_only": true,
+      "roles": [
+        "copilot"
       ]
     },
     {

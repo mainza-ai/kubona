@@ -5,6 +5,7 @@
 
 :root {
   --radius-swatch: 2px;
+  --radius-chip: 4px;
   --radius-inset: 6px;
   --radius-control-compact: 8px;
   --radius-control: 10px;
@@ -12,15 +13,38 @@
   --radius-control-large: 14px;
   --radius-card: 16px;
   --radius-panel: 20px;
+  --radius-sheet: 24px;
   --radius-capsule: 999px;
   --text-caption: 11px;
+  --text-caption--line-height: 16px;
   --text-label: 12px;
+  --text-label--line-height: 16px;
   --text-body: 13px;
+  --text-body--line-height: 20px;
   --text-page-body: 13px;
+  --text-page-body--line-height: 20px;
+  --text-body-strong: 14px;
+  --text-body-strong--line-height: 20px;
   --text-page-title: 14px;
+  --text-page-title--line-height: 20px;
+  --text-body-large: 16px;
+  --text-body-large--line-height: 24px;
+  --text-subtitle: 18px;
+  --text-subtitle--line-height: 28px;
+  --text-title-small: 20px;
+  --text-title-small--line-height: 28px;
   --text-title: 22px;
+  --text-title--line-height: 28px;
+  --text-title-large: 24px;
+  --text-title-large--line-height: 32px;
   --text-headline: 27px;
+  --text-headline--line-height: 32px;
+  --text-display-small: 30px;
+  --text-display-small--line-height: 36px;
   --text-display: 32px;
+  --text-display--line-height: 40px;
+  --text-display-large: 36px;
+  --text-display-large--line-height: 40px;
   --wash-raised: 60%;
   --color-canvas: #16171c;
   --color-page: #16171c;

@@ -337,6 +337,56 @@ jobs:
         if: always()
         run: docker compose -f platform/docker/compose.prod.yml down -v
 
+  dependency-audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # A missing scanner or an unreachable advisory database fails the job.
+      # Exceptions are owner + reason + expiry, 120 days maximum, and a
+      # waiver that no longer matches a finding fails too.
+      - name: Exception file is within the waiver rules
+        run: python3 scripts/dependency_audit.py --check-exceptions
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.27.4"
+          cache-dependency-path: platform/core/go.sum
+      - name: Go reachable vulnerabilities
+        working-directory: platform/core
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          python3 ../../scripts/dependency_audit.py --audit go
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Python vulnerabilities
+        working-directory: platform
+        run: |
+          pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pip-audit==2.9.0"
+          python3 ../scripts/dependency_audit.py --audit python
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.18.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: platform/console/pnpm-lock.yaml
+      - name: npm vulnerabilities
+        working-directory: platform/console
+        run: |
+          pnpm install --frozen-lockfile
+          python3 ../../scripts/dependency_audit.py --audit npm
+      - name: Rust advisories
+        run: |
+          curl -fsSL -o /tmp/cargo-deny.tar.gz https://github.com/EmbarkStudios/cargo-deny/releases/download/0.19.0/cargo-deny-0.19.0-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf /tmp/cargo-deny.tar.gz -C /tmp
+          sudo install /tmp/cargo-deny-0.19.0-x86_64-unknown-linux-musl/cargo-deny /usr/local/bin/cargo-deny
+          python3 scripts/dependency_audit.py --audit rust
+
   canary-gate:
     name: Canary + correctness release-gate
     runs-on: ubuntu-latest
@@ -348,7 +398,7 @@ jobs:
     # verified-green CI run (run 40786519756, all 20 checks green).
     # sast) join the release gate — no release ships with new lint, SAST, or
     # coverage-floor debt.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast, image-scan]
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast, image-scan, dependency-audit]
     defaults:
       run:
         working-directory: platform
@@ -377,9 +427,10 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           # W2.4: must match go.mod (1.23 silently built a newer toolchain's code).
-          # 1.27.2 (was 1.27.1): patch bump for Go stdlib Trivy CRITICAL
-          # CVE-2026-56857, fixed in 1.27.2 — the image-scan gate demands it.
-          go-version: "1.27.2"
+          # 1.27.4: reachable stdlib advisories GO-2026-6809 and
+          # GO-2026-6859, which the dependency-audit job fails on.
+          # 1.27.2 had fixed CVE-2026-56857; this patch keeps that fix.
+          go-version: "1.27.4"
           cache-dependency-path: platform/core/go.sum
       # Harness tests shell out to host python3 for embedded eval scripts
       # (numpy+qiskit): without them every harness test fails on import.
@@ -402,7 +453,7 @@ jobs:
         run: pip install -e .
       - run: go test -v -race -coverprofile="$RUNNER_TEMP/cover.out" ./...
       # Phase-1 depth: Go coverage hold-the-line floor. MEASURED 66.3%
-      # with the pinned go1.27.2 toolchain (full ./..., local macOS).
+      # with the pinned go1.27.4 toolchain (full ./..., local macOS).
       # Caution, learned 2026-10-28: the same tree measures 74.4% under
       # go1.27.1 — coverage instrumentation granularity changed between
       # the two toolchains, so the ruler is toolchain-dependent. Always
@@ -414,7 +465,7 @@ jobs:
       - name: Coverage floor (ratchet, fail below 64%)
         run: |
           total=$(go tool cover -func="$RUNNER_TEMP/cover.out" | awk '/^total:/ {gsub(/%/, "", $NF); print $NF}')
-          echo "Go total coverage: ${total}% (floor 64%, toolchain go1.27.2)"
+          echo "Go total coverage: ${total}% (floor 64%, toolchain go1.27.4)"
           awk "BEGIN {exit !((${total:-0} + 0) >= 64)}" || { echo "Go coverage ${total}% below floor 64%"; exit 1; }
 
   nextjs-console-build:
@@ -441,6 +492,26 @@ jobs:
       - name: Console token-debt ratchet
         working-directory: .
         run: node scripts/console-token-lint.mjs
+      # D8: react-test-renderer cannot test focus/keyboard/CSS. New files must
+      # be *.component.test.tsx browser tests; the baseline may only shrink.
+      - name: No new react-test-renderer tests
+        working-directory: .
+        run: node scripts/console-test-renderer-ratchet.mjs
+      # D6: layers only import downward (types < lib < domain < components
+      # < app); an upward import is a build failure, not a review note.
+      - name: Console import boundaries
+        working-directory: .
+        run: node scripts/console-boundaries.mjs
+      # D1: Tailwind's size-named radius/text scales are reset. The source
+      # may only use role-named utilities; a size name would compile to
+      # nothing and silently go square / inherit the wrong size.
+      - name: Console role-named scales
+        working-directory: .
+        run: node scripts/console-scale-lint.mjs
+      # D1: every colour utility uses a semantic token through @theme.
+      - name: Console semantic colour utilities
+        working-directory: .
+        run: node scripts/console-color-utility-lint.mjs
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.18.0
@@ -470,6 +541,15 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm lint
       - run: pnpm build
+      # D7: first-load/render budgets come from the build that just ran, not
+      # from an estimate. Forbidden libraries (three, elkjs, KaTeX) must stay
+      # in lazy chunks; large lazy chunks need a recorded marker + reason.
+      - name: Console bundle budgets
+        working-directory: .
+        run: node scripts/console-bundle-budgets.mjs
+      - name: Console compiled theme
+        working-directory: .
+        run: node scripts/console-theme-check.mjs
 
   # Phase-1 verification depth (2026-10-28): lint + SAST + image scan.
   # ADD jobs, never rename required-check contexts (branch protection keys
@@ -486,7 +566,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.4"
           cache-dependency-path: platform/core/go.sum
       # go vet is the type-level gate; gofmt -l is the formatting gate.
       # Verified green 2026-10-28 (3 misaligned files fixed with gofmt -w

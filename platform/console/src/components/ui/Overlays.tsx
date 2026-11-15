@@ -100,10 +100,22 @@ export function Tooltip({
   children: React.ReactNode;
   className?: string;
 }) {
+  const id = React.useId();
+  // The description must sit on the focusable trigger, not the wrapper: the
+  // trigger is what receives focus in the accessibility tree.
+  const child = React.isValidElement(children) ? (
+    React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+      'aria-describedby': [id, (children.props as { 'aria-describedby'?: string })['aria-describedby']]
+        .filter(Boolean)
+        .join(' '),
+    })
+  ) : (
+    <span aria-describedby={id}>{children}</span>
+  );
   return (
     <span className={`k-tooltip ${className}`.trim()} data-tooltip={label}>
-      {children}
-      <span className="k-tooltip-content" role="tooltip">{label}</span>
+      {child}
+      <span id={id} className="k-tooltip-content" role="tooltip">{label}</span>
     </span>
   );
 }

@@ -2,7 +2,7 @@
 type: concept
 name: Runtime Honesty & Commit Policy (outcome-unknown jobs, settings tiers, run allowances, palette provenance)
 date: 2026-11-12
-updated: 2026-11-12
+updated: 2026-11-14
 tags: [governance, settlement, jobs, settings, mandates, ux, licence, decision]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -90,6 +90,10 @@ a vendor and neither result nor usage can be confirmed.
       reason `outcome_unknown_written_off`.
 - **No timer resolves it.** Elapsed time is not evidence. Attention routes it
   to the shell "Needs you" tray with its age, escalating after 1 h.
+  *Prototype note (2026-11-14):* the tray now renders open obligations with
+  their real age; the 1 h escalation is not implemented yet, and
+  `OUTCOME_UNKNOWN` jobs are not yet projected into that tray — they surface
+  through job state and the operation reconcile path.
 - **Answer to the original fork:** it is not "terminal for deletion", and not
   "blocking until a button press". It blocks until resolved **by evidence**.
   Operator acknowledgement exists only as a signed resolution that states its
@@ -105,7 +109,7 @@ a vendor and neither result nor usage can be confirmed.
   The blocker label "outstanding spend reservations" should read "spend
   records".
 
-## 3 · Run-scoped allowance (Q-60, adopted, gated on review)
+## 3 · Run-scoped allowance (Q-60, adopted and implemented 2026-11-14)
 
 The operator adopted "allow for this run": one signature covers many
 hardware jobs within bounds. The default remains per-job approval.
@@ -141,8 +145,17 @@ hardware jobs within bounds. The default remains per-job approval.
     readers; minting and revoking are signed writes.
   - *What breaks, for whom:* nothing for the default flow. Reviewers get
     fewer prompts; finance gets a hard ceiling.
-- Implementation must not land before this argument is reviewed against the
-  final code, per the Production Bar.
+- **Implementation (2026-11-14):** the threat argument at
+  [[run-scoped-allowance-threat-model]] was reviewed with the recommended
+  answers and the server rail landed: `run_allowances` +
+  `run_allowance_draws`, signed mint (`POST /api/run-allowances`, reviewer key
+  with tenant-admin fallback), atomic draw inside the job admission
+  transaction, taint exclusion via `basis_tainted`, rate-card and calibration
+  basis suspension, air-gap suspension, one-click revocation, and the
+  session-scoped reader. The console control ("Allow for this run") signs the
+  canonical scope with local custody, lists/revokes allowances, and launches
+  under one via `run_allowance_id` (the per-job mandate is skipped; admission
+  enforces the allowance). The hardware parent rails remain per-job only.
 
 ## 4 · Which settings may save automatically (Q-61)
 

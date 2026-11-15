@@ -1,0 +1,65 @@
+{
+  "$comment": "C2 — closed 'need' vocabulary for jobs (and, once loops record a failure reason, loops). Single source of truth: Go core/pkg/jobs/need.go mirrors these kinds and the console lib/need.ts must cover every entry; both conformance tests assert identity (drift = red). A need names a missing precondition and exactly one remedy. A failure whose cause is not known from structured evidence emits NO need — unknown stays unknown, and the error text stands alone. 'past' marks a need that has since been overcome; the card then shows what ended short, not a live remedy.",
+  "version": 1,
+  "kinds": {
+    "credentials": {
+      "sentence": "Provider credentials are missing or rejected.",
+      "remedy": {
+        "id": "open-provider-settings",
+        "label": "Open provider settings",
+        "surface": "settings",
+        "section": "models"
+      }
+    },
+    "budget_exceeded": {
+      "sentence": "The spend ceiling refused this work.",
+      "remedy": {
+        "id": "review-spend-mandate",
+        "label": "Review spend & mandates",
+        "surface": "guardrails"
+      }
+    },
+    "backend_offline": {
+      "sentence": "The compute backend is unreachable.",
+      "remedy": {
+        "id": "open-quantum-settings",
+        "label": "Open hardware settings",
+        "surface": "settings",
+        "section": "quantum"
+      }
+    },
+    "quota_exhausted": {
+      "sentence": "The provider quota is exhausted.",
+      "remedy": {
+        "id": "open-quantum-settings",
+        "label": "Open hardware settings",
+        "surface": "settings",
+        "section": "quantum"
+      }
+    },
+    "approval": {
+      "sentence": "A human decision is required before this can proceed.",
+      "remedy": {
+        "id": "open-approvals",
+        "label": "Open approvals",
+        "surface": "guardrails"
+      }
+    },
+    "anchor_missing": {
+      "sentence": "No classical anchor is recorded for this result.",
+      "remedy": {
+        "id": "ask-for-anchor",
+        "label": "Ask for a classical anchor",
+        "surface": "copilot"
+      }
+    },
+    "retry": {
+      "sentence": "The run stopped before producing a result; the cause may be transient.",
+      "remedy": {
+        "id": "resubmit-run",
+        "label": "Resubmit run",
+        "surface": "copilot"
+      }
+    }
+  }
+}

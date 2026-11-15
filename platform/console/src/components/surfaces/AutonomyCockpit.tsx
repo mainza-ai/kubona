@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
-import { emergencyAbort, launchProposal, fetchLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
+import { launchJobId, newWriteRequestId, reconcileOperationFull, UNCONFIRMED_LAUNCH, writeSettlementLabel } from '@/domain/write-settlement';
+import { emergencyAbort, launchProposal, mintProposal, fetchLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { AirGapSwitchRow, useAirGapControl } from '@/components/common/AirGapControl';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -138,32 +138,39 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       // job id; otherwise the operator would see an approval that never ran.
       const requestId = newWriteRequestId();
       const writeId = launchWrite.begin('launch proposal');
+      // B1: the server prices and owns the plan; this surface names it.
+      const minted = await mintProposal(session.id, 'campaign');
+      if (!minted.ok) {
+        launchWrite.refused(writeId, minted.error);
+        setActionMessage(`No launchable plan: ${minted.error}`);
+        setTimeout(() => setActionMessage(null), 8000);
+        return;
+      }
+      const backend = minted.proposal.body.backend || recommendedBackend;
       const launched = await launchProposal(
         session.id,
-        {
-          target: targetName,
-          recommended_tier: recommendedBackend,
-          spend_estimate: `$${estimatedCost.toFixed(2)}`,
-          classical_anchor: campaign.classical_anchor?.method || 'campaign anchor',
-          qasm: campaign.quantum_factors.qasm,
-        },
-        {
-          mandateRef: JSON.stringify(res.mandate),
-          requestId,
-          backend: recommendedBackend,
-          budgetUsd: estimatedCost,
-          qasm: campaign.quantum_factors.qasm,
-        },
+        { proposalId: minted.proposal.id, digest: minted.proposal.digest },
+        { mandateRef: JSON.stringify(res.mandate), requestId },
       );
-      if (!launched) {
-        launchWrite.unknown(writeId, 'launch transport failed — no job created');
-        setActionMessage('Mandate verified, but launch transport failed — no job was created. Nothing dispatched.');
+      if ('outcome' in launched) {
+        const settled = await reconcileOperationFull(requestId, session.id);
+        const jobId = settled.phase === 'applied' ? launchJobId(settled.receipt) : null;
+        if (jobId) {
+          launchWrite.applied(writeId, `job ${jobId.slice(0, 8)} dispatched`);
+          setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Dispatched job ${jobId.slice(0, 8)} to ${backend}.`);
+        } else if (settled.phase === 'refused') {
+          launchWrite.refused(writeId, settled.detail);
+          setActionMessage(`Mandate verified, but dispatch was refused: ${settled.detail}`);
+        } else {
+          launchWrite.unknown(writeId, UNCONFIRMED_LAUNCH);
+          setActionMessage(UNCONFIRMED_LAUNCH);
+        }
       } else if ('error' in launched) {
         launchWrite.refused(writeId, launched.error);
         setActionMessage(`Mandate verified, but dispatch was refused: ${launched.error}`);
       } else {
         launchWrite.applied(writeId, `job ${String(launched.job.id).slice(0, 8)} dispatched`);
-        setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Dispatched job ${String(launched.job.id).slice(0, 8)} to ${recommendedBackend}.`);
+        setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Dispatched job ${String(launched.job.id).slice(0, 8)} to ${backend}.`);
       }
       setTimeout(() => setActionMessage(null), 6000);
     } catch (err) {
@@ -183,14 +190,22 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     if (!session?.id || !qf?.qasm) return;
     setIsSubmitting(true);
     const writeId = launchWrite.begin('offline launch');
+    const requestId = newWriteRequestId();
     try {
-      const res = await launchProposal(session.id, {
-        target: `${campaign?.target_system || 'Target'} local simulation`,
-        spend_estimate: '$0.00 (Local Simulator)',
-        recommended_tier: 'Local Simulator (qiskit-aer-simulator)',
-        classical_anchor: 'session anchor',
-        qasm: qf.qasm,
-      });
+      // B1: offline dispatch mints a server-owned simulator downgrade — the
+      // circuit and price come from stored campaign state, never from here.
+      const minted = await mintProposal(session.id, 'campaign', { downgrade: 'simulator' });
+      if (!minted.ok) {
+        launchWrite.refused(writeId, minted.error);
+        setActionMessage(`Local dispatch refused: ${minted.error}`);
+        setTimeout(() => setActionMessage(null), 8000);
+        return;
+      }
+      const res = await launchProposal(
+        session.id,
+        { proposalId: minted.proposal.id, digest: minted.proposal.digest },
+        { requestId },
+      );
       if (res && 'job' in res && res.job) {
         launchWrite.applied(writeId, `job ${String(res.job.id).slice(0, 8)} dispatched offline`);
         setActionMessage(`Dispatched offline: job ${String(res.job.id).slice(0, 8)} on local simulator.`);
@@ -198,12 +213,22 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         launchWrite.refused(writeId, res.error);
         setActionMessage(`Local dispatch refused: ${res.error}`);
       } else {
-        launchWrite.unknown(writeId, 'local dispatch not confirmed');
-        setActionMessage('Local dispatch refused — nothing dispatched, nothing spent.');
+        const settled = await reconcileOperationFull(requestId, session.id);
+        const jobId = settled.phase === 'applied' ? launchJobId(settled.receipt) : null;
+        if (jobId) {
+          launchWrite.applied(writeId, `job ${jobId.slice(0, 8)} dispatched offline`);
+          setActionMessage(`Dispatched offline: job ${jobId.slice(0, 8)} on local simulator.`);
+        } else if (settled.phase === 'refused') {
+          launchWrite.refused(writeId, settled.detail);
+          setActionMessage(`Local dispatch refused: ${settled.detail}`);
+        } else {
+          launchWrite.unknown(writeId, UNCONFIRMED_LAUNCH);
+          setActionMessage(UNCONFIRMED_LAUNCH);
+        }
       }
     } catch {
-      launchWrite.unknown(writeId, 'local dispatch failed');
-      setActionMessage('Local dispatch failed — nothing dispatched.');
+      launchWrite.unknown(writeId, UNCONFIRMED_LAUNCH);
+      setActionMessage(UNCONFIRMED_LAUNCH);
     } finally {
       setIsSubmitting(false);
       setTimeout(() => setActionMessage(null), 5000);
@@ -268,16 +293,16 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const sessionTenantLabel = (session?.tenant_id ?? '').trim() || 'unbound';
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-sheet overflow-hidden bg-page border border-border shadow-xl flex flex-col justify-between p-8 select-none">
       {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-[var(--color-tile)] border border-[var(--color-border)] flex items-center justify-center">
-            <KeyRound className="w-5 h-5 text-[var(--color-warning-ink)]" />
+          <div className="w-10 h-10 rounded-card bg-tile border border-border flex items-center justify-center">
+            <KeyRound className="w-5 h-5 text-warning-ink" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">Autonomous Guardrails &amp; Sentinel</h2>
-            <p className="text-xs text-[var(--color-muted)] mt-0.5">
+            <h2 className="text-body-large font-semibold text-text tracking-tight">Autonomous Guardrails &amp; Sentinel</h2>
+            <p className="text-label text-muted mt-0.5">
               Secure spending limits, Sentinel action approval, and sovereign air-gap isolation
             </p>
           </div>
@@ -296,19 +321,19 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
                 ? `Live: ${sentinelReason}`
                 : 'Predicates unreachable — status unknown, no assurance claimed'
           }
-          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-capsule ${
             sentinelActive
-              ? 'bg-[var(--color-success-wash)] border border-[var(--color-success-edge)]'
+              ? 'bg-success-wash border border-success-edge'
               : sentinelPredicatesLive
-                ? 'bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)]'
-                : 'bg-[var(--color-tile)] border border-[var(--color-border)]'
+                ? 'bg-warning-wash border border-warning-edge'
+                : 'bg-tile border border-border'
           }`}
         >
           <ShieldCheck
-            className={`w-4 h-4 ${sentinelActive ? 'text-[var(--color-success-ink)]' : sentinelPredicatesLive ? 'text-[var(--color-warning-ink)]' : 'text-[var(--color-muted)]'}`}
+            className={`w-4 h-4 ${sentinelActive ? 'text-success-ink' : sentinelPredicatesLive ? 'text-warning-ink' : 'text-muted'}`}
           />
           <span
-            className={`text-xs font-mono font-medium ${sentinelActive ? 'text-[var(--color-success-ink)]' : sentinelPredicatesLive ? 'text-[var(--color-warning-ink)]' : 'text-[var(--color-muted)]'}`}
+            className={`text-label font-mono font-medium ${sentinelActive ? 'text-success-ink' : sentinelPredicatesLive ? 'text-warning-ink' : 'text-muted'}`}
           >
             {sentinelActive
               ? 'Sentinel Protection Active'
@@ -323,46 +348,46 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       <div className="flex-1 flex flex-col items-center justify-center my-6 max-w-xl mx-auto w-full space-y-6">
         {/* Action Message Banner */}
         {actionMessage && (
-          <div className="w-full p-3.5 rounded-2xl bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-xs font-medium text-center animate-pulse">
+          <div className="w-full p-3.5 rounded-card bg-info-wash border border-info-edge text-info-ink text-label font-medium text-center animate-pulse">
             {actionMessage}
           </div>
         )}
         {airGapSettlementLabel && (
-          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
+          <p role="status" className="text-[12px] font-mono text-muted">
             {airGapSettlementLabel}
           </p>
         )}
         {writeSettlementLabel(abortWrite.write) && (
-          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
+          <p role="status" className="text-[12px] font-mono text-muted">
             {writeSettlementLabel(abortWrite.write)}
           </p>
         )}
         {writeSettlementLabel(launchWrite.write) && (
-          <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">
+          <p role="status" className="text-[12px] font-mono text-muted">
             {writeSettlementLabel(launchWrite.write)}
           </p>
         )}
 
         {/* Meta Muse-Inspired Proactive Approval Card */}
-        <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 shadow-md space-y-4">
+        <div className="w-full bg-surface border border-border rounded-sheet p-6 shadow-md space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--color-text)] flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-[var(--color-info-ink)]" />
+            <span className="text-label font-semibold text-text flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-info-ink" />
               <span>Sentinel Approval Request</span>
             </span>
-            <span className="text-[12px] font-mono text-[var(--color-info-ink)] bg-[var(--color-info-wash)] px-2.5 py-0.5 rounded-full border border-[var(--color-info-edge)]">
+            <span className="text-[12px] font-mono text-info-ink bg-info-wash px-2.5 py-0.5 rounded-capsule border border-info-edge">
               {costKnown ? `Est. Cost: $${fmtFixed(rawEstimated, 2)}` : 'UNPRICED — authorization disabled'}
             </span>
           </div>
 
-          <p className="text-sm text-[var(--color-label-secondary)] leading-relaxed font-sans">
+          <p className="text-body-strong text-label-secondary leading-relaxed font-sans">
             Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
           </p>
           {!sessionBound && (
-            <p className="text-[12px] font-code text-[var(--color-warning-ink)]">No session bound — authorization disabled until a session is attached.</p>
+            <p className="text-[12px] font-code text-warning-ink">No session bound — authorization disabled until a session is attached.</p>
           )}
           {!costKnown && (
-            <p className="text-[12px] font-code text-[var(--color-warning-ink)]">No priced estimate on this campaign — authorization disabled until priced.</p>
+            <p className="text-[12px] font-code text-warning-ink">No priced estimate on this campaign — authorization disabled until priced.</p>
           )}
 
           <ApprovalPacketCard
@@ -390,7 +415,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
               onClick={handleSimulateOffline}
               disabled={isSubmitting || !session?.id || !campaign?.quantum_factors?.qasm}
               title={!campaign?.quantum_factors?.qasm ? 'Needs a campaign circuit first' : 'Dispatch to local simulator ($0.00 spend)'}
-              className="flex-1 py-2.5 px-4 bg-[var(--color-tile)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] border border-[var(--color-border)] text-xs font-medium rounded-xl transition-all disabled:opacity-40"
+              className="flex-1 py-2.5 px-4 bg-tile hover:bg-fill-hover text-text border border-border text-label font-medium rounded-row transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-40"
             >
               Simulate Offline — $0.00
             </button>
@@ -398,10 +423,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         </div>
 
         {/* Budget Planning View (local sketch — enforcement lives in the session cap) */}
-        <div className="w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-3xl p-6 space-y-4">
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-semibold text-[var(--color-text)]">Planning Ceiling <span className="text-[var(--color-muted)] font-normal">(local view)</span></span>
-            <span className="font-mono text-[var(--color-success-ink)] font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>
+        <div className="w-full bg-surface border border-border rounded-sheet p-6 space-y-4">
+          <div className="flex justify-between items-center text-label">
+            <span className="font-semibold text-text">Planning Ceiling <span className="text-muted font-normal">(local view)</span></span>
+            <span className="font-mono text-success-ink font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>
           </div>
 
           <input 
@@ -411,14 +436,14 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             step="5"
             value={budgetUSD}
             onChange={(e) => setBudgetUSD(parseFloat(e.target.value))}
-            className="w-full h-2 bg-[var(--color-tile)] rounded-lg appearance-none cursor-pointer accent-[var(--color-success)] focus:outline-none"
+            className="w-full h-2 bg-tile rounded-control-compact appearance-none cursor-pointer accent-success focus:outline-none"
           />
 
-          <div className="flex justify-between items-center text-[12px] text-[var(--color-muted)] font-mono pt-1">
+          <div className="flex justify-between items-center text-[12px] text-muted font-mono pt-1">
             <span>Spent (server): ${fmtFixed(session?.current_spend_usd ?? currentSpentUSD, 2)}</span>
             <span>Available: ${fmtFixed((session?.spend_limit_usd ?? budgetUSD) - (session?.current_spend_usd ?? currentSpentUSD), 2)}</span>
           </div>
-          <p className="text-[12px] font-code text-[var(--color-muted)]">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
+          <p className="text-[12px] font-code text-muted">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
         </div>
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
@@ -434,13 +459,13 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       </div>
 
       {/* Bottom Footer: Emergency Pause & Progressive Disclosure */}
-      <div className="border-t border-[var(--color-border)] pt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="border-t border-border pt-4 flex flex-wrap items-center justify-between gap-4">
         {/* Tactile Emergency Pause */}
         <button
           onClick={handleEmergencyStop}
-          className="px-3.5 py-2 rounded-xl bg-[var(--color-danger-wash)] hover:opacity-90 border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs font-semibold flex items-center space-x-2 transition-all active:scale-95"
+          className="px-3.5 py-2 rounded-row bg-danger-wash hover:opacity-90 border border-danger-edge text-danger-ink text-label font-semibold flex items-center space-x-2 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] active:scale-95"
         >
-          <AlertOctagon className="w-4 h-4 text-[var(--color-danger-ink)]" />
+          <AlertOctagon className="w-4 h-4 text-danger-ink" />
           <span>Emergency Pause All Workloads</span>
         </button>
         <ConfirmDialog
@@ -458,25 +483,25 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         {/* Progressive Disclosure: Crypto Attestation */}
         <button
           onClick={() => setShowCryptoDetails(!showCryptoDetails)}
-          className="text-xs text-[var(--color-label-secondary)] hover:text-[var(--color-text)] font-medium transition-colors flex items-center space-x-1.5"
+          className="text-label text-label-secondary hover:text-text font-medium transition-colors flex items-center space-x-1.5"
         >
           <span>{showCryptoDetails ? 'Hide Attestation' : 'Inspect Cryptographic AP2 Mandate Envelope'}</span>
-          {showCryptoDetails ? <ChevronUp className="w-3.5 h-3.5 text-[var(--color-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--color-muted)]" />}
+          {showCryptoDetails ? <ChevronUp className="w-3.5 h-3.5 text-muted" /> : <ChevronDown className="w-3.5 h-3.5 text-muted" />}
         </button>
       </div>
 
       {/* Expanded Cryptographic Detail Sheet */}
       {showCryptoDetails && (
-        <div className="mt-4 p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-mono text-[var(--color-label-secondary)] space-y-2.5">
+        <div className="mt-4 p-4 rounded-card bg-surface border border-border text-label font-mono text-label-secondary space-y-2.5">
           <div className="flex justify-between items-center">
-            <span className="text-[var(--color-muted)] font-medium">Signing Scheme:</span>
-            <span className="text-[var(--color-text)] font-bold">RFC 8032 Ed25519 WebCrypto</span>
+            <span className="text-muted font-medium">Signing Scheme:</span>
+            <span className="text-text font-bold">RFC 8032 Ed25519 WebCrypto</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[var(--color-muted)] font-medium">Storage Invariant:</span>
-            <span className="text-[var(--color-success-ink)] font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
+            <span className="text-muted font-medium">Storage Invariant:</span>
+            <span className="text-success-ink font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
           </div>
-          <div className="truncate text-xs text-[var(--color-label-secondary)] pt-1 border-t border-[var(--color-border)]">
+          <div className="truncate text-label text-label-secondary pt-1 border-t border-border">
             Tenant: {sessionTenantLabel} • {lastReceipt ? `Envelope verified ${lastReceipt.verifiedAt} (sig ${lastReceipt.sigPreview}…) for tenant ${lastReceipt.tenant}` : 'No envelope verified yet — authorize a run to mint one.'}
           </div>
         </div>

@@ -231,8 +231,9 @@ func TestIdemLaunchReplayAndFields(t *testing.T) {
 	defer cleanup()
 	h := srv.Handler()
 	sid := idemSession(t, h, "idem launch")
+	pid, digest := mintTestProposal(t, srv, sid, idemQASM, "local_simulator", 1.0)
 	base := map[string]any{
-		"session_id": sid, "qasm": idemQASM, "backend": "local_simulator",
+		"session_id": sid, "proposal_id": pid, "digest": digest,
 		"mandate_ref": "m-test", "caller_jurisdictions": []string{"US"},
 		"request_id": "idem-l1",
 	}
@@ -346,6 +347,126 @@ func TestIdemStaleClaimReclaimed(t *testing.T) {
 	code, body, _ := idemPost(t, h, "/api/jobs", map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator", "request_id": "idem-stale"})
 	if code != http.StatusCreated {
 		t.Fatalf("stale claim must be reclaimed and proceed, got %d %s", code, body)
+	}
+}
+
+func TestIdemStaleClaimReplaysAdmittedJob(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "idem admitted")
+	full := map[string]any{
+		"session_id": sid, "qasm": idemQASM, "backend": "local_simulator",
+		"shots": 1024, "budget_usd": 0.0, "mandate_ref": "",
+		"grant_chain": []string(nil), "input_labels": []string(nil),
+		"caller_jurisdictions": []string(nil), "caller_export_class": "", "export_reviewed": false,
+	}
+	fh, _ := api.CanonicalContentHash(full)
+	if err := l.IdemClaim(sid, "idem-admitted", fh, "job"); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, request_id) VALUES ('job-admitted', ?, 'JOB_STATUS_QUEUED', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'idem-admitted')`, sid); err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	if _, err := l.DB().Exec(`UPDATE idempotency_keys SET created_at = '2000-01-01 00:00:00' WHERE session_id = ? AND request_id = ?`, sid, "idem-admitted"); err != nil {
+		t.Fatalf("backdate: %v", err)
+	}
+	code, body, hdr := idemPost(t, h, "/api/jobs", map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator", "request_id": "idem-admitted"})
+	if code != http.StatusCreated {
+		t.Fatalf("admitted job must replay, got %d %s", code, body)
+	}
+	if hdr.Get("X-Idempotent-Replay") != "true" || !strings.Contains(body, "job-admitted") || !strings.Contains(body, "rebuilt_from") {
+		t.Fatalf("replay body = %s hdr %v", body, hdr)
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND request_id = ?`, sid, "idem-admitted").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("same request must not admit a second job: %d %v", n, err)
+	}
+}
+
+func TestIdemStaleSlowLoopRebuilds(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "idem slow loop")
+	content := map[string]any{
+		"session_id": sid, "harness_id": "ansatz-search",
+		"initial_artifact": "", "max_iterations": 1,
+	}
+	fh, err := api.CanonicalContentHash(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.IdemClaim(sid, "idem-loop-stale", fh, "slow"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SaveLoopState(ledger.LoopPersist{
+		ID: "loop-stale", SessionID: sid, HarnessID: "ansatz-search",
+		Status: "running", MaxSteps: 1, RequestID: "idem-loop-stale",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`UPDATE idempotency_keys SET created_at = '2000-01-01 00:00:00' WHERE session_id = ? AND request_id = ?`, sid, "idem-loop-stale"); err != nil {
+		t.Fatal(err)
+	}
+	code, body, hdr := idemPost(t, h, "/api/autoresearch/start", map[string]any{
+		"session_id": sid, "harness_id": "ansatz-search", "max_iterations": 1, "request_id": "idem-loop-stale",
+	})
+	if code != http.StatusCreated || hdr.Get("X-Idempotent-Replay") != "true" || !strings.Contains(body, "loop-stale") || !strings.Contains(body, "loop_row") {
+		t.Fatalf("stale loop must replay the row, got %d %s", code, body)
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM loops WHERE session_id = ? AND request_id = ?`, sid, "idem-loop-stale").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("replay must not start a second loop: %d %v", n, err)
+	}
+}
+
+func TestIdemStaleSlowClaimRebuilds(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "idem slow claim")
+	fh, err := api.CanonicalContentHash(map[string]any{"session_id": sid, "prompt": "seeded drill"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.IdemClaim(sid, "idem-claim-stale", fh, "slow"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO claim_records (id, session_id, turn_kind, statement, verdict, evidence_json, created_at, request_id) VALUES ('clm-stale', ?, 'tribunal', 'seed', 'verified', '{}', CURRENT_TIMESTAMP, 'idem-claim-stale')`, sid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`UPDATE idempotency_keys SET created_at = '2000-01-01 00:00:00' WHERE session_id = ? AND request_id = ?`, sid, "idem-claim-stale"); err != nil {
+		t.Fatal(err)
+	}
+	code, body, hdr := idemPost(t, h, "/api/chat/tribunal", map[string]any{"session_id": sid, "prompt": "seeded drill", "request_id": "idem-claim-stale"})
+	if code != http.StatusOK || hdr.Get("X-Idempotent-Replay") != "true" || !strings.Contains(body, "clm-stale") || !strings.Contains(body, "claim_row") {
+		t.Fatalf("stale tribunal must replay the claim, got %d %s", code, body)
+	}
+}
+
+func TestIdemStaleSlowWithoutEffectDoesNotRerun(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "idem slow missing")
+	fh, err := api.CanonicalContentHash(map[string]any{"session_id": sid, "prompt": "seeded drill"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.IdemClaim(sid, "idem-missing", fh, "slow"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`UPDATE idempotency_keys SET created_at = '2000-01-01 00:00:00' WHERE session_id = ? AND request_id = ?`, sid, "idem-missing"); err != nil {
+		t.Fatal(err)
+	}
+	code, body, _ := idemPost(t, h, "/api/chat/tribunal", map[string]any{"session_id": sid, "prompt": "seeded drill", "request_id": "idem-missing"})
+	if code != http.StatusConflict || !strings.Contains(body, "not re-executed") || strings.Contains(body, "mint a new request_id") {
+		t.Fatalf("missing effect must refuse without inviting a second spend, got %d %s", code, body)
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM claim_records WHERE session_id = ?`, sid).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("refused retry must not mint a claim: %d %v", n, err)
 	}
 }
 

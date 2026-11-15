@@ -13,6 +13,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/memory"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
+	"github.com/mainza-ai/kubona/core/pkg/untrusted"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -330,6 +331,12 @@ func (s *Server) registerAgentTools() *tools.Registry {
 		},
 		Capability: "jobs:submit-local",
 		ReadOnly:   false,
+		// B6 threat argument: this is the ONLY effectful copilot tool. It is
+		// permitted after untrusted observations because it cannot spend
+		// money (local simulator, $0), is capped at one dispatch per turn,
+		// and still passes full admission. A future spend-capable tool must
+		// NOT copy this opt-in without its own review: the default refuses.
+		AllowAfterUntrusted: true,
 		Handler: func(ctx context.Context, args json.RawMessage) (any, error) {
 			var a struct {
 				SessionID string `json:"session_id"`
@@ -426,10 +433,53 @@ func (s *Server) registerAgentTools() *tools.Registry {
 	// carry no run store, so granting it there would be dead surface).
 	_ = r.Register(agents.EvidenceContinueDefinition())
 
+	// B11: only names + descriptions ride the cacheable system prompt; the
+	// body is read on demand through this read-only tool. The skill is
+	// advisory instruction, never a capability grant — tools are still
+	// enforced by the registry allow-list.
+	_ = r.Register(tools.Definition{
+		Name:        "load_skill",
+		Description: "Load the instructions for one advertised skill by exact name. Optionally pass a section heading to read only that part. Read-only; only names and descriptions are in the system prompt.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":    map[string]any{"type": "string", "description": "Exact skill name from the advertised list"},
+				"section": map[string]any{"type": "string", "description": "Optional heading, e.g. 'Setup'; omit for the whole body"},
+			},
+			"required": []any{"name"},
+		},
+		Capability: "skills:read",
+		ReadOnly:   true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			var a struct {
+				Name    string `json:"name"`
+				Section string `json:"section"`
+			}
+			if err := json.Unmarshal(args, &a); err != nil {
+				return nil, err
+			}
+			if len(a.Section) > 80 || strings.ContainsAny(a.Section, "\r\n") {
+				return nil, fmt.Errorf("skill_section_unknown: section must be one line, at most 80 chars")
+			}
+			if s.skillStore == nil {
+				return nil, fmt.Errorf("skill_unknown: skill store is not loaded")
+			}
+			body, fault := s.skillStore.LoadSection(a.Name, CopilotRole, a.Section)
+			if fault != nil {
+				return nil, fmt.Errorf("%s: %s", fault.Code, fault.Detail)
+			}
+			out := map[string]any{"name": a.Name, "body": body}
+			if strings.TrimSpace(a.Section) != "" {
+				out["section"] = a.Section
+			}
+			return out, nil
+		},
+	})
+
 	_ = r.Allow(CopilotRole,
 		"get_anchor", "get_campaign", "list_jobs", "get_job",
 		"recent_events", "query_literature", "submit_local_sim",
-		"recall_memory",
+		"recall_memory", "load_skill",
 	)
 	// Tribunal specialist roles observe through the same read-only set.
 	// Turns never write: submit_local_sim is copilot-only.
@@ -476,21 +526,27 @@ func jobBackend(j *jobs.Job) string {
 // non-streamed completions; the visible answer still streams afterwards.
 // Any failure (no tools, provider error, dispatch refusal) returns the base
 // history unchanged, so the caller degrades to exactly today's behavior.
-func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []llm.ChatMessage) []llm.ChatMessage {
+func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []llm.ChatMessage) ([]llm.ChatMessage, []ToolObservation) {
 	if s.toolRegistry == nil || s.llmClient == nil {
-		return base
+		return base, nil
 	}
 	toolsForLLM := s.toolRegistry.DefinitionsForLLM(CopilotRole)
 	if len(toolsForLLM) == 0 {
-		return base
+		return base, nil
 	}
 	hist := append([]llm.ChatMessage(nil), base...)
 	hist = append(hist, llm.ChatMessage{Role: "system", Content: toolContextPreamble(sessionID)})
+	// B5: observations are addressable as [oN] so numeric claims can be
+	// checked deterministically after the reply.
+	var observations []ToolObservation
 	cfg := llm.DefaultBudgetConfig()
 	submits := 0
 	var toolChars, turnTokens int
 	var lastFailTool string
 	var failStreak int
+	// B6: every tool observation is untrusted data. Taint flips on the first
+	// observation and gates effectful dispatch for the rest of the turn.
+	tainted := false
 loop:
 	for round := 0; round < cfg.MaxToolRounds; round++ {
 		text, calls, chatResp, _, err := s.llmClient.CompleteWithTools(ctx, CopilotRole, hist, toolsForLLM)
@@ -531,6 +587,17 @@ loop:
 		for _, c := range calls {
 			var out any
 			var derr error
+			// B6: the taint state at dispatch time is auditable on the event.
+			taintedAtCall := tainted
+			// B6: once this turn has consumed untrusted output, an effectful
+			// tool must opt in explicitly (AllowAfterUntrusted). Default
+			// write tools refuse rather than trust injected text.
+			if tainted {
+				if def, ok := s.toolRegistry.Definition(c.Name); ok && !def.ReadOnly && !def.AllowAfterUntrusted {
+					derr = fmt.Errorf("tool %q is effectful and this turn has already consumed untrusted output: refusing without explicit approval", c.Name)
+					_ = s.ledger.AppendEvent(sessionID, "tool_taint_refused", map[string]any{"tool": c.Name})
+				}
+			}
 			// Per-turn write bound: at most one simulator dispatch per
 			// turn. Further submit calls refuse with the bound stated —
 			// the model can propose, never spam the queue.
@@ -544,29 +611,42 @@ loop:
 			if derr == nil {
 				out, derr = s.toolRegistry.Dispatch(ctx, CopilotRole, toRegistryCall(c))
 			}
+			// Even a refused or failed call returns attacker-influenced text.
+			tainted = true
 			// Audit every invocation: a tool call that is not also a
 			// ledger event is unverifiable afterwards (was it executed or
 			// confabulated?). Arguments stay out of the event; the name,
 			// outcome, and error text are what the audit needs.
 			_ = s.ledger.AppendEvent(sessionID, "tool_called", map[string]any{
-				"tool":   c.Name,
-				"source": callSource,
-				"ok":     derr == nil,
-				"error":  errorText(derr),
+				"tool":    c.Name,
+				"source":  callSource,
+				"ok":      derr == nil,
+				"error":   errorText(derr),
+				"tainted": taintedAtCall,
 			})
+			obsID := fmt.Sprintf("o%d", len(observations)+1)
 			obs, _ := json.Marshal(map[string]any{
-				"tool":  c.Name,
-				"ok":    derr == nil,
-				"error": errorText(derr),
-				"data":  out,
+				"observation_id": obsID,
+				"tool":           c.Name,
+				"ok":             derr == nil,
+				"error":          errorText(derr),
+				"data":           out,
 			})
-			// Observation budget: one chatty tool (a full campaign dump)
-			// must not eat the turn. The cut is marked on the wire.
-			obsCapped := llm.TruncateObservation(string(obs), cfg.MaxObservationChars)
+			observations = append(observations, ToolObservation{ID: obsID, Tool: c.Name, Data: obs})
+			// B6/S4: one shared provenance fence for both rails. The tag
+			// lives inside the observation budget; forged markers inside the
+			// payload are neutralized so data cannot close the fence.
+			source := "tool:" + c.Name
+			tag := untrusted.Tag(source)
+			room := cfg.MaxObservationChars - len([]rune(tag)) - len([]rune(untrusted.CloseMark)) - 2
+			if room < 0 {
+				room = 0
+			}
+			obsCapped := llm.TruncateObservation(string(obs), room)
 			toolChars += len(obsCapped)
 			hist = append(hist, llm.ChatMessage{
 				Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
-				Content: obsCapped,
+				Content: untrusted.Wrap(source, obsCapped),
 			})
 			// Repeat-failure breaker: the same tool failing twice in a row
 			// will fail a third time — stop the loop and let the model
@@ -594,7 +674,7 @@ loop:
 			}
 		}
 	}
-	return hist
+	return hist, observations
 }
 
 // usageTokens sums provider-reported usage for the accumulator. Zero when

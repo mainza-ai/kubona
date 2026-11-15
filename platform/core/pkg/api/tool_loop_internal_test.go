@@ -145,7 +145,7 @@ func TestToolLoopBreaker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := srv.resolveWithTools(context.Background(), sess.ID,
+	out, _ := srv.resolveWithTools(context.Background(), sess.ID,
 		[]llm.ChatMessage{{Role: "user", Content: "go"}})
 	_ = out
 
@@ -229,7 +229,7 @@ func TestToolObservationCapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hist := srv.resolveWithTools(context.Background(), sess.ID,
+	hist, _ := srv.resolveWithTools(context.Background(), sess.ID,
 		[]llm.ChatMessage{{Role: "user", Content: "go"}})
 
 	cfg := llm.DefaultBudgetConfig()

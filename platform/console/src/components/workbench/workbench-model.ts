@@ -1,5 +1,5 @@
 import type { ProvenanceKind } from '@/components/common/ProvenanceBadge';
-import type { CampaignState, Job, Loop, Task } from '@/types';
+import type { CampaignState, Job, Loop, Need, Task } from '@/types';
 import { jobStatusLabel } from '@/lib/job-status';
 import type { ObligationRow } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
@@ -22,7 +22,8 @@ export type WorkbenchObjectKind =
   | 'approval'
   | 'note'
   | 'molecule'
-  | 'task';
+  | 'task'
+  | 'plan';
 
 export type WorkbenchLink = {
   id: string;
@@ -65,7 +66,17 @@ export type WorkbenchObjectMeta = {
   callout?: { tone: 'supports' | 'contested' | 'info'; summary: string };
   code?: { language: string; content: string; label?: string };
   comparison?: WorkbenchComparisonData;
+  /** Typed missing precondition (C2); presence is the issue signal. */
+  need?: Need;
+  /** C4: expected data not yet present, labelled and status-announced. */
+  pending?: { label: string; sinceMs?: number };
+  /** C8: the dry-run plan this card projects. */
+  plan?: { id: string; name: string; steps: number; taskIds?: string[] };
 };
+
+/** C9: a fact's producing record, so a chip can focus it. */
+export type WorkbenchFactSource = { domain: string; id: string };
+export type WorkbenchFact = { label: string; value: string; from?: WorkbenchFactSource };
 
 export type WorkbenchObject = {
   id: string;
@@ -75,7 +86,7 @@ export type WorkbenchObject = {
   detail: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
-  facts: { label: string; value: string }[];
+  facts: WorkbenchFact[];
   chart?: ChartSpec;
   /** What the card's values are and are not; always shown with the facts. */
   basis?: string;
@@ -812,6 +823,7 @@ export function buildWorkbench(
   tasks: Task[] = [],
   sessionSpendUsd?: number,
   _pins: WorkbenchPins = {},
+  plan?: import('@/types').WorkflowPlanDraft | null,
 ): WorkbenchObject[] {
   if (!campaign) return [];
   // Retained in signature for 7-arg callers; pin layout overrides are resolved in Workbench.tsx.
@@ -833,6 +845,16 @@ export function buildWorkbench(
   const ROW_GAP = 24;
   const colY = [0, 0, 0, 0];
   const objects: WorkbenchObject[] = [];
+  // C9: attach the producing record to facts that can name one. The chip
+  // focuses that record; no chip means no honest source to point at.
+  const sourced = (domain: string, id: string) => (fact: WorkbenchFact): WorkbenchFact => ({
+    ...fact,
+    from: { domain, id },
+  });
+  // Measurement/proof facts come from the measured job when one is recorded,
+  // otherwise from the campaign projection itself.
+  const measurementJobId = campaign.measurement?.job_id ?? '';
+  const measurementSource = measurementJobId ? sourced('job', measurementJobId) : sourced('campaign', 'campaign');
 
   const placeSpine = (
     col: 0 | 1 | 2 | 3,
@@ -960,7 +982,7 @@ export function buildWorkbench(
       { label: 'Chemical accuracy', value: notebook?.chemical_accuracy ? 'PASS' : 'not claimed' },
       { label: 'Claim', value: campaign.measurement?.claim_id || 'not sealed' },
       { label: 'Job', value: campaign.measurement?.job_id?.slice(0, 8) || 'not recorded' },
-    ],
+    ].map(measurementSource),
     ...(campaign.measurement?.job_id ? { meta: { jobId: campaign.measurement.job_id } } : {}),
   });
 
@@ -997,7 +1019,7 @@ export function buildWorkbench(
           { label: 'Hardware', value: campaign.measurement.hardware ? 'yes' : 'no (simulator)' },
           { label: 'CI95', value: campaign.measurement.ci95_mha != null ? `${fixed(campaign.measurement.ci95_mha, 3)} mHa` : 'not recorded' },
           { label: 'Usage', value: campaign.measurement.usage_seconds != null ? `${fixed(campaign.measurement.usage_seconds, 2)} s` : 'not recorded' },
-        ]
+        ].map(measurementSource)
       : [
           { label: 'FCI', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },
           { label: 'VQE', value: anchored ? `${fixed(anchor?.vqe_expectation_energy, 5)} Ha` : 'UNVERIFIED' },
@@ -1005,7 +1027,7 @@ export function buildWorkbench(
           { label: 'Accuracy limit', value: anchored ? `${fixed(anchor?.chemical_accuracy_limit, 2)} mHa` : 'UNVERIFIED' },
           { label: 'Accuracy', value: anchored ? (anchor?.chemical_accuracy_passed ? 'PASS' : 'FAIL') : 'UNVERIFIED' },
           { label: 'UNCERTAINTY', value: 'not recorded' },
-        ],
+        ].map(sourced('campaign', 'campaign')),
     ...((campaign.measurement || anchored) ? {
       meta: {
         ...(campaign.measurement?.job_id ? { jobId: campaign.measurement.job_id } : {}),
@@ -1253,8 +1275,12 @@ export function buildWorkbench(
         { label: 'State', value: state },
         { label: 'Step', value: `${loop.step_count} / ${loop.max_steps}` },
         { label: 'Diverged', value: loop.diverged ? 'YES' : 'no' },
-      ],
-      meta: { status: state, activeFlow: state === 'running' },
+      ].map(sourced('loop', loop.id)),
+      meta: {
+        status: state,
+        activeFlow: state === 'running',
+        pending: state === 'running' ? { label: 'Run in progress — parts arrive as the run records them.' } : undefined,
+      },
     });
   });
 
@@ -1396,8 +1422,14 @@ export function buildWorkbench(
           { label: 'Created', value: compactIsoTimestamp(root.job.created_at) },
           { label: 'Completed', value: root.job.completed_at ? compactIsoTimestamp(root.job.completed_at) : 'not yet' },
           { label: 'Result', value: root.job.result_json ? 'recorded' : 'not recorded' },
-        ],
-        meta: { jobId: root.job.id, status: latestStatus, activeFlow: latestStatus === 'RUNNING' },
+        ].map(sourced('job', root.job.id)),
+        meta: {
+          jobId: root.job.id,
+          status: latestStatus,
+          activeFlow: latestStatus === 'RUNNING',
+          need: latest.job.need,
+          pending: pendingForJob(latestStatus, backend, latest.job.created_at),
+        },
       });
       continue;
     }
@@ -1448,7 +1480,7 @@ export function buildWorkbench(
         { label: 'Backend', value: backend },
         { label: 'Shots', value: shots },
         { label: 'Result', value: latest.job.result_json ? 'recorded' : 'not recorded' },
-      ],
+      ].map(sourced('job', root.job.id)),
       meta: {
         jobId: root.job.id,
         revises: group.map((entry) => entry.job.id),
@@ -1456,6 +1488,8 @@ export function buildWorkbench(
         runs: runRows,
         status: latestStatus,
         activeFlow: latestStatus === 'RUNNING',
+        need: latest.job.need,
+        pending: pendingForJob(latestStatus, backend, latest.job.created_at),
       },
     });
   }
@@ -1472,7 +1506,7 @@ export function buildWorkbench(
         { label: 'Close ready', value: obligation.close_ready ? 'YES' : 'no' },
         { label: 'Cases', value: obligation.required_cases.length ? obligation.required_cases.join(', ') : 'none' },
         { label: 'Authorities', value: obligation.required_authorities.length ? obligation.required_authorities.join(', ') : 'none' },
-      ],
+      ].map(sourced('obligation', obligation.id)),
       meta: {
         subjectKind: obligation.subject_kind,
         subjectId: obligation.subject_id,
@@ -1493,7 +1527,7 @@ export function buildWorkbench(
         { label: 'Status', value: task.status },
         { label: 'Source', value: task.source_domain || 'none' },
         { label: 'Updated', value: task.updated_at || 'not recorded' },
-      ],
+      ].map(sourced('task', task.id)),
       meta: {
         sourceDomain: task.source_domain,
         sourceId: task.source_id,
@@ -1501,6 +1535,49 @@ export function buildWorkbench(
       },
     });
   });
+
+  if (plan && plan.steps.length > 0) {
+    const costs = plan.steps.map((step) => step.cost_usd).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const plannedCost = costs.length > 0 ? `$${costs.reduce((sum, value) => sum + value, 0).toFixed(2)}` : 'not priced';
+    const approvalCount = plan.steps.filter((step) => step.requires_approval).length;
+    const stepFacts = plan.steps.slice(0, 8).map((step, index) => ({
+      label: `${index + 1}. ${step.id || step.tool}`,
+      value: [
+        step.tool,
+        typeof step.cost_usd === 'number' && Number.isFinite(step.cost_usd) ? `$${step.cost_usd.toFixed(2)}` : 'no cost',
+        step.requires_approval ? 'approval' : null,
+      ].filter(Boolean).join(' · '),
+    }));
+    placeRun(2, {
+      id: `plan-${plan.workflowId}`,
+      kind: 'plan',
+      label: 'Plan',
+      title: `Plan · ${plan.name}`,
+      detail: plan.taskIds?.length
+        ? 'Tasks created from this plan. Nothing in the plan was executed.'
+        : 'Dry run — nothing executed. Make tasks to track each step.',
+      facts: [
+        { label: 'Workflow', value: plan.workflowId || 'not assigned' },
+        { label: 'Steps', value: String(plan.steps.length) },
+        { label: 'Planned cost', value: plannedCost },
+        { label: 'Needs approval', value: approvalCount > 0 ? String(approvalCount) : 'none' },
+        { label: 'Unresolved', value: plan.unresolved.length > 0 ? plan.unresolved.join(', ') : 'none' },
+        ...stepFacts,
+        ...(plan.steps.length > stepFacts.length
+          ? [{ label: 'More steps', value: `+${plan.steps.length - stepFacts.length} not shown` }]
+          : []),
+      ],
+      meta: {
+        status: 'planned',
+        plan: {
+          id: plan.workflowId,
+          name: plan.name,
+          steps: plan.steps.length,
+          taskIds: plan.taskIds,
+        },
+      },
+    });
+  }
 
   const hasMeasurement = Boolean(notebook || epistemics || anchored || (campaign.trajectory?.length ?? 0) > 0);
   const provenanceFor = (object: WorkbenchObject): ProvenanceKind => {
@@ -2165,12 +2242,16 @@ export function nextZoomTier(zoom: number, current: WorkbenchZoomTier): Workbenc
 }
 
 export function isIssueWorkbenchObject(object: WorkbenchObject): boolean {
+  // C2: an issue is a declared state, never a word found in prose. Approvals
+  // need a human by definition; a typed need names what is missing; declared
+  // tones (warning hero / contested callout) are set by the projection that
+  // knows the verdict. Free-text "failed" in a fact or status no longer
+  // manufactures an issue.
   if (object.kind === 'approval') return true;
-  if (/contested|contradict|diverg/i.test(`${object.title} ${object.meta?.status ?? ''}`)) return true;
+  if (object.meta?.need) return true;
   if (object.meta?.hero?.tone === 'warning') return true;
   if (object.meta?.callout?.tone === 'contested') return true;
-  if (object.meta?.runs?.some((r) => /failed|error/i.test(r.status))) return true;
-  return object.facts.some((f) => /failed|contested/i.test(f.value));
+  return false;
 }
 
 export function filterWorkbenchObjects(
@@ -2198,4 +2279,191 @@ export function resolveFocusObjectId(
     o.ref?.id === rawId || o.meta?.runs?.some((r) => r.id === rawId),
   );
   return owner?.id ?? null;
+}
+
+// C3 — the canvas must survive one malformed item. Content is clipped and
+// structural junk is dropped before render: duplicate ids, blank ids, and
+// links whose endpoints no longer exist. Nothing is silently rewritten in the
+// ledger — this is a render projection only.
+export const WORKBENCH_TEXT_LIMITS = {
+  label: 40,
+  title: 200,
+  detail: 400,
+  factLabel: 80,
+  factValue: 240,
+  facts: 24,
+  links: 500,
+} as const;
+
+function clipText(value: unknown, max: number): string {
+  const text = typeof value === 'string' ? value : '';
+  return text.length <= max ? text : `${text.slice(0, Math.max(0, max - 1))}…`;
+}
+
+export function sanitizeWorkbenchObjects(objects: readonly WorkbenchObject[]): WorkbenchObject[] {
+  const seen = new Set<string>();
+  const out: WorkbenchObject[] = [];
+  for (const object of objects ?? []) {
+    if (!object || typeof object.id !== 'string') continue;
+    const id = object.id.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const facts = Array.isArray(object.facts) ? object.facts : [];
+    out.push({
+      ...object,
+      id,
+      label: clipText(object.label, WORKBENCH_TEXT_LIMITS.label),
+      title: clipText(object.title, WORKBENCH_TEXT_LIMITS.title),
+      detail: clipText(object.detail, WORKBENCH_TEXT_LIMITS.detail),
+      facts: facts.slice(0, WORKBENCH_TEXT_LIMITS.facts).map((fact) => ({
+        label: clipText(fact?.label, WORKBENCH_TEXT_LIMITS.factLabel),
+        value: clipText(fact?.value, WORKBENCH_TEXT_LIMITS.factValue),
+      })),
+    });
+  }
+  return out;
+}
+
+const WORKBENCH_LINK_KINDS = new Set<WorkbenchLink['kind']>([
+  'supports', 'uses', 'depends_on', 'contradicts', 'same_as', 'thread',
+]);
+
+export function sanitizeWorkbenchLinks(
+  links: readonly WorkbenchLink[] | null | undefined,
+  objects: readonly WorkbenchObject[],
+): WorkbenchLink[] {
+  const ids = new Set(objects.map((object) => object.id));
+  const seenIds = new Set<string>();
+  const seenPairs = new Set<string>();
+  const out: WorkbenchLink[] = [];
+  for (const link of links ?? []) {
+    if (!link || !ids.has(link.source) || !ids.has(link.target)) continue;
+    if (link.source === link.target) continue;
+    if (!WORKBENCH_LINK_KINDS.has(link.kind)) continue;
+    const id = typeof link.id === 'string' && link.id.trim() !== ''
+      ? link.id.trim()
+      : `${link.source}-${link.target}`;
+    if (seenIds.has(id)) continue;
+    const pair = `${link.source}->${link.target}:${link.kind}`;
+    if (seenPairs.has(pair)) continue;
+    seenIds.add(id);
+    seenPairs.add(pair);
+    out.push({ ...link, id });
+    if (out.length >= WORKBENCH_TEXT_LIMITS.links) break;
+  }
+  return out;
+}
+
+// C4 — pending placeholders are a projection fact, not a spinner. Only a
+// state that genuinely means "data is expected" produces one.
+export function pendingForJob(
+  status: string,
+  backend: string,
+  createdAt?: string,
+): { label: string; sinceMs?: number } | undefined {
+  const since = createdAt ? Date.parse(createdAt) : NaN;
+  const sinceMs = Number.isFinite(since) ? since : undefined;
+  switch (status) {
+    case 'QUEUED':
+      return { label: `Queued — awaiting dispatch${backend && backend !== 'not recorded' ? ` on ${backend}` : ''}`, sinceMs };
+    case 'RUNNING':
+      return { label: `Running${backend && backend !== 'not recorded' ? ` on ${backend}` : ''}`, sinceMs };
+    case 'OUTCOME_UNKNOWN':
+      return { label: 'Outcome unknown — reservation held pending evidence', sinceMs };
+    default:
+      return undefined;
+  }
+}
+
+// C5 — least-shift follow: pan only enough to bring the live target back into
+// a lead band, never zoom, never recentre when it is already visible.
+export function followCamera(
+  camera: WorkbenchCamera,
+  target: { position: { x: number; y: number }; size: { width: number; height: number } },
+  viewport: { width: number; height: number },
+  leadRatio = 0.14,
+): WorkbenchCamera | null {
+  if (viewport.width <= 0 || viewport.height <= 0) return null;
+  const zoom = finite(camera.zoom) && camera.zoom > 0 ? camera.zoom : DEFAULT_CAMERA.zoom;
+  const left = target.position.x * zoom + camera.x;
+  const top = target.position.y * zoom + camera.y;
+  const right = left + Math.max(1, target.size.width * zoom);
+  const bottom = top + Math.max(1, target.size.height * zoom);
+  const minX = viewport.width * leadRatio;
+  const maxX = viewport.width * (1 - leadRatio);
+  const minY = viewport.height * leadRatio;
+  const maxY = viewport.height * (1 - leadRatio);
+  let dx = 0;
+  let dy = 0;
+  // A target wider than the band already covers it: panning cannot improve
+  // visibility and would only shift the scene. Same vertically.
+  if (right - left <= maxX - minX) {
+    // Bring the far edge to the lead line so the whole target is inside the
+    // band, not merely touching it.
+    if (right > maxX) dx = maxX - right;
+    else if (left < minX) dx = minX - left;
+  }
+  if (bottom - top <= maxY - minY) {
+    if (bottom > maxY) dy = maxY - bottom;
+    else if (top < minY) dy = minY - top;
+  }
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return null;
+  return {
+    x: Math.round((camera.x + dx) * 100) / 100,
+    y: Math.round((camera.y + dy) * 100) / 100,
+    zoom,
+  };
+}
+
+// C7 — the grow-only near set uses a 3× viewport box (one viewport of lead on
+// each side). Pure so the culling rule is testable without a DOM.
+export function withinNearViewport(
+  object: Pick<WorkbenchObject, 'position' | 'size'>,
+  camera: WorkbenchCamera,
+  viewport: { width: number; height: number },
+  factor = 3,
+): boolean {
+  if (viewport.width <= 0 || viewport.height <= 0) return false;
+  const zoom = finite(camera.zoom) && camera.zoom > 0 ? camera.zoom : DEFAULT_CAMERA.zoom;
+  const vw = viewport.width / zoom;
+  const vh = viewport.height / zoom;
+  const lead = Math.max(0, (factor - 1) / 2);
+  const left = -camera.x / zoom - vw * lead;
+  const top = -camera.y / zoom - vh * lead;
+  const right = left + vw * factor;
+  const bottom = top + vh * factor;
+  return (
+    object.position.x + object.size.width >= left &&
+    object.position.x <= right &&
+    object.position.y + object.size.height >= top &&
+    object.position.y <= bottom
+  );
+}
+
+// C6 — arrivals are a pure diff; the component decides when to initialize
+// (the first projection is not an "arrival").
+export function arrivalDiff(
+  known: ReadonlySet<string>,
+  ids: readonly string[],
+): { fresh: string[]; next: Set<string> } {
+  const next = new Set(ids);
+  return { fresh: ids.filter((id) => !known.has(id)), next };
+}
+
+// C9 — resolve a fact's producing record to the card that owns it.
+export function resolveFactSource(
+  objects: readonly WorkbenchObject[],
+  from: WorkbenchFactSource,
+): WorkbenchObject | null {
+  return (
+    objects.find((object) => object.ref?.domain === from.domain && object.ref?.id === from.id)
+    ?? objects.find((object) => object.id === `${from.domain}-${from.id}`)
+    ?? objects.find((object) => object.id === from.id)
+    // Folded job cards own their revisions: resolve a member run to its card.
+    ?? objects.find((object) => object.kind === 'job' && (
+      object.meta?.revises?.includes(from.id)
+      || object.meta?.runs?.some((run) => run.id === from.id)
+    ))
+    ?? null
+  );
 }

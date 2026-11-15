@@ -556,6 +556,26 @@
         }
       }
     },
+    "/api/tasks/batch": {
+      "post": {
+        "operationId": "createTasksBatch",
+        "tags": [
+          "tasks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tasks.batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tasks.batch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents/custom/{id}": {
       "delete": {
         "operationId": "deleteCustomAgent",
@@ -657,6 +677,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/llm.discover"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proposals/{id}/dismiss": {
+      "post": {
+        "operationId": "dismissProposal",
+        "tags": [
+          "proposals"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: proposal.dismiss",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/proposal.dismiss"
                 }
               }
             }
@@ -1260,6 +1310,26 @@
         }
       }
     },
+    "/api/evals/llm": {
+      "get": {
+        "operationId": "fetchLLMEvalStatus",
+        "tags": [
+          "evals"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.eval.status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.eval.status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/llm/models": {
       "get": {
         "operationId": "fetchLLMModels",
@@ -1316,6 +1386,24 @@
             }
           }
         }
+      },
+      "patch": {
+        "operationId": "setLLMAirGap",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: settings.update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/settings.update"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/vault/predictions/latest": {
@@ -1351,6 +1439,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/lens.history"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/loops/{id}/parts": {
+      "get": {
+        "operationId": "fetchLoopParts",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.parts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.parts"
                 }
               }
             }
@@ -1664,6 +1782,44 @@
         }
       }
     },
+    "/api/run-allowances": {
+      "get": {
+        "operationId": "fetchRunAllowances",
+        "tags": [
+          "run-allowances"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: runAllowances.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/runAllowances.list"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "mintRunAllowance",
+        "tags": [
+          "run-allowances"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: runAllowance.mint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/runAllowance.mint"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/context": {
       "get": {
         "operationId": "fetchSessionContext",
@@ -1677,6 +1833,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/session.context"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills": {
+      "get": {
+        "operationId": "fetchSkills",
+        "tags": [
+          "skills"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: skills",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/skills"
                 }
               }
             }
@@ -2021,6 +2197,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/loop.action"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/proposals": {
+      "post": {
+        "operationId": "mintProposal",
+        "tags": [
+          "proposals"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: proposal.mint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/proposal.mint"
                 }
               }
             }
@@ -2466,6 +2662,36 @@
         }
       }
     },
+    "/api/run-allowances/{id}/revoke": {
+      "post": {
+        "operationId": "revokeRunAllowance",
+        "tags": [
+          "run-allowances"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: runAllowance.revoke",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/runAllowance.revoke"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tenants/revoke": {
       "post": {
         "operationId": "revokeTenantAutonomy",
@@ -2899,6 +3125,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.download"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/loops/{id}/steer": {
+      "post": {
+        "operationId": "steerLoop",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.steer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.steer"
                 }
               }
             }
@@ -3399,6 +3655,151 @@
           }
         }
       },
+      "skills": {
+        "type": "object",
+        "required": [
+          "skills",
+          "faults",
+          "limits"
+        ],
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "description",
+                "role",
+                "tools",
+                "source"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "tools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "faults": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "skill",
+                "detail"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "skill": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "required": [
+              "max_skills",
+              "max_skill_bytes",
+              "max_description"
+            ],
+            "properties": {
+              "max_skills": {
+                "type": "number"
+              },
+              "max_skill_bytes": {
+                "type": "number"
+              },
+              "max_description": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "llm.eval.status": {
+        "type": "object",
+        "required": [
+          "role",
+          "provider",
+          "model",
+          "status",
+          "evaluated",
+          "total",
+          "unscored",
+          "evaluated_at",
+          "fixtures_sha256",
+          "brier",
+          "ece",
+          "labels"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evaluated": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "unscored": {
+            "type": "number"
+          },
+          "evaluated_at": {
+            "type": "string",
+            "nullable": true
+          },
+          "fixtures_sha256": {
+            "type": "string"
+          },
+          "brier": {
+            "type": "number",
+            "nullable": true
+          },
+          "ece": {
+            "type": "number",
+            "nullable": true
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "canvas.layout": {
         "type": "object",
         "required": [],
@@ -3520,6 +3921,32 @@
                 },
                 "close_ready": {
                   "type": "boolean"
+                },
+                "unknowns_detail": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "description"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "created_at": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "updated_at": {
+                  "type": "string",
+                  "nullable": true
                 }
               }
             }
@@ -3552,6 +3979,9 @@
           },
           "disable_dsml_fallback": {
             "type": "boolean"
+          },
+          "revision": {
+            "type": "number"
           },
           "providers": {
             "type": "object",
@@ -3788,6 +4218,209 @@
         "properties": {
           "job": {},
           "loop": {}
+        }
+      },
+      "proposal.mint": {
+        "type": "object",
+        "required": [
+          "ok",
+          "proposal"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "proposal": {
+            "type": "object",
+            "required": [
+              "id",
+              "session_id",
+              "digest",
+              "body",
+              "status",
+              "created_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "message_id": {
+                "type": "string"
+              },
+              "digest": {
+                "type": "string"
+              },
+              "body": {},
+              "basis_campaign_rev": {
+                "type": "number"
+              },
+              "basis_calibration_digest": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "launched_job_id": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "loop.parts": {
+        "type": "object",
+        "required": [
+          "ok",
+          "loop_id",
+          "parts",
+          "count"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "loop_id": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {}
+          },
+          "count": {
+            "type": "number"
+          }
+        }
+      },
+      "loop.steer": {
+        "type": "object",
+        "required": [
+          "ok",
+          "steer"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "steer": {
+            "type": "object",
+            "required": [
+              "id",
+              "loop_id",
+              "text",
+              "status",
+              "created_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "loop_id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "tasks.batch": {
+        "type": "object",
+        "required": [
+          "tasks",
+          "count"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {}
+          },
+          "count": {
+            "type": "number"
+          }
+        }
+      },
+      "runAllowances.list": {
+        "type": "object",
+        "required": [
+          "ok",
+          "allowances",
+          "count"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "allowances": {
+            "type": "array",
+            "items": {}
+          },
+          "count": {
+            "type": "number"
+          }
+        }
+      },
+      "runAllowance.mint": {
+        "type": "object",
+        "required": [
+          "ok",
+          "allowance"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "allowance": {}
+        }
+      },
+      "runAllowance.revoke": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "proposal.dismiss": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
         }
       },
       "autoresearch.harnesses": {
@@ -4570,6 +5203,27 @@
                 },
                 "fallback_estimate": {
                   "type": "boolean"
+                },
+                "need": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "reason"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "past": {
+                      "type": "boolean"
+                    }
+                  }
                 }
               }
             }
@@ -4621,6 +5275,27 @@
               },
               "fallback_estimate": {
                 "type": "boolean"
+              },
+              "need": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "reason"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "past": {
+                    "type": "boolean"
+                  }
+                }
               }
             }
           }
@@ -4788,6 +5463,9 @@
         "properties": {
           "status": {
             "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
           },
           "settings": {}
         }

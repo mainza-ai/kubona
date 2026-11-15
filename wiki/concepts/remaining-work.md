@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-11
+updated: 2026-11-14
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -135,6 +135,211 @@ Landed on `develop` and `main` with the console/Go gates green:
 
 Landed in later slices:
 
+- **Needs-you tray (2026-11-14):** open obligations surface in the shell
+  (`ModeRail` badge + `NeedsYouTray`) with verbatim blocking reasons, a
+  decidable/blocked state from the server's close rules, and a real waiting
+  age; `Review` routes to the owning surface. Obligation rows now expose
+  `created_at`/`updated_at`/`unknowns_detail`. Remaining: ledger
+  `obligation_*` events for push invalidation, and the ageing escalation
+  after 1 h described in [[runtime-honesty-and-commit-policy]].
+- **Role-named scales (D1, 2026-11-14):** tokens are now exposed through
+  Tailwind `@theme inline` (runtime aliases avoid custom-property cycles), and
+  the default radius/text scales are reset, so a size-named radius or text
+  utility compiles to nothing. A codemod moved **80 files** off
+  `rounded-sm/md/lg/xl/2xl/3xl/full` and `text-xs/sm/base/lg/xl/2xl/3xl`, and
+  the ladder gained exact role tokens (`chip` 4px, `sheet` 24px,
+  `body-strong` 14, `body-large` 16, `subtitle` 18, `title-small` 20,
+  `title-large` 24, `display-small` 30, `display-large` 36) with the old
+  line heights, so the reset is not a restyle. `console-scale-lint.mjs` fails
+  on any size-named use; `console-theme-check.mjs` proves the compiled CSS
+  has no default scales and that role utilities resolve. The legacy
+  `@theme inline` color aliases (including the `--color-card` collision) are
+  gone. The suggested stylelint dependency is replaced by the palette suite's
+  globals.css literal scan (keyframe glows and the modal backdrop are the only
+  sanctioned raw colours). **Colour codemod landed:** all 80 `@theme` colours
+  are exposed through runtime aliases and every arbitrary
+  `bg/text/border/ring/...-[var(--color-*)]` utility was converted (4,532
+  replacements across the source); `console-color-utility-lint.mjs` keeps the
+  count at zero. A browser test imports the real token sheets and asserts the
+  radius/type ladder, the card-vs-raised distinction, and dark/light
+  resolution. Remaining: none in the arbitrary-colour class.
+- **Import boundaries (D6, 2026-11-14):** deterministic layer check in CI
+  (`types < lib < domain < components < app`); upward type imports moved to
+  `types`, and three domain stores moved to `lib` with re-export shims.
+  Remaining: the 67 downward `components → lib/api` imports are legal but
+  still a coupling to reduce via domain projections.
+- **Bundle budgets (D7, 2026-11-14):** `console-bundle-budgets.mjs` enforces
+  first-load ceilings on the real build — recorded **1108.5 KiB raw / 326.8
+  KiB gzip** plus **40 / 24 KiB** growth allowance (ceiling 1148.5 / 350.8),
+  largest chunk 410 KiB — keeps three/elkjs/KaTeX out of first-load, and
+  requires large lazy chunks to carry a stable marker + reason with stale
+  records failing. The check found KaTeX in first-load; `MathText` now
+  lazy-loads it only for `$…$` prose (−257 KiB raw / −75 KiB gzip). Remaining:
+  no other route has a budget yet (the console is single-route), and the
+  first-load total still leans on one 395 KiB chunk worth splitting.
+- **Browser component tests (D8, 2026-11-14):** a separate Vitest browser
+  project (`vitest.browser.config.ts`, Playwright provider, Chromium,
+  `vitest-browser-react`) runs every `*.component.test.tsx` against a real
+  page, so focus, keyboard, layout, and CSS are observable. The first suite
+  pins `SegmentedControl` roving tabindex/arrow/Home/End behavior and
+  `IconButton` non-submitting `type="button"` inside a form. A baseline
+  ratchet (`console-test-renderer-ratchet.mjs`, 95 files) freezes new
+  `react-test-renderer` use; the list may only shrink. Browser tests run in
+  the Console E2E lane, where Chromium/Chrome is already installed. The
+  token-sheet browser test now consumes the real palette/tokens/axes CSS.
+  Remaining: migrate the 95 grandfathered `react-test-renderer` files.
+- **Chart accessibility/refusal (D5, 2026-11-14):** announced summary via
+  `<desc>` + `aria-describedby`, all-null refusal, compact exact-values table,
+  actionable evidence buttons. **Split landed:** pure geometry/tick/scale
+  planning lives in `chart-layout.ts` with five browser-independent tests,
+  the eight renderers moved to `chart-parts.tsx`, and `DataChart.tsx` is now
+  ~380 lines. `LazyBoundary` wraps the lazy chart and offers **Retry** for a
+  render failure or **Reload** for a stale chunk (detected by
+  `isChunkLoadError`); a browser test proves the retry remount. Per-chunk
+  bundle budgets (D7) landed separately below.
+- **Reduced motion + motion vocabulary (D3/D4, 2026-11-14):** OS preference
+  and in-app axis both collapse motion globally; `lib/motion.ts` unifies
+  imperative decisions; press/exit durations and ease-in/emphasized tokens
+  added; `transition: all` is lint-banned in CSS **and** `transition-all` in
+  source (112 utilities replaced with an explicit property list; the source
+  scan is part of the token gate). Programmatic smooth scrolling now falls
+  back to `auto` when either reduced-motion signal is set. Remaining: the
+  per-component motion review (only the workbench glide consumes the hook;
+  everything else relies on the global CSS collapse).
+- **Recorded decision evals (B12, 2026-11-14):** 12 copilot fixtures
+  (10 scored + 2 `unscored`) with exact labels `supported|refuted|unverified`,
+  `measured|inferred` trust, and per-fixture SHA-256 pins; editing a prompt
+  without re-pinning fails. Deterministic scoring computes multiclass Brier
+  and 10-bin ECE only from complete probability vectors; missing, extra,
+  malformed, or sha-mismatched predictions refuse. `kubonad eval-llm --role
+  copilot --predictions file` records a report under `~/.kubona/evals/`;
+  `GET /api/evals/llm` serves evaluated/unevaluated/stale status and
+  ModelPicker shows `evaluated N/M · date` or `unevaluated`. A **strict
+  gate** (`KUBONA_REQUIRE_LLM_EVAL=1`) refuses a changed copilot model that is
+  unevaluated/stale unless the same write carries
+  `acknowledge_unevaluated:true`; Settings surfaces that acknowledgement
+  button and the backend records `llm_eval_acknowledged`. Remaining: the CLI
+  scores recorded predictions only (no live model call), and only the copilot
+  role has fixtures.
+- **Runtime skills (B11, 2026-11-14):** strict `SKILL.md` loader (16 KiB,
+  64 skills, name charset, no symlinks, closed `SkillFault` codes), six
+  embedded seeds, and user skills in `~/.kubona/skills/`. Only names and
+  descriptions enter the copilot prompt; the body is read through the
+  read-only `load_skill` tool. `GET /api/skills` and Settings → Runtime
+  skills show the catalogue and every rejected file. `load_skill` accepts an
+  optional section heading and returns only that part; unknown headings name
+  the available sections, and headings are matched case-insensitively. See
+  [[workflows-and-agent-authoring]]. Remaining: no skill editor/installer UI,
+  and no per-skill enable/disable.
+- **Declared model capabilities (B13, 2026-11-14):** substring guessing
+  removed; rate-card + OpenRouter metadata + Ollama `/api/show` are the only
+  sources; reasoning effort normalized per provider/model and never sent to a
+  model that does not declare reasoning; verification stays GET-only.
+  Remaining: a `light` role for titles/summaries, and moving the session id
+  out of the tool-context system note to keep cross-session cache prefixes
+  shareable.
+- **Memory hygiene (B10, 2026-11-14):** shared secret-shape screen on
+  explicit and automatic retention plus recall-time defense; retraction
+  tombstones (content cleared, embedding removed, event sealed, hidden from
+  recall); explicit facts remain a separate bank. Remaining: the same screen
+  is not yet wired to the cloud-LLM request edge / general ledger writes
+  (S9), and there is no memory list/inventory UI for retraction yet.
+- **LLM budget reservation (B3, 2026-11-14):** a client-level spend guard
+  reserves before every metered call, applies an affordable `max_tokens`
+  ceiling, and releases after measured spend; unpriced/unmetered/unreadable
+  spend refuses. Remaining: in-process reservations do not coordinate multiple
+  daemons sharing one ledger (single-daemon deployment is the supported path).
+- **Primitive correctness (D2, landed 2026-11-14):** safe Button default,
+  pending/danger states, SegmentedControl roving tabindex + arrow keys,
+  Tooltip trigger description. Remaining: the raw-`<button>` ratchet outside
+  `components/ui`, and the motion, chart, boundaries, bundle, and
+  browser-test items (D3–D8).
+- **Run-scoped allowances (C11, Q-60):** reviewed with the recommended
+  answers and implemented server-side (schema, signed mint, atomic draw, taint
+  exclusion, rate-card/calibration + air-gap suspension, revocation, reader).
+  Console control and launch-under-allowance wiring also landed. Remaining:
+  hardware parent rails (`hardware_experiment`, `qaoa_hardware`,
+  `spin_chain_hardware`) are still per-job only.
+- **Mid-run steering (2026-11-14, report C10):** queued instruction rows,
+  applied once at the next step boundary with a ledger event and a lane part;
+  the run lane shows target/active-part disclosure and the postponement rule;
+  non-running loops refuse typed 409. Remaining: no cancel/edit of a queued
+  steer before the boundary, and the agent loop does not yet read the
+  instruction text into its prompt (it is recorded and surfaced; consumption
+  is a later wiring step).
+- **Plan → tasks (2026-11-14, report C8):** dry-run plans publish a canvas
+  `plan` card; batch task creation (`POST /api/tasks/batch`) is idempotent,
+  ordered, and bounded; the card flips to Open in Tasks. Remaining: the plan
+  draft is ephemeral (lost on reload; tasks persist), and unresolved tool
+  references are facts rather than typed needs.
+- **Per-fact source chips (2026-11-14, report C9):** job/loop/approval/task
+  facts name their record; measurement/proof facts resolve to the measured
+  job (else campaign); chips focus the owning card, including folded runs.
+  Remaining: chart series facts and campaign-level facts do not carry refs
+  yet (the chart's producing jobs are not attributed per point).
+- **Citation-checked numeric claims (2026-11-14, report B5):** observation
+  ids in the tool loop, a prompt rule, deterministic post-check with
+  tolerance, streaming-safe citation marks, persisted `citations_json`, and
+  a per-reply console badge that names unverified numbers. Remaining: tables
+  and rendered values are not scanned (prose only), and no inline highlight
+  of the offending number yet (the badge names it in the title).
+- **Claim provenance rows (2026-11-14, report B4):** typed `claim_evidence`
+  rows (job_result/classical_anchor/literature/tribunal_turn/general_knowledge),
+  automatic measured links at the job-claim mints, a provenance endpoint with
+  a measured/complete summary, and an acceptance gate that refuses a verified
+  claim without measured or explicit general-knowledge evidence. Remaining:
+  the console has no provenance panel yet (endpoint only), and citation-number
+  checking in copilot replies (B5) is the companion piece.
+- **Canvas polish (2026-11-14, reports C4–C7):** labelled pending lines
+  (on-screen-only pulse), least-shift follow-live on by default with glide and
+  manual-pan pause, one-shot arrival animation plus a polite announcement,
+  and a grow-only near set with sized placeholders for far cards. Remaining:
+  the chart-kit split (D5) and the per-chunk bundle budgets (D7); no new gaps
+  introduced by these.
+- **Run parts / lanes (2026-11-14, report C1):** supervisor steps, lifecycle
+  transitions, manual registrations, and dispatched jobs record `loop_part`
+  events; the parts endpoint enriches job state + typed need; the agent-run
+  card renders helper columns with an active marker. Remaining: parts from
+  literature/prover/tool rails (none record them yet), copilot tool-call
+  parts (chat turns are not loops), pending placeholders (C4), follow-live
+  (C5), arrival announcements (C6), and viewport culling (C7).
+- **Untrusted tool-output boundary (2026-11-14, report B6/S4):** one shared
+  provenance fence and system rule across the copilot and tribunal rails;
+  payload markers neutralized; effectful tools refuse after untrusted output
+  unless they opt in (`submit_local_sim` is the reviewed exception); taint is
+  audited on `tool_called` and refusals emit `tool_taint_refused`; the
+  deterministic injection corpus is contract-pinned. Remaining: a
+  model-behaviour injection eval (does the model actually resist?) and a
+  structured `effect` class on tool definitions (today `ReadOnly` is the only
+  signal).
+- **Calm status strip + card isolation (2026-11-14, reports 3.9/C3):** API
+  refusals and contract drift render as dismissible `role="status"` chips in
+  `StatusStrip` (keyed by problem signature in sessionStorage); the only
+  full-width alert left is blocking auth expiry. Each Workbench card and chart
+  has its own `RenderBoundary`, and a pure sanitizer drops malformed edges/ids
+  and clips text before render. Remaining: split the 1,055-line chart kit
+  (D5), viewport culling (C7), and the arrival-motion/announcement work (C6).
+- **Server-owned proposals (2026-11-14, report B1):** launch is bound to a
+  server-minted `{proposal_id, digest}`; the client never supplies the
+  circuit, backend, budget, shots, seed, or attribution at launch. Minting
+  records the campaign revision + calibration digest as basis and is
+  content-idempotent; launch refuses stale basis, wrong digests, and spent
+  proposals; the proposal is burned before dispatch; chat replies carry
+  `proposal_id`/`proposal_digest`/`proposal_error`, and unpriced metered
+  plans stay display-only. Remaining: a proposal history/list surface (the
+  id-addressed GET exists for operators), and pricing model proposals that
+  do not carry a numeric bound (today they are refused rather than guessed).
+- **Typed job needs (2026-11-14, report C2):** jobs carry a closed-vocabulary
+  `need` (`platform/contracts/need-kinds.json`) classified from structured
+  evidence, persisted with the failure, and rendered as one sentence + one
+  remedy on the card; free-text failure inference removed from
+  `isIssueWorkbenchObject` and the job card. Emitted: credentials,
+  backend_offline, quota_exhausted, retry. Remaining: emitters for
+  `budget_exceeded` / `approval` / `anchor_missing` once the owning rail
+  records the fact; loop needs need a recorded failure field;
+  `ProofDagView`'s watchdog/branch status matching is campaign-trajectory
+  classification, not job-failure inference, and waits for typed campaign
+  verdicts.
 - The workbench object-kind set is covered: job, agent-run, table, approval,
   and note cards join the campaign/hypothesis/circuit/measurement/evidence/
   proof/manuscript/chart cards. Records now carry distinct refs; links, area

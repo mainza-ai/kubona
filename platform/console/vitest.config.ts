@@ -1,9 +1,11 @@
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import { resolve } from './vitest.shared';
 
 export default defineConfig({
   test: {
     environment: 'node',
+    // D8: browser component tests run under vitest.browser.config.ts.
+    exclude: ['**/node_modules/**', '**/.next/**', 'src/**/*.component.test.tsx'],
     // Fork isolation: thread workers intermittently tear down while a
     // CopilotDrawer console log is still pending (Vitest EnvironmentTeardownError),
     // turning a fully green suite into a false red. Forks keep each file's
@@ -29,10 +31,5 @@ export default defineConfig({
       thresholds: { statements: 53, branches: 54, functions: 51, lines: 56 },
     },
   },
-  resolve: {
-    dedupe: ['react', 'react-dom', 'scheduler'],
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
+  resolve,
 });

@@ -96,6 +96,10 @@ type ModelCapabilities struct {
 	Reasoning        bool `json:"reasoning"`
 	StructuredOutput bool `json:"structured_output"`
 	Streaming        bool `json:"streaming"`
+	// ReasoningEfforts lists the levels the provider accepts for this model
+	// (empty when reasoning is not declared). Never includes "none" unless a
+	// provider explicitly supports it — none do today.
+	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
 }
 
 type ModelInfo struct {
@@ -123,6 +127,9 @@ type Client struct {
 	// synchronously but must never fail the call (accounting observes,
 	// never gates — gating happens pre-call at the edge).
 	OnSpend func(SpendRecord)
+	// spendGuard bounds each metered call against the global budget before
+	// the wire request (B3). Nil keeps track-only behavior.
+	spendGuard SpendGuard
 }
 
 // maxLLMResponseBytes bounds a single provider response body (W2.20). A
@@ -417,6 +424,18 @@ func (c *Client) executeRoleHops(ctx context.Context, role string, messages []Ch
 }
 
 func (c *Client) runCompletionAttempt(ctx context.Context, providerType ProviderType, provConfig ProviderConfig, model string, messages []ChatMessage, tools []map[string]any, opts completionAttemptOpts) (string, []ToolCall, *ChatCompletionResponse, time.Duration, error) {
+	// B3: bound the call against the budget before anything leaves the host.
+	// The release runs after the measured spend has been recorded.
+	if ceiling, release, rerr := c.reserveCall(providerType, model, messages, opts.MaxTokens); rerr != nil {
+		return "", nil, nil, 0, rerr
+	} else {
+		if release != nil {
+			defer release()
+		}
+		if ceiling > 0 {
+			opts.MaxTokens = ceiling
+		}
+	}
 	temp := opts.Temperature
 	wire := ResolveWire(providerType, provConfig)
 	wr := wireRequest{
@@ -557,6 +576,20 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 			attemptErrors = append(attemptErrors, fmt.Sprintf("%s/%s: %v", hop.Provider, hop.Model, verr))
 			continue
 		}
+		// B3: reserve before the hop leaves the host; release after the
+		// measured spend has been recorded on every path.
+		maxTokens := plan.MaxTokens
+		releaseHop := func() {}
+		if ceiling, release, rerr := c.reserveCall(hop.Provider, hop.Model, messages, plan.MaxTokens); rerr != nil {
+			lastErr = rerr
+			attemptErrors = append(attemptErrors, fmt.Sprintf("%s/%s: %v", hop.Provider, hop.Model, rerr))
+			continue
+		} else if release != nil {
+			releaseHop = release
+			if ceiling > 0 {
+				maxTokens = ceiling
+			}
+		}
 		temp := plan.Temperature
 		wire := ResolveWire(hop.Provider, provConfig)
 		wr := wireRequest{
@@ -568,7 +601,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 			Temperature:     &temp,
 			TopP:            plan.TopP,
 			Seed:            plan.Seed,
-			MaxTokens:       plan.MaxTokens,
+			MaxTokens:       maxTokens,
 			ReasoningEffort: plan.ReasoningEffort,
 		}
 
@@ -599,8 +632,14 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 					text = wresp.Content
 					finish = wresp.FinishReason
 				}
+				// Tokens already left the provider. Bill that spend on the
+				// same ladder as success: reported usage, else the token
+				// ceiling, else an unmetered flag. Never a silent zero.
+				c.reportSpendMap(hop.Provider, hop.Model, usage)
+				releaseHop()
 				return &StreamResult{Text: text, Finish: finish, Duration: totalDur, Usage: usage}, err
 			}
+			releaseHop()
 			lastErr = err
 			attemptErrors = append(attemptErrors, fmt.Sprintf("%s/%s: %v", hop.Provider, hop.Model, err))
 			continue
@@ -608,13 +647,14 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 
 		usage := buildUsageMap(wresp)
 		c.reportSpendMap(hop.Provider, hop.Model, usage)
+		releaseHop()
 		c.settings.RecordSuccess(hop.Provider)
 		meta := c.buildInvocationMeta(hop.Provider, wire, hop.Model, wresp, totalDur, completionAttemptOpts{
 			Role:            role,
 			Temperature:     temp,
 			TopP:            plan.TopP,
 			Seed:            plan.Seed,
-			MaxTokens:       plan.MaxTokens,
+			MaxTokens:       maxTokens,
 			ReasoningEffort: plan.ReasoningEffort,
 			AttemptCount:    idx + 1,
 		})
@@ -787,7 +827,9 @@ func (c *Client) VerifyProvider(ctx context.Context, pt ProviderType, req Verify
 	}
 
 	start := time.Now()
-	models, err := c.fetchModelsWithKey(ctx, pt, pc, string(keyBytes))
+	// Verification is metadata-only: it must never issue a POST (capability
+	// probes such as Ollama /api/show are skipped here).
+	models, err := c.fetchModelsWithKey(ctx, pt, pc, string(keyBytes), false)
 	latency := time.Since(start).Milliseconds()
 
 	if err == nil && pt == ProviderOpenRouter && len(keyBytes) > 0 {
@@ -872,10 +914,10 @@ func (c *Client) FetchModels(ctx context.Context, providerType ProviderType) ([]
 	if !ok {
 		return nil, fmt.Errorf("unknown provider %s", providerType)
 	}
-	return c.fetchModelsWithKey(ctx, providerType, provConfig, provConfig.APIKey)
+	return c.fetchModelsWithKey(ctx, providerType, provConfig, provConfig.APIKey, true)
 }
 
-func (c *Client) fetchModelsWithKey(ctx context.Context, providerType ProviderType, provConfig ProviderConfig, apiKey string) ([]ModelInfo, error) {
+func (c *Client) fetchModelsWithKey(ctx context.Context, providerType ProviderType, provConfig ProviderConfig, apiKey string, withCapabilities bool) ([]ModelInfo, error) {
 	wire := ResolveWire(providerType, provConfig)
 	var endpoint string
 	var req *http.Request
@@ -961,7 +1003,14 @@ func (c *Client) fetchModelsWithKey(ctx context.Context, providerType ProviderTy
 				IsDefault:    id == provConfig.DefaultModel,
 				Capabilities: ModelCapabilities{Streaming: true},
 			}
-			enrichModelInfo(&mi, providerType, isLocal, nil)
+			// B13: ask the daemon what this model can actually do. Verification
+			// stays metadata-only (GET /api/tags), so the probe is skipped there.
+			if withCapabilities {
+				if shown := c.ollamaShowCapabilities(ctx, provConfig, id); shown != nil {
+					mergeCapabilities(&mi.Capabilities, *shown)
+				}
+			}
+			finalizeModelInfo(&mi, providerType, isLocal, nil)
 			models = append(models, mi)
 		}
 	case WireGemini:
@@ -1005,7 +1054,7 @@ func (c *Client) fetchModelsWithKey(ctx context.Context, providerType ProviderTy
 					Streaming:        true,
 				},
 			}
-			enrichModelInfo(&mi, providerType, isLocal, nil)
+			finalizeModelInfo(&mi, providerType, isLocal, nil)
 			models = append(models, mi)
 		}
 	default:
@@ -1089,7 +1138,7 @@ func (c *Client) fetchModelsWithKey(ctx context.Context, providerType ProviderTy
 				IsDefault:       m.ID == provConfig.DefaultModel,
 				Capabilities:    caps,
 			}
-			enrichModelInfo(&mi, providerType, isLocal, live)
+			finalizeModelInfo(&mi, providerType, isLocal, live)
 			models = append(models, mi)
 		}
 	}
@@ -1103,6 +1152,13 @@ type livePriceInfo struct {
 	source      string
 }
 
+func finalizeModelInfo(mi *ModelInfo, pt ProviderType, isLocal bool, live *livePriceInfo) {
+	enrichModelInfo(mi, pt, isLocal, live)
+	if mi != nil && mi.Capabilities.Reasoning {
+		mi.Capabilities.ReasoningEfforts = reasoningEffortsFor(pt)
+	}
+}
+
 func enrichModelInfo(mi *ModelInfo, pt ProviderType, isLocal bool, live *livePriceInfo) {
 	if mi == nil {
 		return
@@ -1113,14 +1169,8 @@ func enrichModelInfo(mi *ModelInfo, pt ProviderType, isLocal bool, live *livePri
 	if mi.MaxLen == 0 && mi.ContextWindow > 0 {
 		mi.MaxLen = mi.ContextWindow
 	}
-	lowID := strings.ToLower(mi.ID)
-	if strings.Contains(lowID, "vl") || strings.Contains(lowID, "vision") || strings.Contains(lowID, "4o") || strings.Contains(lowID, "claude-") || strings.Contains(lowID, "gemini-") {
-		mi.Capabilities.Vision = true
-	}
-	if strings.Contains(lowID, "o1") || strings.Contains(lowID, "o3") || strings.Contains(lowID, "o4") || strings.Contains(lowID, "gpt-5") || strings.Contains(lowID, "gpt-6") || strings.Contains(lowID, "r1") || strings.Contains(lowID, "reason") || strings.Contains(lowID, "thinking") || strings.Contains(lowID, "nemotron") {
-		mi.Capabilities.Reasoning = true
-	}
-
+	// B13: no name-based guessing. Capabilities arrive from declared sources
+	// (rate card + provider metadata); an unknown model claims nothing.
 	if r, ok := rates.LookupModelRate(string(pt), mi.ID); ok {
 		mi.InputPer1KUSD = r.InputPer1KUSD
 		mi.OutputPer1KUSD = r.OutputPer1KUSD

@@ -358,6 +358,19 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 		`UPDATE loops SET status = ?, step_count = ?, diverged = ?, updated_at = ? WHERE id = ?`,
 		status, stepCount, diverged, updatedAt, loopID,
 	)
+	// C10: pending operator steers are consumed at this step boundary.
+	s.applySteers(loopID, loop.SessionID)
+	partState := "done"
+	if diverged {
+		partState = "failed"
+	}
+	_, _ = s.RecordPart(loop.SessionID, LoopPart{
+		LoopID: loopID, Helper: "lead",
+		Title:   fmt.Sprintf("Optimizer step %d", stepCount),
+		State:   partState,
+		Now:     fmt.Sprintf("‖∇‖ = %.3g", gradientNorm),
+		BeganMS: updatedAt.UnixMilli(), EndedMS: updatedAt.UnixMilli(),
+	})
 
 	return status, nil
 }
@@ -379,32 +392,66 @@ func (s *Supervisor) Kill(loopID string) error {
 }
 
 func (s *Supervisor) transitionLoop(loopID, to string, eventType string, extra map[string]any) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	loop, exists := s.loops[loopID]
-	if !exists {
-		return fmt.Errorf("loop not found: %s", loopID)
+	// The lock is released before the ledger append + part record: RecordPart
+	// takes the read lock, and a nested lock on the same RWMutex would deadlock.
+	sessionID, fields, err := func() (string, map[string]any, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		loop, exists := s.loops[loopID]
+		if !exists {
+			return "", nil, fmt.Errorf("loop not found: %s", loopID)
+		}
+		if loop.Status == to {
+			return "", nil, nil
+		}
+		if !validLoopTransition(loop.Status, to) {
+			return "", nil, fmt.Errorf("loop %s cannot go %s -> %s: terminal states are immutable", loopID, loop.Status, to)
+		}
+		loop.Status = to
+		loop.UpdatedAt = time.Now().UTC()
+		if _, err := s.ledger.DB().Exec(
+			`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`,
+			loop.Status, loop.UpdatedAt, loopID); err != nil {
+			return "", nil, fmt.Errorf("loop transition persist failed: %w", err)
+		}
+		f := map[string]any{"loop_id": loopID}
+		for k, v := range extra {
+			f[k] = v
+		}
+		return loop.SessionID, f, nil
+	}()
+	if err != nil {
+		return err
 	}
-	if loop.Status == to {
-		return nil
+	if fields == nil {
+		return nil // same-state is an idempotent no-op: no event, no part
 	}
-	if !validLoopTransition(loop.Status, to) {
-		return fmt.Errorf("loop %s cannot go %s -> %s: terminal states are immutable", loopID, loop.Status, to)
-	}
-	loop.Status = to
-	loop.UpdatedAt = time.Now().UTC()
-	if _, err := s.ledger.DB().Exec(
-		`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`,
-		loop.Status, loop.UpdatedAt, loopID); err != nil {
-		return fmt.Errorf("loop transition persist failed: %w", err)
-	}
-	fields := map[string]any{"loop_id": loopID}
-	for k, v := range extra {
-		fields[k] = v
-	}
-	s.ledger.AppendEvent(loop.SessionID, eventType, fields)
+	s.ledger.AppendEvent(sessionID, eventType, fields)
+	s.recordTransitionPart(sessionID, loopID, to)
 	return nil
+}
+
+// recordTransitionPart turns a lifecycle transition into one run lane item.
+// Title and state come from a closed mapping — no free text.
+func (s *Supervisor) recordTransitionPart(sessionID, loopID, to string) {
+	title, state := "Run "+to, "running"
+	switch to {
+	case LoopPaused:
+		title, state = "Paused by operator", "waiting"
+	case LoopRunning:
+		title, state = "Resumed", "running"
+	case LoopRescoped:
+		title, state = "Rescoped under approval", "running"
+	case LoopCompleted:
+		title, state = "Completed", "done"
+	case LoopDiverged:
+		title, state = "Diverged (guardrail)", "failed"
+	case LoopKilled:
+		title, state = "Killed", "stopped"
+	}
+	_, _ = s.RecordPart(sessionID, LoopPart{
+		LoopID: loopID, Helper: "lead", Title: title, State: state,
+	})
 }
 
 // GetLoop returns a copy of one loop (nil,false when unknown). Callers use

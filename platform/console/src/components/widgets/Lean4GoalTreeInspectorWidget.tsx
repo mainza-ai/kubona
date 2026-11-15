@@ -38,17 +38,17 @@ export function Lean4GoalTreeInspectorWidget({
     && Array.isArray(suppliedSteps) && suppliedSteps.length > 0;
   if (!hasReceipt) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-3">
+      <div className="rounded-card border border-border bg-surface p-5 text-text space-y-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)]">
+          <div className="p-2 rounded-row bg-success-wash border border-success-edge text-success-ink">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-[var(--color-text)]">Lean 4 Goal Tree Inspector</h3>
-            <p className="text-xs text-[var(--color-muted)]">No live proof receipt — nothing verified</p>
+            <h3 className="text-body-strong font-semibold text-text">Lean 4 Goal Tree Inspector</h3>
+            <p className="text-label text-muted">No live proof receipt — nothing verified</p>
           </div>
         </div>
-        <p className="text-[12px] font-code text-[var(--color-muted)]">
+        <p className="text-[12px] font-code text-muted">
           No theorem, tactics, or AST hash bound. Run a comparator verification to produce a receipt; until then no ρ, no tactics, no Bloch claim.
         </p>
       </div>
@@ -57,48 +57,48 @@ export function Lean4GoalTreeInspectorWidget({
   const proofSteps = suppliedSteps ?? [];
 
   return (
-    <div data-provenance="measured" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
+    <div data-provenance="measured" className="rounded-card border border-border bg-surface p-5 text-text space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)]">
+          <div className="p-2 rounded-row bg-success-wash border border-success-edge text-success-ink">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-text)]">Lean 4 Goal Tree Inspector</h3>
+              <h3 className="text-body-strong font-semibold text-text">Lean 4 Goal Tree Inspector</h3>
               <ProvenanceBadge kind="measured" detail="Comparator proof receipt." />
             </div>
-            <p className="text-xs text-[var(--color-muted)]">{theoremName} • Comparator Kernel</p>
+            <p className="text-label text-muted">{theoremName} • Comparator Kernel</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <span className="px-2 py-0.5 rounded-full bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[12px] font-mono text-[var(--color-success-ink)] flex items-center space-x-1">
-            <CheckCircle2 className="w-3 h-3 text-[var(--color-success-ink)]" />
+          <span className="px-2 py-0.5 rounded-capsule bg-success-wash border border-success-edge text-[12px] font-mono text-success-ink flex items-center space-x-1">
+            <CheckCircle2 className="w-3 h-3 text-success-ink" />
             <span>{sorryAx === 0 ? 'ρ = 1.000000' : 'ρ = —'}</span>
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-[var(--color-soft-sky-wash)] border border-[var(--color-soft-sky-edge)] text-[12px] font-mono text-[var(--color-soft-sky-ink)]">
+          <span className="px-2 py-0.5 rounded-capsule bg-soft-sky-wash border border-soft-sky-edge text-[12px] font-mono text-soft-sky-ink">
             {sorryAx === 0 ? '0 sorryAx' : `${sorryAx ?? '—'} sorryAx`}
           </span>
         </div>
       </div>
 
       {/* Theorem Signature */}
-      <div className="p-3 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] font-mono text-xs text-[var(--color-success-ink)] flex justify-between items-center">
+      <div className="p-3 rounded-row bg-field border border-border font-mono text-label text-success-ink flex justify-between items-center">
         <code>{theoremSignature}</code>
-        <span className="text-[12px] text-[var(--color-muted)] font-mono">{astHash}</span>
+        <span className="text-[12px] text-muted font-mono">{astHash}</span>
       </div>
 
       {axioms && axioms.length > 0 && (
-        <p className="text-[12px] font-code text-[var(--color-muted)]">axioms: {axioms.join(', ')}</p>
+        <p className="text-[12px] font-code text-muted">axioms: {axioms.join(', ')}</p>
       )}
 
       {/* Proof Tree & Tactic States */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Tactic Trace Ladder */}
-        <div className="p-3 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-2">
-          <span className="text-xs font-semibold text-[var(--color-label-secondary)] block mb-2 flex items-center space-x-1.5">
-            <GitBranch className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+        <div className="p-3 rounded-row bg-card border border-border space-y-2">
+          <span className="text-label font-semibold text-label-secondary block mb-2 flex items-center space-x-1.5">
+            <GitBranch className="w-3.5 h-3.5 text-success-ink" />
             <span>Interactive Proof Steps</span>
           </span>
           {proofSteps.map((s, idx) => {
@@ -117,37 +117,37 @@ export function Lean4GoalTreeInspectorWidget({
                 tabIndex={0}
                 aria-pressed={isSelected}
                 aria-label={`Select tactic step ${s.step}`}
-                className={`p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                className={`p-2.5 rounded-control-compact border text-label cursor-pointer transition ${
                   isSelected
-                    ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-tile)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]'
+                    ? 'bg-success-wash border-success-edge text-success-ink'
+                    : 'border-border bg-tile text-label-secondary hover:bg-fill-hover'
                 }`}
               >
                 <div className="flex justify-between items-center font-mono">
-                  <span className="text-[var(--color-faint)]">Step {s.step}</span>
-                  <span className="text-[var(--color-success-ink)] font-bold">{s.tactic}</span>
+                  <span className="text-faint">Step {s.step}</span>
+                  <span className="text-success-ink font-bold">{s.tactic}</span>
                 </div>
-                <p className="text-[12px] text-[var(--color-muted)] mt-1">{s.note}</p>
+                <p className="text-[12px] text-muted mt-1">{s.note}</p>
               </div>
             );
           })}
         </div>
 
         {/* Lean 4 Interactive Goal State View */}
-        <div className="p-3 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] flex flex-col justify-between font-mono text-xs">
+        <div className="p-3 rounded-row bg-field border border-border flex flex-col justify-between font-mono text-label">
           <div>
-            <div className="flex items-center space-x-1.5 text-[var(--color-muted)] pb-2 border-b border-[var(--color-border)] mb-2">
-              <Terminal className="w-3.5 h-3.5 text-[var(--color-success-ink)]" />
+            <div className="flex items-center space-x-1.5 text-muted pb-2 border-b border-border mb-2">
+              <Terminal className="w-3.5 h-3.5 text-success-ink" />
               <span>Lean 4 Tactic State</span>
             </div>
-            <pre className="text-[var(--color-success-ink)] whitespace-pre-wrap leading-relaxed">
+            <pre className="text-success-ink whitespace-pre-wrap leading-relaxed">
               {proofSteps[selectedTacticIndex].state}
             </pre>
           </div>
 
-          <div className="mt-4 pt-2 border-t border-[var(--color-border)] text-[12px] text-[var(--color-muted)] flex justify-between items-center">
+          <div className="mt-4 pt-2 border-t border-border text-[12px] text-muted flex justify-between items-center">
             <span>Axiom Whitelist: propext, Quot.sound, Classical.choice</span>
-            <span className="text-[var(--color-success-ink)]">Lean v4.34.1</span>
+            <span className="text-success-ink">Lean v4.34.1</span>
           </div>
         </div>
       </div>

@@ -6,7 +6,6 @@ import { useEffect, useRef } from 'react';
 import { shouldDeferProtectedRead, useAuthPhase, useMultiLabAuthRequired } from './auth-state';
 import { useSharedResource } from './shared-resource';
 import { subscribeInvalidation } from './invalidation';
-import { useSessionStreamLive } from './stream-state';
 
 /** One page-level owner for the open obligation projection. */
 export function useObligationsProjection(enabled = true) {
@@ -24,7 +23,6 @@ export function useObligationsProjection(enabled = true) {
     },
     { intervalMs: 15_000 },
   );
-  const live = useSessionStreamLive();
   const prevAuthPhase = useRef(authPhase);
   const prevDeferred = useRef(deferredAuth);
   const authHalted =
@@ -34,8 +32,13 @@ export function useObligationsProjection(enabled = true) {
     authPhase !== 'authenticated';
 
   useEffect(() => {
-    setPollMs(live || authHalted || deferredAuth ? 0 : 15_000);
-  }, [live, authHalted, deferredAuth, setPollMs]);
+    // Obligations are cross-session: the tray shows the whole lab's queue,
+    // while /api/events/stream is session-scoped and carries no obligation
+    // events. So the poll stays alive even when that stream is live —
+    // disabling it would silently freeze the reviewer's inbox. A local
+    // obligation_* ledger event still refreshes instantly via invalidation.
+    setPollMs(authHalted || deferredAuth ? 0 : 15_000);
+  }, [authHalted, deferredAuth, setPollMs]);
 
   useEffect(() => {
     const previousDeferred = prevDeferred.current;

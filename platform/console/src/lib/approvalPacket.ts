@@ -1,4 +1,4 @@
-import type { ApprovalPacketView } from '@/components/common/ApprovalPacketCard';
+import type { ApprovalPacketView } from '@/types';
 
 interface CampaignLike {
   session_id?: string;

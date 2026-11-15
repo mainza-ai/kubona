@@ -30,7 +30,7 @@ function buttonsOf(renderer: TestRenderer.ReactTestRenderer) {
 describe('ConfirmDialog (typed irreversible-action gate)', () => {
   it('requires the exact typed text before enabling confirm', () => {
     const onConfirm = vi.fn();
-    const r = renderDialog({ onConfirm });
+    const r = renderDialog({ onConfirm, settleMs: 0 });
     const confirm = buttonsOf(r).find((b) => b.props.children === 'Refund $12.50')!;
     expect(confirm.props.disabled).toBe(true);
     const input = r.root.findAllByType('input')[0];
@@ -62,12 +62,50 @@ describe('ConfirmDialog (typed irreversible-action gate)', () => {
 
   it('single-confirm mode (no typed text) enables confirm directly', () => {
     const onConfirm = vi.fn();
-    const r = renderDialog({ requireText: undefined, confirmLabel: 'Abort now', onConfirm });
+    const r = renderDialog({ requireText: undefined, confirmLabel: 'Abort now', onConfirm, settleMs: 0 });
     const confirm = buttonsOf(r).find((b) => b.props.children === 'Abort now')!;
     expect(confirm.props.disabled).not.toBe(true);
     act(() => {
       confirm.props.onClick();
     });
     expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds confirm for the settle window and focuses cancel unless typing', () => {
+    vi.useFakeTimers();
+    const r = renderDialog({ requireText: undefined, confirmLabel: 'Release air-gap' });
+    const confirm = () => buttonsOf(r).find((b) => b.props['data-settle'])!;
+    const cancel = buttonsOf(r).find((b) => b.props.children === 'Cancel')!;
+    expect(confirm().props.disabled).toBe(true);
+    expect(confirm().props['data-settle']).toBe('pending');
+    expect(cancel.props.autoFocus).toBe(true);
+    expect(confirm().props.autoFocus).toBeUndefined();
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(confirm().props.disabled).not.toBe(true);
+    expect(confirm().props['data-settle']).toBe('ready');
+    vi.useRealTimers();
+  });
+
+  it('focuses the typed field instead of cancel, and escape does not confirm', () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    const listeners = new Map<string, (event: { key: string; preventDefault: () => void; stopPropagation: () => void }) => void>();
+    vi.stubGlobal('window', {
+      addEventListener: (type: string, fn: (event: { key: string; preventDefault: () => void; stopPropagation: () => void }) => void) => {
+        listeners.set(type, fn);
+      },
+      removeEventListener: (type: string) => listeners.delete(type),
+    });
+    const r = renderDialog({ onConfirm, onCancel, settleMs: 0 });
+    expect(r.root.findAllByType('input')[0].props.autoFocus).toBe(true);
+    expect(buttonsOf(r).find((b) => b.props.children === 'Cancel')!.props.autoFocus).toBe(false);
+    act(() => {
+      listeners.get('keydown')?.({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

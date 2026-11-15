@@ -35,8 +35,8 @@ export function AppearanceSettings() {
     <section aria-label="Appearance settings" className="k-surface p-5 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--color-text)]">Appearance</h3>
-          <p className="text-[12px] text-[var(--color-muted)]">
+          <h3 className="text-body-strong font-semibold text-text">Appearance</h3>
+          <p className="text-[12px] text-muted">
             Warm-graphite surface ladder, light mode inversion, accent tints, and accessible legibility axes.
           </p>
         </div>
@@ -79,15 +79,15 @@ export function AppearanceSettings() {
                 role="radio"
                 aria-checked={active}
                 onClick={() => update({ tint: opt.id })}
-                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[12px] transition-colors ${
+                className={`inline-flex items-center gap-2 rounded-row border px-3 py-1.5 text-[12px] transition-colors ${
                   active
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-fill)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]'
+                    ? 'border-accent bg-accent-soft text-text'
+                    : 'border-border bg-fill text-label-secondary hover:bg-fill-hover'
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className="h-3 w-3 rounded-full border border-black/20"
+                  className="h-3 w-3 rounded-capsule border border-black/20"
                   style={{ background: opt.swatchVar }}
                 />
                 {opt.label}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -59,6 +60,11 @@ type Obligation struct {
 	Dependencies        []string
 	Unknowns            []Unknown
 	Disposition         string // "open" | "closed"
+	// CreatedAt/UpdatedAt are the review queue's waiting-time facts. They are
+	// parsed from the row at scan time; a row whose timestamp is unreadable
+	// keeps the zero value (never invented) and callers render "unknown".
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Unknown is a residual unknown (P1-9): an identified gap that blocks
@@ -153,7 +159,25 @@ func scanObligation(row interface {
 			return nil, fmt.Errorf("obligation %s corrupt JSON: %w", ob.ID, err)
 		}
 	}
+	ob.CreatedAt = parseLedgerTime(created)
+	ob.UpdatedAt = parseLedgerTime(updated)
 	return &ob, nil
+}
+
+// parseLedgerTime accepts the timestamp shapes SQLite writes for
+// created_at/updated_at. Unreadable values return the zero time; callers
+// must render that as unknown rather than substituting a plausible clock.
+func parseLedgerTime(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", time.RFC3339} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC()
+		}
+	}
+	return time.Time{}
 }
 
 func (l *Ledger) getObligationLocked(id string) (*Obligation, error) {

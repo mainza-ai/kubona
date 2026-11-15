@@ -232,14 +232,16 @@ describe('spend-critical refusal paths (fail-closed)', () => {
       text: async () => 'tier-routing refused: hardware tier needs approval',
       json: async () => ({}),
     });
-    const res = await launchProposal('s', { target: 'x' });
+    const res = await launchProposal('s', { proposalId: 'pr_1', digest: 'sha256:x' });
     expect(res).toEqual({ error: 'tier-routing refused: hardware tier needs approval' });
   });
 
-  it('launchProposal returns null on transport failure (never throws)', async () => {
+  it('launchProposal reports an unknown outcome when the reply is lost', async () => {
     const { launchProposal } = await import('./api');
     (globalThis as { fetch?: unknown }).fetch = vi.fn().mockRejectedValue(new Error('bridge down'));
-    await expect(launchProposal('s', { target: 'x' })).resolves.toBeNull();
+    const res = await launchProposal('s', { proposalId: 'pr_1', digest: 'sha256:x' }, { requestId: 'req-lost' });
+    expect(res).toEqual({ outcome: 'unknown', requestId: 'req-lost' });
+    expect(JSON.stringify(res)).not.toMatch(/no job was created/i);
   });
 
   it('streamChatMessage throws on refusal (fail-closed)', async () => {
@@ -253,7 +255,7 @@ describe('spend-critical refusal paths (fail-closed)', () => {
   });
 
   it('streamChatMessage throws on transport error event', async () => {
-    const { streamChatMessage } = await import('./api');
+    const { streamChatMessage, StreamAcceptedError } = await import('./api');
     const enc = new TextEncoder();
     const frames = enc.encode('event: error\ndata: {"error":"overloaded"}\n\n');
     const reader = {
@@ -265,5 +267,21 @@ describe('spend-critical refusal paths (fail-closed)', () => {
       body: { getReader: () => reader },
     });
     await expect(streamChatMessage('s', 'hi', () => {})).rejects.toThrow(/overloaded/);
+    await expect(streamChatMessage('s', 'hi', () => {})).rejects.not.toBeInstanceOf(StreamAcceptedError);
+  });
+
+  it('streamChatMessage marks a failure after started so the caller does not store the prompt again', async () => {
+    const { streamChatMessage, StreamAcceptedError } = await import('./api');
+    const enc = new TextEncoder();
+    const frames = enc.encode('event: started\ndata: {"user":{"id":"u1"}}\n\n');
+    const reader = {
+      read: vi.fn().mockResolvedValueOnce({ value: frames, done: false }).mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: { getReader: () => reader },
+    });
+    await expect(streamChatMessage('s', 'hi', () => {})).rejects.toBeInstanceOf(StreamAcceptedError);
   });
 });

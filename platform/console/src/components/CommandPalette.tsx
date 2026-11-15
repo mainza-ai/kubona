@@ -339,10 +339,10 @@ export function CommandPalette({
       aria-modal="true"
       aria-label="Command palette"
     >
-      <div ref={panelRef} className="w-full max-w-lg bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl shadow-[var(--shadow-float)] overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
+      <div ref={panelRef} className="w-full max-w-lg bg-float border border-border-strong rounded-card shadow-[var(--shadow-float)] overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
         {/* Search Input Bar with Apple Spotlight aesthetics */}
-        <div className="h-14 px-4 border-b border-[var(--color-border)] flex items-center space-x-3 bg-[var(--color-surface)]">
-          <Search className="w-5 h-5 text-[var(--color-muted)] shrink-0" />
+        <div className="h-14 px-4 border-b border-border flex items-center space-x-3 bg-surface">
+          <Search className="w-5 h-5 text-muted shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -352,10 +352,10 @@ export function CommandPalette({
               setSelectedIndex(0);
             }}
             placeholder="Type a surface name or command..."
-            className="flex-1 bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
+            className="flex-1 bg-transparent text-body-strong text-text placeholder:text-faint focus:outline-none"
             aria-label="Search surfaces and actions"
           />
-          <kbd className="px-2 py-0.5 rounded bg-[var(--color-fill)] text-[12px] font-mono text-[var(--color-muted)] border border-[var(--color-border)]">
+          <kbd className="px-2 py-0.5 rounded-chip bg-fill text-[12px] font-mono text-muted border border-border">
             Esc
           </kbd>
         </div>
@@ -363,7 +363,7 @@ export function CommandPalette({
         {/* Results List */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[var(--color-muted)] font-medium">
+            <div className="py-8 text-center text-label text-muted font-medium">
               No matching surfaces or commands found
             </div>
           ) : (
@@ -378,27 +378,27 @@ export function CommandPalette({
                     onClose();
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`w-full px-3 py-2.5 rounded-xl text-xs flex items-center justify-between transition-all text-left ${
+                  className={`w-full px-3 py-2.5 rounded-row text-label flex items-center justify-between transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] text-left ${
                     isSelected
-                      ? 'bg-[var(--color-accent-soft)] text-[var(--color-text)] border border-[var(--color-accent-edge)] shadow-sm'
-                      : 'text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] border border-transparent'
+                      ? 'bg-accent-soft text-text border border-accent-edge shadow-sm'
+                      : 'text-label-secondary hover:bg-fill-hover border border-transparent'
                   }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div
-                      className={`p-1.5 rounded-lg ${
-                        isSelected ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]' : 'bg-[var(--color-fill)] text-[var(--color-label-secondary)]'
+                      className={`p-1.5 rounded-control-compact ${
+                        isSelected ? 'bg-accent text-on-accent' : 'bg-fill text-label-secondary'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-medium text-[var(--color-text)]">{item.title}</div>
-                      <div className="text-[12px] text-[var(--color-muted)] font-medium">{item.category}</div>
+                      <div className="font-medium text-text">{item.title}</div>
+                      <div className="text-[12px] text-muted font-medium">{item.category}</div>
                     </div>
                   </div>
                   {item.shortcut && (
-                    <kbd className="px-2 py-0.5 rounded bg-[var(--color-fill)] text-[12px] font-mono text-[var(--color-label-secondary)] border border-[var(--color-border)] font-semibold">
+                    <kbd className="px-2 py-0.5 rounded-chip bg-fill text-[12px] font-mono text-label-secondary border border-border font-semibold">
                       {item.shortcut}
                     </kbd>
                   )}
@@ -409,11 +409,11 @@ export function CommandPalette({
         </div>
 
         {/* Footer with Hint */}
-        <div className="h-9 px-4 border-t border-[var(--color-border)] bg-[var(--color-surface)] flex items-center justify-between text-xs text-[var(--color-muted)] font-medium">
+        <div className="h-9 px-4 border-t border-border bg-surface flex items-center justify-between text-label text-muted font-medium">
           <span>Navigate with ↑ ↓ · Select with ↵</span>
           <span className="flex items-center space-x-1.5">
-            <Command className="w-3.5 h-3.5 text-[var(--color-muted)]" />
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--color-fill)] text-[12px] font-mono text-[var(--color-label-secondary)] border border-[var(--color-border)]">
+            <Command className="w-3.5 h-3.5 text-muted" />
+            <kbd className="px-1.5 py-0.5 rounded-chip bg-fill text-[12px] font-mono text-label-secondary border border-border">
               {SHORTCUTS.commandPalette}
             </kbd>
             <span>to toggle</span>

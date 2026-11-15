@@ -4,6 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { LabOpsPanel } from './LabOpsPanel';
 import ConfirmDialog from './ConfirmDialog';
 import { getOrCreateSigner } from '@/lib/custody';
+import { CONSEQUENTIAL_SETTLE_MS } from '@/lib/consequential';
 import type { Lab } from '@/types';
 
 afterEach(() => {
@@ -226,6 +227,13 @@ describe('LabOpsPanel refund typed gate (Wave-2)', () => {
     expect(confirmBtn(gateOf(tree)).props.disabled).toBe(true);
     await act(async () => {
       gateOf(tree).findByType('input').props.onChange({ target: { value: '$10.00' } });
+    });
+    // The settle window is part of the guard: exact text is necessary but
+    // not sufficient — the control stays inert so a focus-and-Enter on open
+    // cannot approve a spend.
+    expect(confirmBtn(gateOf(tree)).props.disabled).toBe(true);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, CONSEQUENTIAL_SETTLE_MS + 60));
     });
     expect(confirmBtn(gateOf(tree)).props.disabled).not.toBe(true);
     await act(async () => {

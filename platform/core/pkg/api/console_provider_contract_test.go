@@ -628,8 +628,22 @@ func TestConsoleChatContracts(t *testing.T) {
 		t.Fatalf("campaign.synthesize contract: %v", err)
 	}
 
-	qasm := "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q -> c;\n"
-	launch := call(http.MethodPost, "/api/chat/launch", `{"session_id":"`+sessionID+`","qasm":`+mustJSON(t, qasm)+`,"backend":"local-simulator","budget_usd":0}`)
+	// B1: launch names a server-minted proposal; the synthesized campaign is
+	// the server-owned plan it is minted from.
+	mint := call(http.MethodPost, "/api/proposals", `{"session_id":"`+sessionID+`","source":"campaign"}`)
+	if mint.Code != http.StatusCreated {
+		t.Fatalf("proposal mint: %d %s", mint.Code, mint.Body.String())
+	}
+	var minted struct {
+		Proposal struct {
+			ID     string `json:"id"`
+			Digest string `json:"digest"`
+		} `json:"proposal"`
+	}
+	if err := json.Unmarshal(mint.Body.Bytes(), &minted); err != nil || minted.Proposal.ID == "" {
+		t.Fatalf("proposal mint decode: %v %s", err, mint.Body.String())
+	}
+	launch := call(http.MethodPost, "/api/chat/launch", `{"session_id":"`+sessionID+`","proposal_id":"`+minted.Proposal.ID+`","digest":"`+minted.Proposal.Digest+`"}`)
 	if launch.Code != http.StatusCreated {
 		t.Fatalf("chat launch: %d %s", launch.Code, launch.Body.String())
 	}

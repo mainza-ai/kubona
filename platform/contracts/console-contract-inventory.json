@@ -69,12 +69,15 @@
     "lens.status",
     "literature",
     "llm.discover",
+    "llm.eval.status",
     "llm.key.delete",
     "llm.models",
     "llm.settings",
     "llm.test",
     "llm.verify",
     "loop.action",
+    "loop.parts",
+    "loop.steer",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -91,6 +94,8 @@
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
+    "proposal.dismiss",
+    "proposal.mint",
     "qir.compile",
     "quantum.backends",
     "quantum.canary",
@@ -99,6 +104,9 @@
     "quantum.settings",
     "quantum.submit",
     "radar",
+    "runAllowance.mint",
+    "runAllowance.revoke",
+    "runAllowances.list",
     "session",
     "session.context",
     "session.create",
@@ -108,7 +116,9 @@
     "session.refund",
     "sessions.list",
     "settings.update",
+    "skills",
     "task",
+    "tasks.batch",
     "tasks.list",
     "tenant.grant",
     "tenant.grant.revoke",
@@ -197,12 +207,15 @@
     "lens.status",
     "literature",
     "llm.discover",
+    "llm.eval.status",
     "llm.key.delete",
     "llm.models",
     "llm.settings",
     "llm.test",
     "llm.verify",
     "loop.action",
+    "loop.parts",
+    "loop.steer",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -219,6 +232,8 @@
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
+    "proposal.dismiss",
+    "proposal.mint",
     "qir.compile",
     "quantum.backends",
     "quantum.canary",
@@ -227,6 +242,9 @@
     "quantum.settings",
     "quantum.submit",
     "radar",
+    "runAllowance.mint",
+    "runAllowance.revoke",
+    "runAllowances.list",
     "session",
     "session.context",
     "session.create",
@@ -236,7 +254,9 @@
     "session.refund",
     "sessions.list",
     "settings.update",
+    "skills",
     "task",
+    "tasks.batch",
     "tasks.list",
     "tenant.grant",
     "tenant.grant.revoke",
@@ -378,6 +398,12 @@
       "contract": "task"
     },
     {
+      "function": "createTasksBatch",
+      "path": "/api/tasks/batch",
+      "method": "POST",
+      "contract": "tasks.batch"
+    },
+    {
       "function": "deleteCustomAgent",
       "path": "/api/agents/custom/:id",
       "method": "DELETE",
@@ -394,6 +420,12 @@
       "path": "/api/llm/discover",
       "method": "GET",
       "contract": "llm.discover"
+    },
+    {
+      "function": "dismissProposal",
+      "path": "/api/proposals/:id/dismiss",
+      "method": "POST",
+      "contract": "proposal.dismiss"
     },
     {
       "function": "emergencyAbort",
@@ -558,6 +590,12 @@
       "contract": "jobs.list"
     },
     {
+      "function": "fetchLLMEvalStatus",
+      "path": "/api/evals/llm",
+      "method": "GET",
+      "contract": "llm.eval.status"
+    },
+    {
       "function": "fetchLLMModels",
       "path": "/api/llm/models",
       "method": "GET",
@@ -592,6 +630,12 @@
       "path": "/api/observatory/lens/history",
       "method": "GET",
       "contract": "lens.history"
+    },
+    {
+      "function": "fetchLoopParts",
+      "path": "/api/loops/:id/parts",
+      "method": "GET",
+      "contract": "loop.parts"
     },
     {
       "function": "fetchLoopsResult",
@@ -678,6 +722,12 @@
       "contract": "radar"
     },
     {
+      "function": "fetchRunAllowances",
+      "path": "/api/run-allowances",
+      "method": "GET",
+      "contract": "runAllowances.list"
+    },
+    {
       "function": "fetchSession",
       "path": "/api/sessions/:id",
       "method": "GET",
@@ -694,6 +744,12 @@
       "path": "/api/sessions",
       "method": "GET",
       "contract": "sessions.list"
+    },
+    {
+      "function": "fetchSkills",
+      "path": "/api/skills",
+      "method": "GET",
+      "contract": "skills"
     },
     {
       "function": "fetchSystemAgents",
@@ -784,6 +840,18 @@
       "path": "/api/loops/:id/:action",
       "method": "POST",
       "contract": "loop.action"
+    },
+    {
+      "function": "mintProposal",
+      "path": "/api/proposals",
+      "method": "POST",
+      "contract": "proposal.mint"
+    },
+    {
+      "function": "mintRunAllowance",
+      "path": "/api/run-allowances",
+      "method": "POST",
+      "contract": "runAllowance.mint"
     },
     {
       "function": "pauseAutoresearchLoop",
@@ -910,6 +978,12 @@
       "path": "/api/sessions/$:encodeURIComponent(sessionId)/claims/$:encodeURIComponent(claimId)/review",
       "method": "POST",
       "contract": "claims.review"
+    },
+    {
+      "function": "revokeRunAllowance",
+      "path": "/api/run-allowances/:id/revoke",
+      "method": "POST",
+      "contract": "runAllowance.revoke"
     },
     {
       "function": "revokeTenantAutonomy",
@@ -1044,6 +1118,12 @@
       "contract": "chat.feedback"
     },
     {
+      "function": "setLLMAirGap",
+      "path": "/api/llm/settings",
+      "method": "PATCH",
+      "contract": "settings.update"
+    },
+    {
       "function": "setTenantAutonomy",
       "path": "/api/tenants/autonomy",
       "method": "POST",
@@ -1072,6 +1152,12 @@
       "path": "/api/hf/download",
       "method": "POST",
       "contract": "hf.download"
+    },
+    {
+      "function": "steerLoop",
+      "path": "/api/loops/:id/steer",
+      "method": "POST",
+      "contract": "loop.steer"
     },
     {
       "function": "stepAutoresearchLoop",

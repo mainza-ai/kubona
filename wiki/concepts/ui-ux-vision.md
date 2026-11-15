@@ -10,6 +10,88 @@ status: adopted
 
 # Kubona UI/UX Vision — How the Interface Looks, Feels, and Works
 
+> **Reduced motion + motion vocabulary (D3/D4, 2026-11-14).** Motion is
+> reduced when EITHER the OS `prefers-reduced-motion` preference or the in-app
+> `data-reduce-motion` axis says so; both now collapse animations, transitions
+> and smooth scrolling globally (component-specific rules remain, but are no
+> longer the only guard). `lib/motion.ts` gives imperative code one answer
+> (`prefersReducedMotion`, `useReducedMotion` over both signals); the workbench
+> follow-live glide uses the reactive hook. The motion vocabulary gains
+> `--motion-press`/`--motion-exit` (quicker than arrival), `--ease-in` and
+> `--ease-emphasized`; `transition: all` is banned outright by the console
+> token lint (zero tolerance, comments excluded), and the one legacy spring
+> utility now animates explicit properties only.
+>
+> **Chart accessibility and refusal (D5, 2026-11-14).** The chart computes its
+> summary into an SVG `<desc>` referenced by `aria-describedby`; the previous
+> `aria-label` was silenced by `aria-labelledby` and never announced. An
+> all-null series now renders a labelled `role="status"` "Chart unavailable"
+> refusal instead of empty axes (`hasChartValues` is pure and pinned). The
+> exact-values table stays available in compact cards (collapsed inside
+> `<details>`), and when a consumer supplies `onEvidence`, tooltip and table
+> evidence become actionable buttons instead of dead text. Remaining: the
+> 1,055-line `DataChart.tsx` split into pure plan/geometry modules and a
+> `LazyBoundary` retry for stale chunks.
+>
+> **Import boundaries (D6, 2026-11-14).** The console enforces one direction:
+> `types < lib < domain < components < app`. `scripts/console-boundaries.mjs`
+> scans every non-test TS/TSX import (aliases and relative paths) and fails CI
+> on any upward edge; the check is part of the console job. The three upward
+> *type* imports found on the way were fixed at the source: `ArenaView`,
+> `CanvasWidgetKind`, and `ApprovalPacketView` moved to `types` (components
+> re-export them for compatibility), and the auth-phase, stream-state, and
+> invalidation stores moved to `lib` with `domain/` re-export shims. The layer
+> rule still permits the 67 components importing `@/lib/api` directly —
+> that is downward; splitting that coupling into domain projections remains
+> a separate ergonomics task, not an architectural violation.
+>
+> **Bundle budgets (D7, 2026-11-14).** `scripts/console-bundle-budgets.mjs`
+> reads the build that just ran (app-router client reference manifest +
+> `build-manifest.json`) and enforces the `/` first-load ceiling at
+> **1148.5 KiB raw / 350.8 KiB gzip** — recorded **1108.5 / 326.8** plus a
+> **40 / 24 KiB growth allowance** (single chunk ≤ 410 KiB). Forbidden
+> libraries must not appear in first-load: the checker
+> scans chunk contents for three.js, elkjs, and KaTeX markers. The first run
+> caught a real violation — `MathText` statically imported KaTeX — so it now
+> dynamic-imports the renderer only when prose contains `$…$` (first-load
+> dropped 257 KiB raw / 75 KiB gzip). Large lazy chunks (> 256 KiB) must be
+> recorded by a stable content marker with a reason (KaTeX 258 KiB, three.js
+> 543 KiB, elkjs 1.4 MiB); a stale record fails as well, so the allowlist
+> cannot rot into a permission slip. The gate runs immediately after
+> `pnpm build` in CI; budgets were tightened to the measured build, and the
+> negative cases (lower ceiling, stale marker, unrecorded large lazy chunk)
+> were each verified to fail.
+>
+> **Browser component tests (D8, 2026-11-14).** Interactive behavior now has
+> a real page to test against: `vitest.browser.config.ts` runs every
+> `*.component.test.tsx` in Chromium through the Playwright provider and
+> `vitest-browser-react`, while the Node suite excludes those files. The first
+> suite pins the `SegmentedControl` radio contract (one checked radio, roving
+> `tabindex`, Arrow/Home/End focus movement) and `IconButton`'s non-submitting
+> `type="button"` inside a form — assertions `react-test-renderer` cannot make.
+> A 95-file baseline ratchet (`console-test-renderer-ratchet.mjs`) freezes new
+> deprecated-renderer use and fails on stale entries; the list may only shrink.
+> The browser lane runs in Console E2E, where the browser is already installed,
+> so it adds no new download to the push gate. Remaining: migrate the
+> grandfathered files and add a token-sheet CSS assertion.
+>
+> **Role-named scales (D1, 2026-11-14).** The token layer is now the only
+> scale Tailwind knows. `@theme inline` maps semantic colors, radii and type
+> sizes to runtime aliases (a theme variable cannot reference itself), and
+> `--radius-*` / `--text-*` start from `initial`, so a size-named radius or
+> text utility compiles to nothing. A codemod moved **80 files** onto role
+> names; the ladder gained exact tokens for every old step (`chip` 4px,
+> `sheet` 24px, `body-strong` 14, `body-large` 16, `subtitle` 18,
+> `title-small` 20, `title-large` 24, `display-small` 30, `display-large` 36)
+> with the old line heights, so this is a naming change, not a restyle.
+> `scripts/console-scale-lint.mjs` fails on any size-named use;
+> `scripts/console-theme-check.mjs` reads the built CSS and proves the default
+> scales are gone while `rounded-row`, `text-label`, `bg-surface`, and
+> `bg-chrome` resolve. The dead legacy color aliases — including the
+> `--color-card` collision with the palette overlay — are removed. Remaining:
+> codemod the ~2.7k arbitrary `bg-[var(--color-*)]` / `text-[var(--color-*)]`
+> usages onto the semantic utilities now that they exist.
+
 A comprehensive report on the future user experience and interface, synthesized from the
 source's §5 UX investigation, the [[agent-ux-control-plane]] surface list, the
 [[science-discovery]] loop, [[user-identity-and-profiles]], [[workflows-and-agent-authoring]],
@@ -333,13 +415,13 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   bootstrap (`page.tsx`) from polling, queues concurrent SSE `pendingRefresh`
   invalidations (`resource-store.ts`), and eliminates `390×844` mobile composer
   and overlay-inspector collisions.
-- **Contracts & Verification:** Inventory expands to **144 modeled / 14
-  client-only / 0 unmodeled** contracts (`123` schemas, `131` OpenAPI paths)
-  with **667** Console test cases across **127** test files (`docs/repo-counts.md`),
-  verified against `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`,
-  `a11y.spec.ts`, `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual
-  VoiceOver/NVDA screen-reader walkthrough and non-chemistry manuscript templates
-  remain open.
+- **Contracts & Verification:** Inventory stands at **158 modeled / 14
+  client-only / 0 unmodeled** contracts (`136` schemas, `143` OpenAPI paths)
+  with **797** Console test cases across **150** test files (`docs/repo-counts.md`),
+  including real-Chromium `*.component.test.tsx` coverage, plus
+  `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,
+  `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual VoiceOver/NVDA
+  screen-reader walkthrough and non-chemistry manuscript templates remain open.
 
 Related: [[agent-ux-control-plane]] · [[science-discovery]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[user-identity-and-profiles]] ·

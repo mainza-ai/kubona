@@ -5,12 +5,15 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/alerts"
@@ -126,6 +129,124 @@ func corsAllowOrigin(r *http.Request) string {
 		if subtle.ConstantTimeCompare([]byte(origin), []byte(o)) == 1 {
 			return origin
 		}
+	}
+	return ""
+}
+
+// requestHostName strips the port from a Host header. A bare IPv6 address
+// has no port delimiter the splitter can trust, so it is returned whole.
+func requestHostName(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+	if name, _, err := net.SplitHostPort(host); err == nil {
+		return strings.Trim(name, "[]")
+	}
+	return strings.Trim(host, "[]")
+}
+
+// hostAllowed is the DNS-rebinding gate. A page can resolve an attacker
+// name onto the loopback API; the browser then sends that name as Host.
+// Loopback names and literal IPs stay allowed (curl to 127.0.0.1 or a LAN
+// address). Any other name must be configured. example.com is the
+// httptest default and is allowed only inside `go test`, never in kubonad.
+func hostAllowed(host string) bool {
+	name := requestHostName(host)
+	if name == "" {
+		return false
+	}
+	switch strings.ToLower(name) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	if testing.Testing() && strings.EqualFold(name, "example.com") {
+		return true
+	}
+	if ip := net.ParseIP(name); ip != nil {
+		return true
+	}
+	for _, allowed := range configuredHostNames() {
+		if strings.EqualFold(name, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
+// configuredHostNames is KUBONA_ALLOWED_HOSTS plus the host of each
+// KUBONA_CORS_ORIGINS entry, so one extra console origin does not leave
+// its API name refused.
+func configuredHostNames() []string {
+	var out []string
+	for _, raw := range strings.Split(os.Getenv("KUBONA_ALLOWED_HOSTS"), ",") {
+		if name := requestHostName(raw); name != "" {
+			out = append(out, name)
+		}
+	}
+	for _, raw := range strings.Split(os.Getenv("KUBONA_CORS_ORIGINS"), ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Hostname() == "" {
+			continue
+		}
+		out = append(out, parsed.Hostname())
+	}
+	return out
+}
+
+// browserMediated is true when the caller is a browser fetch or form.
+// curl sends neither Origin nor Sec-Fetch-Site, so it is not in this class.
+func browserMediated(r *http.Request) bool {
+	return strings.TrimSpace(r.Header.Get("Origin")) != "" ||
+		strings.TrimSpace(r.Header.Get("Sec-Fetch-Site")) != ""
+}
+
+func unsafeMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func jsonMediaType(header string) bool {
+	media, _, err := mime.ParseMediaType(header)
+	return err == nil && strings.EqualFold(media, "application/json")
+}
+
+func requestCarriesBody(r *http.Request) bool {
+	if r.Body == nil || r.Body == http.NoBody {
+		return false
+	}
+	return r.ContentLength != 0
+}
+
+// browserWriteRefusal blocks cross-site writers. Threat: in local
+// single-lab mode an open write can be reached with no cookie, and a
+// simple text/plain POST does not preflight. A browser write must come
+// from an allowlisted Origin, must not declare Sec-Fetch-Site: cross-site,
+// and must use application/json when it carries a body. Same-site console
+// calls (localhost:3000 → localhost:8080) and curl are not in this class.
+// Returns the operator-facing reason, or empty when the write may proceed.
+func browserWriteRefusal(r *http.Request) string {
+	if r == nil || !unsafeMethod(r.Method) || !browserMediated(r) {
+		return ""
+	}
+	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" && corsAllowOrigin(r) == "" {
+		return "cross-site write refused: origin is not allowlisted"
+	}
+	switch strings.ToLower(strings.TrimSpace(r.Header.Get("Sec-Fetch-Site"))) {
+	case "", "same-origin", "same-site", "none":
+	default:
+		return "cross-site write refused"
+	}
+	if requestCarriesBody(r) && !jsonMediaType(r.Header.Get("Content-Type")) {
+		return "browser writes must send application/json"
 	}
 	return ""
 }

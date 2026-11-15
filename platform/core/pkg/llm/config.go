@@ -300,6 +300,99 @@ type Settings struct {
 	// false — some gateways need the dialect; operators who don't trust it
 	// switch it off and lose nothing structured.
 	DisableDSMLFallback bool `json:"disable_dsml_fallback"`
+	// Revision is the server-owned optimistic-concurrency counter for
+	// operator configuration. Every operator write (Update, ClearProviderKey,
+	// SetAirGapped) that changes state bumps it; provider health telemetry
+	// (RecordProviderCheck, RecordSuccess) does not, so a background probe
+	// never invalidates an operator's open edit. HTTP writers must present
+	// the revision they read (UpdateAtRevision); a stale one is refused with
+	// RevisionConflictError instead of silently overwriting newer state.
+	// Clients never set it — incoming values are ignored.
+	Revision int64 `json:"revision"`
+}
+
+// RevisionConflictError refuses a write prepared against a stale revision.
+type RevisionConflictError struct {
+	Expected int64
+	Current  int64
+}
+
+func (e *RevisionConflictError) Error() string {
+	return fmt.Sprintf("settings changed since revision %d (current %d): re-read and re-apply the edit", e.Expected, e.Current)
+}
+
+// PersistError marks a durable-write failure. The in-memory state is rolled
+// back before it is returned, so memory and the database never disagree.
+type PersistError struct{ Err error }
+
+func (e *PersistError) Error() string { return "settings not persisted: " + e.Err.Error() }
+func (e *PersistError) Unwrap() error { return e.Err }
+
+// settingsState is the operator-configuration subset restored on a failed
+// persist (rollback). Maps are copied because commits mutate them in place.
+type settingsState struct {
+	activeProvider      ProviderType
+	activeModel         string
+	airGapped           bool
+	temperature         float64
+	maxTokens           int
+	disableDSMLFallback bool
+	providers           map[ProviderType]ProviderConfig
+	roles               map[string]RoleModelAssignment
+	secretSources       map[ProviderType]string
+	revision            int64
+}
+
+func (s *Settings) captureLocked() settingsState {
+	st := settingsState{
+		activeProvider:      s.ActiveProvider,
+		activeModel:         s.ActiveModel,
+		airGapped:           s.AirGapped,
+		temperature:         s.Temperature,
+		maxTokens:           s.MaxTokens,
+		disableDSMLFallback: s.DisableDSMLFallback,
+		providers:           make(map[ProviderType]ProviderConfig, len(s.Providers)),
+		roles:               make(map[string]RoleModelAssignment, len(s.RoleAssignments)),
+		secretSources:       make(map[ProviderType]string, len(s.secretSources)),
+		revision:            s.Revision,
+	}
+	for k, v := range s.Providers {
+		st.providers[k] = v
+	}
+	for k, v := range s.RoleAssignments {
+		st.roles[k] = cloneRoleAssignment(v)
+	}
+	for k, v := range s.secretSources {
+		st.secretSources[k] = v
+	}
+	return st
+}
+
+func (s *Settings) restoreLocked(st settingsState) {
+	s.ActiveProvider = st.activeProvider
+	s.ActiveModel = st.activeModel
+	s.AirGapped = st.airGapped
+	s.Temperature = st.temperature
+	s.MaxTokens = st.maxTokens
+	s.DisableDSMLFallback = st.disableDSMLFallback
+	s.Providers = st.providers
+	s.RoleAssignments = st.roles
+	s.secretSources = st.secretSources
+	s.Revision = st.revision
+}
+
+// commitLocked bumps the revision and persists; on a persist failure it
+// restores the captured state so memory never runs ahead of the database.
+func (s *Settings) commitLocked(before settingsState, db *sql.DB) error {
+	s.Revision = before.revision + 1
+	if db == nil {
+		return nil
+	}
+	if err := s.saveLocked(db); err != nil {
+		s.restoreLocked(before)
+		return &PersistError{Err: err}
+	}
+	return nil
 }
 
 func DefaultSettings() *Settings {
@@ -651,8 +744,12 @@ func LoadSettingsReadOnly(db *sql.DB) (*Settings, error) {
 func (s *Settings) Save(db *sql.DB) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.saveLocked(db)
+}
 
-	storage := s.snapshot(false)
+// saveLocked persists the current state; the caller holds s.mu (read or write).
+func (s *Settings) saveLocked(db *sql.DB) error {
+	storage := s.snapshotLocked(false)
 	for pt, pc := range storage.Providers {
 		sealed, serr := sealSecret(pc.APIKey)
 		if serr != nil {
@@ -852,7 +949,11 @@ func knownProviderList(provs map[ProviderType]ProviderConfig) string {
 func (s *Settings) snapshot(redact bool) Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.snapshotLocked(redact)
+}
 
+// snapshotLocked copies the settings; the caller holds s.mu (read or write).
+func (s *Settings) snapshotLocked(redact bool) Settings {
 	copyProviders := make(map[ProviderType]ProviderConfig, len(s.Providers))
 	for k, v := range s.Providers {
 		if redact {
@@ -889,10 +990,25 @@ func (s *Settings) snapshot(redact bool) Settings {
 		RoleAssignments:     copyRoles,
 		RoleCatalog:         roleCatalog,
 		DisableDSMLFallback: s.DisableDSMLFallback,
+		Revision:            s.Revision,
 	}
 }
 
+// Update applies an operator write unconditionally (boot, CLI and tests).
+// HTTP writers use UpdateAtRevision so a stale editor cannot clobber newer
+// state.
 func (s *Settings) Update(update *Settings, db *sql.DB) error {
+	return s.update(update, nil, db)
+}
+
+// UpdateAtRevision applies an operator write only if the stored revision
+// still equals expected — the one a client read before editing. Otherwise
+// it refuses with *RevisionConflictError and changes nothing.
+func (s *Settings) UpdateAtRevision(update *Settings, expected int64, db *sql.DB) error {
+	return s.update(update, &expected, db)
+}
+
+func (s *Settings) update(update *Settings, expected *int64, db *sql.DB) error {
 	// W0.19: values are load-bearing (a NaN temperature or negative token
 	// ceiling corrupts every call silently). Refuse garbage at the edge.
 	if math.IsNaN(update.Temperature) || math.IsInf(update.Temperature, 0) {
@@ -901,16 +1017,22 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 	if update.MaxTokens < 0 {
 		return fmt.Errorf("max_tokens must be >= 0: refusing")
 	}
-	s.mu.RLock()
+	// The whole read-validate-commit runs under the write lock: validation
+	// and the revision check see exactly the state the commit replaces, so
+	// a concurrent write or health probe cannot slip in between (the old
+	// RLock-snapshot/Lock-commit split let a probe's telemetry be lost).
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if expected != nil && *expected != s.Revision {
+		return &RevisionConflictError{Expected: *expected, Current: s.Revision}
+	}
 	currentRoles := s.RoleAssignments
 	currentProvs := s.Providers
 	curActiveModel := s.ActiveModel
-	// Snapshot current secret sources under lock.
 	currentSources := make(map[ProviderType]string, len(s.secretSources))
 	for k, v := range s.secretSources {
 		currentSources[k] = v
 	}
-	s.mu.RUnlock()
 
 	if strings.TrimSpace(update.ActiveModel) == "" && strings.TrimSpace(curActiveModel) != "" {
 		return fmt.Errorf("active_model must not be empty: refusing (clearing the fallback breaks unknown-role resolution)")
@@ -1081,7 +1203,7 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 		}
 	}
 
-	s.mu.Lock()
+	before := s.captureLocked()
 	s.ActiveProvider = update.ActiveProvider
 	s.ActiveModel = update.ActiveModel
 	s.AirGapped = update.AirGapped
@@ -1100,24 +1222,39 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 	if preparedRoles != nil {
 		s.RoleAssignments = preparedRoles
 	}
-	s.mu.Unlock()
+	return s.commitLocked(before, db)
+}
 
-	if db != nil {
-		return s.Save(db)
+// SetAirGapped is the field-level air-gap write. It touches nothing else,
+// so it never needs (or clobbers) a whole-document revision: engaging is a
+// safety tightening that must not be refused because another field moved.
+// A no-op (already in the requested state) changes nothing and does not
+// bump the revision. Returns the previous value and the resulting revision.
+func (s *Settings) SetAirGapped(value bool, db *sql.DB) (previous bool, revision int64, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	previous = s.AirGapped
+	if previous == value {
+		return previous, s.Revision, nil
 	}
-	return nil
+	before := s.captureLocked()
+	s.AirGapped = value
+	if err := s.commitLocked(before, db); err != nil {
+		return previous, s.Revision, err
+	}
+	return previous, s.Revision, nil
 }
 
 // ClearProviderKey explicitly removes a provider's stored API key and updates
 // key standing and enablement safely without relying on empty-string heuristics.
 func (s *Settings) ClearProviderKey(pt ProviderType, db *sql.DB) error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	pc, ok := s.Providers[pt]
 	if !ok {
-		known := knownProviderList(s.Providers)
-		s.mu.Unlock()
-		return fmt.Errorf("provider %q unknown: refusing (known: %s)", pt, known)
+		return fmt.Errorf("provider %q unknown: refusing (known: %s)", pt, knownProviderList(s.Providers))
 	}
+	before := s.captureLocked()
 	pc.APIKey = ""
 	pc.HasKey = false
 	pc.SecretSource = ""
@@ -1133,12 +1270,7 @@ func (s *Settings) ClearProviderKey(pt ProviderType, db *sql.DB) error {
 		s.secretSources = make(map[ProviderType]string)
 	}
 	s.secretSources[pt] = SecretSourceNone
-	s.mu.Unlock()
-
-	if db != nil {
-		return s.Save(db)
-	}
-	return nil
+	return s.commitLocked(before, db)
 }
 
 // providerEnvKey maps providers to their primary credential env vars.

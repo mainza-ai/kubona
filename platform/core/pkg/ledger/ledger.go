@@ -324,6 +324,11 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		compiler_used TEXT NOT NULL DEFAULT '',
 		fallback_estimate INTEGER NOT NULL DEFAULT 0,
 		mandate_ref TEXT NOT NULL DEFAULT '',
+		owner_epoch INTEGER NOT NULL DEFAULT 0,
+		attempt_id TEXT NOT NULL DEFAULT '',
+		dispatched_at DATETIME,
+		vendor_ref TEXT NOT NULL DEFAULT '',
+		request_id TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
@@ -355,10 +360,78 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		signature_domain TEXT NOT NULL DEFAULT 'chain'
 	);
 
+	-- C10: operator steering for a live run. A steer is an instruction record,
+	-- not an immediate tool call: it is applied at the next step boundary and
+	-- then sealed as a loop_steered event.
+	CREATE TABLE IF NOT EXISTS loop_steers (
+		id TEXT PRIMARY KEY,
+		loop_id TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		text TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME NOT NULL,
+		applied_at DATETIME
+	);
+	CREATE INDEX IF NOT EXISTS idx_loop_steers_loop ON loop_steers(loop_id, status);
+
+	-- C11: run-scoped spend allowances. One signed envelope authorizes many
+	-- hardware jobs inside explicit bounds; each admitted job draws atomically.
+	CREATE TABLE IF NOT EXISTS run_allowances (
+		id TEXT PRIMARY KEY,
+		tenant_id TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		campaign_id TEXT NOT NULL DEFAULT '',
+		scope_digest TEXT NOT NULL,
+		backends_json TEXT NOT NULL,
+		job_types_json TEXT NOT NULL,
+		max_per_job_micro_usd INTEGER NOT NULL,
+		max_total_micro_usd INTEGER NOT NULL,
+		remaining_micro_usd INTEGER NOT NULL,
+		max_jobs INTEGER NOT NULL,
+		jobs_used INTEGER NOT NULL DEFAULT 0,
+		shots_cap INTEGER NOT NULL,
+		status TEXT NOT NULL,
+		suspended_reason TEXT NOT NULL DEFAULT '',
+		issued_at DATETIME NOT NULL,
+		expires_at DATETIME NOT NULL,
+		basis_rate_card TEXT NOT NULL DEFAULT '',
+		basis_calibration_digest TEXT NOT NULL DEFAULT '',
+		nonce TEXT NOT NULL UNIQUE,
+		signer_pubkey_hex TEXT NOT NULL,
+		signature_hex TEXT NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS run_allowance_draws (
+		allowance_id TEXT NOT NULL,
+		job_id TEXT NOT NULL,
+		request_id TEXT NOT NULL DEFAULT '',
+		amount_micro_usd INTEGER NOT NULL,
+		created_at DATETIME NOT NULL,
+		PRIMARY KEY (allowance_id, job_id),
+		FOREIGN KEY (allowance_id) REFERENCES run_allowances(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_run_allowance_session ON run_allowances(session_id);
+
+	CREATE TABLE IF NOT EXISTS proposals (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		message_id TEXT NOT NULL DEFAULT '',
+		digest TEXT NOT NULL,
+		body_json TEXT NOT NULL,
+		basis_campaign_rev INTEGER NOT NULL DEFAULT 0,
+		basis_calibration_digest TEXT NOT NULL DEFAULT '',
+		basis_tainted INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'offered',
+		launched_job_id TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+
 	CREATE TABLE IF NOT EXISTS campaign_states (
 		session_id TEXT PRIMARY KEY,
 		state_json TEXT NOT NULL,
 		updated_at DATETIME NOT NULL,
+		revision INTEGER NOT NULL DEFAULT 0,
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
@@ -392,6 +465,22 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 
 	-- Claim review history: decisions are append-only and separate from the
 	-- immutable claim row. A claim's current review state is the newest row.
+	-- B4: provenance joins as rows. A claim's evidence is a typed link to the
+	-- measured record (job id + result digest), a tribunal turn, literature,
+	-- or an explicit general-knowledge assertion — never a free JSON blob.
+	CREATE TABLE IF NOT EXISTS claim_evidence (
+		claim_id TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		job_id TEXT NOT NULL DEFAULT '',
+		result_sha256 TEXT NOT NULL DEFAULT '',
+		receipt_entry_hash TEXT NOT NULL DEFAULT '',
+		source_ref TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		PRIMARY KEY (claim_id, kind, job_id, source_ref),
+		FOREIGN KEY (claim_id) REFERENCES claim_records(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_claim_evidence_claim ON claim_evidence(claim_id);
+
 	CREATE TABLE IF NOT EXISTS claim_reviews (
 		id TEXT PRIMARY KEY,
 		session_id TEXT NOT NULL,
@@ -609,14 +698,26 @@ func migrateLegacySchema(db *sql.DB) error {
 		`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE jobs ADD COLUMN fallback_estimate INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE jobs ADD COLUMN mandate_ref TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN owner_epoch INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN attempt_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN dispatched_at DATETIME`,
+		`ALTER TABLE jobs ADD COLUMN vendor_ref TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE campaign_states ADD COLUMN revision INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`,
 		`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`,
+		`ALTER TABLE chat_messages ADD COLUMN proposal_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE chat_messages ADD COLUMN citations_json TEXT`,
+		`ALTER TABLE proposals ADD COLUMN basis_tainted INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE chat_messages ADD COLUMN proposal_digest TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE loops ADD COLUMN harness_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE loops ADD COLUMN last_activity DATETIME`,
 		`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE loops ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE loops ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE claim_records ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range addColumns {
 		if err := execMigration(db, stmt, "duplicate column name"); err != nil {
@@ -691,6 +792,40 @@ func migrateLegacySchema(db *sql.DB) error {
 			continue
 		}
 		if err := execMigration(db, d.stmt, "no such column", "syntax error"); err != nil {
+			return err
+		}
+	}
+	// One idempotency key per session. Empty request ids are the unkeyed
+	// historical rows and are not unique.
+	if err := execMigration(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_session_request ON jobs(session_id, request_id) WHERE request_id <> ''`); err != nil {
+		return err
+	}
+	if err := execMigration(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_loops_session_request ON loops(session_id, request_id) WHERE request_id <> ''`); err != nil {
+		return err
+	}
+	if err := execMigration(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_session_request ON claim_records(session_id, request_id) WHERE request_id <> ''`); err != nil {
+		return err
+	}
+	// Identity columns do not move after they are written, and an
+	// outcome-unknown row cannot be deleted out from under its reservation.
+	for _, stmt := range []string{
+		`DROP TRIGGER IF EXISTS jobs_identity_immutable`,
+		`CREATE TRIGGER jobs_identity_immutable BEFORE UPDATE ON jobs
+		 WHEN (OLD.request_id <> '' AND NEW.request_id <> OLD.request_id)
+		   OR (OLD.vendor_ref <> '' AND NEW.vendor_ref <> OLD.vendor_ref)
+		   OR (OLD.owner_epoch <> 0 AND NEW.owner_epoch <> OLD.owner_epoch)
+		   OR (OLD.attempt_id <> '' AND NEW.attempt_id <> OLD.attempt_id)
+		 BEGIN
+		   SELECT RAISE(ABORT, 'job identity is immutable');
+		 END`,
+		`DROP TRIGGER IF EXISTS jobs_outcome_unknown_nodelete`,
+		`CREATE TRIGGER jobs_outcome_unknown_nodelete BEFORE DELETE ON jobs
+		 WHEN OLD.status = 'JOB_STATUS_OUTCOME_UNKNOWN'
+		 BEGIN
+		   SELECT RAISE(ABORT, 'outcome-unknown job cannot be deleted');
+		 END`,
+	} {
+		if err := execMigration(db, stmt); err != nil {
 			return err
 		}
 	}
@@ -1360,6 +1495,9 @@ type LoopPersist struct {
 	ReservedTenant string
 	ConsumedAmount float64
 	UpdatedAt      time.Time
+	// RequestID is the caller's idempotency key. Empty for loops that
+	// were not started with one. Once set, a later save does not move it.
+	RequestID string
 }
 
 // SaveLoopState upserts a loop row (I3 spend books included: reserved
@@ -1379,13 +1517,14 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 	if cerr != nil {
 		return fmt.Errorf("loop consumed amount: %w", cerr)
 	}
-	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd)
-		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd, request_id)
+		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET status=excluded.status, step_count=excluded.step_count, max_steps=excluded.max_steps,
 		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain,
 		reserved_amount_micro_usd=excluded.reserved_amount_micro_usd, reserved_tenant=excluded.reserved_tenant,
-		consumed_amount_micro_usd=excluded.consumed_amount_micro_usd`,
-		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, int64(reservedMicro), p.ReservedTenant, int64(consumedMicro))
+		consumed_amount_micro_usd=excluded.consumed_amount_micro_usd,
+		request_id=CASE WHEN loops.request_id = '' THEN excluded.request_id ELSE loops.request_id END`,
+		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, int64(reservedMicro), p.ReservedTenant, int64(consumedMicro), p.RequestID)
 	if err != nil {
 		return fmt.Errorf("save loop state failed: %w", err)
 	}
@@ -1476,8 +1615,8 @@ func (l *Ledger) SaveCampaignStateWithTrigger(sessionID string, stateJSON []byte
 	defer l.lock.Unlock()
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	query := `INSERT INTO campaign_states (session_id, state_json, updated_at) VALUES (?, ?, ?)
-		ON CONFLICT(session_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`
+	query := `INSERT INTO campaign_states (session_id, state_json, updated_at, revision) VALUES (?, ?, ?, 1)
+		ON CONFLICT(session_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at, revision = campaign_states.revision + 1`
 	if _, err := l.db.Exec(query, sessionID, string(stateJSON), now); err != nil {
 		return err
 	}
@@ -1547,7 +1686,43 @@ type ClaimRecord struct {
 // MintClaimRecord stores one evaluated claim and returns its stable record
 // ID: clm-<session8>-<seq04>, ordered per session. The sequence counts under
 // the write lock so concurrent turns cannot mint the same ID twice.
+// LoopByRequest returns the loop admitted under a caller idempotency key.
+func (l *Ledger) LoopByRequest(sessionID, requestID string) (id, status, harnessID string, err error) {
+	if sessionID == "" || requestID == "" {
+		return "", "", "", sql.ErrNoRows
+	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	err = l.db.QueryRow(
+		`SELECT id, status, harness_id FROM loops WHERE session_id = ? AND request_id = ?`,
+		sessionID, requestID).Scan(&id, &status, &harnessID)
+	return id, status, harnessID, err
+}
+
+// ClaimByRequest returns the claim minted under a caller idempotency key.
+func (l *Ledger) ClaimByRequest(sessionID, requestID string) (id, verdict string, err error) {
+	if sessionID == "" || requestID == "" {
+		return "", "", sql.ErrNoRows
+	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	err = l.db.QueryRow(
+		`SELECT id, verdict FROM claim_records WHERE session_id = ? AND request_id = ?`,
+		sessionID, requestID).Scan(&id, &verdict)
+	return id, verdict, err
+}
+
 func (l *Ledger) MintClaimRecord(sessionID, turnKind, statement string, alpha, beta, gamma float64, verdict, evidenceJSON string) (*ClaimRecord, error) {
+	return l.mintClaimRecord(sessionID, turnKind, statement, alpha, beta, gamma, verdict, evidenceJSON, "")
+}
+
+// MintClaimRecordForRequest is MintClaimRecord with the caller's idempotency
+// key stored on the row, in the same insert as the claim.
+func (l *Ledger) MintClaimRecordForRequest(sessionID, turnKind, statement string, alpha, beta, gamma float64, verdict, evidenceJSON, requestID string) (*ClaimRecord, error) {
+	return l.mintClaimRecord(sessionID, turnKind, statement, alpha, beta, gamma, verdict, evidenceJSON, requestID)
+}
+
+func (l *Ledger) mintClaimRecord(sessionID, turnKind, statement string, alpha, beta, gamma float64, verdict, evidenceJSON, requestID string) (*ClaimRecord, error) {
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(statement) == "" || strings.TrimSpace(verdict) == "" {
 		return nil, fmt.Errorf("claim record needs session, statement, and verdict")
 	}
@@ -1569,9 +1744,9 @@ func (l *Ledger) MintClaimRecord(sessionID, turnKind, statement string, alpha, b
 	id := fmt.Sprintf("clm-%s-%04d", short, seq)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if _, err := l.db.Exec(
-		`INSERT INTO claim_records (id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, sessionID, turnKind, statement, alpha, beta, gamma, verdict, evidenceJSON, now); err != nil {
+		`INSERT INTO claim_records (id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at, request_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sessionID, turnKind, statement, alpha, beta, gamma, verdict, evidenceJSON, now, requestID); err != nil {
 		return nil, err
 	}
 	return &ClaimRecord{ID: id, SessionID: sessionID, TurnKind: turnKind, Statement: statement,
@@ -1607,6 +1782,21 @@ func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer,
 	}
 	if strings.TrimSpace(reason) == "" {
 		return nil, fmt.Errorf("claim review needs a reason")
+	}
+	// B4 gate: accepting a verified claim requires measured provenance or an
+	// explicit general-knowledge assertion. The decision cannot outrank its
+	// evidence.
+	if decision == "accepted" {
+		claim, _, summary, perr := l.ClaimProvenance(sessionID, claimID)
+		if perr != nil {
+			return nil, perr
+		}
+		if claim == nil {
+			return nil, fmt.Errorf("claim %s not found in session %s", claimID, shortID(sessionID))
+		}
+		if claim.Verdict == "verified" && !summary.Complete {
+			return nil, fmt.Errorf("claim %s is verified but carries no measured job evidence or explicit general_knowledge: record evidence before accepting", claimID)
+		}
 	}
 	if evidenceJSON == "" {
 		evidenceJSON = "{}"
@@ -1754,17 +1944,79 @@ func shortID(id string) string {
 }
 
 func (l *Ledger) GetCampaignState(sessionID string) ([]byte, error) {
+	state, _, err := l.GetCampaignStateWithRevision(sessionID)
+	return state, err
+}
+
+// CampaignRevisionConflict is a stale campaign write. Current is the
+// revision that won. Callers re-read and re-fold; they do not overwrite.
+type CampaignRevisionConflict struct {
+	Current int64
+}
+
+func (e *CampaignRevisionConflict) Error() string {
+	return fmt.Sprintf("campaign revision conflict: current %d", e.Current)
+}
+
+// GetCampaignStateWithRevision returns the live campaign and the revision
+// a later compare-and-swap must echo.
+func (l *Ledger) GetCampaignStateWithRevision(sessionID string) ([]byte, int64, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
 
-	query := `SELECT state_json FROM campaign_states WHERE session_id = ?`
-	row := l.db.QueryRow(query, sessionID)
-
 	var stateStr string
-	if err := row.Scan(&stateStr); err != nil {
-		return nil, err
+	var revision int64
+	err := l.db.QueryRow(`SELECT state_json, revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&stateStr, &revision)
+	if err != nil {
+		return nil, 0, err
 	}
-	return []byte(stateStr), nil
+	return []byte(stateStr), revision, nil
+}
+
+// SaveCampaignStateAtRevision writes only when expected is still current.
+// A missing row accepts expected 0 and becomes revision 1. A stale expected
+// returns *CampaignRevisionConflict and writes nothing.
+func (l *Ledger) SaveCampaignStateAtRevision(sessionID string, stateJSON []byte, trigger string, expected int64) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	now := time.Now().UTC().Format(time.RFC3339)
+	var res sql.Result
+	var err error
+	if expected == 0 {
+		res, err = l.db.Exec(
+			`INSERT INTO campaign_states (session_id, state_json, updated_at, revision) VALUES (?, ?, ?, 1)`,
+			sessionID, string(stateJSON), now)
+	} else {
+		res, err = l.db.Exec(
+			`UPDATE campaign_states SET state_json = ?, updated_at = ?, revision = revision + 1 WHERE session_id = ? AND revision = ?`,
+			string(stateJSON), now, sessionID, expected)
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			var current int64
+			_ = l.db.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
+			return &CampaignRevisionConflict{Current: current}
+		}
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		var current int64
+		qerr := l.db.QueryRow(`SELECT revision FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&current)
+		if qerr != nil {
+			current = 0
+		}
+		return &CampaignRevisionConflict{Current: current}
+	}
+	if _, err := l.db.Exec(
+		`INSERT INTO campaign_versions (session_id, state_json, trigger, created_at) VALUES (?, ?, ?, ?)`,
+		sessionID, string(stateJSON), trigger, now); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (l *Ledger) Close() error {

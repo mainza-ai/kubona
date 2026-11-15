@@ -50,6 +50,12 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chrome
 
+      # D8: real-browser component tests (focus, keyboard, CSS) before the
+      # stack boots; they render components in Chromium, not the deployment.
+      - name: Run browser component tests
+        working-directory: platform/console
+        run: pnpm test:browser
+
       - name: Generate disposable reviewer key for this E2E run
         # Production refuses the dev-only ephemeral signer. This key is
         # generated fresh for the disposable stack and never committed.

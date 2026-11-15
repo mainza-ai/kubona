@@ -34,6 +34,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/cost"
 	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/epistemics"
+	"github.com/mainza-ai/kubona/core/pkg/evals"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/hf"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
@@ -45,6 +46,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 	"github.com/mainza-ai/kubona/core/pkg/session"
+	"github.com/mainza-ai/kubona/core/pkg/skills"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
@@ -75,6 +77,8 @@ type Server struct {
 	providerQueueMu    sync.RWMutex
 	providerQueue      map[string]providerQueueSnapshot
 	toolRegistry       *tools.Registry
+	skillStore         *skills.Store
+	evalStore          evals.Store
 	memoryStore        *memory.HindsightStore
 	metaSearchEngine   *metasearch.MetaSearchEngine
 	sandboxRunner      *sandbox.SandboxRunner
@@ -357,6 +361,8 @@ func NewServer(
 		metaSearchEngine:      metaEngine,
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
+		skillStore:            skills.Load(skills.Options{UserDir: skills.DefaultUserDir()}),
+		evalStore:             evals.Store{Dir: evals.DefaultDir()},
 		hfClient:              hf.NewHubClient(""),
 		customAgents:          agents.NewCustomAgentRegistryWithDB(l.DB()),
 		vaultLeases:           newVaultLeases(),
@@ -450,6 +456,10 @@ func NewServer(
 		}
 	}
 
+	// B3: every metered LLM call reserves against the global cap before the
+	// wire request (installed on the shared client, so all rails are covered).
+	llmCli.SetSpendGuard(&llmBudgetGuard{s: s})
+
 	s.registerRoutes()
 	if err := initAuthSessionTable(l.DB()); err != nil {
 		slog.Error("[Auth] session table init failed; login will refuse until the ledger is writable", "error", err)
@@ -461,6 +471,12 @@ func (s *Server) Handler() http.Handler {
 	return s.instrument(requestIDAndRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Global body cap: unbounded write bodies are a cheap memory DoS.
 		// Per-route readers may impose tighter limits; none may exceed this.
+		// Host allowlist runs before the body is touched: a rebinding name
+		// must not read public routes or reach a write handler.
+		if !hostAllowed(r.Host) {
+			WriteAPIError(w, "forbidden", "host is not allowlisted", nil)
+			return
+		}
 		limit := maxRequestBodyBytes()
 		if r.ContentLength > limit {
 			WriteAPIError(w, "request_too_large",
@@ -473,8 +489,9 @@ func (s *Server) Handler() http.Handler {
 			w.Header().Add("Vary", "Origin")
 			// Credentialed requests (session cookie) only work cross-origin
 			// with this header; the origin above is allowlisted, never "*",
-			// so browsers accept it. Reads stay public; writes still need
-			// auth (bearer or session) plus CSRF checks on cookie calls.
+			// so browsers accept it. Reads stay public. Browser writes are
+			// refused unless the origin is allowlisted, the fetch site is
+			// not cross-site, and a body is application/json.
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -482,6 +499,10 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Access-Control-Expose-Headers", "Kubona-API-Version")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if reason := browserWriteRefusal(r); reason != "" {
+			WriteAPIError(w, "forbidden", reason, nil)
 			return
 		}
 		// API v1 is an alias over the same handlers. The legacy /api path
@@ -565,6 +586,10 @@ func (s *Server) registerRoutes() {
 	s.route("/metrics", s.requireBearer(s.handleMetrics))
 	s.route("/api/ready", s.handleReady)
 	s.route("/api/capabilities", s.handleCapabilities)
+	// B11: body-free skill catalogue + closed loader faults for Settings.
+	s.route("/api/skills", s.handleSkills)
+	// B12: recorded decision-eval status for the model picker (scores only).
+	s.route("/api/evals/llm", s.handleEvalLLM)
 	s.route("/api/access", s.handleAccess)
 	s.route("/api/sessions", s.handleSessions)
 	s.route("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
@@ -584,9 +609,17 @@ func (s *Server) registerRoutes() {
 	s.route("/api/obligations/open", s.requireBearer(s.handleObligationsOpen))
 	s.route("/api/obligations/", s.requireBearer(s.handleObligationClose))
 	s.route("/api/tasks", s.handleTasks)
+	s.route("/api/tasks/batch", s.handleTaskBatchRoute)
 	s.route("/api/tasks/", s.handleTaskByID)
 	s.route("/api/operations/", s.handleOperationStatus)
 	s.route("/api/chat/launch", s.handleChatLaunch)
+	// B1: server-owned proposals. Mint from stored campaign/message state,
+	// read by id, dismiss. Launch names a proposal instead of echoing one.
+	// C11: signed run-scoped allowances (mint/list/revoke). Admission enforces.
+	s.route("/api/run-allowances", s.requireBearer(s.handleRunAllowances))
+	s.route("/api/run-allowances/", s.requireBearer(s.handleRunAllowanceByID))
+	s.route("/api/proposals", s.handleProposals)
+	s.route("/api/proposals/", s.handleProposalByID)
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)
 	s.route("/api/experiments", s.handleExperiments)
@@ -603,6 +636,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/events", s.handleEvents)
 	s.route("/api/memory/recall", s.requireBearer(s.handleMemoryRecall))
 	s.route("/api/memory/retain", s.requireBearer(s.handleMemoryRetain))
+	s.route("/api/memory/retract", s.requireBearer(s.handleMemoryRetract))
 
 	// New Observatory control plane endpoints
 	s.route("/api/agents", s.handleAgents)
@@ -2368,6 +2402,94 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(id, "/claims/") {
 		parts := strings.SplitN(id, "/claims/", 2)
 		sessionID, rest := parts[0], parts[1]
+		// B4: record one typed evidence link. Measured rows are derived from
+		// the job row (id + result digest); the client cannot state its own
+		// digest. Non-measured kinds require an explicit source reference.
+		if strings.HasSuffix(rest, "/evidence") {
+			claimID := strings.TrimSuffix(rest, "/evidence")
+			if claimID == "" || strings.Contains(claimID, "/") {
+				WriteAPIError(w, "bad_request", "evidence path is /claims/{claim_id}/evidence", nil)
+				return
+			}
+			if r.Method != http.MethodPost {
+				WriteAPIError(w, "method_not_allowed", "claim evidence is POST-only", nil)
+				return
+			}
+			if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+				return
+			}
+			claim, cerr := s.ledger.GetClaimRecord(sessionID, claimID)
+			if cerr != nil {
+				WriteAPIError(w, "internal", "claim read failed", nil)
+				return
+			}
+			if claim == nil {
+				WriteAPIError(w, "not_found", "unknown claim for this session", nil)
+				return
+			}
+			var req struct {
+				Kind             string `json:"kind"`
+				JobID            string `json:"job_id"`
+				SourceRef        string `json:"source_ref"`
+				ReceiptEntryHash string `json:"receipt_entry_hash"`
+			}
+			if err := decodeStrict(r, &req); err != nil {
+				WriteAPIError(w, "bad_request", fmt.Sprintf("invalid evidence request: %v", err), nil)
+				return
+			}
+			ev := ledger.ClaimEvidence{Kind: strings.TrimSpace(req.Kind), SourceRef: strings.TrimSpace(req.SourceRef), ReceiptEntryHash: req.ReceiptEntryHash}
+			switch ev.Kind {
+			case "job_result", "classical_anchor":
+				if s.jobRunner == nil {
+					WriteAPIError(w, "server_misconfigured", "job runner unavailable: measured evidence cannot be linked", nil)
+					return
+				}
+				job, jerr := s.jobRunner.GetJob(strings.TrimSpace(req.JobID))
+				if jerr != nil || job == nil || job.SessionID != sessionID {
+					WriteAPIError(w, "not_found", "unknown job for this session", nil)
+					return
+				}
+				ev.JobID = job.ID
+				ev.ResultSHA256 = ledger.ResultDigest(job.ResultJSON)
+			}
+			if err := s.ledger.AddClaimEvidence(sessionID, claimID, ev); err != nil {
+				WriteAPIError(w, "bad_request", err.Error(), nil)
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "claim_id": claimID, "evidence": ev})
+			return
+		}
+		// B4: claim provenance rows (typed evidence links), read-only.
+		if strings.HasSuffix(rest, "/provenance") {
+			claimID := strings.TrimSuffix(rest, "/provenance")
+			if claimID == "" || strings.Contains(claimID, "/") {
+				WriteAPIError(w, "bad_request", "provenance path is /claims/{claim_id}/provenance", nil)
+				return
+			}
+			if r.Method != http.MethodGet {
+				WriteAPIError(w, "method_not_allowed", "claim provenance is GET-only", nil)
+				return
+			}
+			if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+				return
+			}
+			claim, evidence, summary, err := s.ledger.ClaimProvenance(sessionID, claimID)
+			if err != nil {
+				WriteAPIError(w, "internal", "claim provenance read failed", nil)
+				return
+			}
+			if claim == nil {
+				WriteAPIError(w, "not_found", "unknown claim for this session", nil)
+				return
+			}
+			if evidence == nil {
+				evidence = []ledger.ClaimEvidence{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok": true, "claim": claim, "evidence": evidence, "summary": summary,
+			})
+			return
+		}
 		claimID := strings.TrimSuffix(strings.TrimSuffix(rest, "/reviews"), "/review")
 		if claimID != "" && (strings.HasSuffix(rest, "/reviews") || strings.HasSuffix(rest, "/review")) {
 			if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
@@ -2484,9 +2606,14 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
 			return
 		}
-		rawState, err := s.ledger.GetCampaignState(sessionID)
+		if r.Method == http.MethodPut {
+			s.putCampaignAtRevision(w, r, sessionID)
+			return
+		}
+		rawState, rev, err := s.ledger.GetCampaignStateWithRevision(sessionID)
 		if err == nil && len(rawState) > 0 {
 			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Campaign-Revision", strconv.FormatInt(rev, 10))
 			w.WriteHeader(http.StatusOK)
 			w.Write(rawState)
 			return
@@ -2655,13 +2782,25 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		// Autonomous Epistemic Routing via the configured engine
 		genStart := time.Now()
 		turnEventsBefore := s.latestEventID(sessionID)
-		botReply, proposalJSON, err := s.generateCopilotResponse(r.Context(), sessionID, req.Content)
+		botReply, proposalJSON, observations, err := s.generateCopilotResponse(r.Context(), sessionID, req.Content)
 		genMs := time.Since(genStart).Milliseconds()
 		if err != nil && botReply == "" {
 			prov, model, _ := s.llmSettings.GetModelForRole("copilot")
 			botReply = engineNotice(string(prov), model, err)
 		}
 		assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", botReply, proposalJSON)
+		proposalID, proposalDigest, proposalErr := "", "", ""
+		if assistantMsg != nil && proposalJSON != nil {
+			proposalID, proposalDigest, proposalErr = s.mintProposalForMessage(sessionID, assistantMsg.ID, len(observations) > 0)
+			if proposalID != "" {
+				assistantMsg.ProposalID, assistantMsg.ProposalDigest = proposalID, proposalDigest
+			}
+		}
+		citationReport, citationsJSON := s.citationReport(botReply, observations)
+		if assistantMsg != nil && citationsJSON != nil {
+			_ = s.sessionMgr.SetMessageCitations(assistantMsg.ID, citationsJSON)
+			assistantMsg.Citations = citationsJSON
+		}
 
 		// Served-model observability: the UI shows which model answered, so a
 		// stale selection is visible, never silent (2026-10-11).
@@ -2681,6 +2820,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			"user":              userMsg,
 			"assistant":         assistantMsg,
 			"model":             servedModel,
+			"proposal_id":       proposalID,
+			"proposal_digest":   proposalDigest,
+			"proposal_error":    proposalErr,
+			"citations":         citationReport,
 			"duration_ms":       genMs,
 		})
 	default:
@@ -2768,13 +2911,13 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 
 	// History mirrors generateCopilotResponse (same system contract).
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
-	history := []llm.ChatMessage{{Role: "system", Content: copilotSystemPrompt}}
+	history := []llm.ChatMessage{{Role: "system", Content: s.copilotSystemPrompt()}}
 	for _, m := range recentMsgs {
 		if m.Role == "user" || m.Role == "assistant" {
 			history = append(history, llm.ChatMessage{Role: m.Role, Content: m.Content})
 		}
 	}
-	history = append(history, llm.ChatMessage{Role: "user", Content: req.Content})
+	history = appendCurrentUserTurn(history, req.Content)
 	history = llm.BudgetHistory(history, 0, 0)
 
 	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
@@ -2783,17 +2926,63 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	// Same tool loop as the unary path: observe live state first, then
 	// stream the final answer. Degrades silently to base history.
 	streamEventsBefore := s.latestEventID(sessionID)
-	history = s.resolveWithTools(streamCtx, sessionID, history)
+	history, observations := s.resolveWithTools(streamCtx, sessionID, history)
 
+	citationFilter := &CitationStreamFilter{}
 	streamRes, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
-		emit("token", map[string]any{"text": tok})
+		if out := citationFilter.Push(tok); out != "" {
+			emit("token", map[string]any{"text": out})
+		}
 	})
+	if rest := citationFilter.Flush(); rest != "" {
+		emit("token", map[string]any{"text": rest})
+	}
 	if streamErr != nil {
 		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
+		outcome := streamFailureOutcome(streamErr)
+		partial := ""
+		if streamRes != nil {
+			partial = strings.TrimSpace(streamRes.Text)
+		}
+		var shown *session.ChatMessage
+		if partial != "" {
+			// The partial text is the model's own output and stays in
+			// history. The outcome says the turn did not finish.
+			display := partial + "\n\n[" + outcome + "] stream ended before the provider finished"
+			msg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", display, nil)
+			shown = msg
+			if msg != nil && streamRes != nil {
+				streamMs := streamRes.Duration.Milliseconds()
+				var streamUsage *json.RawMessage
+				if streamRes.Usage != nil {
+					if rawUsage, merr := json.Marshal(streamRes.Usage); merr == nil {
+						u := json.RawMessage(rawUsage)
+						streamUsage = &u
+					}
+				}
+				if streamMs > 0 || streamUsage != nil {
+					_ = s.sessionMgr.SetMessageUsage(msg.ID, streamMs, streamUsage)
+					if streamMs > 0 {
+						msg.DurationMs = &streamMs
+					}
+					msg.UsageJSON = streamUsage
+				}
+			}
+		}
+		// Provider error text is an operator notice, not an assistant turn.
+		// History rebuilds skip this role, so the next prompt cannot replay it.
 		notice := engineNotice(string(prov), model, streamErr)
-		assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", notice, nil)
+		noticeMsg, _ := s.sessionMgr.AddMessage(sessionID, chatRoleNotice, notice, nil)
+		if shown == nil {
+			shown = noticeMsg
+		}
 		_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
-		emit("done", map[string]any{"user": userMsg, "assistant": assistantMsg, "model": servedModel})
+		streamTools := s.toolNamesSince(sessionID, streamEventsBefore)
+		s.retainTurnExperience(sessionID, "chat-stream", req.Content, outcome, streamTools,
+			chatImportance(false, true, len(streamTools) > 0))
+		emit("done", map[string]any{
+			"user": userMsg, "assistant": shown, "model": servedModel, "outcome": outcome,
+		})
 		return
 	}
 	raw := streamRes.Text
@@ -2807,6 +2996,18 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	display = sanitizeCopilotReply(display)
 	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", display, proposalJSON)
+	proposalID, proposalDigest, proposalErr := "", "", ""
+	if assistantMsg != nil && proposalJSON != nil {
+		proposalID, proposalDigest, proposalErr = s.mintProposalForMessage(sessionID, assistantMsg.ID, len(observations) > 0)
+		if proposalID != "" {
+			assistantMsg.ProposalID, assistantMsg.ProposalDigest = proposalID, proposalDigest
+		}
+	}
+	citationReport, citationsJSON := s.citationReport(display, observations)
+	if assistantMsg != nil && citationsJSON != nil {
+		_ = s.sessionMgr.SetMessageCitations(assistantMsg.ID, citationsJSON)
+		assistantMsg.Citations = citationsJSON
+	}
 	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
 	// Persist measured cost on the stored message (NULL when unreported).
 	streamMs := streamRes.Duration.Milliseconds()
@@ -2834,7 +3035,9 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		chatImportance(proposalJSON != nil, streamErr != nil, len(streamTools) > 0))
 	emit("done", map[string]any{
 		"user": userMsg, "assistant": assistantMsg,
-		"proposal": proposalJSON, "model": servedModel,
+		"proposal": proposalJSON, "proposal_id": proposalID,
+		"proposal_digest": proposalDigest, "proposal_error": proposalErr,
+		"citations": citationReport, "model": servedModel,
 		"duration_ms": streamRes.Duration.Milliseconds(), "usage": streamRes.Usage,
 	})
 }
@@ -2883,13 +3086,25 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	genStart := time.Now()
 	regenEventsBefore := s.latestEventID(sessionID)
-	botReply, proposalJSON, genErr := s.generateCopilotResponse(r.Context(), sessionID, prompt)
+	botReply, proposalJSON, observations, genErr := s.generateCopilotResponse(r.Context(), sessionID, prompt)
 	genMs := time.Since(genStart).Milliseconds()
 	if genErr != nil && botReply == "" {
 		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
 		botReply = engineNotice(string(prov), model, genErr)
 	}
 	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", botReply, proposalJSON)
+	regenProposalID, regenProposalDigest, regenProposalErr := "", "", ""
+	if assistantMsg != nil && proposalJSON != nil {
+		regenProposalID, regenProposalDigest, regenProposalErr = s.mintProposalForMessage(sessionID, assistantMsg.ID, len(observations) > 0)
+		if regenProposalID != "" {
+			assistantMsg.ProposalID, assistantMsg.ProposalDigest = regenProposalID, regenProposalDigest
+		}
+	}
+	regenCitations, regenCitationsJSON := s.citationReport(botReply, observations)
+	if assistantMsg != nil && regenCitationsJSON != nil {
+		_ = s.sessionMgr.SetMessageCitations(assistantMsg.ID, regenCitationsJSON)
+		assistantMsg.Citations = regenCitationsJSON
+	}
 	if genMs > 0 {
 		_ = s.sessionMgr.SetMessageUsage(assistantMsg.ID, genMs, nil)
 		assistantMsg.DurationMs = &genMs
@@ -2903,6 +3118,10 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 		"assistant_message": assistantMsg,
 		"assistant":         assistantMsg,
 		"model":             servedModel,
+		"proposal_id":       regenProposalID,
+		"proposal_digest":   regenProposalDigest,
+		"proposal_error":    regenProposalErr,
+		"citations":         regenCitations,
 		"duration_ms":       genMs,
 		"regenerated_from":  prompt,
 	})
@@ -3082,6 +3301,35 @@ func (s *Server) fallbackProposal(content, reply string) *json.RawMessage {
 // triggerLabel builds a bounded trigger string for campaign versions:
 // kind plus up to 120 runes of source text. Prompts can be long; the
 // trigger names the cause, it never stores the whole prompt.
+// chatRoleNotice is an operator-facing provider failure. It is stored so
+// the console can show it, and omitted from model history.
+const chatRoleNotice = "notice"
+
+// streamFailureOutcome distinguishes an operator or deadline stop from a
+// provider failure. Both keep any partial text; neither is a success.
+func streamFailureOutcome(err error) string {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return "stopped"
+	}
+	if err != nil && strings.Contains(err.Error(), "context canceled") {
+		return "stopped"
+	}
+	return "failed"
+}
+
+// appendCurrentUserTurn adds the prompt for this call unless the stored
+// transcript already ends with it. Chat persists the user row before
+// history is built, so appending it again sent the turn twice (Anthropic
+// then coalesces the pair into one message that contains the text twice).
+// A transcript that failed to load does not end with the prompt, and the
+// turn is still sent.
+func appendCurrentUserTurn(history []llm.ChatMessage, content string) []llm.ChatMessage {
+	if n := len(history); n > 0 && history[n-1].Role == "user" && history[n-1].Content == content {
+		return history
+	}
+	return append(history, llm.ChatMessage{Role: "user", Content: content})
+}
+
 func triggerLabel(kind, text string) string {
 	t := strings.TrimSpace(text)
 	if len([]rune(t)) > 120 {
@@ -3093,18 +3341,18 @@ func triggerLabel(kind, text string) string {
 	return kind + ":" + t
 }
 
-func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) { // 1. Fetch recent messages for session context
+func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, []ToolObservation, error) { // 1. Fetch recent messages for session context
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
 	var history []llm.ChatMessage
 
-	sysPrompt := copilotSystemPrompt
+	sysPrompt := s.copilotSystemPrompt()
 	history = append(history, llm.ChatMessage{Role: "system", Content: sysPrompt})
 	for _, m := range recentMsgs {
 		if m.Role == "user" || m.Role == "assistant" {
 			history = append(history, llm.ChatMessage{Role: m.Role, Content: m.Content})
 		}
 	}
-	history = append(history, llm.ChatMessage{Role: "user", Content: content})
+	history = appendCurrentUserTurn(history, content)
 
 	// Context budget: bounded transcript for every call (system survives,
 	// newest turns win, cuts announced). Prevents unbounded spend/latency
@@ -3113,7 +3361,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 
 	// 2. Plan→tool→observe: let the model inspect live session state	// (anchors, campaign, jobs) before answering. Degrades to the base
 	// history on any failure — never blocks the answer path.
-	history = s.resolveWithTools(ctx, sessionID, history)
+	history, observations := s.resolveWithTools(ctx, sessionID, history)
 
 	// 3. Call live LLM (uncapped by default: MaxTokens 0 omits the field and
 	// the model generates to EOS; the result contract below refuses to store
@@ -3125,7 +3373,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	reply, chatResp, _, err := s.llmClient.Complete(callCtx, "copilot", history)
 	if err != nil {
 		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
-		return engineNotice(string(prov), model, err), nil, err
+		return engineNotice(string(prov), model, err), nil, nil, err
 	}
 	if chatResp != nil {
 		for _, choice := range chatResp.Choices {
@@ -3142,7 +3390,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	display, proposalJSON, multiProposal := extractProposal(reply)
 	if multiProposal {
 		reply = sanitizeCopilotReply(display) + "\n\n⚠️ Multiple proposals generated — ambiguous intent, none kept. Resubmit one."
-		return reply, nil, nil
+		return reply, nil, observations, nil
 	}
 	reply = sanitizeCopilotReply(display)
 
@@ -3151,7 +3399,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 		proposalJSON = s.fallbackProposal(content, reply)
 	}
 
-	return reply, proposalJSON, nil
+	return reply, proposalJSON, observations, nil
 }
 
 func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
@@ -3164,17 +3412,18 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// B1: launch names a server-minted proposal. The circuit, backend, budget,
+	// shots, and seed come from the stored proposal body — never from this
+	// request, so a client cannot substitute a different program at launch.
 	var req struct {
-		SessionID string          `json:"session_id"`
-		QASM      string          `json:"qasm"`
-		Backend   string          `json:"backend"`
-		Shots     int             `json:"shots"`
-		Seed      int             `json:"seed"`
-		BudgetUSD float64         `json:"budget_usd"`
-		Proposal  json.RawMessage `json:"proposal"`
-		// G3: launch accepts the full jobs field set — without these,
-		// metered-hardware launch could never pass admission (dead path).
-		MandateRef          string   `json:"mandate_ref"`
+		SessionID  string `json:"session_id"`
+		ProposalID string `json:"proposal_id"`
+		Digest     string `json:"digest"`
+		// G3: the mandate/grant binding still rides the launch request, but it
+		// authorizes the server-owned body rather than client-supplied fields.
+		MandateRef string `json:"mandate_ref"`
+		// C11: launch under a signed run allowance instead of a per-job mandate.
+		RunAllowanceID      string   `json:"run_allowance_id"`
 		GrantChain          []string `json:"grant_chain"`
 		InputLabels         []string `json:"input_labels"`
 		CallerJurisdictions []string `json:"caller_jurisdictions"`
@@ -3206,119 +3455,111 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
-
-	// R17: proposal attribution transcribed into the job below.
-	designedBy := ""
-	if len(req.Proposal) > 0 {
-		var p struct {
-			QASM            string `json:"qasm"`
-			RecommendedTier string `json:"recommended_tier"`
-			SpendEstimate   string `json:"spend_estimate"`
-			Target          string `json:"target"`
-			// R17: attribution rides into the job. Transcribed verbatim
-			// when present, never inferred when absent — stamping "model"
-			// on client-crafted JSON would fabricate authorship. The
-			// server-fallback flow (generated in-chat, echoed back at
-			// launch) preserves its stamp end-to-end, which is the case
-			// that matters.
-			DesignedBy string `json:"designed_by"`
-		}
-		if json.Unmarshal(req.Proposal, &p) == nil {
-			designedBy = p.DesignedBy
-			if p.QASM != "" {
-				req.QASM = p.QASM
-			}
-			if p.RecommendedTier != "" {
-				// Tier normalization (2026-10-11): models write free-text
-				// tiers ("starter / simulator-first ..."). Anything
-				// simulator-smelling routes local; anything else keeps its
-				// literal name so hardware admission still guards it.
-				lower := strings.ToLower(p.RecommendedTier)
-				simSmell := false
-				for _, smell := range []string{"local", "simulator", "statevector", "aer", "sim-first", "sim first", "starter", "shot-based", "numpy"} {
-					if strings.Contains(lower, smell) {
-						simSmell = true
-						break
-					}
-				}
-				if simSmell {
-					req.Backend = "local_simulator"
-				} else {
-					req.Backend = p.RecommendedTier
-				}
-			}
-		}
-	}
-
-	if req.QASM == "" {
-		http.Error(w, "launch requires qasm: no circuit in request or proposal — nothing dispatched", http.StatusBadRequest)
+	if strings.TrimSpace(req.ProposalID) == "" || strings.TrimSpace(req.Digest) == "" {
+		WriteAPIError(w, "bad_request", "launch requires proposal_id and digest: mint a proposal from the current plan first", nil)
 		return
 	}
-	if req.Backend == "" {
-		http.Error(w, "launch requires backend: no backend in request or proposal — nothing dispatched", http.StatusBadRequest)
+	proposal, body, ok := s.loadProposalForLaunch(w, req.SessionID, req.ProposalID, req.Digest)
+	if !ok {
 		return
-	}
-	if req.BudgetUSD <= 0 {
-		req.BudgetUSD = 1.0
-	}
-	// The launch request is the reproducibility record. Defaults are named
-	// once here; callers may override shots/seed through the request or the
-	// proposal. Never write a launch job with an unrecorded sampling spec.
-	if req.Shots <= 0 {
-		req.Shots = 1024
-	}
-	if req.Seed <= 0 {
-		req.Seed = 7
 	}
 
 	jobParams := map[string]any{
-		"qasm":                 req.QASM,
-		"requested_backend":    req.Backend,
-		"shots":                req.Shots,
-		"seed":                 req.Seed,
-		"max_cost_usd":         req.BudgetUSD,
+		"qasm":                 body.QASM,
+		"requested_backend":    body.Backend,
+		"shots":                body.Shots,
+		"seed":                 body.Seed,
+		"max_cost_usd":         body.MaxCostUSD,
 		"mandate_ref":          req.MandateRef,
 		"grant_chain":          req.GrantChain,
 		"input_labels":         req.InputLabels,
 		"caller_jurisdictions": req.CallerJurisdictions,
 		"caller_export_class":  req.CallerExportClass,
 		"export_reviewed":      req.ExportReviewed,
+		"proposal_id":          proposal.ID,
+		"proposal_digest":      proposal.Digest,
+		"basis_tainted":        proposal.BasisTainted,
 	}
-	// R17: attribution persists on the job row and the job_queued event
-	// (SubmitJob stores params_json verbatim and queues the full job).
-	if designedBy != "" {
-		jobParams["designed_by"] = designedBy
+	if req.RunAllowanceID != "" {
+		jobParams["run_allowance_id"] = req.RunAllowanceID
 	}
-	// S1: claim-or-replay after all 400-validation (a fixable 400 must not
-	// consume the key) and before SubmitJob (spend). Content hashes the
-	// effective spend-binding values, not raw proposal bytes.
+	// R17: attribution persists on the job row and the job_queued event.
+	// It comes from the minted body; unknown stays absent, never inferred.
+	if body.DesignedBy != "" {
+		jobParams["designed_by"] = body.DesignedBy
+	}
+
+	// S1: claim-or-replay after all validation (a fixable refusal must not
+	// consume the key) and before SubmitJob (spend). The content hash is the
+	// server-owned body, so two different proposals cannot collide.
 	idem, iref := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
-		"session_id": req.SessionID, "qasm": req.QASM, "backend": req.Backend,
-		"shots": req.Shots, "seed": req.Seed,
-		"budget_usd": req.BudgetUSD, "mandate_ref": req.MandateRef,
+		"session_id": req.SessionID, "proposal_id": proposal.ID, "proposal_digest": proposal.Digest,
+		"run_allowance_id": req.RunAllowanceID,
+		"qasm":             body.QASM, "backend": body.Backend,
+		"shots": body.Shots, "seed": body.Seed,
+		"budget_usd": body.MaxCostUSD, "mandate_ref": req.MandateRef,
 		"grant_chain": req.GrantChain, "input_labels": req.InputLabels,
 		"caller_jurisdictions": req.CallerJurisdictions,
 		"caller_export_class":  req.CallerExportClass,
 		"export_reviewed":      req.ExportReviewed,
-		"designed_by":          designedBy,
+		"designed_by":          body.DesignedBy,
 	}, idemRailJob)
 	if iref != nil {
 		iref.write(w)
 		return
 	}
 	if idem.replay {
+		// A replay returns the admitted receipt even though the proposal is
+		// now `launched`; recovery must never be blocked by the burn.
 		s.idemReplay(w, idem)
 		return
 	}
-	job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
-	if err != nil {
-		s.idemFinishError(w, idem, http.StatusInternalServerError, err.Error())
+	if !s.checkProposalLaunchable(w, proposal, body) {
+		// Seal the receipt so a refusal is not retried blindly; the typed
+		// body was already written by checkProposalLaunchable.
+		if idem.active {
+			_, _ = s.ledger.IdemComplete(req.SessionID, req.RequestID, http.StatusConflict, "text", "proposal refused")
+		}
 		return
 	}
 
-	loop, _ := s.supervisor.RegisterLoop(req.SessionID, 50)
+	// Single use: the proposal is burned before dispatch. A lost reply is
+	// recovered by replaying the same request_id above; a second launch with a
+	// new key refuses instead of double-spending.
+	burned, err := s.ledger.CASProposalStatus(proposal.ID, ledger.ProposalOffered, ledger.ProposalLaunched, "")
+	if err != nil {
+		s.idemFinishError(w, idem, http.StatusInternalServerError, "proposal state write failed")
+		return
+	}
+	if !burned {
+		s.idemFinishError(w, idem, http.StatusConflict, "this proposal is no longer offered")
+		return
+	}
+	job, err := s.jobRunner.SubmitJobWithRequest(req.SessionID, "circuit_run", jobParams, req.RequestID)
+	if err != nil {
+		// A definitive admission refusal (no job row) leaves the plan worth
+		// retrying with the same proposal; anything that may have admitted
+		// keeps the proposal spent so it cannot be launched twice.
+		var existing string
+		if qerr := s.ledger.DB().QueryRow(`SELECT id FROM jobs WHERE session_id = ? AND request_id = ? LIMIT 1`, req.SessionID, req.RequestID).Scan(&existing); errors.Is(qerr, sql.ErrNoRows) {
+			_, _ = s.ledger.CASProposalStatus(proposal.ID, ledger.ProposalLaunched, ledger.ProposalOffered, "")
+		}
+		s.idemFinishError(w, idem, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = s.ledger.AttachProposalJob(proposal.ID, job.ID)
 
-	s.sessionMgr.AddMessage(req.SessionID, "system", fmt.Sprintf("🚀 Dispatched Job %s to backend '%s'. Loop %s armed under Ring 0 watchdog.", job.ID, req.Backend, loop.ID), nil)
+	loop, _ := s.supervisor.RegisterLoop(req.SessionID, 50)
+	if loop != nil {
+		// C1: the dispatched job is a real run part, linked by id so the
+		// projection can show its live state and typed need.
+		_, _ = s.supervisor.RecordPart(req.SessionID, supervisor.LoopPart{
+			LoopID: loop.ID, Helper: "quantum_job", Title: "Dispatched " + job.JobType,
+			Goal: body.Target, State: "running", JobID: job.ID,
+		})
+	}
+
+	s.sessionMgr.AddMessage(req.SessionID, "system", fmt.Sprintf("🚀 Dispatched Job %s to backend '%s' (proposal %s). Loop %s armed under Ring 0 watchdog.", job.ID, body.Backend, proposal.ID, loop.ID), nil)
 
 	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{
 		"job":  jobViewFrom(job),
@@ -3585,7 +3826,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			s.idemReplay(w, idem)
 			return
 		}
-		job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
+		job, err := s.jobRunner.SubmitJobWithRequest(req.SessionID, "circuit_run", jobParams, req.RequestID)
 		if err != nil {
 			s.idemFinishError(w, idem, http.StatusInternalServerError, err.Error())
 			return
@@ -3606,6 +3847,15 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
 	if id == "" {
 		http.Error(w, "missing job id", http.StatusBadRequest)
+		return
+	}
+	if r.Method == http.MethodPost && strings.HasSuffix(id, "/resolve") {
+		jobID := strings.TrimSuffix(id, "/resolve")
+		if jobID == "" {
+			http.Error(w, "missing job id", http.StatusBadRequest)
+			return
+		}
+		s.handleResolveOutcome(w, r, jobID)
 		return
 	}
 	if r.Method == http.MethodPost && strings.HasSuffix(id, "/cancel") {
@@ -3728,6 +3978,9 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
+		_, _ = s.supervisor.RecordPart(req.SessionID, supervisor.LoopPart{
+			LoopID: loop.ID, Helper: "lead", Title: "Run registered", State: "planned",
+		})
 		writeJSON(w, http.StatusCreated, loop)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -3757,6 +4010,12 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// C1: recorded run parts (read-only), bound to the loop's session above.
+	if action == "parts" {
+		s.writeLoopParts(w, r, loop)
+		return
+	}
+
 	var err error
 	switch action {
 	case "pause":
@@ -3772,6 +4031,32 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 			"cost_usd":  0.0,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
+	case "steer":
+		if r.Method != http.MethodPost {
+			WriteAPIError(w, "method_not_allowed", "steering is POST-only", nil)
+			return
+		}
+		var req struct {
+			Text string `json:"text"`
+		}
+		if derr := decodeStrict(r, &req); derr != nil {
+			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid steer request: %v", derr), nil)
+			return
+		}
+		steer, serr := s.supervisor.Steer(loopID, req.Text)
+		if serr != nil {
+			switch {
+			case strings.Contains(serr.Error(), "loop not found"):
+				WriteAPIError(w, "not_found", serr.Error(), nil)
+			case strings.Contains(serr.Error(), "steering applies only"):
+				WriteAPIError(w, "loop_not_running", serr.Error(), nil)
+			default:
+				WriteAPIError(w, "bad_request", serr.Error(), nil)
+			}
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "steer": steer})
+		return
 	case "rescope":
 		err = s.supervisor.RescopeLoop(loopID, 50)
 	case "rollback":
@@ -4851,6 +5136,21 @@ func (s *Server) checkLLMBudget() error {
 	return nil
 }
 
+// settingsExpectedRevision resolves the optimistic-concurrency token.
+// expected_revision wins when both are present. The echoed revision field
+// is accepted so a GET-modify-PUT of the public snapshot is a valid write.
+// A missing key is not the same as revision 0: an omitted field refuses.
+func settingsExpectedRevision(expected, echoed *int64) (int64, bool) {
+	switch {
+	case expected != nil:
+		return *expected, true
+	case echoed != nil:
+		return *echoed, true
+	default:
+		return 0, false
+	}
+}
+
 func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -4860,35 +5160,145 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 		// at REGISTRATION (requireBearerForWrites) — an unauthenticated
 		// settings write flips providers/endpoints, redirecting prompts
 		// (and their secrets) to an attacker URL.
+		//
+		// Whole-document writes are revisioned (Q-61): the client must send
+		// the revision it read as expected_revision. A stale editor is
+		// refused with 409 + the current settings instead of silently
+		// overwriting newer state (a stale save used to release air-gap).
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			WriteAPIError(w, "bad_request", "unreadable request body", nil)
+			return
+		}
+		var precondition struct {
+			ExpectedRevision *int64 `json:"expected_revision"`
+			// revision is the field GET returns. A GET-modify-PUT round trip
+			// echoes it; that echo is the precondition when expected_revision
+			// is absent. A body that names neither is not a round trip.
+			Revision *int64 `json:"revision"`
+			// B12: explicit acknowledgement that the new copilot model has no
+			// current recorded eval. Only meaningful when the eval gate is on.
+			AcknowledgeUnevaluated bool `json:"acknowledge_unevaluated"`
+		}
 		var req llm.Settings
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := json.Unmarshal(body, &precondition); err != nil {
+			WriteAPIError(w, "bad_request", "invalid request body", nil)
+			return
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			WriteAPIError(w, "bad_request", "invalid request body", nil)
+			return
+		}
+		expected, ok := settingsExpectedRevision(precondition.ExpectedRevision, precondition.Revision)
+		if !ok {
+			WriteAPIError(w, "precondition_required",
+				"expected_revision is required: send the revision from your last GET /api/llm/settings",
+				map[string]any{"current_revision": s.llmSettings.GetPublicSnapshot().Revision})
 			return
 		}
 		if err := validateProviderURLs(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := s.llmSettings.Update(&req, s.ledger.DB()); err != nil {
-			// Audit 2026-10-26: Update only fails on input validation
-			// (empty model, unknown provider, fragment entries, bad
-			// numbers) — a 400, never a 500. Same class as the loops /
-			// hf-download / supervisor-loop fixes.
 			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
+		// B12 (opt-in): a copilot model change must be evaluated on the pinned
+		// fixtures, or explicitly acknowledged in this same write.
+		evalAck, gateErr := s.enforceLLMEvalGate(&req, precondition.AcknowledgeUnevaluated)
+		if gateErr != nil {
+			var refusal *llmEvalRefusal
+			if errors.As(gateErr, &refusal) {
+				WriteAPIError(w, "model_unevaluated", refusal.Error(), map[string]any{
+					"eval": refusal.Status,
+					"hint": "send acknowledge_unevaluated:true to accept an unevaluated model deliberately",
+				})
+				return
+			}
+			WriteAPIError(w, "internal", gateErr.Error(), nil)
+			return
+		}
+		// Exact, not racy: any operator write between this read and the
+		// commit bumps the revision and refuses this update, so a successful
+		// update proves this was the state it replaced.
+		prevAirGap := s.llmSettings.GetPublicSnapshot().AirGapped
+		if err := s.llmSettings.UpdateAtRevision(&req, expected, s.ledger.DB()); err != nil {
+			s.writeLLMSettingsError(w, err)
+			return
+		}
 		pub := s.llmSettings.GetPublicSnapshot()
-		if s.ledger != nil {
-			_ = s.ledger.AppendEvent("global", "llm_settings_updated", map[string]any{
-				"active_provider": pub.ActiveProvider,
-				"active_model":    pub.ActiveModel,
-				"air_gapped":      pub.AirGapped,
+		s.appendLLMSettingsEvent("llm_settings_updated", &pub, prevAirGap)
+		if evalAck != nil && s.ledger != nil {
+			_ = s.ledger.AppendEvent("global", "llm_eval_acknowledged", map[string]any{
+				"provider": evalAck.Provider,
+				"model":    evalAck.Model,
+				"status":   evalAck.Status,
 			})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": &pub})
+	case http.MethodPatch:
+		// Field-level air-gap write: touches only air_gapped, so it needs no
+		// whole-document revision and can never clobber another field.
+		// Engaging must never be refused because something else moved.
+		var req struct {
+			AirGapped *bool `json:"air_gapped"`
+		}
+		if err := decodeStrict(r, &req); err != nil || req.AirGapped == nil {
+			WriteAPIError(w, "bad_request", "PATCH accepts exactly {\"air_gapped\": true|false}", nil)
+			return
+		}
+		previous, _, err := s.llmSettings.SetAirGapped(*req.AirGapped, s.ledger.DB())
+		if err != nil {
+			s.writeLLMSettingsError(w, err)
+			return
+		}
+		if *req.AirGapped && !previous {
+			// C11: engaging the air-gap suspends every active run allowance.
+			s.suspendActiveAllowances("air_gap_engaged")
+		}
+		pub := s.llmSettings.GetPublicSnapshot()
+		if previous != pub.AirGapped {
+			s.appendLLMSettingsEvent("llm_air_gap_changed", &pub, previous)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "changed": previous != pub.AirGapped, "settings": &pub})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// writeLLMSettingsError maps a settings write failure to its honest class:
+// stale revision → 409 with the current state; persist failure → 500 (the
+// in-memory state was rolled back, nothing changed); anything else is input
+// validation → 400.
+func (s *Server) writeLLMSettingsError(w http.ResponseWriter, err error) {
+	var conflict *llm.RevisionConflictError
+	var persist *llm.PersistError
+	switch {
+	case errors.As(err, &conflict):
+		pub := s.llmSettings.GetPublicSnapshot()
+		WriteAPIError(w, "revision_conflict", err.Error(), map[string]any{
+			"expected_revision": conflict.Expected,
+			"current_revision":  conflict.Current,
+			"settings":          &pub,
+		})
+	case errors.As(err, &persist):
+		slog.Error("[llm settings] persist failed; change rolled back", "error", persist.Err)
+		WriteAPIError(w, "internal", "settings could not be persisted; nothing changed", nil)
+	default:
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+	}
+}
+
+// appendLLMSettingsEvent seals the operator-visible facts of a settings
+// change, including whether the air-gap moved and in which direction.
+func (s *Server) appendLLMSettingsEvent(event string, pub *llm.Settings, prevAirGap bool) {
+	if s.ledger == nil || pub == nil {
+		return
+	}
+	_ = s.ledger.AppendEvent("global", event, map[string]any{
+		"active_provider":       pub.ActiveProvider,
+		"active_model":          pub.ActiveModel,
+		"air_gapped":            pub.AirGapped,
+		"air_gapped_previously": prevAirGap,
+		"revision":              pub.Revision,
+	})
 }
 
 // validateProviderURLs constrains where prompts may be sent (W0.19): the
@@ -5666,6 +6076,7 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		req.MaxIterations,
 	)
 	// S3: mid-run spend bound — entry checks never bound a hot loop.
+	engine.SetAdmissionRequestID(req.RequestID)
 	engine.SetBudgetCheck(func() error { return s.checkLLMBudget() })
 	// I3: per-iteration drawdown against the admission reservation.
 	engine.SetSpendReservation(loopReserveTotal)
@@ -5703,6 +6114,7 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 			Status: string(engine.State().Status), StepCount: 0,
 			MaxSteps: req.MaxIterations, LastActivity: time.Now().UTC(),
 			ReservedAmount: loopReserveTotal, ReservedTenant: arTenant,
+			RequestID: req.RequestID,
 		}); err != nil {
 			// Birth row failed: unwind the reservation (no orphaned hold)
 			// and refuse — a loop whose books cannot persist cannot run.
@@ -5759,6 +6171,7 @@ func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
 		MaxSteps: st.MaxIterations, LastActivity: st.LastActivity,
 		Drain: st.Drained, ReservedAmount: st.ReservedAmount,
 		ReservedTenant: tenant, ConsumedAmount: st.ConsumedAmount,
+		RequestID: engine.AdmissionRequestID(),
 	}); err != nil {
 		// W2.10: loud, timestamped, and audited — the old bare println
 		// vanished into scrollback while DB and memory diverged.

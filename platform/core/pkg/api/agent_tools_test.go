@@ -24,7 +24,7 @@ func TestCopilotToolRegistration(t *testing.T) {
 	want := map[string]bool{
 		"get_anchor": false, "get_campaign": false, "list_jobs": false,
 		"get_job": false, "recent_events": false, "query_literature": false,
-		"submit_local_sim": false, "recall_memory": false,
+		"submit_local_sim": false, "recall_memory": false, "load_skill": false,
 	}
 	for _, d := range defs {
 		fn, _ := d["function"].(map[string]any)
@@ -65,11 +65,11 @@ func TestToolDispatchRefusalsNoDeps(t *testing.T) {
 func TestResolveWithToolsDegrades(t *testing.T) {
 	base := []llm.ChatMessage{{Role: "user", Content: "hi"}}
 	s := &Server{}
-	if out := s.resolveWithTools(context.Background(), "sess", base); len(out) != len(base) {
+	if out, _ := s.resolveWithTools(context.Background(), "sess", base); len(out) != len(base) {
 		t.Error("nil registry must return base unchanged")
 	}
 	s.toolRegistry = s.registerAgentTools()
-	if out := s.resolveWithTools(context.Background(), "sess", base); len(out) != len(base) {
+	if out, _ := s.resolveWithTools(context.Background(), "sess", base); len(out) != len(base) {
 		t.Error("nil LLM client must return base unchanged")
 	}
 }

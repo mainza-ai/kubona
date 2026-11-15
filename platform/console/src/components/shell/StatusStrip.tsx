@@ -3,29 +3,33 @@
 import React from 'react';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
 import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
+import { ApiProblemChip } from '@/components/shell/Banners';
+import { dismissApiProblem, useApiProblem } from '@/domain/api-problem-state';
 import type { Loop } from '@/types';
 import { Separator } from '@/components/ui/Controls';
 
 /** One operational line: backend readiness + loops/spend/attention. */
 export const StatusStrip = React.memo(function StatusStrip({ loops, error, streamLive, lastEventAt }: { loops: Loop[]; error?: string | null; streamLive?: boolean; lastEventAt?: string | null }) {
+  const problem = useApiProblem();
   return (
-    <div className="flex min-h-8 min-w-0 items-center gap-2 overflow-hidden border-t border-[var(--color-border)] bg-[var(--color-chrome)] px-3 py-1">
+    <div className="flex min-h-8 min-w-0 items-center gap-2 overflow-hidden border-t border-border bg-chrome px-3 py-1">
       <BackendStatusBar compact />
       <Separator vertical />
       <div className="min-w-0 flex-1 overflow-hidden">
         <CheckInStrip loops={loops} compact />
       </div>
-      <span className="hidden sm:inline shrink-0 font-mono text-[12px] text-[var(--color-muted)]">
+      <span className="hidden sm:inline shrink-0 font-mono text-[12px] text-muted">
         {streamLive ? 'stream live' : 'stream idle'}
       </span>
       <span className="hidden md:contents">
         <Separator vertical />
-        <span className="max-w-40 shrink-0 truncate font-mono text-[12px] text-[var(--color-muted)]" title={lastEventAt ?? undefined}>
+        <span className="max-w-40 shrink-0 truncate font-mono text-[12px] text-muted" title={lastEventAt ?? undefined}>
           {lastEventAt ? `last ${lastEventAt.slice(11, 19)}` : 'no events'}
         </span>
       </span>
+      {problem && <ApiProblemChip problem={problem} onDismiss={() => dismissApiProblem(problem)} />}
       {error && (
-        <span role="status" title={error} className="max-w-48 shrink-0 truncate font-mono text-[12px] text-[var(--color-warning)]">
+        <span role="status" title={error} className="max-w-48 shrink-0 truncate font-mono text-[12px] text-warning">
           data refused
         </span>
       )}

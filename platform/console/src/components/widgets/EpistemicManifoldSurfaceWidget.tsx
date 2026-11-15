@@ -30,50 +30,50 @@ export function EpistemicManifoldSurfaceWidget({
   const hasGeometry = hasCurv || hasFisher || hasEntropy;
 
   return (
-    <div data-provenance={hasGeometry ? 'measured' : undefined} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-[var(--color-text)] space-y-4">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+    <div data-provenance={hasGeometry ? 'measured' : undefined} className="rounded-card border border-border bg-surface p-5 text-text space-y-4">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-xl bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]">
+          <div className="p-2 rounded-row bg-warning-wash border border-warning-edge text-warning-ink">
             <Compass className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--color-text)]">Riemannian Epistemic Manifold Surface</h3>
+              <h3 className="text-body-strong font-semibold text-text">Riemannian Epistemic Manifold Surface</h3>
               {hasGeometry && <ProvenanceBadge kind="measured" detail="Geometry supplied by the campaign computation." />}
             </div>
-            <p className="text-xs text-[var(--color-muted)]">Fisher-Rao information metric g_μν</p>
+            <p className="text-label text-muted">Fisher-Rao information metric g_μν</p>
           </div>
         </div>
         {hasCurv && (
-          <span className="px-2 py-0.5 rounded-full bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[12px] font-mono text-[var(--color-warning-ink)]">
+          <span className="px-2 py-0.5 rounded-capsule bg-warning-wash border border-warning-edge text-[12px] font-mono text-warning-ink">
             R = {currentCurvatureScalar.toFixed(3)}
           </span>
         )}
       </div>
 
       {!hasGeometry ? (
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 text-center space-y-1.5">
-          <p className="text-xs font-medium text-[var(--color-text)]">No epistemic manifold geometry is recorded for this campaign.</p>
-          <p className="text-[12px] text-[var(--color-muted)]">
+        <div className="rounded-row border border-border bg-card p-5 text-center space-y-1.5">
+          <p className="text-label font-medium text-text">No epistemic manifold geometry is recorded for this campaign.</p>
+          <p className="text-[12px] text-muted">
             Curvature, Fisher information, and expected entropy reduction appear only when a computation supplies them; no template values are shown.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-            <span className="text-[var(--color-muted)] text-[12px]">Fisher Information Norm ||g_μν||</span>
-            <div data-metric className="font-mono text-lg font-bold text-[var(--color-warning-ink)]">{hasFisher ? fisherInfoNorm.toFixed(3) : '—'}</div>
-            <p className="text-[12px] text-[var(--color-faint)]">Local parameter sensitivity</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-label">
+          <div className="p-3 rounded-row bg-card border border-border space-y-1">
+            <span className="text-muted text-[12px]">Fisher Information Norm ||g_μν||</span>
+            <div data-metric className="font-mono text-subtitle font-bold text-warning-ink">{hasFisher ? fisherInfoNorm.toFixed(3) : '—'}</div>
+            <p className="text-[12px] text-faint">Local parameter sensitivity</p>
           </div>
-          <div className="p-3 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-            <span className="text-[var(--color-muted)] text-[12px]">Curvature Scalar R</span>
-            <div data-metric className="font-mono text-lg font-bold text-[var(--color-danger-ink)]">{hasCurv ? currentCurvatureScalar.toFixed(3) : '—'}</div>
-            <p className="text-[12px] text-[var(--color-faint)]">Recorded geometry only</p>
+          <div className="p-3 rounded-row bg-card border border-border space-y-1">
+            <span className="text-muted text-[12px]">Curvature Scalar R</span>
+            <div data-metric className="font-mono text-subtitle font-bold text-danger-ink">{hasCurv ? currentCurvatureScalar.toFixed(3) : '—'}</div>
+            <p className="text-[12px] text-faint">Recorded geometry only</p>
           </div>
-          <div className="p-3 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-            <span className="text-[var(--color-muted)] text-[12px]">Expected Entropy Reduction</span>
-            <div data-metric className="font-mono text-lg font-bold text-[var(--color-success-ink)]">{hasEntropy ? `ΔS = -${entropyReduction.toFixed(2)} nats` : '—'}</div>
-            <p className="text-[12px] text-[var(--color-faint)]">Recorded geometry only</p>
+          <div className="p-3 rounded-row bg-card border border-border space-y-1">
+            <span className="text-muted text-[12px]">Expected Entropy Reduction</span>
+            <div data-metric className="font-mono text-subtitle font-bold text-success-ink">{hasEntropy ? `ΔS = -${entropyReduction.toFixed(2)} nats` : '—'}</div>
+            <p className="text-[12px] text-faint">Recorded geometry only</p>
           </div>
         </div>
       )}

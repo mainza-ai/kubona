@@ -44,9 +44,9 @@ export interface CommandDockProps {
 }
 
 function toneClass(tone: FollowUpSpec['tone']): string {
-  if (tone === 'success') return 'text-[var(--color-success)]';
-  if (tone === 'warning') return 'text-[var(--color-warning)]';
-  return 'text-[var(--color-accent-ink)]';
+  if (tone === 'success') return 'text-success';
+  if (tone === 'warning') return 'text-warning';
+  return 'text-accent-ink';
 }
 
 export const CommandDock = React.memo(function CommandDock({
@@ -303,6 +303,8 @@ export const CommandDock = React.memo(function CommandDock({
             ? `Switched copilot & matching default roles to ${targetProvider}:${modelId}.`
             : `Switched copilot & active model to ${targetProvider}:${modelId}.`,
         );
+      } else if (res.conflict) {
+        setModelStatus(`Refused: settings changed since they were read (${res.error || 'stale revision'}). Nothing was written.`);
       } else {
         setModelStatus(`Refused: ${res.error || 'save not confirmed'}.`);
       }
@@ -344,6 +346,8 @@ export const CommandDock = React.memo(function CommandDock({
       if (res.ok) {
         setCopilotSampling(sampling);
         setModelStatus('Saved Copilot sampling overrides.');
+      } else if (res.conflict) {
+        setModelStatus(`Refused: settings changed since they were read (${res.error || 'stale revision'}). Nothing was written.`);
       } else {
         setModelStatus(`Refused: ${res.error || 'save not confirmed'}.`);
       }
@@ -355,22 +359,22 @@ export const CommandDock = React.memo(function CommandDock({
   const effectiveModelLabel = activeModelName || modelLabel;
 
   return (
-    <div className="relative shrink-0 border-t border-[var(--color-border)] bg-[var(--color-chrome)] px-4 py-3 text-[var(--color-text)]">
+    <div className="relative shrink-0 border-t border-border bg-chrome px-4 py-3 text-text">
       {morph === 'actions' && (
         <div
           role="region"
           aria-label="Quick actions and tribunal"
-          className="mb-2.5 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-float)] p-3 shadow-[var(--shadow-float)] space-y-2.5"
+          className="mb-2.5 rounded-card border border-border-strong bg-float p-3 shadow-[var(--shadow-float)] space-y-2.5"
         >
           <div className="flex items-center justify-between">
-            <span className="font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+            <span className="font-code text-[11px] uppercase tracking-wider text-muted">
               Scientific Follow-ups &amp; Tribunal
             </span>
             <button
               type="button"
               onClick={() => setMorph(null)}
               aria-label="Close quick actions"
-              className="rounded-md p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill)]"
+              className="rounded-inset p-0.5 text-muted hover:text-text hover:bg-fill"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -385,7 +389,7 @@ export const CommandDock = React.memo(function CommandDock({
                     onFollowUp(f.key);
                     setMorph(null);
                   }}
-                  className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-fill)] px-2.5 py-1 text-[12px] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)] transition-colors"
+                  className="inline-flex items-center gap-1 rounded-capsule border border-border bg-fill px-2.5 py-1 text-[12px] text-label-secondary hover:bg-fill-hover hover:text-text transition-colors"
                 >
                   <span className={toneClass(f.tone)}>✦</span>
                   <span>{f.label}</span>
@@ -394,14 +398,14 @@ export const CommandDock = React.memo(function CommandDock({
             </div>
           )}
           {onTribunal && (
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--color-border)]">
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">
               <input
                 type="text"
                 value={tribunalTopic}
                 onChange={(e) => setTribunalTopic(e.target.value)}
                 placeholder={`${targetDisplayName} ground state electronic structure`}
                 aria-label="Tribunal deliberation topic"
-                className="min-w-[180px] flex-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-field)] px-2.5 py-1.5 text-xs text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none focus:border-[var(--color-accent-edge)]"
+                className="min-w-[180px] flex-1 rounded-row border border-border bg-field px-2.5 py-1.5 text-label text-text placeholder:text-faint focus:outline-none focus:border-accent-edge"
               />
               <button
                 type="button"
@@ -411,7 +415,7 @@ export const CommandDock = React.memo(function CommandDock({
                   setMorph(null);
                   void onTribunal(topic);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent-ink)] hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)] disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-row border border-accent-edge bg-accent-soft px-3 py-1.5 text-label font-medium text-accent-ink hover:bg-accent hover:text-on-accent disabled:opacity-40 transition-colors"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Convene Multi-Agent Research Tribunal</span>
@@ -425,17 +429,17 @@ export const CommandDock = React.memo(function CommandDock({
         <div
           role="region"
           aria-label="Session memory morph"
-          className="mb-2.5 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-float)] overflow-hidden shadow-[var(--shadow-float)]"
+          className="mb-2.5 rounded-card border border-border-strong bg-float overflow-hidden shadow-[var(--shadow-float)]"
         >
-          <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-chrome)]">
-            <span className="font-code text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
+          <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-chrome">
+            <span className="font-code text-[11px] uppercase tracking-wider text-muted">
               Session Memory
             </span>
             <button
               type="button"
               onClick={() => setMorph(null)}
               aria-label="Close session memory"
-              className="rounded-md p-0.5 text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill)]"
+              className="rounded-inset p-0.5 text-muted hover:text-text hover:bg-fill"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -488,10 +492,10 @@ export const CommandDock = React.memo(function CommandDock({
         {(contextLabel || attachments.length > 0 || text.startsWith('/')) && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             {contextLabel && (
-              <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-fill)] px-2 py-0.5 text-[12px] text-[var(--color-label-secondary)]">
+              <span className="inline-flex max-w-full items-center gap-1 rounded-capsule border border-border bg-fill px-2 py-0.5 text-[12px] text-label-secondary">
                 <span className="truncate">{contextLabel}</span>
                 {onClearContext && (
-                  <button type="button" aria-label="Clear context" onClick={onClearContext} className="text-[var(--color-muted)] hover:text-[var(--color-text)]">
+                  <button type="button" aria-label="Clear context" onClick={onClearContext} className="text-muted hover:text-text">
                     <X className="h-3 w-3" />
                   </button>
                 )}
@@ -500,7 +504,7 @@ export const CommandDock = React.memo(function CommandDock({
             {attachments.map((attachment) => (
               <span
                 key={attachment.name}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-2 py-0.5 text-[12px] text-[var(--color-accent-ink)]"
+                className="inline-flex max-w-full items-center gap-1 rounded-capsule border border-accent-edge bg-accent-soft px-2 py-0.5 text-[12px] text-accent-ink"
               >
                 <Paperclip className="h-3 w-3 shrink-0" />
                 <span className="truncate">{attachment.name}</span>
@@ -508,17 +512,17 @@ export const CommandDock = React.memo(function CommandDock({
                   type="button"
                   aria-label={`Remove ${attachment.name}`}
                   onClick={() => detach(attachment.name)}
-                  className="text-[var(--color-accent-ink)] hover:text-[var(--color-text)]"
+                  className="text-accent-ink hover:text-text"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </span>
             ))}
             {text.startsWith('/') && (
-              <span className="text-[12px] font-code text-[var(--color-muted)]">
-                <span className="text-[var(--color-accent-ink)]">/tribunal</span> convene ·{' '}
-                <span className="text-[var(--color-accent-ink)]">/launch</span> last proposal ·{' '}
-                <span className="text-[var(--color-accent-ink)]">/help</span>
+              <span className="text-[12px] font-code text-muted">
+                <span className="text-accent-ink">/tribunal</span> convene ·{' '}
+                <span className="text-accent-ink">/launch</span> last proposal ·{' '}
+                <span className="text-accent-ink">/help</span>
               </span>
             )}
           </div>
@@ -535,7 +539,7 @@ export const CommandDock = React.memo(function CommandDock({
         )}
 
         <div className="flex flex-wrap sm:flex-nowrap items-end gap-2">
-          <div className="flex min-w-[min(100%,240px)] flex-1 flex-wrap sm:flex-nowrap items-end gap-1.5 sm:gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 focus-within:border-[var(--color-accent-edge)]">
+          <div className="flex min-w-[min(100%,240px)] flex-1 flex-wrap sm:flex-nowrap items-end gap-1.5 sm:gap-2 rounded-card border border-border bg-surface px-3 py-2 focus-within:border-accent-edge">
           <input
             ref={fileRef}
             type="file"
@@ -551,7 +555,7 @@ export const CommandDock = React.memo(function CommandDock({
             aria-label="Attach a text file"
             title="Attach structure or text file (PDB · CIF · XYZ · 4,000 chars)"
             onClick={() => fileRef.current?.click()}
-            className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]"
+            className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-row text-muted hover:bg-fill-hover hover:text-text"
           >
             <Paperclip className="h-4 w-4" />
           </button>
@@ -573,7 +577,7 @@ export const CommandDock = React.memo(function CommandDock({
             }}
             aria-label="Ask Kubona"
             placeholder="Ask Kubona about this campaign, or type /tribunal · /launch…"
-            className="max-h-[132px] min-h-6 min-w-[140px] flex-1 resize-none bg-transparent py-1 text-[13px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] focus:outline-none"
+            className="max-h-[132px] min-h-6 min-w-[140px] flex-1 resize-none bg-transparent py-1 text-[13px] text-text placeholder:text-faint focus:outline-none"
           />
 
           <div className="flex items-center gap-1 ml-auto sm:ml-0 shrink-0">
@@ -583,10 +587,10 @@ export const CommandDock = React.memo(function CommandDock({
               aria-label="Quick actions and tribunal"
               aria-expanded={morph === 'actions'}
               onClick={() => setMorph((prev) => (prev === 'actions' ? null : 'actions'))}
-              className={`mb-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-xl px-2 text-[12px] transition-colors ${
+              className={`mb-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-row px-2 text-[12px] transition-colors ${
                 morph === 'actions'
-                  ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)]'
-                  : 'text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]'
+                  ? 'bg-accent-soft text-accent-ink'
+                  : 'text-muted hover:bg-fill-hover hover:text-text'
               }`}
             >
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
@@ -600,10 +604,10 @@ export const CommandDock = React.memo(function CommandDock({
               aria-label="Session memory"
               aria-expanded={morph === 'memory'}
               onClick={() => setMorph((prev) => (prev === 'memory' ? null : 'memory'))}
-              className={`mb-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-xl px-2 text-[12px] transition-colors ${
+              className={`mb-0.5 inline-flex h-8 shrink-0 items-center gap-1 rounded-row px-2 text-[12px] transition-colors ${
                 morph === 'memory'
-                  ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)]'
-                  : 'text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]'
+                  ? 'bg-accent-soft text-accent-ink'
+                  : 'text-muted hover:bg-fill-hover hover:text-text'
               }`}
             >
               <Brain className="h-3.5 w-3.5 shrink-0" />
@@ -624,7 +628,7 @@ export const CommandDock = React.memo(function CommandDock({
                 setModelStatus(null);
                 setMorph('model');
               }}
-              className="inline-flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-xl px-2 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)]"
+              className="inline-flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-row px-2 text-[12px] text-muted hover:bg-fill-hover hover:text-text"
             >
               <Cpu className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{effectiveModelLabel}</span>
@@ -643,8 +647,8 @@ export const CommandDock = React.memo(function CommandDock({
                 setModelStatus(null);
                 setMorph('model');
               }}
-              className={`flex h-8 w-6 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)] ${
-                morph === 'model' ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)]' : ''
+              className={`flex h-8 w-6 items-center justify-center rounded-control-compact text-muted hover:bg-fill-hover hover:text-text ${
+                morph === 'model' ? 'bg-accent-soft text-accent-ink' : ''
               }`}
             >
               <ChevronUp className="h-3.5 w-3.5" />
@@ -657,7 +661,7 @@ export const CommandDock = React.memo(function CommandDock({
               onClick={onStop}
               aria-label="Stop generation"
               title="Stop generation"
-              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-danger)] text-[var(--color-on-accent)] hover:opacity-90"
+              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-row bg-danger text-on-accent hover:opacity-90"
             >
               <span className="h-2.5 w-2.5 rounded-[2px] bg-current" />
             </button>
@@ -666,7 +670,7 @@ export const CommandDock = React.memo(function CommandDock({
               type="submit"
               disabled={!text.trim() || isBusy}
               aria-label="Send to copilot"
-              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--color-accent)] text-[var(--color-on-accent)] disabled:opacity-35 hover:bg-[var(--color-lit)] transition-colors"
+              className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-row bg-accent text-on-accent disabled:opacity-35 hover:bg-lit transition-colors"
             >
               <ArrowUp className="h-4 w-4" />
             </button>
@@ -678,15 +682,15 @@ export const CommandDock = React.memo(function CommandDock({
               type="button"
               onClick={onOpenInspector}
               title={inspectorShortcut ? `Open Inspector (${inspectorShortcut})` : 'Open Inspector'}
-              className="ml-auto sm:ml-0 inline-flex h-9 sm:h-12 shrink-0 items-center gap-2 rounded-2xl border border-[var(--color-accent-edge)] bg-[var(--color-float)] px-3.5 text-xs font-semibold text-[var(--color-label-secondary)] shadow-[var(--shadow-card)] hover:bg-[var(--color-fill-hover)] hover:text-[var(--color-text)] transition-colors"
+              className="ml-auto sm:ml-0 inline-flex h-9 sm:h-12 shrink-0 items-center gap-2 rounded-card border border-accent-edge bg-float px-3.5 text-label font-semibold text-label-secondary shadow-[var(--shadow-card)] hover:bg-fill-hover hover:text-text transition-colors"
             >
               <span className="relative flex h-4 w-4 items-center justify-center">
-                <Sparkles className="h-3.5 w-3.5 text-[var(--color-accent-ink)]" />
-                <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+                <Sparkles className="h-3.5 w-3.5 text-accent-ink" />
+                <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-capsule bg-success" />
               </span>
               <span>Inspector</span>
               {inspectorShortcut && (
-                <kbd className="hidden sm:inline rounded border border-[var(--color-border)] bg-[var(--color-fill)] px-1.5 py-0.5 font-code text-[10px] text-[var(--color-muted)]">
+                <kbd className="hidden sm:inline rounded-chip border border-border bg-fill px-1.5 py-0.5 font-code text-[10px] text-muted">
                   {inspectorShortcut}
                 </kbd>
               )}
@@ -694,8 +698,8 @@ export const CommandDock = React.memo(function CommandDock({
           )}
         </div>
 
-        {attachError && <p role="alert" className="mt-1 text-[11px] text-[var(--color-warning)]">{attachError}</p>}
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--color-muted)]">
+        {attachError && <p role="alert" className="mt-1 text-[11px] text-warning">{attachError}</p>}
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
           <span>Enter sends · Shift+Enter newline · ⌘K command · context stays attached</span>
           {sessionId && <ContextReadout sessionId={sessionId} refreshKey={messageCount} />}
         </div>

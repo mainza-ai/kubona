@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
 
 func (s *Server) tribunalTurnRecorder(sessionID string) func(agents.TribunalTurn) {
@@ -76,11 +77,22 @@ func (s *Server) finishTribunalRun(w http.ResponseWriter, r *http.Request, tribI
 		"has_proposal":  res.ProposalJSON != nil,
 		"obligation_id": res.ObligationID,
 	})
-	if rec, merr := s.ledger.MintClaimRecord(sessionID, "tribunal",
+	requestID := ""
+	if tribIdem != nil {
+		requestID = tribIdem.requestID
+	}
+	if rec, merr := s.ledger.MintClaimRecordForRequest(sessionID, "tribunal",
 		"Tribunal consensus: "+boundRunes(res.Synthesis, 400),
-		-1, -1, -1, tribVerdict, string(evBytes)); merr == nil {
+		-1, -1, -1, tribVerdict, string(evBytes), requestID); merr == nil {
 		tribRecordID = rec.ID
 		tribOutcome += " [" + rec.ID + "]"
+		tribSource := res.ObligationID
+		if tribSource == "" {
+			tribSource = "tribunal:" + sessionID
+		}
+		_ = s.ledger.AddClaimEvidence(sessionID, rec.ID, ledger.ClaimEvidence{
+			Kind: "tribunal_turn", SourceRef: tribSource,
+		})
 		// C4: the real proposal_generated producer — emitted where the
 		// proposal is produced, beside the claim mint, in the claim's
 		// evidence shape. Every claim_record_id-bearing response has a

@@ -5453,3 +5453,700 @@ skipped is the exact failure this incident is about:
   the reservation (`jobs.go` `failJob`), and whole-document settings PUTs let a
   stale LLM Settings save silently release air-gap. Both remain open for
   implementation.
+
+## [2026-11-14] verification | shell "Needs you" tray over open obligations
+
+- **What landed (prototype):** `ModeRail` now carries a Needs-you trigger with
+  an unseen-count badge, and `NeedsYouTray`
+  (`platform/console/src/components/shell/NeedsYouTray.tsx`) lists every open
+  obligation from `GET /api/obligations/open`. Rows show the server's verbatim
+  blocking reason, the close-rule state (`decidable now` / `blocked`), and the
+  real waiting age; `Review` routes to the owning surface (Workbench object,
+  Tribunal, Gallery, or Guardrails) and decides nothing itself. Seen-state is
+  device-local and bounded (`domain/needs-you-seen.ts`, external store over
+  `sessionStorage`); a row leaves only when decided.
+- **Backend facts:** obligation rows now carry `created_at`/`updated_at` and
+  `unknowns_detail` (id + verbatim description), parsed in
+  `pkg/ledger/obligation.go`; unreadable timestamps stay zero/null and render
+  `waiting unknown` rather than a substituted clock. No new endpoint — the
+  existing queue is the approval surface.
+- **Honesty corrections found while wiring:** `useObligationsProjection`
+  stopped its poll whenever the session SSE stream was live, but obligations
+  are cross-session and that stream cannot carry them — the poll now stays at
+  15 s. Also repaired the incidental WIP breakage met on the way: the
+  consequential-control settle hook no longer calls `setState` inside an
+  effect (state is adjusted during render, so the control never paints as
+  clickable), and two typed-gate tests now assert that exact text is
+  necessary but not sufficient — the 500 ms inert window is asserted too.
+- **Verification:** `go vet ./...` clean after passing a settings snapshot by
+  pointer (copylocks); `go test ./...` green; Console `tsc`, ESLint, Vitest
+  **717/717** across **134** files, `next build` green (with
+  `KUBONA_ALLOW_DEV_TOKEN=1` locally — the checked-in `.env.local` token
+  otherwise refuses a production build by design); palette `--check`,
+  token-lint ratchet (**13**, lowered from 14), OpenAPI `--check`,
+  contract inventory, chart budget, `repo-counts --check`, wiki-lint --strict
+  (**157 pages**) clean; Python dependency-audit/hardware-pin tests (11) and
+  bridge suite (92 passed, 1 skipped) green.
+
+## [2026-11-14] verification | typed job needs replace free-text failure inference (C2)
+
+- **What landed (prototype):** `platform/contracts/need-kinds.json` is the
+  closed vocabulary (`credentials`, `budget_exceeded`, `backend_offline`,
+  `quota_exhausted`, `approval`, `anchor_missing`, `retry`) with exactly one
+  remedy each. `pkg/jobs/need.go` classifies from evidence the runner owns —
+  gRPC status codes plus an `ErrBridgeUnavailable` sentinel — and emits
+  **no** need for unrecognised failures (vendor prose never becomes a
+  remedy). `failJobWithNeed` persists `need` beside the error; the HTTP job
+  view projects it and omits uncatalogued kinds. The Workbench job card
+  renders the server's reason verbatim plus the contract's one button
+  (provider settings / hardware settings / Guardrails / Copilot), and
+  `isIssueWorkbenchObject` plus the card's contested marker now use declared
+  states and typed needs instead of regexes over titles, run statuses, and
+  fact text.
+- **Honesty boundary:** emitted today are credentials, backend_offline,
+  quota_exhausted, and retry. `budget_exceeded`, `approval`, and
+  `anchor_missing` are reserved until their rails record the fact; loops
+  have no failure field yet, so loop needs wait on that schema.
+- **Verification:** Go conformance test pins the registry to the contract file
+  and the classification matrix (structured → kind, prose/nil → no need);
+  persistence and projection pinned in `pkg/jobs` and `pkg/api`. Console
+  `lib/need.test.ts` reads the same contract file (drift = red). `go vet`
+  clean, `go test ./...` green; Console `tsc`, ESLint, Vitest **725/725**
+  across **135** files, `next build` green; palette, token-lint (13),
+  OpenAPI, inventory, chart budget, repo-counts, wiki-lint clean.
+
+## [2026-11-14] verification | launch bound to server-minted proposals (B1)
+
+- **What landed (prototype):** a `proposals` table and rail
+  (`pkg/ledger/proposals.go`, `pkg/api/proposals.go`). The server mints from
+  stored campaign state or a stored assistant message, canonicalizes the
+  body, stores its SHA-256 digest, and records the campaign revision and
+  calibration identity (device profile name|source|version|calibrated_at)
+  it was priced against. `POST /api/chat/launch` now accepts only
+  `{proposal_id, digest, request_id}` plus mandate/grant fields; the stored
+  body supplies circuit, backend, budget, shots, seed, and `designed_by`.
+  Backend ids are a closed set (`jobs.NormalizeBackend`: exact simulators,
+  then calibrated hardware profiles, then simulator-smelling free text;
+  provider-prefixed names are never demoted to $0). Unpriced metered plans
+  refuse at mint; no default $1 ceiling is invented.
+- **State & basis:** CAS offered→launched burns the proposal before
+  dispatch (a second launch with a new request id refuses), while an
+  idempotent replay of a lost reply still returns the admitted job. Campaign
+  revision or calibration movement refuses `proposal_stale`; wrong digest
+  `proposal_digest_mismatch`; spent/dismissed `proposal_not_offered`;
+  dismiss is CAS offered→dismissed; GET by id is session-bound with no
+  oracle. Mint is content-idempotent, and a message's plan is minted once.
+- **Console:** chat replies expose `proposal_id`/`proposal_digest`/
+  `proposal_error`; `ConfirmCard`, `ActionGate`, the offline simulator path,
+  and the Copilot launch button all name a minted proposal (offline uses a
+  monotone `downgrade: "simulator"`). Display-only plans render the reason
+  and no button.
+- **Verification:** new Go pins cover server-owned dispatch, client
+  substitution refusal (strict decode), digest/basis staleness, single use +
+  idempotent replay, dismissal/session binding, unpriced/unknown backends,
+  downgrade monotonicity, and content-idempotent mint. `go vet` clean,
+  `go test ./...` green; Console `tsc`, ESLint, Vitest **726/726** across
+  **135** files, `next build` green; palette, token-lint (13), OpenAPI
+  (136 paths / 128 schemas), inventory (150 modeled), chart budget,
+  repo-counts, wiki-lint clean.
+
+## [2026-11-14] verification | calm status strip and card isolation (3.9 + C3)
+
+- **3.9 (banner density):** API refusals and response-contract drift moved
+  out of `BannerStack` into `StatusStrip` chips (`ApiProblemChip`,
+  `role="status"`, full detail in the title). Dismissal is keyed by problem
+  signature (`path|status|message`) in sessionStorage (`lib/api-problem.ts`,
+  `domain/api-problem-state.ts`, cap 100), so an identical problem stays
+  dismissed for the session while a different one re-arms. The only
+  full-width `role="alert"` banner left is blocking auth expiry; strict
+  contract mode still throws (the surface shows its own refusal). Contract
+  drift keeps its `contract:` marker (the URL parser no longer eats it).
+- **C3 (one bad item costs that item):** `RenderBoundary`
+  (`components/workbench/RenderBoundary.tsx`) wraps every `WorkCard` and every
+  embedded `<Chart>`; a render throw shows "record is intact" with a local
+  Retry and leaves the rest of the canvas mounted. A pure sanitizer
+  (`sanitizeWorkbenchObjects` / `sanitizeWorkbenchLinks`, `WORKBENCH_TEXT_LIMITS`)
+  drops blank/duplicate ids and dangling/self/duplicate/uncatalogued links and
+  clips label/title/detail/fact text before render. Applied to the effective
+  object and link projections only — no ledger or layout write is rewritten.
+- **Verification:** new pins cover chip semantics/dismissal signatures,
+  contract-drift labelling, boundary containment + retry, and sanitizer
+  clipping/dedup/link filtering. Console `tsc`, ESLint, Vitest **736/736**
+  across **137** files, `next build` green; palette, token-lint (13), OpenAPI
+  (136/128), inventory (150 modeled), chart budget, repo-counts, wiki-lint
+  clean.
+
+## [2026-11-14] verification | one untrusted-tool-output boundary (B6/S4)
+
+- **Shared fence:** new `pkg/untrusted` owns the provenance tag, the closing
+  fence, payload neutralization (forged open/close markers, fullwidth
+  look-alikes, control bytes), and the fixed system rule. Both the copilot
+  tool loop (`pkg/api/agent_tools.go`) and tribunal observe rounds
+  (`pkg/agents/collective.go`) use it; the tag stays inside the observation
+  budget so provenance cannot be truncated away. Tribunal role prompts and
+  the copilot prompt append the same rule from one constant.
+- **Taint rule:** a turn that has consumed any observation is tainted;
+  effectful tools (`ReadOnly: false`) refuse unless they set the new
+  `Definition.AllowAfterUntrusted`. `submit_local_sim` is the only opt-in,
+  with a written threat argument ($0 local, one dispatch per turn, full
+  admission). Future write tools inherit the refusal default. Each
+  `tool_called` event records `tainted`; a refusal emits the new
+  `tool_taint_refused` taxonomy row.
+- **Corpus:** `platform/contracts/injection-cases.json` is read by the Go
+  conformance test: forged provenance/close markers, markdown role fences,
+  DSML markers, error-text injection, fullwidth evasion, source injection,
+  and control bytes. The test proves one harness tag, one close, instructions
+  inside the fence, and no control bytes. A deterministic fake-model loop test
+  proves an effect call after a poisoned read never reaches its handler and
+  that the refusal is fenced and audited.
+- **Verification:** `go vet` clean, `go test ./...` green; taxonomy and
+  catalog conformance green; repo-counts and wiki-lint clean.
+
+## [2026-11-14] verification | recorded run parts and lanes (C1)
+
+- **Instrumentation first:** `pkg/supervisor/parts.go` defines `loop_part`
+  (closed helper/state vocabularies) and `RecordPart`/`LoopParts`. Emitters:
+  optimizer steps (gradient metric), lifecycle transitions (pause/resume/
+  rescope/complete/diverge/kill, mapped one-to-one), manual registration
+  (`Run registered`, planned), and `handleChatLaunch` (a `quantum_job` part
+  carrying `job_id`, the proposal target as `goal`, state running).
+- **Projection:** `GET /api/loops/{id}/parts` (session-bound like every loop
+  action) reads recorded parts oldest-first and upgrades job-linked parts
+  from the live job row (queued→waiting, failed→failed, terminal→ended) and
+  attaches the job's typed need. `loop_part` is in the event taxonomy and
+  Go known-types registry; the existing `loop_*` SSE invalidation refreshes
+  the console.
+- **Console:** `lib/run-columns.ts` (`columnsOf`, `activePart`) groups parts
+  into vocabulary-ordered helper columns; `LoopPartsLane` renders one
+  sentence per part with state dots, the active marker, and need text. Live
+  runs poll 5 s; settled runs load only on "Show run parts" to avoid a
+  request storm across historical cards.
+- **Verification:** supervisor and API pins cover vocabulary refusal,
+  per-loop scoping, recorded step/pause parts, launch→part linkage with live
+  state enrichment, unknown-loop 404, and manual registration. Go
+  `go vet`/`go test ./...` green (943 test funcs); Console `tsc`, ESLint,
+  Vitest **742/742** across **139** files, `next build` green; OpenAPI
+  (137 paths/129 schemas), inventory (151 modeled), palette, token-lint (13),
+  chart budget, repo-counts, wiki-lint clean.
+
+## [2026-11-14] verification | pending, follow-live, arrivals, culling (C4–C7)
+
+- **C4 pending:** `WorkbenchObject.meta.pending` is projected only for
+  genuinely expected data (job queued/running, outcome-unknown reservation,
+  live loop). `pendingForJob` is pure and tested. The card renders a labelled
+  `role="status"` line; its pulse is gated by IntersectionObserver while on
+  screen and disabled by reduced motion.
+- **C5 follow-live:** on by default. `followCamera` pans only as far as the
+  14% lead band requires and never zooms; the effect glides 220 ms (snaps
+  under reduced motion), pauses on any manual camera move (wheel, drag, zoom,
+  fit, minimap), and re-arms when the live target changes. Unit tests pin the
+  minimal pan, no-zoom, in-band null, and unmeasured-viewport refusal.
+- **C6 arrivals:** `arrivalDiff` + a one-shot CSS arrival animation and a
+  polite live-region announcement; the first projection initializes without
+  animating.
+- **C7 culling:** grow-only near set (3× viewport) maintained on camera
+  commits; in-view ids always mount, far ids render as sized empty boxes so
+  extents and measurements stay stable.
+- **Verification:** Console `tsc`, ESLint, Vitest **751/751** across **139**
+  files (including the pure near-viewport predicate), `next build` green;
+  palette, token-lint (13), chart budget, repo-counts, wiki-lint clean.
+
+## [2026-11-14] verification | claim provenance as rows (B4)
+
+- **Schema + rail:** new `claim_evidence` table with a closed kind vocabulary
+  (`job_result`, `classical_anchor`, `literature`, `tribunal_turn`,
+  `general_knowledge`), required fields per kind (job id + result SHA-256 for
+  measured rows; source ref for the rest), idempotent inserts, and
+  session-scoped reads (`GetClaimRecord`, `ListClaimEvidence`,
+  `ClaimProvenance`).
+- **Producers:** job-minted claims (claim_eval, vqe_run/hardware_experiment,
+  qaoa_hardware) link their exact result bytes automatically via
+  `ResultDigest`; tribunal consensus links a `tribunal_turn` (deliberation is
+  not a measurement and does not satisfy the measured rule).
+- **API:** `GET /api/sessions/{id}/claims/{claim_id}/provenance` returns the
+  claim, evidence rows, and `{measured, general_knowledge, complete}`; unknown
+  and cross-session claims 404 without an oracle. `POST .../evidence` records
+  one link: measured kinds derive the job id + result digest server-side
+  (a client cannot state its own digest); other kinds require an explicit
+  `source_ref`.
+- **Gate:** accepting a verified claim in the review rail refuses while the
+  provenance summary is incomplete — the decision cannot outrank evidence.
+  Contested verdicts are not graded by the rule.
+- **Verification:** ledger pins for validation, idempotence, measured vs
+  general-knowledge completeness, contested non-grading, cross-session
+  refusal, and the acceptance gate; API pin for the endpoint and its
+  summaries. `go vet` clean, `go test ./...` green; repo-counts and wiki-lint
+  clean.
+
+## [2026-11-14] verification | citation-checked numeric claims (B5)
+
+- **Observation ids:** the tool loop assigns `o1..oN`, embeds the id in the
+  observation JSON, and returns the observation set with the augmented
+  history. The copilot prompt gains the fixed rule: a numeric value from an
+  observation is followed by `[oN]`; an uncited significant number is
+  unverified.
+- **Deterministic check:** significant numbers (decimals or ≥ 100; fenced
+  code and citation marks excluded) resolve the citation within 12 following
+  characters and compare against that observation's numeric values within
+  `1e-6 + 0.1%`. Statuses: verified / uncited / unknown_observation /
+  not_in_observation. No LLM judge.
+- **Persistence + transport:** the report is stored per message
+  (`citations_json`) and included in unary, stream-done, and regenerate
+  envelopes; session export/import now round-trips proposal and citation
+  columns (the export digest caught the dropped fields — fixed).
+- **Streaming:** `CitationStreamFilter` holds back a trailing incomplete
+  `[oN` mark; concatenated output equals the input exactly.
+- **Console:** a `CitationBadge` per assistant reply states `N/M numeric
+  claims verified · K unverified` and names each unverified number/reason in
+  the title.
+- **Verification:** Go pins for classification, tolerance, empty
+  observations, stream preservation, and message persistence; Console badge
+  pins. `go vet`/`go test ./...` green (953 funcs); Console `tsc`, ESLint,
+  Vitest **754/754** across **140** files, `next build` green; contracts,
+  palette, token-lint, chart budget, repo-counts, wiki-lint clean.
+
+## [2026-11-14] verification | per-fact source chips (C9)
+
+- **Model:** `WorkbenchFact.from = {domain, id}` names the producing record.
+  Job facts source to the job (folded cards to their root), loop facts to the
+  loop, approvals to the obligation, tasks to the task; measurement/proof
+  facts source to the measured job when recorded, else the campaign.
+- **UI:** each sourced fact renders a `Link2` chip that focuses the owning
+  card through `resolveFactSource` (ref match → prefixed id → id → folded-run
+  membership). Unsourced facts render no chip.
+- **Verification:** model pins for fact sourcing and source resolution
+  (including folded runs); Workbench pin asserts chips render and the click
+  path runs. Console `tsc`, ESLint, Vitest **757/757** across **140** files,
+  `next build` green; contracts, palette, token-lint, repo-counts, wiki-lint
+  clean.
+
+## [2026-11-14] verification | plan → tasks (C8)
+
+- **Backend:** `POST /api/tasks/batch` (own path so each endpoint keeps one
+  response contract) creates 1–50 tasks under one idempotency key, ordered by
+  the explicit `order` (array order breaks ties), emits one `task_created`
+  event per row, and replays identically. Single-task `POST /api/tasks` is
+  unchanged.
+- **Canvas:** the workflow planner publishes its dry-run result
+  (`domain/workflow-plan-store.ts`); `buildWorkbench` projects a `plan` card
+  with per-step tool/cost/approval rows, planned cost, approval count, and
+  unresolved references. **Make tasks** calls the batch endpoint and flips to
+  **Open in Tasks**, which focuses the first created task card. The draft is
+  explicit client state, not server truth.
+- **Verification:** Go pins for batch order, replay identity, validation
+  (blank title, >50), and single-task compatibility; Console pins for the plan
+  projection, task-bound flip, button path, and the ephemeral store. `go vet`
+  clean, `go test ./...` green (954 funcs); Console `tsc`, ESLint, Vitest
+  **762/762** across **141** files, `next build` green; OpenAPI (138/130),
+  inventory (152 modeled), palette, token-lint, chart budget, repo-counts,
+  wiki-lint clean.
+- **Live defect found & fixed:** a ghost session on the task-create paths
+  reached the foreign-key write and returned 500 (batch) instead of refusing;
+  both single and batch creation now require an existing session first and
+  return 404 before any row. Pinned by `TestTaskCreationRefusesGhostSessionsBeforeRows`.
+
+## [2026-11-14] verification | steer a live run (C10)
+
+- **Backend:** `loop_steers` rows queue an instruction for a running/rescoped
+  loop (`POST /api/loops/{id}/steer`, 1–500 runes, session-bound). The next
+  `Step` claims each pending row with a conditional update, seals a
+  `loop_steered` ledger event, and records a `lead` lane part with the
+  instruction as its goal; non-running loops refuse typed `loop_not_running`
+  (409). New error catalog row + event taxonomy entry.
+- **Determinism fix:** run parts now break same-millisecond ties by ledger
+  sequence, not UUID (two transitions in one step could swap order between
+  reads — the flaky supervisor test exposed it).
+- **Console:** the run lane gains a steer box with context disclosure (target
+  loop, part count, active part) and the explicit rule that a steer applies at
+  the next step boundary; success names the queued id, refusal stays local.
+- **Verification:** supervisor pins for queue/apply-once/lane part, invalid
+  text, paused refusal, and multi-steer application; API pins for 201/404/409
+  and the applied steer in `/parts`; console pin for the disclosure and
+  request. `go vet` clean, `go test ./...` green (959 funcs); Console `tsc`,
+  ESLint, Vitest **763/763** across **141** files, `next build` green;
+  OpenAPI (139/131), inventory (153 modeled), palette, token-lint, chart
+  budget, repo-counts, wiki-lint clean.
+- **Honest limit:** the steer is recorded and surfaced at the boundary; the
+  agent loop does not yet fold the text into its next prompt (wiring next).
+
+## [2026-11-14] decision | C11 threat argument written; run allowances await review
+
+- **Why:** Q-60 adopted run-scoped allowances but gated implementation on a
+  written threat argument reviewed against the final code. The argument is now
+  a durable page: [[run-scoped-allowance-threat-model]] (status `candidate`).
+- **What it covers:** assets/actors, fifteen numbered threats with invariants
+  (cookie-only minting, scope replay, backend/job-type pivot, concurrent
+  overspend via CAS, expiry/TTL, prompt-injection taint exclusion, calibration
+  and air-gap suspension, store failure, revocation races, reporting honesty,
+  reader scoping), the proposed `run_allowances` +
+  `run_allowance_draws` schema, Go enforcement points, failure semantics, a
+  nine-part test matrix, non-goals, and seven open questions for the operator.
+- **No code landed.** The default per-job approval remains the only hardware
+  path until the argument is reviewed and the questions answered.
+
+## [2026-11-14] verification | primitive correctness (D2)
+
+- **Button:** `type` defaults to `button`; `pending` disables + sets
+  `aria-busy` + renders a reduced-motion-safe spinner; `danger` shorthand
+  maps to the semantic danger variant.
+- **SegmentedControl:** roving tabindex and the full radiogroup keyboard
+  contract (arrows skip disabled segments, Home/End jump).
+- **Tooltip:** `aria-describedby` is applied to the focusable trigger (merged
+  with any existing description), not to the wrapper.
+- **Verification:** primitives pins for default type, busy/danger, tab order,
+  arrow selection, and trigger description. Console `tsc`, ESLint, Vitest
+  **766/766** across **141** files; repo-counts and wiki-lint clean.
+
+## [2026-11-14] verification | reserve LLM budget before every call (B3)
+
+- **Class fix:** `llm.Client` now carries a `SpendGuard`; the server installs
+  one at construction, so copilot tool loops, unary, streams, tribunal and
+  agents all reserve before the wire request instead of re-checking once per
+  chat entry. The guard derives an affordable output ceiling from the output
+  rate and remaining dollars (prompt worst case included), applies it as
+  `max_tokens`, and releases after the measured spend is recorded.
+- **Refusals:** unpriced metered models, unreadable ledgers, blind (unmetered)
+  spend, and exhausted caps refuse before any request leaves the host.
+- **Verification:** guard pins (affordable ceiling, concurrent reservation
+  refusal, release/re-reserve, unpriced/local/unmetered/exhausted) and client
+  pins (ceiling reaches the wire, release on success, refusal stops the HTTP
+  call, streams bounded). `go vet` clean, `go test ./...` green; repo-counts
+  and wiki-lint clean.
+- **Honest limit:** reservations are in-process; multi-daemon deployments
+  sharing a ledger are not coordinated.
+
+## [2026-11-14] verification | memory hygiene (B10)
+
+- **Shared secret screen:** new `pkg/secret` recognises PEM keys, JWT,
+  OpenAI/GitHub/AWS/Slack tokens, bearer tokens, and assignment shapes;
+  redaction leaves visible `[redacted:<kind>]` markers. Applied on explicit
+  retain, automatic turn write-back, and recall output (legacy rows cannot
+  echo a secret).
+- **Retraction tombstone:** `POST /api/memory/retract` clears content,
+  removes the embedding, keeps the row with `retracted_at`/`retract_reason`,
+  seals a `memory_retracted` event, and recall/list exclude it. Tenant scoping
+  decides ownership; unknown/foreign ids 404 without an oracle.
+- **Bank separation:** explicit facts (`world-facts`) stay separate from the
+  automatic `experiences` log; retention remains bounded (600 runes).
+- **Verification:** secret pins (each shape, benign text, sorted kinds),
+  memory pins (tombstone hides from text/semantic/list recall, tenant
+  scoping, persistence across reload), API pins (retain redaction, recall
+  marker, retraction 404/200, event). `go vet` clean, `go test ./...` green
+  (972 funcs); repo-counts and wiki-lint clean.
+
+## [2026-11-14] verification | declared model capabilities and normalized effort (B13)
+
+- **No guessing:** `enrichModelInfo` no longer infers vision/reasoning from
+  model-name substrings. Capabilities come from the reviewed rate card and
+  provider metadata (OpenRouter architecture/supported_parameters; Ollama
+  `/api/show` completion/tools/vision/thinking). Unknown models claim nothing.
+- **Ollama probe:** discovery calls `/api/show` per model (2 s bound, failures
+  leave capabilities unknown); `VerifyProvider` passes
+  `withCapabilities=false`, preserving its metadata-only GET contract.
+- **Reasoning effort:** `normalizeReasoningEffort` sends a level only when the
+  provider accepts effort control and the model declares reasoning; aliases
+  map to nearest (minimal→low, xhigh→high), `none` is never sent, and unknown
+  models get nothing. Applied to chat, Anthropic thinking budgets, and the
+  OpenAI Responses payload. `ModelCapabilities.reasoning_efforts` advertises
+  the accepted set.
+- **Verification:** normalize matrix, provider effort sets, Anthropic
+  thinking on/off by declared capability, Ollama `/api/show` discovery, and
+  the metadata-only verification pin. `go vet` clean, `go test ./...` green
+  (976 funcs); repo-counts and wiki-lint clean.
+
+## [2026-11-14] verification | reduced motion and motion vocabulary (D3/D4)
+
+- **D3:** global `prefers-reduced-motion` rules now collapse animation,
+  transition and smooth-scroll like `data-reduce-motion="true"` already did;
+  the in-app attribute rule also disables smooth scrolling. New
+  `lib/motion.ts` (`prefersReducedMotion`, `useReducedMotion` over the media
+  query ∪ attribute); the workbench follow-live glide uses the reactive hook
+  instead of an inline duplicated check.
+- **D4:** motion tokens add `--motion-press` (70 ms), `--motion-exit`
+  (120 ms), `--ease-in`, `--ease-emphasized`; the legacy spring utility now
+  animates explicit properties. `scripts/console-token-lint.mjs` bans
+  `transition: all` / `animation: all` in CSS with zero tolerance (comments
+  excluded).
+- **Verification:** motion pins (OS/attribute union, live OS change),
+  Console `tsc`, ESLint, Vitest **768/768** across **142** files, token lint
+  and palette clean, repo-counts and wiki-lint clean.
+
+## [2026-11-14] decision | C11 run allowances reviewed with recommended answers and implemented server-side
+
+- **Answers:** reviewer key with tenant-admin fallback (signer recorded);
+  server clamps expiry to 1 min–24 h and validates caps (UI prefill last-used
+  values later); explicit single metered backend only, no simulator
+  auto-inclusion; rate-card version change suspends; tainted turns fall back
+  to per-job approval; allowances do not block session deletion.
+- **Landed:** `run_allowances`/`run_allowance_draws` schema; signed canonical
+  scope (`POST /api/run-allowances`) verified against the tenant admin or
+  reviewer key; atomic draw CAS inside `reserveAndInsertJobTx` (status,
+  expiry, remaining, jobs, duplicate-row all fail closed); admission refuses
+  backend/type/shots/per-job/remaining/taint/basis violations; calibration or
+  rate-card movement suspends the row; air-gap engagement suspends all active
+  allowances; one-click revoke; session-scoped list; events
+  `run_allowance_{minted,drawn,suspended,revoked}`; proposal `basis_tainted`
+  is server-derived from the turn's observations.
+- **Verification:** ledger draw/suspension/expiry/duplicate pins; end-to-end
+  mint → signed scope → admission draw → taint refusal → revoke; calibration
+  move suspension; air-gap suspension. `go vet` clean, `go test ./...` green;
+  console API client + OpenAPI contracts generated; wiki-lint clean.
+- **Honest gaps:** no console mint/launch control yet, and only `circuit_run`
+  is allowance-eligible (hardware parent rails remain per-job).
+
+## [2026-11-14] verification | C11 console control and launch-under-allowance
+
+- **Control:** `RunAllowancePanel` in the metered ConfirmCard signs the
+  canonical scope with local custody (`signWithCustody`), mints
+  `POST /api/run-allowances`, pre-fills last-used caps (localStorage,
+  clamped), lists active allowances, selects one, and revokes with one click.
+  Ineligible (simulator/unjurisdictioned) surfaces show why no allowance is
+  offered.
+- **Launch path:** `executeMeteredAuthorization` accepts an allowance id,
+  skips the per-job mandate, and launches with `run_allowance_id`; the server
+  puts it on the job params, and admission performs the atomic draw. Tainted
+  proposals still fall back to per-job approval.
+- **Verification:** canonical-scope pins (field order, micro-dollars,
+  fractional-free expiry), panel pins (sign+mint payload, selection, revoke,
+  simulator refusal), ConfirmCard pin (no mandate call, `runAllowanceId`
+  forwarded), full Console Vitest **775/775** across **144** files, `tsc`,
+  ESLint, token/contracts/repo-counts clean.
+
+## [2026-11-14] verification | chart accessibility, refusal, and actionable evidence (D5)
+
+- **Announcement:** the computed summary now lives in an SVG `<desc>`
+  referenced by `aria-describedby`; `aria-labelledby` no longer silences it
+  (the old `aria-label` was never announced when both were present).
+- **Refusal:** `hasChartValues` (pure, pinned) gates rendering; an all-null
+  chart shows a labelled `role="status"` "Chart unavailable" block with the
+  basis instead of empty axes.
+- **Values/evidence:** the exact-values table is available in compact cards
+  (collapsed in `<details>`); when `onEvidence` is provided, tooltip and table
+  evidence render as buttons rather than text.
+- **Verification:** chart pins (null/gap/range values), DataChart pins
+  (summary describedby, refusal, compact table, evidence callback), full
+  Console Vitest **779/779** across **144** files, `tsc`, ESLint, token lint,
+  contracts, repo-counts clean.
+
+## [2026-11-14] verification | console import boundaries (D6)
+
+- **Rule:** one direction only — `types < lib < domain < components < app`.
+  `scripts/console-boundaries.mjs` scans every non-test TS/TSX import (alias
+  and relative) and fails on upward edges; wired into the console CI job next
+  to the token ratchet.
+- **Fixes:** `ArenaView`, `CanvasWidgetKind`, and `ApprovalPacketView` moved
+  to `types` with component re-exports; the auth-phase, stream-state, and
+  invalidation stores moved to `lib` with `domain/` re-export shims;
+  `lib/api.ts`, `lib/useCampaignProjection.ts`, and `lib/useSessionStream.ts`
+  now import downward. The 67 `components → lib/api` imports remain legal
+  (downward) and are explicitly not treated as violations.
+- **Verification:** boundary check clean, `tsc`, ESLint, full Console Vitest
+  **779/779** across **144** files, token/dead-export/repo-counts clean.
+
+## [2026-11-14] verification | console bundle budgets (D7)
+
+- **Measured, not guessed:** `scripts/console-bundle-budgets.mjs` reads the
+  build that just ran (app-router client reference manifest +
+  `build-manifest.json`) and enforces `/` at recorded **1108.5 KiB raw /
+  326.8 KiB gzip** plus a **40 / 24 KiB** growth allowance (ceiling
+  **1148.5 / 350.8**), largest chunk ≤ 410 KiB.
+- **Real finding:** the first run caught KaTeX in first-load. `MathText`
+  statically imported it; it now dynamic-imports the renderer only when prose
+  contains `$…$`, dropping first-load 257 KiB raw / 75 KiB gzip. Its test now
+  awaits the lazy load and still asserts rendered math plus the injection
+  escapes.
+- **Forbidden/lazy policy:** first-load chunk contents may not contain
+  three.js, elkjs, or KaTeX markers. Lazy chunks over 256 KiB must carry a
+  stable content marker + reason (KaTeX 258 KiB, three.js 543 KiB, elkjs
+  1.4 MiB); a stale marker also fails, so the allowlist cannot rot.
+- **CI:** the gate runs immediately after `pnpm build` in the console job.
+- **Verification:** full Console Vitest **779/779** across **144** files, tsc,
+  ESLint, token/dead-export/palette/contract/repo-counts clean; the three
+  negative cases (over-allowance, stale marker, unrecorded large lazy chunk)
+  each fail as intended. Live check against the rebuilt console: 11 JS
+  responses, **1036.2 KiB** decoded, zero `katex`/`three`/`elkjs` markers in
+  anything requested on first load. KaTeX's own test now waits for the lazy
+  import instead of sleeping, so the assertion is deterministic.
+
+## [2026-11-14] verification | browser component tests (D8)
+
+- **Real page:** added `vitest.browser.config.ts` (Playwright provider,
+  Chromium, `vitest-browser-react`) and `pnpm test:browser`; every
+  `*.component.test.tsx` runs there, while the Node suite excludes those
+  files and stays browser-free.
+- **First suite:** `SegmentedControl` asserts one checked radio, roving
+  `tabindex`, Arrow/End/Home focus movement; `IconButton` asserts
+  `type="button"` inside a form does not submit. These are the focus/keyboard
+  behaviors `react-test-renderer` cannot observe.
+- **Ratchet:** `scripts/console-test-renderer-ratchet.mjs` + a 95-file
+  baseline freezes new `react-test-renderer` imports; a new file and a stale
+  entry both fail. CI runs it beside the token ratchet; the browser suite runs
+  in Console E2E after the existing Chrome install.
+- **Config:** the unit and browser projects share one alias/React-dedupe
+  contract (`vitest.shared.ts`); browser tests define the client
+  `process.env` subset Next normally inlines.
+- **Verification:** browser **3/3**, unit **779/779** across **144** files,
+  tsc, ESLint clean; both bundled Chromium and `PLAYWRIGHT_CHANNEL=chrome`
+  paths pass. Negative ratchet cases (new file, stale entry) each fail.
+
+## [2026-11-14] decision | role-named Tailwind scales (D1)
+
+- **Theme contract:** semantic colors, radii and type sizes are exposed with
+  `@theme inline` through distinct `--k-*` runtime aliases; `--radius-*:
+  initial` and `--text-*: initial` remove Tailwind's size-named scales. A
+  size-named radius/text utility now compiles to nothing, so every size names
+  a role.
+- **Codemod:** 80 files moved off the raw scales. Exact role tokens were
+  added so appearance is preserved, not normalized: `chip` 4px, `sheet`
+  24px, `body-strong` 14, `body-large` 16, `subtitle` 18, `title-small` 20,
+  `title-large` 24, `display-small` 30, `display-large` 36, with the old
+  line heights.
+- **Dead aliases removed:** the legacy `@theme inline` color block (including
+  `--color-card: var(--color-raised)`, which collided with the palette
+  overlay) is gone; `--color-pulse-cyan` references moved to
+  `--color-accent`. `NeedsYouTray`/`ModeRail` now exercise `bg-surface`,
+  `bg-chrome`, `text-label-secondary`, `hover:bg-fill-hover`, and
+  `ring-accent`.
+- **Gates:** `console-scale-lint.mjs` (source, zero tolerance) and
+  `console-theme-check.mjs` (compiled CSS: no default scales, role utilities
+  generated, no card collision) both run in CI; the scale lint is in the
+  pre-build gate and the theme check follows `pnpm build`.
+- **Verification:** unit **780/780** across **144** files, browser **3/3**,
+  tsc, ESLint, `next build`, bundle budgets (1110.1 KiB raw / 327.0 gzip),
+  token/dead-export/boundary/palette/repo-counts/wiki-lint clean. Negative
+  probes for both new gates fail as intended. Live computed-style check in
+  both themes: dark `bg-surface` #212127 and `bg-card` rgba(255,255,255,0.043);
+  light #ffffff and rgba(255,255,255,0.94); `text-label` 12px/16px and
+  `rounded-row` 12px in both; zero page errors.
+
+## [2026-11-14] decision | runtime skills for the copilot (B11)
+
+- **Loader:** `pkg/skills` reads strict `SKILL.md` frontmatter (name,
+  one-line description ≤200 chars, role, advisory tools) with a 16 KiB file
+  limit, 64-skill ceiling, lowercase name charset, directory/name match, and
+  symlink refusal. Rejections are closed `SkillFault` codes, never silent
+  skips. Six seeds are embedded: `pes-scan`, `vqe-campaign`,
+  `classical-anchor-check`, `hardware-readiness`, `literature-review`,
+  `mitigation-choice`; user skills load from `~/.kubona/skills/`
+  (`KUBONA_SKILLS_DIR` override).
+- **Prompt/tool split:** only names and descriptions enter the cacheable
+  copilot system prompt; the body is read through the new read-only
+  `load_skill` tool (copilot role only, no capability widening). Tool catalog
+  and embedded digest regenerated.
+- **Surface:** `GET /api/skills` returns the body-free catalogue, faults and
+  limits; Settings → Runtime skills renders skills, advisory tools, source,
+  and every rejected file. `faults` is always an array (the live run caught a
+  `null` that the contract and boundary both refused).
+- **Verification:** full Go suite green (skills package + API dispatch,
+  prompt, endpoint tests); Console unit **780/780**, browser **5/5**;
+  live endpoint returns 6 seeds / 0 faults and the Settings view renders
+  names/descriptions with no body leak and no page errors.
+
+## [2026-11-14] decision | recorded LLM decision evals (B12)
+
+- **Pinned fixtures:** 12 copilot decisions in
+  `pkg/evals/fixtures/llm-eval-copilot.json` — 10 scored, 2 `unscored`, exact
+  labels `supported|refuted|unverified`, trust `measured|inferred|unscored`,
+  and a per-fixture SHA-256 over id/prompt/label/trust. The set hash covers
+  the canonical document; editing a prompt without re-pinning fails load.
+- **Scoring:** only complete probability vectors are scored (each label,
+  finite [0,1], sum 1). Multiclass Brier and 10-bin ECE are computed, never
+  invented; incomplete, extra, malformed, role-mismatched, or sha-mismatched
+  inputs refuse. `unscored` cases are excluded by construction.
+- **Operator rail:** `kubonad eval-llm --role copilot --predictions file`
+  writes an atomic report under `~/.kubona/evals/` (0600, sanitized names).
+  `GET /api/evals/llm` serves evaluated/unevaluated/stale status, and
+  ModelPicker shows `evaluated N/M · date` or `unevaluated`/`evaluation
+  stale` with Brier/ECE in the tooltip.
+- **Verification:** full Go suite green, including fixture tamper, Brier/ECE
+  hand-computed cases, incomplete/malformed refusal, store transitions, API
+  status, and CLI end-to-end; Console unit **780/780**, browser **5/5**.
+  Live: unevaluated status before a report, evaluated 10/10 badge after a
+  synthetic report was placed in the container, then the synthetic report was
+  removed so the stack is not left showing a fabricated score.
+
+## [2026-11-14] cleanup | remaining D1/D5/D8 gaps
+
+- **DataChart split:** pure viewport/plot/scale/tick planning moved to
+  `chart-layout.ts` (five DOM-free tests); the eight renderers moved to
+  `chart-parts.tsx`; `DataChart.tsx` fell from 1,115 to ~380 lines.
+- **LazyBoundary:** lazy charts now sit behind an error boundary with a real
+  **Retry** (remount) and **Reload** (stale-chunk detection via
+  `isChunkLoadError`); a real-browser test proves the refusal and recovery.
+- **Colour utilities:** all 80 `@theme` colours are exposed through runtime
+  aliases; every arbitrary `bg/text/border/ring/from/to/via/fill/stroke/...`
+  colour-var utility was converted (4,532 replacements), leaving **zero**.
+  `console-color-utility-lint.mjs` is the zero-tolerance gate.
+- **Browser token sheet:** a browser test imports the real palette/tokens/axes
+  CSS and asserts radius/type values, card-vs-raised, and dark/light
+  resolution.
+- **Verification:** unit **787/787** across **146** files, browser **9/9**
+  across **4** files, tsc, ESLint, `next build`, bundle budgets, theme check,
+  colour/scale/boundary/token/ratchet/contracts/repo-counts/wiki-lint clean;
+  stack rebuilt and healthy.
+
+## [2026-11-14] cleanup | motion audit closure
+
+- **`transition-all` removed from source:** 112 utilities across 25 files
+  replaced with an explicit property list
+  (`color,background-color,border-color,box-shadow,opacity,transform,filter`),
+  which preserves the intended hover/scale/shadow motion without animating
+  layout. `console-token-lint.mjs` now scans TS/TSX as well as CSS, so the
+  D4 ban is zero-tolerance on both surfaces.
+- **Programmatic scrolling:** CopilotDrawer's follow and search-jump paths use
+  `behavior: 'smooth'` only when neither the OS nor the in-app reduced-motion
+  signal is set; otherwise they scroll instantly.
+- **Verification:** unit **787/787** across **146** files, browser **9/9**
+  across **4** files; tsc, ESLint, `next build`, compiled-theme, bundle,
+  colour/scale/token/ratchet/contracts/repo-counts/wiki-lint clean; stack
+  rebuilt and healthy.
+
+## [2026-11-14] decision | opt-in LLM eval gate (B12 closure)
+
+- **Gate:** with `KUBONA_REQUIRE_LLM_EVAL=1`, a settings write that changes
+  the copilot provider/model is refused (`409 model_unevaluated`) unless the
+  new model has a current `evaluated` report on the pinned fixtures. The
+  refusal carries the eval status and a hint. The default is off so a fresh
+  install remains configurable.
+- **Acknowledgement:** `acknowledge_unevaluated: true` in the same write
+  admits an unevaluated/stale model deliberately; the backend records
+  `llm_eval_acknowledged` with provider/model/status. Settings surfaces the
+  refusal and an explicit “Acknowledge unevaluated copilot model and save”
+  button; the two-step save is pinned by a test asserting the second request
+  body carries the acknowledgement.
+- **Verification:** gate unit cases (refuse, evaluated pass, stale/ack,
+  unchanged/unrelated, opt-in off), handler compile/vet, Console unit
+  **788/788**, browser **9/9**, tsc/ESLint/build/budgets/theme/contracts/
+  counts/wiki lint clean; live settings remains 200 and the stack is healthy.
+
+## [2026-11-14] verification | section-addressed load_skill (B11)
+
+- **Tool:** `load_skill` now takes an optional `section` heading and returns
+  only that part of the SKILL.md body. Headings match case-insensitively and
+  accept a leading `#`; the closed `skill_section_unknown` fault names the
+  available headings so the copilot can retry without re-reading the whole
+  body. The no-section call still returns the full instructions.
+- **Tests:** section extraction (preamble/heading isolation), unknown-section
+  listing, seed top-heading, and registry dispatch. Tool catalog is unchanged
+  (name/capability/read-only/roles did not move).
+- **Verification:** full Go `pkg/skills` + `pkg/api` suites green; Console
+  unaffected (788/788 unit, 9/9 browser); stack rebuilt and healthy.
+
+## [2026-11-14] verification | documentation and release sync
+
+- **Wiki:** added the 2026-11-14 census to [[overview]] and
+  [[platform-architecture-diagram]] (151 routes, 41 Go packages, 1007 Go test
+  functions, 185 Python test files, 150 console files / 797 cases, 32 Rust
+  tests, 6 servers / 38 tools, 158 pages; contracts 158/14/0, 136 schemas,
+  143 paths), updated [[ui-ux-vision]] and [[index]], and refreshed the
+  remaining-work/D1/D5/D8/B11/B12 status blocks. `wiki-lint --strict` clean.
+- **README/docs:** root README badge/counts and gate commands updated; console
+  README documents runtime skills and eval scoring; platform README carries
+  the current generated-count status; release preconditions name the full
+  console gates; repo-hygiene lists the new ratchets; remaining-todos records
+  the landed rails and the still-open manual screen-reader walkthrough.
+- **Generated counts:** `docs/repo-counts.md` regenerated and checked.
+- **Gate:** Go full suite, Rust qir-core 23 + ifc-core 9, bridge 86 (1 skip),
+  console 788 unit + 9 browser, build, all lint/contract/token/scale/theme/
+  bundle/wiki/count/secret checks; the full Python suite exceeded the local
+  30-minute window and was not claimed (bridge suites passed).

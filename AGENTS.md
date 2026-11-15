@@ -90,6 +90,22 @@ development — re-verify the gate on the exact commit before citing
 > failure. Always check `docs/repo-counts.md` (`scripts/repo-counts.py --check`)
 > for current counts rather than hand-maintaining numbers in prose.
 
+> ⚑ State update (2026-11-14, `develop` working tree): the Zephium-insights
+> program landed the remaining console/agent rails. Current generated counts
+> are in `docs/repo-counts.md`: **151** HTTP routes, **41** Go packages,
+> **1007** Go test functions, **185** Python test files, **150** console test
+> files (**797** cases), **32** Rust tests, **6** MCP servers / **38** tools,
+> **158** wiki pages. Console contracts: **158 modeled / 14 client-only /
+> 0 unmodeled**, **136** schemas, **143** OpenAPI paths. Gates added: role-named
+> Tailwind radius/type scales with a compiled-theme check, zero arbitrary
+> colour-var utilities, real-Chromium component tests, a test-renderer ratchet,
+> per-route bundle budgets, import boundaries, runtime skills
+> (`pkg/skills`, body-free prompt, section-addressed `load_skill`), recorded
+> decision evals (`pkg/evals`, `kubonad eval-llm`, Brier/ECE, opt-in
+> `KUBONA_REQUIRE_LLM_EVAL` gate), and a zero-tolerance `transition-all` source
+> scan. The raw-palette baseline fell to **1**. Re-verify the full gate on the
+> pushed commit before citing “green”.
+
 ## Three layers
 
 - `dev-docs/` — local working copies of source documents. **Never committed to git, never pushed —
@@ -224,14 +240,14 @@ bar before it lands. "Works" is necessary and insufficient.
   live in both directions wherever behavior branches, and record
   reversals in the wiki so nobody re-applies them.
 
-## Current state (2026-11-11)
+## Current state (2026-11-14)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
 shaped before it is implemented. Implementation is held strictly to the 2026-10-12 Production
 Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 
-**Contents:** 10 source pages (see `wiki/log.md`), 156 pages (`wiki-lint.py --strict`
-clean) — overview/roadmap/questions/index/log, 48 entities, 93 concepts (0 open questions
+**Contents:** 10 source pages (see `wiki/log.md`), 158 pages (`wiki-lint.py --strict`
+clean) — overview/roadmap/questions/index/log, 48 entities, 95 concepts (0 open questions
 in `wiki/questions.md` Sections A–F). Historical audit baseline: the 2026-10-26 Round-2 audit
 read all 831 in-scope source files across Go core, Rust crates, Python runtime, Bridge,
 Console, Contracts, Docker, and CI and found ten P0 blockers; the 2026-10-28 Round-3

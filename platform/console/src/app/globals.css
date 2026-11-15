@@ -4,39 +4,143 @@
 @import "../styles/tokens.css";
 @import "../styles/axes.css";
 
-:root {
-  --background: var(--color-canvas);
-  --foreground: var(--color-text);
-  --obsidian-base: var(--color-chrome);
-  --obsidian-elevated: var(--color-surface);
-  --obsidian-card: var(--color-raised);
-  --obsidian-border: var(--color-border-strong);
-  --coherence-cyan: var(--color-info);
-  --theorist-amber: var(--color-warning);
-  --truth-emerald: var(--color-success);
-  --critic-rose: var(--color-danger);
-  /* Legacy aliases (pre-redesign surfaces still mounted inside the shell) */
-  --entangle-violet: #8a2be2;
-  --amber-warning: #f59e0b;
-  --chemical-emerald: #10b981;
-  --ring0-red: #ef4444;
-}
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* D1: Tailwind's size-named scales are removed. A size-named radius or text
+     utility now compiles to nothing, so every size must name a role. The
+     values are runtime aliases because defining a theme color from itself
+     inside @theme is a custom-property cycle. */
+  --radius-*: initial;
+  --text-*: initial;
+
+  --color-canvas: var(--k-color-canvas);
+  --color-page: var(--k-color-page);
+  --color-chrome: var(--k-color-chrome);
+  --color-surface: var(--k-color-surface);
+  --color-surface-elev: var(--k-color-surface-elev);
+  --color-raised: var(--k-color-raised);
+  --color-float: var(--k-color-float);
+  --color-fill: var(--k-color-fill);
+  --color-fill-hover: var(--k-color-fill-hover);
+  --color-fill-active: var(--k-color-fill-active);
+  --color-fill-pressed: var(--k-color-fill-pressed);
+  --color-fill-strong: var(--k-color-fill-strong);
+  --color-card: var(--k-color-card);
+  --color-tile: var(--k-color-tile);
+  --color-border: var(--k-color-border);
+  --color-border-strong: var(--k-color-border-strong);
+  --color-text: var(--k-color-text);
+  --color-label-secondary: var(--k-color-label-secondary);
+  --color-muted: var(--k-color-muted);
+  --color-faint: var(--k-color-faint);
+  --color-accent: var(--k-color-accent);
+  --color-accent-hover: var(--k-color-accent-hover);
+  --color-on-accent: var(--k-color-on-accent);
+  --color-accent-soft: var(--k-color-accent-soft);
+  --color-accent-ink: var(--k-color-accent-ink);
+  --color-accent-edge: var(--k-color-accent-edge);
+  --color-success: var(--k-color-success);
+  --color-warning: var(--k-color-warning);
+  --color-danger: var(--k-color-danger);
+  --color-info: var(--k-color-info);
+  --color-field: var(--k-color-field);
+  --color-field-hover: var(--k-color-field-hover);
+  --color-field-ring: var(--k-color-field-ring);
+  --color-code-chip: var(--k-color-code-chip);
+  --color-code-chip-ink: var(--k-color-code-chip-ink);
+  --color-term: var(--k-color-term);
+  --color-term-wash: var(--k-color-term-wash);
+  --color-success-wash: var(--k-color-success-wash);
+  --color-success-edge: var(--k-color-success-edge);
+  --color-success-ink: var(--k-color-success-ink);
+  --color-warning-wash: var(--k-color-warning-wash);
+  --color-warning-edge: var(--k-color-warning-edge);
+  --color-warning-ink: var(--k-color-warning-ink);
+  --color-danger-wash: var(--k-color-danger-wash);
+  --color-danger-edge: var(--k-color-danger-edge);
+  --color-danger-ink: var(--k-color-danger-ink);
+  --color-info-wash: var(--k-color-info-wash);
+  --color-info-edge: var(--k-color-info-edge);
+  --color-info-ink: var(--k-color-info-ink);
+  --color-lit: var(--k-color-lit);
+  --color-lit-soft: var(--k-color-lit-soft);
+  --color-on-lit: var(--k-color-on-lit);
+  --color-control: var(--k-color-control);
+  --color-control-hover: var(--k-color-control-hover);
+  --color-soft-sky: var(--k-color-soft-sky);
+  --color-soft-sky-wash: var(--k-color-soft-sky-wash);
+  --color-soft-sky-edge: var(--k-color-soft-sky-edge);
+  --color-soft-sky-ink: var(--k-color-soft-sky-ink);
+  --color-soft-mint: var(--k-color-soft-mint);
+  --color-soft-mint-wash: var(--k-color-soft-mint-wash);
+  --color-soft-mint-edge: var(--k-color-soft-mint-edge);
+  --color-soft-mint-ink: var(--k-color-soft-mint-ink);
+  --color-soft-lemon: var(--k-color-soft-lemon);
+  --color-soft-lemon-wash: var(--k-color-soft-lemon-wash);
+  --color-soft-lemon-edge: var(--k-color-soft-lemon-edge);
+  --color-soft-lemon-ink: var(--k-color-soft-lemon-ink);
+  --color-soft-peach: var(--k-color-soft-peach);
+  --color-soft-peach-wash: var(--k-color-soft-peach-wash);
+  --color-soft-peach-edge: var(--k-color-soft-peach-edge);
+  --color-soft-peach-ink: var(--k-color-soft-peach-ink);
+  --color-soft-rose: var(--k-color-soft-rose);
+  --color-soft-rose-wash: var(--k-color-soft-rose-wash);
+  --color-soft-rose-edge: var(--k-color-soft-rose-edge);
+  --color-soft-rose-ink: var(--k-color-soft-rose-ink);
+  --color-soft-lilac: var(--k-color-soft-lilac);
+  --color-soft-lilac-wash: var(--k-color-soft-lilac-wash);
+  --color-soft-lilac-edge: var(--k-color-soft-lilac-edge);
+  --color-soft-lilac-ink: var(--k-color-soft-lilac-ink);
+  --color-soft-indigo-wash: var(--k-color-soft-indigo-wash);
+  --color-soft-indigo-edge: var(--k-color-soft-indigo-edge);
+
+  --radius-swatch: var(--k-radius-swatch);
+  --radius-chip: var(--k-radius-chip);
+  --radius-inset: var(--k-radius-inset);
+  --radius-control-compact: var(--k-radius-control-compact);
+  --radius-control: var(--k-radius-control);
+  --radius-row: var(--k-radius-row);
+  --radius-control-large: var(--k-radius-control-large);
+  --radius-card: var(--k-radius-card);
+  --radius-panel: var(--k-radius-panel);
+  --radius-sheet: var(--k-radius-sheet);
+  --radius-capsule: var(--k-radius-capsule);
+
+  --text-caption: var(--k-text-caption);
+  --text-caption--line-height: var(--k-text-caption-lh);
+  --text-label: var(--k-text-label);
+  --text-label--line-height: var(--k-text-label-lh);
+  --text-body: var(--k-text-body);
+  --text-body--line-height: var(--k-text-body-lh);
+  --text-page-body: var(--k-text-page-body);
+  --text-page-body--line-height: var(--k-text-page-body-lh);
+  --text-body-strong: var(--k-text-body-strong);
+  --text-body-strong--line-height: var(--k-text-body-strong-lh);
+  --text-page-title: var(--k-text-page-title);
+  --text-page-title--line-height: var(--k-text-page-title-lh);
+  --text-body-large: var(--k-text-body-large);
+  --text-body-large--line-height: var(--k-text-body-large-lh);
+  --text-subtitle: var(--k-text-subtitle);
+  --text-subtitle--line-height: var(--k-text-subtitle-lh);
+  --text-title-small: var(--k-text-title-small);
+  --text-title-small--line-height: var(--k-text-title-small-lh);
+  --text-title: var(--k-text-title);
+  --text-title--line-height: var(--k-text-title-lh);
+  --text-title-large: var(--k-text-title-large);
+  --text-title-large--line-height: var(--k-text-title-large-lh);
+  --text-headline: var(--k-text-headline);
+  --text-headline--line-height: var(--k-text-headline-lh);
+  --text-display-small: var(--k-text-display-small);
+  --text-display-small--line-height: var(--k-text-display-small-lh);
+  --text-display: var(--k-text-display);
+  --text-display--line-height: var(--k-text-display-lh);
+  --text-display-large: var(--k-text-display-large);
+  --text-display-large--line-height: var(--k-text-display-large-lh);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-jetbrains);
   --font-sovereign: var(--font-geist-sans), system-ui, sans-serif;
   --font-code: var(--font-jetbrains), monospace;
-  --color-void: var(--color-canvas);
-  --color-abyss: var(--color-chrome);
-  --color-panel: var(--color-surface);
-  --color-card: var(--color-raised);
-  --color-pulse-cyan: var(--color-accent);
-  --color-theorist: var(--color-warning);
-  --color-truth: var(--color-success);
-  --color-critic: var(--color-danger);
 }
 
 body {
@@ -184,7 +288,14 @@ body {
 
 /* Spring-style transitions */
 .spring-transition {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  /* D4: explicit properties only — `transition: all` animates layout and
+     paint the author never intended and is banned by the token lint. */
+  transition:
+    transform var(--motion-mid) var(--ease-spring),
+    opacity var(--motion-mid) var(--ease-spring),
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
 }
 
 /* Wave-2 accessibility: honor reduced-motion preferences by disabling the
@@ -970,6 +1081,33 @@ dialog::backdrop {
   background: color-mix(in oklab, var(--color-success) 10%, var(--color-surface));
 }
 
+/* C2: one declared need — one sentence, one remedy. */
+.k-workbench-need {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-inline-start: 3px solid var(--color-warning);
+  border-radius: var(--radius-inset);
+  background: color-mix(in oklab, var(--color-warning) 8%, var(--color-surface));
+  color: var(--color-label-secondary);
+  font-size: var(--text-label);
+  line-height: 1.45;
+}
+.k-workbench-need-remedy {
+  padding: 3px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+.k-workbench-need-remedy:hover { background: var(--color-fill-hover); }
+.k-workbench-need-remedy:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
 .k-workbench-checklist { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .k-workbench-checklist label {
   display: flex;
@@ -1542,6 +1680,12 @@ dialog::backdrop {
   background: var(--color-fill);
   color: var(--color-label-secondary);
 }
+.k-ask-receipt[data-outcome="working"],
+.k-ask-receipt[data-outcome="unknown"] {
+  border-color: color-mix(in oklab, var(--color-warning) 46%, transparent);
+  background: color-mix(in oklab, var(--color-warning) 12%, var(--color-surface));
+  color: var(--color-warning);
+}
 .k-ask-receipt > div { display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
 .k-ask-receipt strong { font-size: var(--text-label); color: var(--color-text); }
 
@@ -1612,3 +1756,280 @@ dialog::backdrop {
 :root[data-contrast="true"] .k-workbench-links path {
   stroke: var(--color-label-secondary);
 }
+
+/* C3: one bad item costs that item, never the canvas. */
+.k-workbench-card-failed {
+  border-inline-start-color: var(--color-danger);
+  background: color-mix(in oklab, var(--color-danger) 6%, var(--color-surface));
+}
+.k-workbench-card-failed p {
+  margin: 0;
+  color: var(--color-label-secondary);
+  font-size: var(--text-label);
+  line-height: 1.45;
+}
+.k-workbench-chart-failed {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 10px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  color: var(--color-label-secondary);
+  font-size: var(--text-label);
+}
+
+/* C1: recorded run parts, one column per helper, time-ordered. */
+.k-run-parts {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.k-run-column { flex: 0 0 auto; min-inline-size: 108px; }
+.k-run-column-head {
+  margin-block-end: 4px;
+  color: var(--color-muted);
+  font-family: var(--font-code, inherit);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.k-run-column ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.k-run-part {
+  display: flex;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.k-run-part[data-state="running"] { border-color: var(--color-info); }
+.k-run-part[data-state="failed"] { border-color: var(--color-danger); }
+.k-run-part[data-active="true"] { box-shadow: inset 0 0 0 1px var(--color-info); }
+.k-run-part-dot {
+  flex: 0 0 auto;
+  inline-size: 6px;
+  block-size: 6px;
+  margin-block-start: 4px;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+.k-run-part[data-state="running"] .k-run-part-dot { background: var(--color-info); }
+.k-run-part[data-state="waiting"] .k-run-part-dot { background: var(--color-warning); }
+.k-run-part[data-state="done"] .k-run-part-dot { background: var(--color-success); }
+.k-run-part[data-state="failed"] .k-run-part-dot { background: var(--color-danger); }
+.k-run-part[data-state="stopped"] .k-run-part-dot { background: var(--color-faint); }
+.k-run-part-copy { display: grid; gap: 1px; min-inline-size: 0; }
+.k-run-part-title { color: var(--color-text); }
+.k-run-part-now,
+.k-run-part-goal,
+.k-run-part-need { color: var(--color-muted); font-family: var(--font-code, inherit); font-size: 11px; }
+.k-run-part-need { color: var(--color-warning-ink); }
+.k-run-parts-hint { color: var(--color-muted); font-size: 11px; }
+.k-run-parts-open {
+  justify-self: start;
+  padding: 4px 8px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  cursor: pointer;
+}
+.k-run-parts-open:hover { background: var(--color-fill-hover); }
+
+/* C4: a labelled pending line; the pulse only runs while the card is on screen. */
+.k-workbench-pending {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  color: var(--color-label-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.k-workbench-pending-dot {
+  flex: 0 0 auto;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--color-info);
+  opacity: 0.55;
+}
+.k-workbench-pending[data-live="true"] .k-workbench-pending-dot {
+  animation: k-pending-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-workbench-pending[data-live="true"] .k-workbench-pending-dot { animation: none; }
+}
+[data-reduce-motion="true"] .k-workbench-pending[data-live="true"] .k-workbench-pending-dot { animation: none; }
+
+/* C7: far cards keep their footprint without mounting content. */
+.k-workbench-culled {
+  position: absolute;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: color-mix(in oklab, var(--color-surface) 60%, transparent);
+  pointer-events: none;
+}
+
+/* C6: arrival animation, skippable under reduced motion. */
+.k-workbench-card[data-arrival="true"] { animation: k-card-arrive 620ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .k-workbench-card[data-arrival="true"] { animation: none; }
+}
+[data-reduce-motion="true"] .k-workbench-card[data-arrival="true"] { animation: none; }
+
+@keyframes k-pending-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes k-card-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* C9: per-fact source chip — focus the record the value came from. */
+.k-fact-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-inline-start: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-fill);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.k-fact-source:hover { color: var(--color-text); background: var(--color-fill-hover); }
+.k-fact-source:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
+
+/* C8: plan card action row. */
+.k-plan-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* C10: steer a live run — context disclosure first, instruction second. */
+.k-run-steer {
+  display: grid;
+  gap: 5px;
+  margin-block-start: 6px;
+  padding-block-start: 6px;
+  border-block-start: 1px dashed var(--color-border);
+}
+.k-run-steer-context { display: grid; gap: 1px; color: var(--color-muted); font-size: 11px; line-height: 1.4; }
+.k-run-steer-row { display: flex; gap: 6px; }
+.k-run-steer-row input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inset);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 11px;
+}
+.k-run-steer-row input:focus-visible { outline: 1px solid var(--color-accent); outline-offset: 1px; }
+.k-run-steer-row button {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font-size: 11px;
+  cursor: pointer;
+}
+.k-run-steer-row button:disabled { opacity: 0.45; cursor: default; }
+.k-run-steer [role="status"] { font-size: 11px; color: var(--color-muted); }
+.k-run-steer [role="status"][data-state="error"] { color: var(--color-warning-ink); }
+
+/* D2: semantic button states. */
+.k-button-danger { background: var(--color-danger-wash); border-color: var(--color-danger-edge); color: var(--color-danger-ink); }
+.k-button-danger:hover { background: color-mix(in oklab, var(--color-danger) 20%, transparent); }
+.k-button-spinner {
+  display: inline-block;
+  inline-size: 0.7em;
+  block-size: 0.7em;
+  margin-inline-end: 0.4em;
+  border: 1.5px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 999px;
+  animation: k-button-spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-button-spinner { animation: none; opacity: 0.6; }
+}
+[data-reduce-motion="true"] .k-button-spinner { animation: none; opacity: 0.6; }
+@keyframes k-button-spin { to { transform: rotate(360deg); } }
+
+/* C11: allow-for-this-run control inside the metered gate. */
+.k-allowance {
+  display: grid;
+  gap: 6px;
+  padding-block-start: 8px;
+  border-block-start: 1px dashed var(--color-border);
+}
+.k-allowance-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+.k-allowance-sub { color: var(--color-muted); font-weight: 400; }
+.k-allowance-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.k-allowance-grid label { display: grid; gap: 1px; color: var(--color-muted); font-size: 11px; }
+.k-allowance-grid input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inset);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 11px;
+}
+.k-allowance-list { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.k-allowance-list li { display: flex; align-items: center; gap: 6px; color: var(--color-label-secondary); font-size: 11px; }
+.k-allowance-list label { display: flex; align-items: center; gap: 5px; min-inline-size: 0; }
+.k-allowance-list button { background: none; border: 0; color: var(--color-faint); cursor: pointer; padding: 2px; }
+.k-allowance-note { color: var(--color-muted); font-size: 11px; }
+.k-allowance [role="status"][data-state="error"] { color: var(--color-warning-ink); }
+
+/* D5: a chart with no measured values refuses; it never draws empty axes. */
+.k-chart-unavailable {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-inset);
+  background: var(--color-fill);
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.k-chart-unavailable strong { color: var(--color-text); }
+.k-chart-evidence button,
+.k-chart-tip-evidence button {
+  margin-inline-end: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-fill);
+  color: var(--color-info-ink);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.k-chart-evidence button:hover,
+.k-chart-tip-evidence button:hover { background: var(--color-fill-hover); }

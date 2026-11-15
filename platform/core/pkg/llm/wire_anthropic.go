@@ -51,7 +51,7 @@ func buildAnthropicPayload(wr wireRequest, stream bool) ([]byte, error) {
 	}
 
 	var thinkingCfg map[string]any
-	if effort := strings.ToLower(strings.TrimSpace(wr.ReasoningEffort)); effort == "low" || effort == "medium" || effort == "high" {
+	if effort := normalizeReasoningEffort(wr.Provider, wr.Model, wr.ReasoningEffort); effort != "" {
 		if supportsAdaptiveThinking(wr.Model) {
 			thinkingCfg = map[string]any{"type": "adaptive"}
 		} else {

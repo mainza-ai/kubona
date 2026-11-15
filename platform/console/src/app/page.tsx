@@ -5,12 +5,13 @@ import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, hasOperatorBearer, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, createTasksBatch, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, hasOperatorBearer, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
+import { newWriteRequestId, settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
+import { getWorkflowPlan, setWorkflowPlanTaskIds } from '@/domain/workflow-plan-store';
 import { setAuthPhase, useAuthPhase } from '@/domain/auth-state';
 import { subscribeInvalidation } from '@/domain/invalidation';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
@@ -20,7 +21,13 @@ import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
 import { useSessionsProjection } from '@/lib/useSessionsProjection';
-import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
+import { buildNeedsYou, unseenNeedsYou, type NeedItem } from '@/lib/needs-you';
+import { isSettingsSection, type SettingsSection } from '@/lib/shell-params';
+import { remedyFor } from '@/lib/need';
+import type { Need } from '@/types';
+import { useNeedsYouSeen } from '@/domain/needs-you-seen';
+import { NeedsYouTray } from '@/components/shell/NeedsYouTray';
+import { SHORTCUTS, SHORTCUT_TARGETS, shortcutFromEvent, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { CommandDock } from '@/components/shell/CommandDock';
 import { useCopilotChat } from '@/domain/useCopilotChat';
@@ -60,6 +67,7 @@ const LabsView = dynamic(() => import('@/components/surfaces/LabsView').then((mo
 const LLMSettings = dynamic(() => import('@/components/surfaces/LLMSettings').then((mod) => ({ default: mod.LLMSettings })), { ssr: false, loading: () => <SurfaceLoading label="LLM settings" /> });
 const QuantumSettings = dynamic(() => import('@/components/surfaces/QuantumSettings').then((mod) => ({ default: mod.QuantumSettings })), { ssr: false, loading: () => <SurfaceLoading label="quantum settings" /> });
 const AppearanceSettings = dynamic(() => import('@/components/surfaces/AppearanceSettings').then((mod) => ({ default: mod.AppearanceSettings })), { ssr: false, loading: () => <SurfaceLoading label="appearance" /> });
+const SkillsSettings = dynamic(() => import('@/components/surfaces/SkillsSettings').then((mod) => ({ default: mod.SkillsSettings })), { ssr: false, loading: () => <SurfaceLoading label="runtime skills" /> });
 const QuantumDispatch = dynamic(() => import('@/components/surfaces/QuantumDispatch').then((mod) => ({ default: mod.QuantumDispatch })), { ssr: false, loading: () => <SurfaceLoading label="quantum dispatch" /> });
 const ExperimentPanel = dynamic(() => import('@/components/common/ExperimentPanel').then((mod) => ({ default: mod.ExperimentPanel })), { ssr: false, loading: () => <SurfaceLoading label="experiment launcher" /> });
 const DiscoveryProtocolPanel = dynamic(() => import('@/components/common/DiscoveryProtocolPanel').then((mod) => ({ default: mod.DiscoveryProtocolPanel })), { ssr: false, loading: () => <SurfaceLoading label="discovery protocol" /> });
@@ -88,7 +96,21 @@ export default function Home() {
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
   const { jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = useJobsProjection(currentSessionId || null);
-  const { obligations, refresh: refreshObligations } = useObligationsProjection(canReadObligations);
+  const { obligations, status: obligationsStatus, refresh: refreshObligations } = useObligationsProjection(canReadObligations);
+  // Reviewer inbox (report §3.1): open obligations projected into the shell.
+  // The projection is pure; seen-state is device-local presentation state.
+  const needsYouItems = useMemo(() => buildNeedsYou(obligations), [obligations]);
+  const { seen: needsYouSeen, markSeen: markNeedsYouSeen, prune: pruneNeedsYouSeen } = useNeedsYouSeen();
+  const needsYouUnseen = useMemo(
+    () => unseenNeedsYou(needsYouItems, needsYouSeen),
+    [needsYouItems, needsYouSeen],
+  );
+  useEffect(() => {
+    // Prune only after a real read: an empty first snapshot must never erase
+    // what the reviewer has already looked at.
+    if (obligationsStatus !== 'ready' && obligationsStatus !== 'stale') return;
+    pruneNeedsYouSeen(needsYouItems.map((item) => item.signature));
+  }, [obligationsStatus, needsYouItems, pruneNeedsYouSeen]);
   const { tasks, refresh: refreshTasks } = useTasksProjection(currentSessionId || null);
   const { campaign, setCampaign, reload: reloadCampaign, failure: campaignFailure } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
@@ -100,7 +122,7 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
-  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'vault' | 'readiness' | 'appearance'>('models');
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('models');
   const [moleculeObjectViewOpen, setMoleculeObjectViewOpen] = useState(false);
   const [inlineGateOwned, setInlineGateOwned] = useState(false);
   const [liftedObject, setLiftedObject] = useState<WorkbenchObject | null>(null);
@@ -139,6 +161,7 @@ export default function Home() {
   const [createError, setCreateError] = useState<string | null>(null);
   const createWrite = useWriteSettlement();
   const taskWrite = useWriteSettlement();
+  const [planTaskBusy, setPlanTaskBusy] = useState(false);
   const obligationWrite = useWriteSettlement();
   const createFailedRef = useRef(false);
   // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
@@ -152,6 +175,7 @@ export default function Home() {
   const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
   const workbenchRef = useRef<WorkbenchHandle>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
+  const [needsYouOpen, setNeedsYouOpen] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -682,6 +706,36 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }, [currentSessionId, refreshTasks, taskWrite]);
 
+  // C8: materialize the published dry-run plan into tasks, in plan order,
+  // under one idempotency key. The card flips to "Open in Tasks" only after
+  // the batch is confirmed.
+  const handleMakePlanTasks = useCallback(async () => {
+    const plan = getWorkflowPlan();
+    if (!plan || !currentSessionId || plan.taskIds?.length) return;
+    setPlanTaskBusy(true);
+    const requestId = newWriteRequestId();
+    try {
+      const tasks = plan.steps.map((step, index) => ({
+        title: `${step.id || step.tool} — ${step.tool}`.slice(0, 200),
+        source_domain: 'plan',
+        source_id: plan.workflowId,
+        order: index,
+      }));
+      const out = await createTasksBatch(currentSessionId, tasks, requestId);
+      if (out.ok) {
+        setWorkflowPlanTaskIds(out.tasks.map((task) => task.id));
+        refreshTasks();
+        setToast({ key: Date.now(), text: `${out.tasks.length} task${out.tasks.length === 1 ? '' : 's'} created from the plan.` });
+      } else {
+        setToast({ key: Date.now(), text: `Task batch ${out.unknown ? 'unconfirmed' : 'refused'}: ${out.error}` });
+      }
+    } finally {
+      setPlanTaskBusy(false);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
+    }
+  }, [currentSessionId, refreshTasks]);
+
   const handleCloseObligation = useCallback(async (id: string) => {
     const requestId = obligationWrite.begin('close obligation');
     const out = await closeObligation(id);
@@ -866,15 +920,16 @@ export default function Home() {
     isMeteredBackend(campaign?.quantum_factors?.recommended_backend) &&
     !gateState[currentSessionId];
 
-  const focusWorkbenchTarget = useCallback((id: string) => {
+  const focusWorkbenchTarget = useCallback((id: string): boolean => {
     setSurface('arena');
     setArenaView('workbench');
     setMoleculeObjectViewOpen(false);
-    if (workbenchRef.current) {
-      workbenchRef.current.focusObject(id);
-    } else {
-      setTimeout(() => workbenchRef.current?.focusObject(id), 0);
-    }
+    if (workbenchRef.current) return workbenchRef.current.focusObject(id);
+    // The Workbench mounts on this state change; retry once it is live. The
+    // deferred result cannot be reported synchronously, so callers that need
+    // certainty check the object list first (see reviewNeed).
+    setTimeout(() => workbenchRef.current?.focusObject(id), 0);
+    return true;
   }, []);
 
   // Run-state derivation: overdue, lit probe, HUD status line.
@@ -901,12 +956,13 @@ export default function Home() {
     setTimeout(() => setGateNotice(null), 6000);
   }, [gateOpen]);
 
-  // Global keyboard shortcuts — driven by lib/shortcuts (KEY_TO_SHORTCUT +
+  // Global keyboard shortcuts — driven by lib/shortcuts (shortcutFromEvent +
   // SHORTCUT_TARGETS), the same table the palette labels. Digits are
   // meta-only (Ctrl+digits keep switching browser tabs on non-macOS);
-  // letters keep Cmd-or-Ctrl. Inside text inputs only the palette toggle
-  // survives (the escape hatch) so typing is never stolen. '?' keeps its
-  // historic no-modifier behavior outside inputs.
+  // letters keep Cmd-or-Ctrl. Browser-reserved letters require Shift.
+  // Inside text inputs only the palette toggle survives (the escape hatch)
+  // so typing is never stolen. '?' keeps its historic no-modifier behavior
+  // outside inputs.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -925,10 +981,11 @@ export default function Home() {
         setIsExperimentLabOpen(false);
         return;
       }
-      const shortcutName = KEY_TO_SHORTCUT[key];
-      if (!shortcutName) return;
+      if (e.altKey) return;
+      const shortcutName = shortcutFromEvent(e);
+      if (!shortcutName || shortcutName === 'help') return;
       const target = SHORTCUT_TARGETS[shortcutName as ShortcutKey];
-      const isDigit = /^[0-9]$/.test(e.key);
+      const isDigit = /^[0-9]$/.test(key);
       const modOk = isDigit ? e.metaKey && !e.ctrlKey : e.metaKey || e.ctrlKey;
       if (!modOk) return;
       if (inField && target !== 'palette') return;
@@ -1023,15 +1080,95 @@ export default function Home() {
     [liveWorkbenchSummary, currentSessionId, campaign, loops, jobs, obligations, tasks, session?.current_spend_usd],
   );
 
+  // Needs-you tray actions. Opening counts as looking; review routes to the
+  // surface that owns the subject's decision rather than deciding anything
+  // here. When the Workbench is already live and the subject is not on this
+  // campaign's canvas, the reviewer lands on the obligation queue instead of
+  // a dead click (the alias rule stays in resolveFocusObjectId).
+  const openNeedsYou = useCallback(() => {
+    markNeedsYouSeen(needsYouItems.map((item) => item.signature));
+    setNeedsYouOpen(true);
+  }, [markNeedsYouSeen, needsYouItems]);
+  const closeNeedsYou = useCallback(() => setNeedsYouOpen(false), []);
+  // An unread queue is "unknown", never "empty".
+  const needsYouQueueStatus: 'loading' | 'ready' | 'unavailable' =
+    obligationsStatus === 'ready' || obligationsStatus === 'stale'
+      ? 'ready'
+      : obligationsStatus === 'refused'
+        ? 'unavailable'
+        : 'loading';
+  const openGuardrailsQueue = useCallback(() => {
+    setNeedsYouOpen(false);
+    setSurface('mesh');
+    setMeshTab('guardrails');
+    setInspectorOpen(false);
+  }, []);
+  const reviewNeed = useCallback(
+    (item: NeedItem) => {
+      setNeedsYouOpen(false);
+      switch (item.subjectClass) {
+        case 'job':
+        case 'loop':
+        case 'campaign':
+        case 'task':
+          if (!focusWorkbenchTarget(item.subjectId || item.id)) {
+            setSurface('mesh');
+            setMeshTab('guardrails');
+            setInspectorOpen(false);
+          }
+          return;
+        case 'claim':
+          setSurface('proofs');
+          setProofsTab('tribunal');
+          setInspectorOpen(false);
+          return;
+        case 'proof':
+          setSurface('proofs');
+          setProofsTab('gallery');
+          setInspectorOpen(false);
+          return;
+        default:
+          setSurface('mesh');
+          setMeshTab('guardrails');
+          setInspectorOpen(false);
+      }
+    },
+    [focusWorkbenchTarget],
+  );
+
+  // C2: one remedy per need, routed to the surface that can actually act.
+  // The need's own sentence stays on the card; this never retries or spends
+  // silently — it moves the reviewer to the place where the fix lives.
+  const handleNeedRemedy = useCallback(
+    (need: Need) => {
+      const remedy = remedyFor(need.kind);
+      if (!remedy) return;
+      if (remedy.surface === 'copilot') {
+        openInspector('copilot');
+        return;
+      }
+      if (remedy.surface === 'guardrails') {
+        setNeedsYouOpen(false);
+        setSurface('mesh');
+        setMeshTab('guardrails');
+        setInspectorOpen(false);
+        return;
+      }
+      handleSelectMode('settings');
+      if (isSettingsSection(remedy.section)) setSettingsSection(remedy.section);
+    },
+    [handleSelectMode, openInspector],
+  );
+
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
     <div className="flex items-center justify-center px-4 pt-4">
-      <div className="bg-[var(--color-float)] border border-[var(--color-border-strong)] rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-[var(--shadow-float)]">
+      <div className="bg-float border border-border-strong rounded-card sm:rounded-capsule p-1 flex flex-wrap items-center justify-center max-w-full shadow-[var(--shadow-float)]">
         {options.map((o) => (
           <button
             key={o.id}
             onClick={() => onChange(o.id)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-              value === o.id ? 'bg-[var(--color-fill-active)] text-[var(--color-text)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+            className={`px-3.5 py-1.5 rounded-capsule text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
+              value === o.id ? 'bg-fill-active text-text' : 'text-muted hover:text-text'
             }`}
           >
             {o.label}
@@ -1042,7 +1179,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-dvh w-full bg-[var(--color-canvas)] text-[var(--color-text)] overflow-hidden font-sovereign">
+    <div className="flex h-dvh w-full bg-canvas text-text overflow-hidden font-sovereign">
       <a href="#kubona-main" className="k-skip-link">Skip to main content</a>
       <AttentionProvider>
       {/* Modals & Dialogs */}
@@ -1077,7 +1214,7 @@ export default function Home() {
         body={
           <>
             EMERGENCY ABORT: settle every unsettled job in session{' '}
-            <code className="rounded bg-[var(--color-fill)] text-[var(--color-text)] px-1 font-mono">{currentSessionId}</code> as
+            <code className="rounded-chip bg-fill text-text px-1 font-mono">{currentSessionId}</code> as
             failed? This cannot be undone.
           </>
         }
@@ -1100,7 +1237,7 @@ export default function Home() {
           body={
             <span>
               This will permanently remove its state and transcripts. Type{' '}
-              <code className="rounded bg-[var(--color-fill)] text-[var(--color-text)] px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
+              <code className="rounded-chip bg-fill text-text px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
             </span>
           }
           requireText={deleteDraft.id.slice(0, 8)}
@@ -1132,7 +1269,7 @@ export default function Home() {
         <div
           data-testid="create-campaign-error"
           role="alert"
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] max-w-lg px-4 py-2.5 rounded-2xl bg-[var(--color-float)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-xs shadow-[var(--shadow-float)]"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] max-w-lg px-4 py-2.5 rounded-card bg-float border border-danger-edge text-danger-ink text-label shadow-[var(--shadow-float)]"
         >
           {createError}
         </div>
@@ -1144,6 +1281,18 @@ export default function Home() {
         onSelect={handleSelectMode}
         airGapSovereign={access ? access.llm_local !== false : true}
         onOpenCampaigns={() => setShowCampaignMenu((v) => !v)}
+        needsYouCount={needsYouUnseen.length}
+        needsYouOpen={needsYouOpen}
+        needsYouStatus={needsYouQueueStatus}
+        onOpenNeedsYou={needsYouOpen ? closeNeedsYou : openNeedsYou}
+      />
+      <NeedsYouTray
+        items={needsYouItems}
+        open={needsYouOpen}
+        onClose={closeNeedsYou}
+        onFocus={reviewNeed}
+        onOpenQueue={openGuardrailsQueue}
+        queueStatus={needsYouQueueStatus}
       />
 
       {/* Campaign menu (avatar popover) — grouped by tenant, filterable.
@@ -1166,14 +1315,14 @@ export default function Home() {
         }
         const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
         return (
-        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[var(--color-surface-elev)] border border-[var(--color-border-strong)] shadow-[var(--shadow-float)] p-3 space-y-2">
+        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-card bg-surface-elev border border-border-strong shadow-[var(--shadow-float)] p-3 space-y-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-[12px] font-code uppercase tracking-wider text-[var(--color-muted)]">
+            <span className="text-[12px] font-code uppercase tracking-wider text-muted">
               Campaigns ({sessions.length})
             </span>
             <button
               onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] hover:bg-[var(--color-fill-hover)] transition-all"
+              className="flex items-center gap-1 px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink text-[12px] hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
             >
               <Plus className="w-3 h-3" /> New <kbd className="font-code text-[12px]">{SHORTCUTS.newCampaign}</kbd>
             </button>
@@ -1185,37 +1334,37 @@ export default function Home() {
             onChange={(e) => setCampaignFilter(e.target.value)}
             placeholder="Filter by title or lab…"
             aria-label="Filter campaigns by title or lab"
-            className="w-full px-2.5 py-1.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs text-[var(--color-text)] placeholder-[var(--color-faint)] focus:outline-none focus:border-[var(--color-info)]"
+            className="w-full px-2.5 py-1.5 rounded-row bg-field border border-border text-label text-text placeholder-[var(--color-faint)] focus:outline-none focus:border-info"
           />
           <div className="max-h-64 overflow-y-auto space-y-3">
             {ordered.length === 0 && (
               sessionListError ? (
                 /multi-lab|unauthorized|log in/i.test(sessionListError) ? (
-                  <div role="status" className="text-[12px] text-[var(--color-warning-ink)] px-1 py-2 space-y-1">
+                  <div role="status" className="text-[12px] text-warning-ink px-1 py-2 space-y-1">
                     <p>This is a multi-lab workspace. Sign in to see your lab’s campaigns.</p>
                     <button
                       type="button"
                       onClick={() => { setShowCampaignMenu(false); setSurface('mesh'); setMeshTab('labs'); setInspectorOpen(false); }}
-                      className="text-[var(--color-info-ink)] underline underline-offset-2"
+                      className="text-info-ink underline underline-offset-2"
                     >
                       Sign in
                     </button>
                   </div>
                 ) : (
-                  <div role="alert" className="text-[12px] text-[var(--color-warning-ink)] px-1 py-2 space-y-1">
+                  <div role="alert" className="text-[12px] text-warning-ink px-1 py-2 space-y-1">
                     <p>Campaigns unavailable: {sessionListError}</p>
-                    <button type="button" onClick={() => void refreshData()} className="text-[var(--color-info-ink)] underline underline-offset-2">
+                    <button type="button" onClick={() => void refreshData()} className="text-info-ink underline underline-offset-2">
                       Retry
                     </button>
                   </div>
                 )
               ) : (
-                <div className="text-[12px] text-[var(--color-faint)] px-1 py-2">{sessions.length === 0 ? 'No campaigns yet.' : 'No campaigns match.'}</div>
+                <div className="text-[12px] text-faint px-1 py-2">{sessions.length === 0 ? 'No campaigns yet.' : 'No campaigns match.'}</div>
               )
             )}
             {ordered.map(([tenant, list]) => (
               <div key={tenant} className="space-y-1.5">
-                <div className="px-1 text-[12px] font-code uppercase tracking-wider text-[var(--color-faint)]">
+                <div className="px-1 text-[12px] font-code uppercase tracking-wider text-faint">
                   Lab: {tenant} ({list.length})
                 </div>
                 {list.map((s) => {
@@ -1226,25 +1375,25 @@ export default function Home() {
                 <div key={s.id} className="relative group">
                   <button
                     onClick={() => { switchSession(s.id); setShowCampaignMenu(false); }}
-                    className={`w-full text-left p-2.5 pr-8 rounded-xl text-xs transition-all border ${
+                    className={`w-full text-left p-2.5 pr-8 rounded-row text-label transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] border ${
                       isSelected
-                        ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-text)]'
-                        : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]'
+                        ? 'bg-info-wash border-info-edge text-text'
+                        : 'bg-surface border-border text-label-secondary hover:bg-fill-hover'
                     }`}
                   >
                     <div className="font-semibold truncate">{s.title}</div>
-                    <div className="text-[12px] font-code text-[var(--color-muted)] flex justify-between mt-0.5">
+                    <div className="text-[12px] font-code text-muted flex justify-between mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(s.created_at).toLocaleDateString()}
                       </span>
-                      <span className="text-[var(--color-warning-ink)]">${spend.toFixed(2)} / ${limit.toFixed(2)}</span>
+                      <span className="text-warning-ink">${spend.toFixed(2)} / ${limit.toFixed(2)}</span>
                     </div>
                   </button>
                   <button
                     onClick={(e) => handleDeleteSession(e, s.id)}
                     aria-label={`Delete ${s.title}`}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg text-[var(--color-faint)] hover:text-[var(--color-danger-ink)] hover:bg-[var(--color-danger-wash)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-all"
+                    className="absolute top-2 right-2 p-1.5 rounded-control-compact text-faint hover:text-danger-ink hover:bg-danger-wash opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1254,14 +1403,14 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--color-border)] text-[12px]">
-            <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-[var(--color-danger-ink)] hover:opacity-80 transition-opacity">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border text-[12px]">
+            <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-danger-ink hover:opacity-80 transition-opacity">
               <Zap className="w-3.5 h-3.5" /> Ring 0 Intercept
             </button>
-            <button onClick={() => { setShowCampaignMenu(false); setIsAboutOpen(true); }} className="flex items-center gap-1.5 text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors">
+            <button onClick={() => { setShowCampaignMenu(false); setIsAboutOpen(true); }} className="flex items-center gap-1.5 text-label-secondary hover:text-text transition-colors">
               <Info className="w-3.5 h-3.5" /> Lab Info
             </button>
-            <button onClick={() => { setShowCampaignMenu(false); setIsShortcutsOpen(true); }} className="flex items-center gap-1 text-[var(--color-label-secondary)] hover:text-[var(--color-text)] transition-colors">
+            <button onClick={() => { setShowCampaignMenu(false); setIsShortcutsOpen(true); }} className="flex items-center gap-1 text-label-secondary hover:text-text transition-colors">
               <HelpCircle className="w-3.5 h-3.5" /> <span className="font-code">?</span>
             </button>
           </div>
@@ -1349,6 +1498,9 @@ export default function Home() {
                   }
                 }}
                 onOpenObject={handleOpenWorkbenchObject}
+                onNeedRemedy={handleNeedRemedy}
+                onMakePlanTasks={() => { void handleMakePlanTasks(); }}
+                planTaskBusy={planTaskBusy}
                 onAskSelection={(selectedObjs) => {
                   const first = selectedObjs[0];
                   if (first) setSelectedWorkbenchObject(first);
@@ -1374,13 +1526,13 @@ export default function Home() {
                 role="dialog"
                 aria-label="Molecule object view"
                 data-testid="molecule-object-view"
-                className="absolute inset-0 overflow-y-auto overscroll-contain pt-6 px-6 pb-6 bg-[var(--color-canvas)]/95"
+                className="absolute inset-0 overflow-y-auto overscroll-contain pt-6 px-6 pb-6 bg-canvas/95"
               >
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
                   <button
                     onClick={() => setMoleculeObjectViewOpen(false)}
                     aria-label="Close molecule object view"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-fill)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-capsule bg-fill border border-border text-[12px] text-label-secondary hover:text-text hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
                   >
                     <X className="w-3.5 h-3.5" /> Back to Workbench
                   </button>
@@ -1413,7 +1565,7 @@ export default function Home() {
               />
             )}
             {gateNotice && (
-              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] text-[var(--color-label-secondary)] shadow-[var(--shadow-float)]">
+              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-card bg-float border border-border-strong text-[12px] text-label-secondary shadow-[var(--shadow-float)]">
                 {gateNotice}
               </div>
             )}
@@ -1422,7 +1574,7 @@ export default function Home() {
                 key={toast.key}
                 role="status"
                 aria-live="polite"
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-code text-[var(--color-text)] shadow-[var(--shadow-float)]"
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-capsule bg-float border border-border-strong text-[12px] font-code text-text shadow-[var(--shadow-float)]"
               >
                 {toast.text}
               </div>
@@ -1432,18 +1584,18 @@ export default function Home() {
           {isExperimentLabOpen && (
             <>
               <div
-                className="fixed inset-0 z-30 bg-[var(--color-canvas)]/70 backdrop-blur-[2px] lg:hidden"
+                className="fixed inset-0 z-30 bg-canvas/70 backdrop-blur-[2px] lg:hidden"
                 onClick={() => setIsExperimentLabOpen(false)}
                 aria-hidden="true"
               />
               <aside
                 aria-label="Experiment & Discovery Lab"
-                className="fixed inset-y-0 right-0 z-40 w-[min(26rem,100%)] lg:static lg:z-auto lg:w-[420px] shrink-0 flex flex-col bg-[var(--color-surface-elev)] border-l border-[var(--color-border-strong)] shadow-[var(--shadow-float)] lg:shadow-none"
+                className="fixed inset-y-0 right-0 z-40 w-[min(26rem,100%)] lg:static lg:z-auto lg:w-[420px] shrink-0 flex flex-col bg-surface-elev border-l border-border-strong shadow-[var(--shadow-float)] lg:shadow-none"
               >
-                <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+                <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Zap className="w-4 h-4 text-[var(--color-accent-ink)] shrink-0" />
-                    <h2 className="text-xs font-code uppercase tracking-wider text-[var(--color-text)] truncate">
+                    <Zap className="w-4 h-4 text-accent-ink shrink-0" />
+                    <h2 className="text-label font-code uppercase tracking-wider text-text truncate">
                       Experiment &amp; Discovery Lab
                     </h2>
                     <KeyHint>{SHORTCUTS.experimentLab}</KeyHint>
@@ -1452,7 +1604,7 @@ export default function Home() {
                     type="button"
                     onClick={() => setIsExperimentLabOpen(false)}
                     aria-label="Close Experiment & Discovery Lab"
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+                    className="w-7 h-7 rounded-capsule flex items-center justify-center text-muted hover:text-text hover:bg-fill-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1538,6 +1690,7 @@ export default function Home() {
                       ['quantum', 'Quantum providers'],
                       ['dispatch', 'Quantum dispatch'],
                       ['vault', 'Vault leases'],
+                      ['skills', 'Runtime skills'],
                       ['readiness', 'System readiness'],
                       ['appearance', 'Appearance'],
                     ] as const).map(([id, label]) => (
@@ -1556,6 +1709,7 @@ export default function Home() {
                   {settingsSection === 'quantum' && <QuantumSettings />}
                   {settingsSection === 'dispatch' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
                   {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
+                  {settingsSection === 'skills' && <SkillsSettings />}
                   {settingsSection === 'readiness' && <SystemReadinessPanel />}
                   {settingsSection === 'appearance' && <AppearanceSettings />}
                 </div>
@@ -1652,14 +1806,14 @@ export default function Home() {
       {!inspectorOpen && surface !== 'arena' && (
         <button
           onClick={() => { openInspector('details'); }}
-          className="fixed bottom-12 right-6 z-40 px-4 py-2.5 rounded-full bg-[var(--color-float)] border border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-[var(--shadow-float)] flex items-center space-x-2.5 group transition-colors duration-200"
+          className="fixed bottom-12 right-6 z-40 px-4 py-2.5 rounded-capsule bg-float border border-accent-edge hover:bg-fill-hover text-text shadow-[var(--shadow-float)] flex items-center space-x-2.5 group transition-colors duration-200"
           title={`Open Inspector (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
-            <Sparkles className="w-4 h-4 text-[var(--color-accent-ink)]" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--color-success)]" />
+            <Sparkles className="w-4 h-4 text-accent-ink" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-capsule bg-success" />
           </div>
-          <span className="text-xs font-semibold text-[var(--color-label-secondary)] group-hover:text-[var(--color-text)]">Inspector</span>
+          <span className="text-label font-semibold text-label-secondary group-hover:text-text">Inspector</span>
           <KeyHint>{SHORTCUTS.copilot}</KeyHint>
         </button>
       )}

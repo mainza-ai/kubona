@@ -9,3 +9,7 @@ node_modules
 coverage
 .kubona
 state
+# Tests import repo files outside this image context (palette script).
+# Host tsc and vitest still typecheck them; the production image does not.
+**/*.test.ts
+**/*.test.tsx

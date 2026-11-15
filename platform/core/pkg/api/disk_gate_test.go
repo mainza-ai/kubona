@@ -57,7 +57,7 @@ func TestDiskBlockedRefusesNewWork(t *testing.T) {
 	// every new-work entry below must now 503 with the code.
 	entries := map[string]any{
 		"/api/jobs":               map[string]any{"session_id": sid, "qasm": idemQASM},
-		"/api/chat/launch":        map[string]any{"session_id": sid, "qasm": idemQASM, "backend": "local_simulator"},
+		"/api/chat/launch":        map[string]any{"session_id": sid},
 		"/api/chat/tribunal":      map[string]any{"session_id": sid, "prompt": "disk drill"},
 		"/api/autoresearch/start": map[string]any{"session_id": sid, "harness_id": "ansatz-search", "max_iterations": 1},
 		"/api/metasearch/apply":   map[string]any{"proposal_id": "nope"},

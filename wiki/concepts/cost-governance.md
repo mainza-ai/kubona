@@ -10,6 +10,20 @@ status: settled
 
 # Cost Governance
 
+> **LLM budget reservation (B3, 2026-11-14).** The cloud-LLM cap is no longer
+> checked once per chat entry: the shared `llm.Client` carries a `SpendGuard`
+> installed by the server, so **every** metered call (copilot tool loops,
+> unary, streams, tribunal, agents) reserves before the wire request. The
+> guard computes `remaining = cap − measured spend − in-flight reservations`,
+> derives an affordable output-token ceiling from the model's output rate
+> (prompt worst case included), applies it as `max_tokens`, and releases the
+> reservation after the measured spend is recorded. Unpriced metered models,
+> unreadable ledgers, and blind (unmetered) spend refuse the call; a refusal
+> never reaches the provider. Ceilings are bounded at 4,096 by default and
+> 8,192 maximum, so formerly unbounded cloud completions are now bounded by
+> the budget. Honest limit: reservations are in-process — a multi-daemon
+> deployment sharing one ledger is not coordinated by this guard.
+
 The mechanism that keeps agent-driven hardware spend controlled. A single
 mis-configured [[vqa-vqe|VQE]] run with the wrong shot count can burn thousands of
 dollars on trapped-ion hardware in minutes — so governance is a **functional requirement**,

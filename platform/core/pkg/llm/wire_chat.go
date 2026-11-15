@@ -108,8 +108,10 @@ func (c *Client) execChatCompletions(ctx context.Context, wr wireRequest) (*wire
 	if wr.MaxTokens > 0 {
 		body["max_tokens"] = wr.MaxTokens
 	}
-	if wr.ReasoningEffort != "" && (wr.Provider == ProviderOpenAI || wr.Provider == ProviderOpenRouter || wr.Provider == ProviderXAI || wr.Provider == ProviderGroq) {
-		body["reasoning_effort"] = wr.ReasoningEffort
+	// B13: send an effort only when the provider accepts effort control AND
+	// the model is declared reasoning-capable; normalize to a supported level.
+	if effort := normalizeReasoningEffort(wr.Provider, wr.Model, wr.ReasoningEffort); effort != "" {
+		body["reasoning_effort"] = effort
 	}
 	if wr.ResponseFormat != nil {
 		body["response_format"] = wr.ResponseFormat

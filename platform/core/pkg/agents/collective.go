@@ -17,6 +17,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
+	"github.com/mainza-ai/kubona/core/pkg/untrusted"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -76,12 +77,6 @@ type ObservedCall struct {
 	Untrusted bool   `json:"untrusted"`
 }
 
-// provenanceTag renders the trust marking embedded in observation history.
-// Tool data is NEVER principal speech: the tag travels with the bytes.
-func provenanceTag(source string) string {
-	return "[provenance source=" + source + " trust=untrusted]"
-}
-
 // observeTurn runs a single plan→tool→observe round for one tribunal turn
 // and returns the augmented history plus the observed dispatches. Any
 // failure returns base unchanged with no calls — the turn then proceeds
@@ -122,10 +117,13 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 			"tool": c.Name, "ok": derr == nil,
 			"error": errText(derr), "data": out,
 		})
-		// The tag lives INSIDE the budget: truncate the data to leave
-		// room, so provenance can never push context past the cap.
-		tag := provenanceTag(source)
-		room := obsCap - len([]rune(tag)) - 1
+		// B6/S4: the shared fence, with the tag inside the budget so
+		// provenance can never push context past the cap.
+		tag := untrusted.Tag(source)
+		room := obsCap - len([]rune(tag)) - len([]rune(untrusted.CloseMark)) - 2
+		if room < 0 {
+			room = 0
+		}
 		body := llm.TruncateObservation(string(obs), room)
 		// R4: oversized results resolve through a ready-to-call
 		// continuation, never lossy truncation. The FULL bytes stay
@@ -135,11 +133,11 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 		// legacy marked truncation — same bytes, same tag.
 		if store := EvidenceStoreFromContext(ctx); store != nil && len([]rune(string(obs))) > room {
 			it := store.Put("observation", c.Name, string(obs), "")
-			preview := llm.TruncateObservation(string(obs), 1000)
-			body = fmt.Sprintf("%s oversized (%d runes, retained server-side): %s [continue via evidence_continue %s]",
-				tag, len([]rune(string(obs))), preview, it.ID)
+			preview := untrusted.Neutralize(llm.TruncateObservation(string(obs), 1000))
+			body = fmt.Sprintf("%s oversized (%d runes, retained server-side): %s [continue via evidence_continue %s]\n%s",
+				tag, len([]rune(string(obs))), preview, it.ID, untrusted.CloseMark)
 		} else {
-			body = tag + " " + body
+			body = tag + " " + untrusted.Neutralize(body) + "\n" + untrusted.CloseMark
 		}
 		hist = append(hist, llm.ChatMessage{
 			Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
@@ -233,6 +231,12 @@ func (ac *AgentCollective) GetManifest(role AgentRole) (RoleManifest, error) {
 		return RoleManifest{}, fmt.Errorf("role '%s' not registered in collective", role)
 	}
 	return manifest, nil
+}
+
+// systemPrompt is the manifest prompt plus the fixed untrusted-data rule
+// (B6). Both rails use the same rule so a role cannot grow a weaker policy.
+func (ac *AgentCollective) systemPrompt(role AgentRole) string {
+	return string(ac.manifests[role].SystemPrompt) + "\n" + untrusted.SystemRule
 }
 
 func (ac *AgentCollective) ListRoles() []RoleManifest {
@@ -656,7 +660,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	if llmClient != nil && !breached1 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
-			{Role: "system", Content: string(ac.manifests[RoleAnsatzScout].SystemPrompt)},
+			{Role: "system", Content: ac.systemPrompt(RoleAnsatzScout)},
 			{Role: "user", Content: turn1Prompt},
 		}
 		turnMsgs, obs1 = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
@@ -708,7 +712,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	if llmClient != nil && !breached2 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
-			{Role: "system", Content: string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt)},
+			{Role: "system", Content: ac.systemPrompt(RoleDisconfirmationOfficer)},
 			{Role: "user", Content: turn2Prompt},
 		}
 		turnMsgs, obs2 = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
@@ -781,7 +785,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if llmClient != nil && !breached3 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
-				{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
+				{Role: "system", Content: ac.systemPrompt(RoleDeviceAuditor)},
 				{Role: "user", Content: turn3Prompt},
 			}
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
@@ -834,7 +838,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if llmClient != nil && !breached4 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
-				{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
+				{Role: "system", Content: ac.systemPrompt(RoleEpistemicScribe)},
 				{Role: "user", Content: turn4Prompt},
 			}
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)

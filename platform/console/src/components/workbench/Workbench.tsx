@@ -1,15 +1,20 @@
 'use client';
 
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Crosshair, LayoutGrid, List, Map as MapIcon, Maximize2, Minus, Plus } from 'lucide-react';
-import type { CampaignState, Job, Loop, Task } from '@/types';
+import { Crosshair, LayoutGrid, List, Map as MapIcon, Maximize2, Minus, Plus, Link2 } from 'lucide-react';
+import type { CampaignState, Job, Loop, Need, Task } from '@/types';
 import type { AccessState } from '@/lib/api';
 import { fetchCanvasLayout, fetchWorkbenchLayout, fetchWorkbenchView, hasOperatorBearer, saveWorkbenchLayout, saveWorkbenchView, type ObligationRow } from '@/lib/api';
 import { useAuthPhase } from '@/domain/auth-state';
+import { useWorkflowPlan } from '@/domain/workflow-plan-store';
+import { useReducedMotion } from '@/lib/motion';
+import { isLiveNeed, needSentence, remedyFor } from '@/lib/need';
 import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
+import { RenderBoundary } from './RenderBoundary';
+import { LoopPartsLane } from './LoopPartsLane';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { acceptWrite, newWriteRequestId, reconcileOperation, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import { PALETTE } from '@/styles/palette.generated';
@@ -35,7 +40,14 @@ import {
   distributeSelectedPositions,
   dropSpot,
   filterWorkbenchObjects,
+  followCamera,
+  arrivalDiff,
+  withinNearViewport,
+  resolveFactSource,
+  type WorkbenchFactSource,
   freeSpot,
+  sanitizeWorkbenchLinks,
+  sanitizeWorkbenchObjects,
   getNodeRenderSize,
   hasExplicitCameraRecord,
   layoutBounds,
@@ -87,6 +99,13 @@ type Props = {
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
   onLiftObject?: (object: WorkbenchObject) => void;
   onAskSelection?: (objects: WorkbenchObject[]) => void;
+  /** Route the reviewer to the single remedy for a typed need (C2). */
+  onNeedRemedy?: (need: Need) => void;
+  /** C9: focus the record a fact came from. */
+  onFactSource?: (from: { domain: string; id: string }) => void;
+  /** C8: create the plan's tasks (page owns the write). */
+  onMakePlanTasks?: (object: WorkbenchObject) => void;
+  planTaskBusy?: boolean;
   onObjectsChange?: (objects: WorkbenchObject[]) => void;
   onCreateCampaign?: () => void;
   confirmGate?: ConfirmGateConfig | null;
@@ -122,7 +141,8 @@ type WorkbenchUndoEntry = {
 const MAX_UNDO_ENTRIES = 30;
 
 export type WorkbenchHandle = {
-  focusObject: (id: string) => void;
+  /** Focus a card and report whether the card exists on this canvas. */
+  focusObject: (id: string) => boolean;
   removeObject: (id: string) => void;
 };
 
@@ -133,7 +153,7 @@ function lodForZoom(zoom: number): WorkbenchViewLod {
 }
 
 export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onObjectsChange, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authError = false, onSignIn, access,
+  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, recenterSignal = 0, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onLiftObject, onAskSelection, onNeedRemedy, onFactSource, onMakePlanTasks, planTaskBusy = false, onObjectsChange, onCreateCampaign, confirmGate = null, onGateSettled, onInlineGateVisibility, localMode = false, multiLab = false, authError = false, onSignIn, access,
 }, ref) {
   const authPhase = useAuthPhase();
   const canPersistWorkbench =
@@ -175,7 +195,8 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   const [draggingIds, setDraggingIds] = useState<Set<string>>(() => new Set());
   const [edgeVisibility, setEdgeVisibility] = useState<EdgeVisibility>('hybrid');
   const [filter, setFilter] = useState<WorkbenchFilter>('all');
-  const [followLive, setFollowLive] = useState(false);
+  const [followLive, setFollowLive] = useState(true);
+  const reducedMotion = useReducedMotion();
   const [held, setHeld] = useState(false);
   const [unseen, setUnseen] = useState(
     () => typeof document !== 'undefined' && document.visibilityState === 'hidden',
@@ -210,8 +231,9 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
   const obligations = useMemo(() => suppliedObligations ?? [], [suppliedObligations]);
   const tasks = useMemo(() => suppliedTasks ?? [], [suppliedTasks]);
+  const planDraft = useWorkflowPlan();
   const baseObjects = useMemo(() => {
-    const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks, sessionSpendUsd, pins);
+    const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks, sessionSpendUsd, pins, planDraft);
     if (!campaign || !hydrationSettled) return projected;
     const absorbed = new Set<string>();
     for (const object of projected) {
@@ -260,13 +282,16 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
         ref: object.ref,
       });
     }
-    return [...projected, ...unavailable];
-  }, [campaign, hydrationSettled, loops, jobs, obligations, tasks, sessionSpendUsd, pins, layoutObjects]);
+    return sanitizeWorkbenchObjects([...projected, ...unavailable]);
+  }, [campaign, hydrationSettled, loops, jobs, obligations, tasks, sessionSpendUsd, pins, layoutObjects, planDraft]);
   const baseObjectsRef = useRef(baseObjects);
   useEffect(() => {
     baseObjectsRef.current = baseObjects;
   }, [baseObjects]);
-  const links = useMemo(() => storedLinks ?? buildWorkbenchLinks(baseObjects), [storedLinks, baseObjects]);
+  const links = useMemo(
+    () => sanitizeWorkbenchLinks(storedLinks ?? buildWorkbenchLinks(baseObjects), baseObjects),
+    [storedLinks, baseObjects],
+  );
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -493,11 +518,50 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     }, 1000);
   }, []);
 
+  const [nearIds, setNearIds] = useState<Set<string>>(() => new Set());
+  const viewportRef = useRef(viewport);
+  const filteredObjectsRef = useRef(filteredObjects);
+
+  // C7: grow-only near set (3× viewport), maintained on camera moves rather
+  // than in an effect so no render pass fights React's update rules. In-view
+  // ids are always mounted regardless; this only remembers ids that have been
+  // near, so panning back never pays a remount.
+  const growNear = useCallback((cam: WorkbenchCamera) => {
+    const objects = filteredObjectsRef.current;
+    const view = viewportRef.current;
+    if (objects.length <= 24 || view.width === 0) return;
+    const live = new Set(objects.map((object) => object.id));
+    setNearIds((previous) => {
+      let grew = false;
+      const next = new Set<string>();
+      for (const id of previous) {
+        if (live.has(id)) next.add(id);
+        else grew = true;
+      }
+      for (const object of objects) {
+        if (next.has(object.id)) continue;
+        if (withinNearViewport(object, cam, view)) {
+          next.add(object.id);
+          grew = true;
+        }
+      }
+      return grew ? next : previous;
+    });
+  }, []);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
+  useEffect(() => {
+    filteredObjectsRef.current = filteredObjects;
+  }, [filteredObjects]);
+
   const commitCameraNext = useCallback((next: WorkbenchCamera) => {
     cameraRef.current = next;
     setCamera(next);
     setZoomTier((curr) => nextZoomTier(next.zoom, curr));
-  }, []);
+    growNear(next);
+  }, [growNear]);
 
   const centerCameraOnObject = useCallback((object: WorkbenchObject, minZoom = 0.25) => {
     const host = hostRef.current;
@@ -517,6 +581,20 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     centerCameraOnObject(object, 0.85);
   }, [selectObject, centerCameraOnObject]);
 
+  // C8: "Open in Tasks" focuses the first task created from the plan.
+  const openPlanTasks = useCallback((object: WorkbenchObject) => {
+    const first = object.meta?.plan?.taskIds?.[0];
+    if (!first) return;
+    const target = resolveFactSource(objects, { domain: 'task', id: first });
+    if (target) focusCard(target);
+  }, [objects, focusCard]);
+
+  // C9: a fact's chip focuses the card that owns its producing record.
+  const focusFactSource = useCallback((from: WorkbenchFactSource) => {
+    const target = resolveFactSource(objects, from);
+    if (target) focusCard(target);
+  }, [objects, focusCard]);
+
   const toggleAreaCollapse = useCallback((areaId: string) => {
     needsVisibilityCheckRef.current = true;
     setCollapsedAreas((previous) => ({ ...previous, [areaId]: !previous[areaId] }));
@@ -531,11 +609,12 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     focusObject: (id: string) => {
       const resolvedId = resolveFocusObjectId(id, objects) ?? id;
       const object = objects.find((item) => item.id === resolvedId);
-      if (!object) return;
+      if (!object) return false;
       setFilter('all');
       setHidden((previous) => previous.filter((item) => item !== object.id));
       selectObject(object, false);
       centerCameraOnObject(object, 0.25);
+      return true;
     },
     removeObject: (id: string) => {
       pushUndo('remove', 'Undo remove', 'Restore the last removed card', captureSnapshot());
@@ -546,12 +625,17 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   }), [objects, selectObject, onSelectObject, pushUndo, captureSnapshot, centerCameraOnObject]);
 
   const applyCamera = useCallback((next: WorkbenchCamera) => {
+    // Any direct (user-driven) camera move pauses follow-live. Follow itself
+    // commits through commitCameraNext, so this can never fight the follow
+    // effect.
+    setFollowLive(false);
     cameraRef.current = next;
     if (worldRef.current) {
       worldRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${next.zoom})`;
     }
     setZoomTier((curr) => nextZoomTier(next.zoom, curr));
-  }, []);
+    growNear(next);
+  }, [growNear]);
 
   const commitCamera = useCallback(() => {
     commitCameraNext(cameraRef.current);
@@ -565,6 +649,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   }, [camera]);
 
   const zoomCentered = useCallback((targetZoom: number) => {
+    setFollowLive(false);
     holdCanvas();
     const host = hostRef.current;
     const focal = {
@@ -575,6 +660,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   }, [holdCanvas, viewport.width, viewport.height, commitCameraNext]);
 
   const fitRect = useCallback((box: WorkbenchRect, minZoom?: number) => {
+    setFollowLive(false);
     const host = hostRef.current;
     if (!host) return;
     const width = host.clientWidth;
@@ -899,7 +985,10 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     return () => observer.disconnect();
   }, []);
 
-  const visibleIds = useMemo(() => {
+  // C7: a grow-only "near" set (3× viewport). Cards enter it once and stay
+  // mounted, so panning back never pays a remount; far cards render as sized
+  // empty boxes so extents and measurements stay stable.
+  const inViewIds = useMemo(() => {
     if (filteredObjects.length <= 24 || viewport.width === 0) return null;
     const margin = 48;
     const left = -camera.x / camera.zoom - margin;
@@ -913,6 +1002,35 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
       object.position.y <= bottom
     )).map((object) => object.id));
   }, [filteredObjects, viewport, camera]);
+  const visibleIds = useMemo(() => {
+    if (!inViewIds) return null;
+    return new Set([...inViewIds, ...nearIds]);
+  }, [inViewIds, nearIds]);
+
+  // C6 — arrivals: the first projection initializes; later additions animate
+  // once and are announced politely. Reduced motion disables the animation.
+  const knownIdsRef = useRef<Set<string> | null>(null);
+  const [arrivals, setArrivals] = useState<Set<string>>(() => new Set());
+  const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    const ids = filteredObjects.map((object) => object.id);
+    if (knownIdsRef.current === null) {
+      // The first non-empty projection initializes the baseline; it is the
+      // scene opening, not an arrival.
+      if (ids.length > 0) knownIdsRef.current = new Set(ids);
+      return;
+    }
+    const { fresh, next } = arrivalDiff(knownIdsRef.current, ids);
+    knownIdsRef.current = next;
+    if (fresh.length === 0) return;
+    setArrivals(new Set(fresh));
+    setAnnouncement(`${fresh.length} new card${fresh.length === 1 ? '' : 's'} on the canvas`);
+    const timer = setTimeout(() => {
+      setArrivals(new Set());
+      setAnnouncement('');
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [filteredObjects]);
 
   const liveTarget = useMemo(() => {
     const isLiveStatus = (value: string | undefined) => /live|running|active|working|queued|pending/i.test(value ?? '');
@@ -951,27 +1069,41 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     };
   }, []);
 
+  // C5 — follow-live panes only as far as the lead band requires, never
+  // zooms, and glides (unless reduced motion). A new live target re-arms it.
+  const lastLiveIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = liveTarget?.id ?? null;
+    if (id && id !== lastLiveIdRef.current) {
+      lastLiveIdRef.current = id;
+      setFollowLive(true);
+    }
+  }, [liveTarget]);
   useEffect(() => {
     if (!followLive || unseen || viewMode !== 'canvas' || held || viewport.width === 0 || viewport.height === 0 || !liveTarget) return;
     if (drag.current || cardDrag.current || sizeDrag.current || minimapDrag.current) return;
-    const cx = liveTarget.position.x + liveTarget.size.width / 2;
-    const cy = liveTarget.position.y + liveTarget.size.height / 2;
-    const cur = cameraRef.current;
-    const sx = cx * cur.zoom + cur.x;
-    const sy = cy * cur.zoom + cur.y;
-    const insideBand = sx >= viewport.width * 0.16
-      && sx <= viewport.width * 0.84
-      && sy >= viewport.height * 0.16
-      && sy <= viewport.height * 0.80;
-    if (insideBand) return;
-    const nextX = Math.round(viewport.width / 2 - cx * cur.zoom);
-    const nextY = Math.round(viewport.height / 2 - cy * cur.zoom);
-    if (Math.hypot(nextX - cur.x, nextY - cur.y) <= 4) return;
-    const rafId = requestAnimationFrame(() => {
-      commitCameraNext({ x: nextX, y: nextY, zoom: cameraRef.current.zoom });
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, [followLive, unseen, viewMode, held, viewport, liveTarget, camera, commitCameraNext]);
+    const next = followCamera(cameraRef.current, liveTarget, viewport);
+    if (!next) return;
+    if (reducedMotion || typeof performance === 'undefined') {
+      commitCameraNext(next);
+      return;
+    }
+    const from = { ...cameraRef.current };
+    const started = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - started) / 220);
+      const eased = 1 - Math.pow(1 - k, 3);
+      commitCameraNext({
+        x: from.x + (next.x - from.x) * eased,
+        y: from.y + (next.y - from.y) * eased,
+        zoom: from.zoom,
+      });
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [followLive, unseen, viewMode, held, viewport, liveTarget, commitCameraNext, reducedMotion]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
@@ -1710,6 +1842,9 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
         onPointerUp={onPointerUp}
         onPointerCancel={() => onPointerUp()}
       >
+      <div className="sr-only" role="status" aria-live="polite" data-testid="workbench-announcer">
+        {announcement}
+      </div>
       {filteredObjects.length === 0 ? (
         <EmptyState
           title={
@@ -1736,16 +1871,16 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
             <div className="space-y-2">
               <p>{localMode ? 'Local private mode — no sign-in is required to start.' : multiLab ? 'Multi-lab workspace — sign in to create or open a campaign.' : 'Create or open a campaign to give the science a place to stand.'}</p>
               <div className="flex flex-wrap justify-center gap-1.5 text-[12px] font-mono">
-                <span className={`px-2 py-0.5 rounded-full border ${access ? 'border-[var(--color-success-edge)] bg-[var(--color-success-wash)] text-[var(--color-success)]' : 'border-[var(--color-border)] bg-[var(--color-fill)] text-[var(--color-muted)]'}`}>
+                <span className={`px-2 py-0.5 rounded-capsule border ${access ? 'border-success-edge bg-success-wash text-success' : 'border-border bg-fill text-muted'}`}>
                   {access ? 'backend connected' : 'checking backend'}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full border ${access?.llm_local ? 'border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] text-[var(--color-accent-ink)]' : 'border-[var(--color-warning-edge)] bg-[var(--color-warning-wash)] text-[var(--color-warning)]'}`}>
+                <span className={`px-2 py-0.5 rounded-capsule border ${access?.llm_local ? 'border-accent-edge bg-accent-soft text-accent-ink' : 'border-warning-edge bg-warning-wash text-warning'}`}>
                   {access ? (access.llm_local ? 'local LLM' : 'cloud LLM — sign-in required') : 'checking LLM'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-fill)] text-[var(--color-muted)]">
+                <span className="px-2 py-0.5 rounded-capsule border border-border bg-fill text-muted">
                   {access?.role === 'lab_admin' ? 'lab admin' : access?.role === 'operator' ? 'operator' : 'researcher'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-fill)] text-[var(--color-muted)]">no campaign yet</span>
+                <span className="px-2 py-0.5 rounded-capsule border border-border bg-fill text-muted">no campaign yet</span>
               </div>
               {multiLab && !sessionId && onSignIn ? (
                 <Button type="button" size="compact" data-testid="workbench-sign-in" onClick={onSignIn}>Sign in</Button>
@@ -1938,16 +2073,38 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
             ))}
           </svg>
           {filteredObjects.map((object) => {
-            if (viewport && visibleIds && !visibleIds.has(object.id)) return null;
+            if (viewport && visibleIds && !visibleIds.has(object.id)) {
+              // C7: sized empty box keeps the scene's extents stable without
+              // mounting rich content.
+              return (
+                <div
+                  key={object.id}
+                  className="k-workbench-culled"
+                  data-testid="culled-card"
+                  aria-hidden="true"
+                  style={{
+                    left: object.position.x,
+                    top: object.position.y,
+                    width: object.size.width,
+                    height: object.size.height,
+                  }}
+                />
+              );
+            }
             const assignedArea = effectiveAssignments[object.id] ? areaById.get(effectiveAssignments[object.id]) : undefined;
             const userActiveArea = activeArea && areas.some((area) => area.id === activeArea.id) ? activeArea : null;
             const isAssignedToActive = Boolean(userActiveArea && assignments[object.id] === userActiveArea.id);
             const sessionGateKey = sessionId || 'default';
             const obId = object.kind === 'approval' && object.ref ? object.ref.id : '';
             return (
-              <WorkCard
+              <RenderBoundary
                 key={object.id}
+                label={`${object.kind} ${object.id}`}
+                fallback={(reset) => <CardFailureCard object={object} onRetry={reset} />}
+              >
+              <WorkCard
                 object={object}
+                arriving={arrivals.has(object.id)}
                 explicitSize={Boolean(sizes[object.id])}
                 overview={zoomTier === 'overview'}
                 selected={selected.includes(object.id)}
@@ -1979,6 +2136,11 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
                   onSelectObject?.(null);
                 }}
                 onAskCard={onAskSelection ? () => onAskSelection([object]) : undefined}
+                onNeedRemedy={onNeedRemedy}
+                onFactSource={onFactSource ?? focusFactSource}
+                onMakePlanTasks={onMakePlanTasks}
+                onOpenPlanTasks={openPlanTasks}
+                planTaskBusy={planTaskBusy}
                 isAssignedToActiveArea={isAssignedToActive}
                 onToggleAreaAssign={userActiveArea ? () => {
                   setAssignments((previous) => {
@@ -2048,6 +2210,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
                   }));
                 }}
               />
+              </RenderBoundary>
             );
           })}
         </div>
@@ -2108,7 +2271,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
                 aria-label="Link kind"
                 value={linkKind}
                 onChange={(event) => setLinkKind(event.target.value as WorkbenchLink['kind'])}
-                className="h-7 rounded-lg border border-[var(--color-border)] bg-[var(--color-field)] px-1 text-[12px] text-[var(--color-label-secondary)]"
+                className="h-7 rounded-control-compact border border-border bg-field px-1 text-[12px] text-label-secondary"
               >
                 <option value="supports">supports</option>
                 <option value="uses">uses</option>
@@ -2218,8 +2381,28 @@ function formatSourceChipLabel(label: string): string {
   return `${label.slice(0, 22)}…${label.slice(-6)}`;
 }
 
+function CardFailureCard({ object, onRetry }: { object: WorkbenchObject; onRetry: () => void }) {
+  return (
+    <article
+      className="k-workbench-card k-workbench-card-failed"
+      data-kind={object.kind}
+      data-testid="card-boundary-fallback"
+      role="status"
+      style={{ left: object.position.x, top: object.position.y, width: object.size.width }}
+    >
+      <header>
+        <Badge tone="neutral">{object.label}</Badge>
+        <h3>{object.title}</h3>
+      </header>
+      <p>This card could not render. Its record is intact and the rest of the canvas is unaffected.</p>
+      <button type="button" className="k-workbench-need-remedy" onClick={onRetry}>Retry</button>
+    </article>
+  );
+}
+
 function WorkCard({
   object,
+  arriving = false,
   explicitSize,
   overview = false,
   selected,
@@ -2237,6 +2420,11 @@ function WorkCard({
   onStartLink,
   onRemoveCard,
   onAskCard,
+  onNeedRemedy,
+  onFactSource,
+  onMakePlanTasks,
+  onOpenPlanTasks,
+  planTaskBusy = false,
   onToggleAreaAssign,
   onPointerDown,
   onPointerMove,
@@ -2258,6 +2446,7 @@ function WorkCard({
   onNudge,
 }: {
   object: WorkbenchObject;
+  arriving?: boolean;
   explicitSize: boolean;
   overview?: boolean;
   selected: boolean;
@@ -2275,6 +2464,11 @@ function WorkCard({
   onStartLink: () => void;
   onRemoveCard: () => void;
   onAskCard?: () => void;
+  onNeedRemedy?: (need: Need) => void;
+  onFactSource?: (from: WorkbenchFactSource) => void;
+  onMakePlanTasks?: (object: WorkbenchObject) => void;
+  onOpenPlanTasks?: (object: WorkbenchObject) => void;
+  planTaskBusy?: boolean;
   onToggleAreaAssign?: () => void;
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
@@ -2299,6 +2493,17 @@ function WorkCard({
   const [factsExpanded, setFactsExpanded] = useState(false);
   const [pointerInside, setPointerInside] = useState(false);
   const [focusInside, setFocusInside] = useState(false);
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || typeof IntersectionObserver !== 'function') return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry) setOnScreen(entry.isIntersecting);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const showQuickHandles = !isDragging && (pointerInside || focusInside || isLinkSource);
 
   useEffect(() => {
@@ -2323,7 +2528,8 @@ function WorkCard({
     ? object.facts
     : object.facts.slice(0, maxCollapsedFacts);
   const hiddenFactsCount = object.facts.length - visibleFacts.length;
-  const contested = /contested|contradict|diverg/i.test(`${object.title} ${object.meta?.status ?? ''}`);
+  // C2: declared tone or a typed need, never a word matched in free text.
+  const contested = object.meta?.callout?.tone === 'contested' || Boolean(object.meta?.need);
 
   return (
     <article
@@ -2335,6 +2541,7 @@ function WorkCard({
       data-selected={selected ? 'true' : undefined}
       data-held={isDragging ? 'true' : undefined}
       data-link-source={isLinkSource ? 'true' : undefined}
+      data-arrival={arriving ? 'true' : undefined}
       style={{
         left: object.position.x,
         top: object.position.y,
@@ -2496,6 +2703,65 @@ function WorkCard({
           <span>{object.meta.callout.summary}</span>
         </div>
       )}
+      {isLiveNeed(object.meta?.need) && (
+        <div className="k-workbench-need" data-need={object.meta.need.kind} role="note">
+          <span>{needSentence(object.meta.need)}</span>
+          {onNeedRemedy && remedyFor(object.meta.need.kind) && (
+            <button
+              type="button"
+              className="k-workbench-need-remedy"
+              onClick={(event) => {
+                event.stopPropagation();
+                if (object.meta?.need) onNeedRemedy(object.meta.need);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {remedyFor(object.meta.need.kind)!.label}
+            </button>
+          )}
+        </div>
+      )}
+      {object.kind === 'agent_run' && object.ref?.domain === 'loop' && (
+        <LoopPartsLane loopId={object.ref.id} live={object.meta?.activeFlow === true} />
+      )}
+      {object.meta?.pending && (
+        <div className="k-workbench-pending" data-live={onScreen ? 'true' : 'false'} role="status">
+          <span className="k-workbench-pending-dot" aria-hidden="true" />
+          <span>{object.meta.pending.label}</span>
+        </div>
+      )}
+      {object.kind === 'plan' && (
+        <div className="k-plan-actions">
+          {object.meta?.plan?.taskIds?.length ? (
+            <button
+              type="button"
+              data-testid="plan-open-tasks"
+              className="k-workbench-need-remedy"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenPlanTasks?.(object);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              Open in Tasks
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="plan-make-tasks"
+              className="k-workbench-need-remedy"
+              disabled={planTaskBusy || !onMakePlanTasks}
+              onClick={(event) => {
+                event.stopPropagation();
+                onMakePlanTasks?.(object);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {planTaskBusy ? 'Creating tasks…' : 'Make tasks'}
+            </button>
+          )}
+        </div>
+      )}
       {object.kind === 'task' && onTaskStatus && (
         <label
           className="k-workbench-checklist"
@@ -2515,7 +2781,26 @@ function WorkCard({
           {visibleFacts.map((fact) => (
             <React.Fragment key={fact.label}>
               <dt>{fact.label}</dt>
-              <dd data-metric>{fact.value}</dd>
+              <dd data-metric>
+                {fact.value}
+                {fact.from && onFactSource && (
+                  <button
+                    type="button"
+                    className="k-fact-source"
+                    data-testid="fact-source"
+                    aria-label={`Focus source: ${fact.from.domain} ${fact.from.id}`}
+                    title={`${fact.from.domain} · ${fact.from.id}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onFactSource(fact.from!);
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <Link2 size={10} aria-hidden="true" />
+                    {fact.from.domain}
+                  </button>
+                )}
+              </dd>
             </React.Fragment>
           ))}
         </dl>
@@ -2569,7 +2854,17 @@ function WorkCard({
       ) : null}
       {object.chart && (
         <div className="k-workbench-chart" data-metric data-provenance={object.provenance ?? 'catalog'}>
-          <Chart spec={overview ? { ...object.chart, detail: 'overview' } : object.chart} embedded />
+          <RenderBoundary
+            label={`chart ${object.id}`}
+            fallback={(reset) => (
+              <div className="k-workbench-chart-failed" role="status" data-testid="chart-boundary-fallback">
+                <span>Chart unavailable — the recorded values are unchanged.</span>
+                <button type="button" className="k-workbench-need-remedy" onClick={reset}>Retry</button>
+              </div>
+            )}
+          >
+            <Chart spec={overview ? { ...object.chart, detail: 'overview' } : object.chart} embedded />
+          </RenderBoundary>
         </div>
       )}
       {(confirmGate || gateReceipt) && (

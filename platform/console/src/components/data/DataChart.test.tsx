@@ -28,11 +28,63 @@ describe('Chart', () => {
     });
     const svg = tree!.root.findByType('svg');
     expect(svg.props.role).toBe('img');
-    expect(svg.props['aria-label']).toContain('Energy trajectory');
-    expect(svg.props['aria-label']).toContain('low');
+    // D5: the computed summary must be announced alongside the title, so it
+    // lives in a <desc> referenced by aria-describedby (aria-labelledby wins
+    // over aria-label and would otherwise silence the summary).
+    const describedBy = svg.props['aria-describedby'];
+    expect(describedBy).toBeTruthy();
+    const desc = tree!.root.findByProps({ id: describedBy });
+    const summary = Array.isArray(desc.props.children) ? desc.props.children.join(' ') : String(desc.props.children);
+    expect(summary).toContain('Energy trajectory');
+    expect(summary).toContain('low');
     const table = tree!.root.findByType('table');
     expect(table.findAllByType('tbody')[0]!.findAllByType('tr')).toHaveLength(2);
     expect(tree!.root.findAllByType('details')).toHaveLength(1);
+  });
+
+  it('refuses an all-null chart instead of drawing empty axes (D5)', () => {
+    const empty: ChartSpec = {
+      ...spec,
+      basis: 'Awaiting the first measured shot.',
+      series: [{ name: 'VQE', points: [{ x: 1, y: null }, { x: 2, y: null }] }],
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<Chart spec={empty} />);
+    });
+    const refusal = tree!.root.findByProps({ 'data-testid': 'k-chart-unavailable' });
+    expect(refusal.props.role).toBe('status');
+    expect(tree!.root.findAllByType('svg')).toHaveLength(0);
+    expect(JSON.stringify(tree!.toJSON())).toContain('Chart unavailable');
+    expect(JSON.stringify(tree!.toJSON())).toContain('Awaiting the first measured shot.');
+  });
+
+  it('keeps the exact-values table in compact mode (D5)', () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<Chart spec={{ ...spec, compact: true }} />);
+    });
+    expect(tree!.root.findAllByType('details')).toHaveLength(1);
+    expect(tree!.root.findByType('table')).toBeTruthy();
+  });
+
+  it('renders evidence as actionable buttons when the consumer provides onEvidence (D5)', () => {
+    const onEvidence = vi.fn();
+    const withEvidence: ChartSpec = {
+      ...spec,
+      series: [{
+        name: 'VQE',
+        points: [{ x: 1, y: -1.1, evidence: [{ key: 'ev-1', label: 'Ledger receipt' }] }],
+      }],
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<Chart spec={withEvidence} onEvidence={onEvidence} />);
+    });
+    const button = tree!.root.findAllByProps({ 'data-testid': 'k-chart-evidence-button' })[0];
+    expect(button).toBeTruthy();
+    act(() => { button.props.onClick(); });
+    expect(onEvidence).toHaveBeenCalledWith({ key: 'ev-1', label: 'Ledger receipt' });
   });
 
   it('draws a gap instead of a zero for a null point', () => {

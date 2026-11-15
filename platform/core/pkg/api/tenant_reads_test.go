@@ -387,7 +387,7 @@ func TestMutationsBoundToTenant(t *testing.T) {
 	if code, _ := post("/api/chat/tribunal", map[string]any{"session_id": sessB, "prompt": "x"}, cookieA, ""); code != http.StatusForbidden {
 		t.Errorf("cross-lab tribunal must 403, got %d", code)
 	}
-	if code, _ := post("/api/chat/launch", map[string]any{"session_id": sessB, "qasm": qasm, "backend": "local_simulator"}, cookieA, ""); code != http.StatusForbidden {
+	if code, _ := post("/api/chat/launch", map[string]any{"session_id": sessB}, cookieA, ""); code != http.StatusForbidden {
 		t.Errorf("cross-lab launch must 403, got %d", code)
 	}
 

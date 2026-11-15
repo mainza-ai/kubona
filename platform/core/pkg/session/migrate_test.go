@@ -60,6 +60,21 @@ func TestDeleteSessionRefusesLiveWork(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionRefusesOutcomeUnknown(t *testing.T) {
+	m, l := mustOpenCascade(t)
+	seedCascadeSession(t, m, l, "sess-unknown")
+	if _, err := l.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-unknown'`); err != nil {
+		t.Fatalf("settle loop: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd) VALUES ('j-unk', 'sess-unknown', 'JOB_STATUS_OUTCOME_UNKNOWN', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 1000000)`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	err := m.DeleteSession("sess-unknown", testDeleteSigner())
+	if err == nil || !strings.Contains(err.Error(), "outcome-unknown jobs") {
+		t.Fatalf("outcome-unknown must block deletion by name, got %v", err)
+	}
+}
+
 // W0.1 — terminal jobs (COMPLETED/FAILED) must not block deletion.
 // Threat (verified): the old literal list never matched JOB_STATUS_FAILED,
 // so any session with a failed job could never be deleted.

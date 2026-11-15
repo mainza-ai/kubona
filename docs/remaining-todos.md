@@ -1,6 +1,6 @@
 # Remaining execution TODOs
 
-Updated 2026-10-30. This is the short execution list; the full queue lives in
+Updated 2026-11-14. This is the short execution list; the full queue lives in
 `wiki/concepts/remaining-work.md`.
 
 > **2026-11-09 correction:** the current science/UI truth audit and prioritized
@@ -43,8 +43,25 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       `aria-current` on the dock, live-region toasts, and a narrow-viewport
       E2E proving the copilot starts closed and opens as an overlay.
 - [x] Run-state live region and a named, pressed-state canvas mode group.
-- [ ] Still open: deep accessibility audit across every modal/surface
-      (contrast, focus order, reduced motion, screen-reader transcripts).
+- [x] Structural accessibility gates: axe/structural E2E, keyboard skip link,
+      one main landmark, live regions, reduced-motion collapse (OS + in-app),
+      semantic token contrast checks, and browser component tests for focus.
+- [ ] Still open: manual VoiceOver/NVDA walkthrough of every modal/surface
+      (automated gates cannot prove a screen-reader transcript is useful).
+
+## Landed 2026-11-14 (Zephium-insights program)
+
+- [x] Role-named Tailwind radius/type scales; default size scales reset;
+      compiled-theme gate and zero arbitrary colour-var utilities.
+- [x] Real-Chromium component tests (`pnpm test:browser`) plus a
+      `react-test-renderer` baseline freeze.
+- [x] Per-route first-load bundle budgets, lazy-chunk records, import
+      boundaries, and zero-tolerance `transition-all`.
+- [x] Runtime skills (`SKILL.md`, body-free prompt, `load_skill` with
+      sections) and Settings catalogue/faults.
+- [x] Recorded decision evals (sha-pinned fixtures, Brier/ECE,
+      `kubonad eval-llm`, model-picker status, opt-in strict gate).
+- [x] DataChart split into pure layout + renderers; `LazyBoundary` retry/reload.
 
 ## Vendor evidence (2026-10-31)
 

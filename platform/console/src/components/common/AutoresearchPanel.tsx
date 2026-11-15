@@ -63,56 +63,56 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Autoresearch loops">
+    <div className="w-full rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Autoresearch loops">
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-xs font-semibold text-[var(--color-text)]">Autoresearch loops</span>
-          <p className="text-[12px] text-[var(--color-faint)]">Sandboxed harness stepping; each transition re-reads server state.</p>
+          <span className="text-label font-semibold text-text">Autoresearch loops</span>
+          <p className="text-[12px] text-faint">Sandboxed harness stepping; each transition re-reads server state.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-[var(--color-fill)] border border-[var(--color-border)] text-[12px] text-[var(--color-label-secondary)]">Refresh</button>
+        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-control-compact bg-fill border border-border text-[12px] text-label-secondary">Refresh</button>
       </div>
       {runner && runner.available !== true && (
-        <p role="status" className="text-[12px] text-[var(--color-warning)]">
+        <p role="status" className="text-[12px] text-warning">
           Sandbox unavailable — autoresearch is fail-closed by default. {String(runner.reason || '')}
         </p>
       )}
       {runner && runner.available === true && (
-        <p className="text-[12px] text-[var(--color-muted)]">Sandbox ready: {String(runner.image || 'runner')} (read-only, cap-drop, no network).</p>
+        <p className="text-[12px] text-muted">Sandbox ready: {String(runner.image || 'runner')} (read-only, cap-drop, no network).</p>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-        <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] font-mono">
+        <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono">
           {harnesses.length === 0 && <option value="">no harnesses</option>}
           {harnesses.map((h) => <option key={h.id} value={h.id}>{h.id}</option>)}
         </select>
-        <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[var(--color-text)] font-mono" />
+        <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono" />
         <button type="button" disabled={busy !== null || !harnessId || !sessionId} onClick={() => {
           const n = Number(maxIterations);
           if (!Number.isInteger(n) || n < 1 || n > 1000) { setNotice('max iterations must be an integer 1..1000.'); return; }
           void run('start', () => startAutoresearchLoop(harnessId, n, undefined, sessionId), 'Loop started.');
-        }} className="px-2 py-1 rounded-lg bg-[var(--color-soft-lilac-wash)] border border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)] disabled:opacity-40">
+        }} className="px-2 py-1 rounded-control-compact bg-soft-lilac-wash border border-soft-lilac-edge text-soft-lilac-ink disabled:opacity-40">
           Start loop
         </button>
       </div>
       {(notice || writeSettlementLabel(settlement.write)) && (
-        <p role="status" className="text-[12px] text-[var(--color-label-secondary)]">{writeSettlementLabel(settlement.write) || notice}</p>
+        <p role="status" className="text-[12px] text-label-secondary">{writeSettlementLabel(settlement.write) || notice}</p>
       )}
-      {loops === null && <p className="text-[12px] text-[var(--color-faint)]">Loading loops…</p>}
-      {loops !== null && loops.length === 0 && <p className="text-[12px] text-[var(--color-muted)]">No autoresearch loops.</p>}
+      {loops === null && <p className="text-[12px] text-faint">Loading loops…</p>}
+      {loops !== null && loops.length === 0 && <p className="text-[12px] text-muted">No autoresearch loops.</p>}
       {(loops ?? []).map((loop) => (
-        <div key={loop.id} className="px-2.5 py-2 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] text-[12px] space-y-1">
+        <div key={loop.id} className="px-2.5 py-2 rounded-row bg-card border border-border text-[12px] space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-code text-[var(--color-label-secondary)]">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
+            <span className="font-code text-label-secondary">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
             <span className="flex items-center gap-1">
-              <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] disabled:opacity-40">Step</button>
+              <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded-chip bg-info-wash border border-info-edge text-info-ink disabled:opacity-40">Step</button>
               {loop.status === 'running' ? (
-                <button type="button" disabled={busy !== null} onClick={() => void run('pause', () => pauseAutoresearchLoop(loop.id), 'Paused.')} className="px-2 py-1 rounded bg-[var(--color-warning-wash)] border border-[var(--color-warning-edge)] text-[var(--color-warning-ink)] disabled:opacity-40">Pause</button>
+                <button type="button" disabled={busy !== null} onClick={() => void run('pause', () => pauseAutoresearchLoop(loop.id), 'Paused.')} className="px-2 py-1 rounded-chip bg-warning-wash border border-warning-edge text-warning-ink disabled:opacity-40">Pause</button>
               ) : (
-                <button type="button" disabled={busy !== null} onClick={() => void run('resume', () => resumeAutoresearchLoop(loop.id), 'Resumed.')} className="px-2 py-1 rounded bg-[var(--color-success-wash)] border border-[var(--color-success-edge)] text-[var(--color-success-ink)] disabled:opacity-40">Resume</button>
+                <button type="button" disabled={busy !== null} onClick={() => void run('resume', () => resumeAutoresearchLoop(loop.id), 'Resumed.')} className="px-2 py-1 rounded-chip bg-success-wash border border-success-edge text-success-ink disabled:opacity-40">Resume</button>
               )}
-              <button type="button" disabled={busy !== null} onClick={() => void run('stop', () => stopAutoresearchLoop(loop.id), 'Stopped.')} className="px-2 py-1 rounded bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] disabled:opacity-40">Stop</button>
+              <button type="button" disabled={busy !== null} onClick={() => void run('stop', () => stopAutoresearchLoop(loop.id), 'Stopped.')} className="px-2 py-1 rounded-chip bg-danger-wash border border-danger-edge text-danger-ink disabled:opacity-40">Stop</button>
             </span>
           </div>
-          <div className="text-[var(--color-faint)] font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
+          <div className="text-faint font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
         </div>
       ))}
     </div>

@@ -46,6 +46,7 @@ var (
 		pb.JobStatus_JOB_STATUS_COMPLETED.String(),
 		pb.JobStatus_JOB_STATUS_FAILED.String(),
 		pb.JobStatus_JOB_STATUS_CANCELLED.String(),
+		pb.JobStatus_JOB_STATUS_INTERRUPTED.String(),
 	}
 	// LiveJobStatuses: jobs in these states are still live work — the
 	// CAS-guard live set for cancel/abort sweeps.
@@ -671,8 +672,14 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if msg.UsageJSON != nil && len(*msg.UsageJSON) > 0 {
 			usage = string(*msg.UsageJSON)
 		}
-		if err := exec(`INSERT INTO chat_messages (id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			msg.ID, s.ID, msg.Role, msg.Content, propStr, msg.CreatedAt, dur, usage); err != nil {
+		var citations any
+		if msg.Citations != nil && len(*msg.Citations) > 0 {
+			citations = string(*msg.Citations)
+		}
+		// B1/B5 fields round-trip with the row: dropping them would change the
+		// messages digest on import even though nothing about the turn moved.
+		if err := exec(`INSERT INTO chat_messages (id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json, proposal_id, proposal_digest, citations_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			msg.ID, s.ID, msg.Role, msg.Content, propStr, msg.CreatedAt, dur, usage, msg.ProposalID, msg.ProposalDigest, citations); err != nil {
 			return nil, fmt.Errorf("import message %s: %w", msg.ID, err)
 		}
 	}
@@ -876,6 +883,7 @@ func (m *Manager) DeleteBlockers(id string) ([]string, error) {
 	for _, q := range []blockerCheck{
 		{jobQ, jobArgs, "non-terminal jobs"},
 		{loopQ, loopArgs, "live loops"},
+		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND status = ?`, []any{id, pb.JobStatus_JOB_STATUS_OUTCOME_UNKNOWN.String()}, "outcome-unknown jobs"},
 		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount_micro_usd > 0`, []any{id}, "outstanding spend reservations"},
 		{`SELECT COUNT(*) FROM loops WHERE session_id = ? AND reserved_amount_micro_usd > 0`, []any{id}, "outstanding loop spend reservations"},
 	} {

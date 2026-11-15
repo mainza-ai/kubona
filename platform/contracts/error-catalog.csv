@@ -26,3 +26,10 @@ task_not_entitled,upstream,404,false,enable the Atlas task on this account/proje
 internal,internal,500,false,report the incident id; do not blind-retry mutations (use idempotency keys)
 server_misconfigured,internal,503,false,set the missing server configuration (see message) and restart
 request_too_large,validation,413,false,reduce the request body or raise KUBONA_MAX_REQUEST_BODY_BYTES within the hard ceiling
+revision_conflict,state,409,false,the record changed since you read it: re-read it and re-apply your edit on the current revision
+precondition_required,state,428,false,send expected_revision from your last read of this record
+proposal_stale,state,409,false,"the campaign or calibration moved since this plan was priced: re-read the campaign and authorize the fresh proposal"
+proposal_not_offered,state,409,false,"this proposal was already launched, dismissed, or failed: mint a new one from the current plan"
+proposal_digest_mismatch,validation,400,false,the digest does not match the server-minted body: re-read the proposal before launching
+proposal_unmintable,validation,400,false,"the plan cannot be priced or routed honestly (missing circuit, unknown backend, or unpriced metered hardware): revise the plan"
+loop_not_running,state,409,false,"steering applies only to a running run: resume it first (paused and terminal runs never consume instructions)"

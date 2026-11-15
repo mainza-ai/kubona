@@ -52,21 +52,21 @@ export function CreateLabPanel({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-2" aria-label="Create laboratory">
-      <div className="text-xs font-semibold text-[var(--color-text)]">Create laboratory</div>
-      <p className="text-[12px] text-[var(--color-faint)]">Creates the lab and registers this browser key as its first admin. The operator token is used once and not stored.</p>
+    <div className="rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Create laboratory">
+      <div className="text-label font-semibold text-text">Create laboratory</div>
+      <p className="text-[12px] text-faint">Creates the lab and registers this browser key as its first admin. The operator token is used once and not stored.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <input value={id} onChange={(e) => setId(e.target.value)} aria-label="New lab ID" placeholder="lab id (e.g. materials-lab)" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] font-mono" />
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-label="New lab display name" placeholder="display name" className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)]" />
+        <input value={id} onChange={(e) => setId(e.target.value)} aria-label="New lab ID" placeholder="lab id (e.g. materials-lab)" className="bg-field border border-border rounded-control-compact px-2 py-1 text-[12px] text-text placeholder:text-faint font-mono" />
+        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-label="New lab display name" placeholder="display name" className="bg-field border border-border rounded-control-compact px-2 py-1 text-[12px] text-text placeholder:text-faint" />
       </div>
-      <input value={token} onChange={(e) => setToken(e.target.value)} type="password" aria-label="New lab operator token" placeholder="operator token (KUBONA_API_TOKEN)" className="w-full bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-2 py-1 text-[12px] text-[var(--color-text)] placeholder:text-[var(--color-faint)] font-mono" />
-      <button type="button" onClick={() => void create()} disabled={busy || !id.trim() || !token.trim()} className="px-2 py-1 rounded-lg bg-[var(--color-info-wash)] border border-[var(--color-info-edge)] text-[var(--color-info-ink)] text-[12px] disabled:opacity-40">
+      <input value={token} onChange={(e) => setToken(e.target.value)} type="password" aria-label="New lab operator token" placeholder="operator token (KUBONA_API_TOKEN)" className="w-full bg-field border border-border rounded-control-compact px-2 py-1 text-[12px] text-text placeholder:text-faint font-mono" />
+      <button type="button" onClick={() => void create()} disabled={busy || !id.trim() || !token.trim()} className="px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink text-[12px] disabled:opacity-40">
         {busy ? 'Creating…' : 'Create lab + register admin'}
       </button>
-      {created && <p role="status" className="text-[12px] text-[var(--color-success-ink)]">Lab {created} created. Log in with this lab ID after switching lab.</p>}
-      {notice && <p role="alert" className="text-[12px] text-[var(--color-warning-ink)]">{notice}</p>}
+      {created && <p role="status" className="text-[12px] text-success-ink">Lab {created} created. Log in with this lab ID after switching lab.</p>}
+      {notice && <p role="alert" className="text-[12px] text-warning-ink">{notice}</p>}
       {writeSettlementLabel(settlement.write) && (
-        <p role="status" className="text-[12px] font-mono text-[var(--color-muted)]">{writeSettlementLabel(settlement.write)}</p>
+        <p role="status" className="text-[12px] font-mono text-muted">{writeSettlementLabel(settlement.write)}</p>
       )}
     </div>
   );

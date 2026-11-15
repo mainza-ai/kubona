@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { fetchJob, isTerminalJobStatus, jobStatusLabel } from '@/lib/api';
+import { fetchJob, isOutcomeUnknown, isTerminalJobStatus, jobStatusLabel } from '@/lib/api';
 import { useSharedResource } from '@/domain/shared-resource';
 import { subscribeInvalidation } from '@/domain/invalidation';
 import { useSessionStreamLive } from '@/domain/stream-state';
@@ -59,7 +59,10 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
     },
     {
       intervalMs: POLL_MS,
-      shouldContinue: (next) => !next || !isTerminalJobStatus(next.status),
+      shouldContinue: (next) => {
+        if (!next) return true;
+        return !isTerminalJobStatus(next.status) && !isOutcomeUnknown(next.status);
+      },
     },
   );
   useEffect(() => { setPollMs(live ? 0 : POLL_MS); }, [live, setPollMs]);
@@ -72,12 +75,12 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
 
   if (gone) {
     return (
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs" role="alert" aria-label={`Job ${jobId} unavailable`}>
-        <span className="text-[var(--color-muted)] font-code">{error}</span>
+      <div className="rounded-card border border-border bg-surface p-2.5 text-label" role="alert" aria-label={`Job ${jobId} unavailable`}>
+        <span className="text-muted font-code">{error}</span>
         <button
           type="button"
           onClick={onRetry}
-          className="ml-2 px-2 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] border border-[var(--color-border)] text-[var(--color-label-secondary)] text-[12px] font-semibold"
+          className="ml-2 px-2 py-1 rounded-control-compact bg-fill hover:bg-fill-hover border border-border text-label-secondary text-[12px] font-semibold"
         >
           Retry
         </button>
@@ -86,12 +89,15 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
   }
 
   const st = jobStatusLabel(status);
+  const unknown = isOutcomeUnknown(status);
   const done = isTerminalJobStatus(status);
-  const failed = st === 'FAILED' || st === 'CANCELLED';
+  const failed = st === 'FAILED' || st === 'CANCELLED' || st === 'INTERRUPTED';
   const activeIdx = done ? 2 : st === 'RUNNING' ? 1 : 0;
-  const steps = ['QUEUED', 'RUNNING', done ? (failed ? st : 'COMPLETED') : 'SETTLING'];
+  const steps = unknown
+    ? ['OUTCOME UNKNOWN']
+    : ['QUEUED', 'RUNNING', done ? (failed ? st : 'COMPLETED') : 'SETTLING'];
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs" aria-label={`Job ${status}`}>
+    <div className="rounded-card border border-border bg-surface p-2.5 text-label" aria-label={`Job ${status}`}>
       {/* Wave-2 a11y: polite live region announces phase transitions.
           Text derives from the settled status, so it only changes on
           phase change. Visual output is identical (sr-only). */}
@@ -101,27 +107,31 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
       <div className="flex items-center gap-1.5">
         {steps.map((s, i) => (
           <React.Fragment key={s}>
-            {i > 0 && <span className="text-[var(--color-faint)]">→</span>}
+            {i > 0 && <span className="text-faint">→</span>}
             <span
-              className={`px-1.5 py-0.5 rounded-full font-code text-[12px] ${
-                done
+              className={`px-1.5 py-0.5 rounded-capsule font-code text-[12px] ${
+                unknown
+                  ? 'bg-warning-wash text-warning-ink'
+                  : done
                   ? failed && i === 2
-                    ? 'bg-[var(--color-danger-wash)] text-[var(--color-danger-ink)]'
-                    : 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)]'
+                    ? st === 'INTERRUPTED'
+                      ? 'bg-warning-wash text-warning-ink'
+                      : 'bg-danger-wash text-danger-ink'
+                    : 'bg-success-wash text-success-ink'
                   : i < activeIdx
-                    ? 'bg-[var(--color-success-wash)] text-[var(--color-success-ink)]'
+                    ? 'bg-success-wash text-success-ink'
                     : i === activeIdx
-                      ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] animate-pulse'
-                      : 'bg-[var(--color-fill)] text-[var(--color-faint)]'
+                      ? 'bg-info-wash text-info-ink animate-pulse'
+                      : 'bg-fill text-faint'
               }`}
             >
               {s}
             </span>
           </React.Fragment>
         ))}
-        <span className="text-[var(--color-faint)] font-code ml-auto">{elapsed(detail.created, detail.completed)}</span>
+        <span className="text-faint font-code ml-auto">{elapsed(detail.created, detail.completed)}</span>
       </div>
-      {detail.jobType && <div className="text-[var(--color-faint)] mt-1 font-code text-[12px]">{detail.jobType}</div>}
+      {detail.jobType && <div className="text-faint mt-1 font-code text-[12px]">{detail.jobType}</div>}
     </div>
   );
 }

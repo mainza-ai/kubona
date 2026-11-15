@@ -11,6 +11,134 @@
 :root {
   color-scheme: dark;
 
+  /* D1: Tailwind consumes tokens through `@theme inline` in globals.css. A
+     theme variable cannot reference itself (`--color-surface: var(--color-surface)`
+     is a cycle), so each exposed token points at a distinct runtime alias.
+     These aliases add no values; they are names for the composed layer. */
+  --k-color-canvas: var(--color-canvas);
+  --k-color-page: var(--color-page);
+  --k-color-chrome: var(--color-chrome);
+  --k-color-surface: var(--color-surface);
+  --k-color-surface-elev: var(--color-surface-elev);
+  --k-color-raised: var(--color-raised);
+  --k-color-float: var(--color-float);
+  --k-color-fill: var(--color-fill);
+  --k-color-fill-hover: var(--color-fill-hover);
+  --k-color-fill-active: var(--color-fill-active);
+  --k-color-fill-pressed: var(--color-fill-pressed);
+  --k-color-fill-strong: var(--color-fill-strong);
+  --k-color-card: var(--color-card);
+  --k-color-tile: var(--color-tile);
+  --k-color-border: var(--color-border);
+  --k-color-border-strong: var(--color-border-strong);
+  --k-color-text: var(--color-text);
+  --k-color-label-secondary: var(--color-label-secondary);
+  --k-color-muted: var(--color-muted);
+  --k-color-faint: var(--color-faint);
+  --k-color-accent: var(--color-accent);
+  --k-color-accent-hover: var(--color-accent-hover);
+  --k-color-on-accent: var(--color-on-accent);
+  --k-color-accent-soft: var(--color-accent-soft);
+  --k-color-accent-ink: var(--color-accent-ink);
+  --k-color-accent-edge: var(--color-accent-edge);
+  --k-color-success: var(--color-success);
+  --k-color-warning: var(--color-warning);
+  --k-color-danger: var(--color-danger);
+  --k-color-info: var(--color-info);
+  --k-color-field: var(--color-field);
+  --k-color-field-hover: var(--color-field-hover);
+  --k-color-field-ring: var(--color-field-ring);
+  --k-color-code-chip: var(--color-code-chip);
+  --k-color-code-chip-ink: var(--color-code-chip-ink);
+  --k-color-term: var(--color-term);
+  --k-color-term-wash: var(--color-term-wash);
+  --k-color-success-wash: var(--color-success-wash);
+  --k-color-success-edge: var(--color-success-edge);
+  --k-color-success-ink: var(--color-success-ink);
+  --k-color-warning-wash: var(--color-warning-wash);
+  --k-color-warning-edge: var(--color-warning-edge);
+  --k-color-warning-ink: var(--color-warning-ink);
+  --k-color-danger-wash: var(--color-danger-wash);
+  --k-color-danger-edge: var(--color-danger-edge);
+  --k-color-danger-ink: var(--color-danger-ink);
+  --k-color-info-wash: var(--color-info-wash);
+  --k-color-info-edge: var(--color-info-edge);
+  --k-color-info-ink: var(--color-info-ink);
+  --k-color-lit: var(--color-lit);
+  --k-color-lit-soft: var(--color-lit-soft);
+  --k-color-on-lit: var(--color-on-lit);
+  --k-color-control: var(--color-control);
+  --k-color-control-hover: var(--color-control-hover);
+  --k-color-soft-sky: var(--color-soft-sky);
+  --k-color-soft-sky-wash: var(--color-soft-sky-wash);
+  --k-color-soft-sky-edge: var(--color-soft-sky-edge);
+  --k-color-soft-sky-ink: var(--color-soft-sky-ink);
+  --k-color-soft-mint: var(--color-soft-mint);
+  --k-color-soft-mint-wash: var(--color-soft-mint-wash);
+  --k-color-soft-mint-edge: var(--color-soft-mint-edge);
+  --k-color-soft-mint-ink: var(--color-soft-mint-ink);
+  --k-color-soft-lemon: var(--color-soft-lemon);
+  --k-color-soft-lemon-wash: var(--color-soft-lemon-wash);
+  --k-color-soft-lemon-edge: var(--color-soft-lemon-edge);
+  --k-color-soft-lemon-ink: var(--color-soft-lemon-ink);
+  --k-color-soft-peach: var(--color-soft-peach);
+  --k-color-soft-peach-wash: var(--color-soft-peach-wash);
+  --k-color-soft-peach-edge: var(--color-soft-peach-edge);
+  --k-color-soft-peach-ink: var(--color-soft-peach-ink);
+  --k-color-soft-rose: var(--color-soft-rose);
+  --k-color-soft-rose-wash: var(--color-soft-rose-wash);
+  --k-color-soft-rose-edge: var(--color-soft-rose-edge);
+  --k-color-soft-rose-ink: var(--color-soft-rose-ink);
+  --k-color-soft-lilac: var(--color-soft-lilac);
+  --k-color-soft-lilac-wash: var(--color-soft-lilac-wash);
+  --k-color-soft-lilac-edge: var(--color-soft-lilac-edge);
+  --k-color-soft-lilac-ink: var(--color-soft-lilac-ink);
+  --k-color-soft-indigo-wash: var(--color-soft-indigo-wash);
+  --k-color-soft-indigo-edge: var(--color-soft-indigo-edge);
+
+  --k-radius-swatch: var(--radius-swatch);
+  --k-radius-chip: var(--radius-chip);
+  --k-radius-inset: var(--radius-inset);
+  --k-radius-control-compact: var(--radius-control-compact);
+  --k-radius-control: var(--radius-control);
+  --k-radius-row: var(--radius-row);
+  --k-radius-control-large: var(--radius-control-large);
+  --k-radius-card: var(--radius-card);
+  --k-radius-panel: var(--radius-panel);
+  --k-radius-sheet: var(--radius-sheet);
+  --k-radius-capsule: var(--radius-capsule);
+
+  --k-text-caption: var(--text-caption);
+  --k-text-caption-lh: var(--text-caption--line-height);
+  --k-text-label: var(--text-label);
+  --k-text-label-lh: var(--text-label--line-height);
+  --k-text-body: var(--text-body);
+  --k-text-body-lh: var(--text-body--line-height);
+  --k-text-page-body: var(--text-page-body);
+  --k-text-page-body-lh: var(--text-page-body--line-height);
+  --k-text-body-strong: var(--text-body-strong);
+  --k-text-body-strong-lh: var(--text-body-strong--line-height);
+  --k-text-page-title: var(--text-page-title);
+  --k-text-page-title-lh: var(--text-page-title--line-height);
+  --k-text-body-large: var(--text-body-large);
+  --k-text-body-large-lh: var(--text-body-large--line-height);
+  --k-text-subtitle: var(--text-subtitle);
+  --k-text-subtitle-lh: var(--text-subtitle--line-height);
+  --k-text-title-small: var(--text-title-small);
+  --k-text-title-small-lh: var(--text-title-small--line-height);
+  --k-text-title: var(--text-title);
+  --k-text-title-lh: var(--text-title--line-height);
+  --k-text-title-large: var(--text-title-large);
+  --k-text-title-large-lh: var(--text-title-large--line-height);
+  --k-text-headline: var(--text-headline);
+  --k-text-headline-lh: var(--text-headline--line-height);
+  --k-text-display-small: var(--text-display-small);
+  --k-text-display-small-lh: var(--text-display-small--line-height);
+  --k-text-display: var(--text-display);
+  --k-text-display-lh: var(--text-display--line-height);
+  --k-text-display-large: var(--text-display-large);
+  --k-text-display-large-lh: var(--text-display-large--line-height);
+
   --color-menu: color-mix(in srgb, var(--color-float) var(--wash-raised), transparent);
 
   /* List & segmented states */
@@ -79,10 +207,15 @@
 
   /* Motion timings. Curves are the standard Penner easeOutQuint
      (0.22, 1, 0.36, 1) and easeOutExpo (0.16, 1, 0.3, 1). */
+  /* D4 motion vocabulary: press/exit are quicker than arrival. */
+  --motion-press: 70ms;
+  --motion-exit: 120ms;
   --motion-fast: 140ms;
   --motion-mid: 220ms;
   --motion-slow: 340ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --motion-ease: var(--ease-out);
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 

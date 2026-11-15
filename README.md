@@ -15,7 +15,7 @@
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-Orchestrator-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-156%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-158%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -89,6 +89,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 - **Closed-Loop Research Campaigns:** Plan, dispatch, evaluate, and automatically replan multi-step scientific campaigns from natural-language research goals (`then` / `->` / `;` pipelines via `/api/discovery/{plan,run}`).
 - **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) — never claiming quantum advantage by assertion.
 - **Persistent Scientific Memory:** Hybrid full-text and structured memory graph linking hypotheses, OpenAlex/literature citations, artifacts, and experimental lineage across sessions.
+- **Runtime Skills & Recorded Decision Evals:** Operator and seed `SKILL.md` instructions are advertised to the copilot by name/description only and read on demand through a read-only tool, with closed loader faults shown in Settings. Sha-pinned copilot decision fixtures produce Brier/ECE reports, surfaced in the model picker; an opt-in gate can require an evaluated model before a copilot change.
 
 ### 3. Cryptographic Provenance & Spend Settlement
 
@@ -218,8 +219,12 @@ PYTHONPATH=platform/bridge:platform platform/.venv/bin/pytest platform/bridge/ p
 
 # Console TypeScript, ESLint, Vitest, and OpenAPI/contract gates
 cd platform/console && pnpm exec tsc --noEmit && pnpm lint && pnpm test
+pnpm test:browser   # real-Chromium component tests (once: pnpm exec playwright install chromium)
 python3 scripts/console-contract-inventory.py --check
 node scripts/console-openapi.mjs --check
+node scripts/console-scale-lint.mjs       # role-named radius/type only
+node scripts/console-color-utility-lint.mjs
+python3 scripts/repo-counts.py --check
 
 # Strict wiki blueprint lint
 python3 scripts/wiki-lint.py --strict

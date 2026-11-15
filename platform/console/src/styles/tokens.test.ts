@@ -89,6 +89,16 @@ describe('derived console palette', () => {
       const text = readFileSync(join(STYLES_DIR, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
       expect({ file, literals: text.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(/g) ?? [] }).toEqual({ file, literals: [] });
     }
+    // globals.css is hand-written too. Its only sanctioned literals are the
+    // keyframe glow colours and the modal backdrop scrim; everything else
+    // must reference a token (the stylelint role, enforced as a test so it
+    // runs in the same suite as the palette derivation).
+    const globals = readFileSync(join(SRC_ROOT, 'app', 'globals.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((line) => !line.includes('drop-shadow') && !line.includes('::backdrop'))
+      .join('\n');
+    expect(globals.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\boklch\(/g) ?? []).toEqual([]);
   });
 });
 
@@ -206,5 +216,31 @@ describe('design token integrity and Light Paper theme migration', () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it('names the size ladder by role and pins the codemod sizes exactly', () => {
+    const scale = derivePalette().scale as Record<string, string>;
+    // Radius roles covering the five old Tailwind sizes plus the two existing
+    // card/panel roles; every codemodded class maps 1:1, not approximately.
+    expect(scale['--radius-chip']).toBe('4px');
+    expect(scale['--radius-inset']).toBe('6px');
+    expect(scale['--radius-control-compact']).toBe('8px');
+    expect(scale['--radius-row']).toBe('12px');
+    expect(scale['--radius-card']).toBe('16px');
+    expect(scale['--radius-sheet']).toBe('24px');
+    expect(scale['--radius-capsule']).toBe('999px');
+    // Type roles preserve xs/sm/base/lg/xl/2xl/3xl/4xl exactly and carry the
+    // line height the raw utility used, so the reset is not a restyle.
+    expect(scale['--text-label']).toBe('12px');
+    expect(scale['--text-body-strong']).toBe('14px');
+    expect(scale['--text-body-large']).toBe('16px');
+    expect(scale['--text-subtitle']).toBe('18px');
+    expect(scale['--text-title-small']).toBe('20px');
+    expect(scale['--text-title-large']).toBe('24px');
+    expect(scale['--text-display-small']).toBe('30px');
+    expect(scale['--text-display-large']).toBe('36px');
+    expect(scale['--text-label--line-height']).toBe('16px');
+    expect(scale['--text-body-strong--line-height']).toBe('20px');
+    expect(scale['--text-display-large--line-height']).toBe('40px');
   });
 });

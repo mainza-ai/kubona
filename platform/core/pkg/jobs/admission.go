@@ -44,6 +44,10 @@ type circuitRunParams struct {
 	CallerJurisdictions []string `json:"caller_jurisdictions"`
 	CallerExportClass   string   `json:"caller_export_class"`
 	ExportReviewed      bool     `json:"export_reviewed"`
+	// C11: run-scoped authority + structured taint from the minted proposal.
+	RunAllowanceID string `json:"run_allowance_id"`
+	BasisTainted   bool   `json:"basis_tainted"`
+	Shots          int    `json:"shots"`
 }
 
 type mandateReceipt struct {
@@ -206,6 +210,20 @@ func (r *Runner) planAdmission(sessionID, jobType string, paramsJSON []byte, dec
 	// resubmitted explicitly, never applied silently.
 	if err := r.admitFidelity(sessionID, p.RequestedBackend, p.QASM); err != nil {
 		return "", 0, err
+	}
+	// C11: a signed run allowance replaces the per-job mandate for a metered
+	// circuit_run. The atomic draw in reserveAndInsertJobTx is authoritative.
+	if p.RunAllowanceID != "" {
+		if err := r.planRunAllowance(tenantID, sessionID, jobType, &p); err != nil {
+			return "", 0, err
+		}
+		if err := r.tenantStore().CheckSpend(tenantID, p.MaxCostUSD); err != nil {
+			return "", 0, err
+		}
+		if err := r.checkSessionSpend(sessionID, p.MaxCostUSD); err != nil {
+			return "", 0, err
+		}
+		return tenantID, p.MaxCostUSD, nil
 	}
 	if grant != nil {
 		// Spend binds to the granting lab's ceiling: the caller debits the
@@ -543,4 +561,10 @@ func (r *Runner) verifyGrantChain(chainB64 []string, jobTenant, requiredScope st
 		return nil, fmt.Errorf("grant targets tenant %q, job runs as %q: refused", vg.TargetTenant, jobTenant)
 	}
 	return vg, nil
+}
+
+// IsSimulatorBackend reports the zero-cost local execution class (exported
+// for the allowance mint, which must not wrap simulator runs).
+func IsSimulatorBackend(backend string) bool {
+	return isSimulatorBackend(backend)
 }

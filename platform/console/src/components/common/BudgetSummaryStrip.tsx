@@ -44,30 +44,30 @@ export function BudgetSummaryStrip({ summary: controlledSummary, refused: contro
   const refused = controlledRefused !== undefined ? controlledRefused : fetchedRefused;
 
   return (
-    <div className="p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)]">
-      <div className="text-[12px] font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono flex flex-wrap items-center gap-2">
+    <div className="p-4 rounded-card bg-surface border border-border">
+      <div className="text-[12px] font-semibold text-label-secondary uppercase tracking-wider font-mono flex flex-wrap items-center gap-2">
         <span>LLM spend — server-sealed</span>
         {summary?.local_bypass && (
-          <span className="text-[var(--color-success-ink)] normal-case font-sans">
+          <span className="text-success-ink normal-case font-sans">
             {`local inference $0 · unmetered (active: ${summary.active_provider})`}
           </span>
         )}
       </div>
       {refused && (
-        <div className="mt-2 p-2.5 rounded-xl bg-[var(--color-danger-wash)] border border-[var(--color-danger-edge)] text-[var(--color-danger-ink)] text-[12px]">
+        <div className="mt-2 p-2.5 rounded-row bg-danger-wash border border-danger-edge text-danger-ink text-[12px]">
           Spend refused — {refused.slice(0, 200)}. Nothing spent, nothing assumed.
         </div>
       )}
       {!refused && !summary && (
-        <div className="mt-2 text-[12px] text-[var(--color-muted)] font-code">
+        <div className="mt-2 text-[12px] text-muted font-code">
           {autoFetch ? 'Awaiting spend telemetry…' : 'Loading spend…'}
         </div>
       )}
       {summary && (
-        <div className="mt-1 text-xs text-[var(--color-label-secondary)] font-mono">
+        <div className="mt-1 text-label text-label-secondary font-mono">
           spent ${fmtFixed(summary.spent_usd, 4)}
           {summary.track_only ? (
-            <span className="text-[var(--color-muted)]"> · no cap (track-only)</span>
+            <span className="text-muted"> · no cap (track-only)</span>
           ) : (
             <span>
               {' '}
@@ -75,7 +75,7 @@ export function BudgetSummaryStrip({ summary: controlledSummary, refused: contro
             </span>
           )}
           {summary.unmetered_count > 0 && (
-            <span className="text-[var(--color-warning-ink)]">
+            <span className="text-warning-ink">
               {' '}
               · {summary.unmetered_count} blind-stream record{summary.unmetered_count === 1 ? '' : 's'} (gate-relevant)
             </span>

@@ -32,10 +32,10 @@ export function QuantumSettings() {
   const { data, error, refresh } = useQuantumSettingsProjection();
   if (!data) {
     return (
-      <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-page)] p-7 text-[12px] text-[var(--color-label-secondary)]">
-        <p className="font-medium text-[var(--color-text)]">Quantum provider catalog unavailable</p>
-        <p className="mt-1 text-[var(--color-muted)]">{error || 'Loading provider catalog and saved selection…'}</p>
-        <button type="button" onClick={refresh} className="mt-3 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)]">
+      <div className="rounded-sheet border border-border bg-page p-7 text-[12px] text-label-secondary">
+        <p className="font-medium text-text">Quantum provider catalog unavailable</p>
+        <p className="mt-1 text-muted">{error || 'Loading provider catalog and saved selection…'}</p>
+        <button type="button" onClick={refresh} className="mt-3 rounded-control-compact border border-border px-3 py-1.5 text-text">
           Retry
         </button>
       </div>
@@ -94,7 +94,7 @@ function QuantumSettingsForm({
   const credBadge = (b: QuantumBackendInfo) => {
     if (b.credential_state === 'ready') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-[var(--color-success-wash)] text-[var(--color-success-ink)] border border-[var(--color-success-edge)]">
+        <span className="px-2 py-0.5 rounded-capsule text-[12px] font-mono font-semibold bg-success-wash text-success-ink border border-success-edge">
           READY
         </span>
       );
@@ -102,7 +102,7 @@ function QuantumSettingsForm({
     if (b.credential_state === 'credentialless') {
       return (
         <span
-          className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]"
+          className="px-2 py-0.5 rounded-capsule text-[12px] font-mono font-semibold bg-info-wash text-info-ink border border-info-edge"
           title={`This daemon holds no credentials — set ${b.credential_env} to enable it.`}
         >
           NO CREDENTIALS
@@ -110,20 +110,20 @@ function QuantumSettingsForm({
       );
     }
     return (
-      <span className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-[var(--color-tile)] text-[var(--color-muted)] border border-[var(--color-border)]">
+      <span className="px-2 py-0.5 rounded-capsule text-[12px] font-mono font-semibold bg-tile text-muted border border-border">
         UNAVAILABLE
       </span>
     );
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border)] shadow-xl p-7 space-y-6">
+    <div className="relative rounded-sheet overflow-hidden bg-page border border-border shadow-xl p-7 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
-          <Cpu className="w-5 h-5 text-[var(--color-info-ink)]" />
+          <Cpu className="w-5 h-5 text-info-ink" />
           <div>
-            <h2 className="text-sm font-bold text-[var(--color-text)] font-mono tracking-tight">Quantum Providers</h2>
-            <p className="text-[12px] text-[var(--color-muted)] font-sans">
+            <h2 className="text-body-strong font-bold text-text font-mono tracking-tight">Quantum Providers</h2>
+            <p className="text-[12px] text-muted font-sans">
               Human default backend + per-harness overrides. Agents keep their own per-call selection (default local-simulator).
             </p>
           </div>
@@ -131,7 +131,7 @@ function QuantumSettingsForm({
         <button
           onClick={onRefresh}
           aria-label="Reload backends and saved selection"
-          className="p-2 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]"
+          className="p-2 rounded-row bg-tile border border-border text-label-secondary hover:bg-fill-hover"
           title="Reload backends and saved selection"
         >
           <RefreshCw className="w-4 h-4" />
@@ -159,24 +159,24 @@ function QuantumSettingsForm({
           }}
           disabled={canarying}
           aria-label="Run live canary check"
-          className="p-2 rounded-xl bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)] disabled:opacity-50"
+          className="p-2 rounded-row bg-tile border border-border text-label-secondary hover:bg-fill-hover disabled:opacity-50"
           title="Run the live canary (calibration reads only, no QPU spend). Credentialless providers skip; declared catalog stays the fallback."
         >
           <Activity className={canarying ? 'w-4 h-4 animate-pulse' : 'w-4 h-4'} />
         </button>
       </div>
       {canaryOut && (
-        <div className="text-[12px] text-[var(--color-label-secondary)] font-mono bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl px-3 py-2">
+        <div className="text-[12px] text-label-secondary font-mono bg-surface border border-border rounded-row px-3 py-2">
           {canaryOut}
         </div>
       )}
       {canaryResults && Object.keys(canaryResults).length > 0 && (
-        <details data-testid="canary-results" className="text-[12px] text-[var(--color-label-secondary)] font-mono bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl px-3 py-2">
-          <summary className="cursor-pointer text-[var(--color-info-ink)]">Measured canary results (live, no QPU spend)</summary>
+        <details data-testid="canary-results" className="text-[12px] text-label-secondary font-mono bg-surface border border-border rounded-row px-3 py-2">
+          <summary className="cursor-pointer text-info-ink">Measured canary results (live, no QPU spend)</summary>
           <ul className="mt-2 space-y-1">
             {Object.entries(canaryResults).map(([provider, result]) => (
               <li key={provider} className="break-all">
-                <span className="text-[var(--color-text)]">{provider}</span>: {JSON.stringify(result).slice(0, 500)}
+                <span className="text-text">{provider}</span>: {JSON.stringify(result).slice(0, 500)}
               </li>
             ))}
           </ul>
@@ -188,10 +188,10 @@ function QuantumSettingsForm({
         {backends.map((b) => (
           <label
             key={b.provider}
-            className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+            className={`flex items-center justify-between gap-3 p-3 rounded-row border cursor-pointer transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
               defaultBackend === b.provider
-                ? 'border-[var(--color-info-edge)] bg-[var(--color-info-wash)]'
-                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)] bg-[var(--color-surface)]'
+                ? 'border-info-edge bg-info-wash'
+                : 'border-border hover:border-border-strong bg-surface'
             }`}
           >
             <div className="flex items-center space-x-3">
@@ -200,15 +200,15 @@ function QuantumSettingsForm({
                 name="quantum-default-backend"
                 checked={defaultBackend === b.provider}
                 onChange={() => setDefaultBackend(b.provider)}
-                className="accent-[var(--color-accent)]"
+                className="accent-accent"
               />
               <div>
-                <div className="text-xs font-bold text-[var(--color-text)] font-mono">{b.display_name}</div>
-                <div className="text-[12px] text-[var(--color-muted)] font-mono">
+                <div className="text-label font-bold text-text font-mono">{b.display_name}</div>
+                <div className="text-[12px] text-muted font-mono">
                   {b.provider} · {b.modality} · {b.device}
                   {b.telemetry === 'declared' && (
                     <span
-                      className="ml-1.5 px-1.5 py-px rounded bg-[var(--color-tile)] text-[var(--color-label-secondary)] border border-[var(--color-border)] text-[12px] font-bold"
+                      className="ml-1.5 px-1.5 py-px rounded-chip bg-tile text-label-secondary border border-border text-[12px] font-bold"
                       title="Vendor catalog, not a live measurement."
                     >
                       CATALOG
@@ -216,7 +216,7 @@ function QuantumSettingsForm({
                   )}
                 </div>
                 {b.credential_env !== '' && b.credential_state !== 'ready' && (
-                  <div className="text-[12px] text-[var(--color-muted)] font-mono flex items-center space-x-1 mt-0.5">
+                  <div className="text-[12px] text-muted font-mono flex items-center space-x-1 mt-0.5">
                     <KeyRound className="w-3 h-3" />
                     <span>set {b.credential_env} on the daemon to enable</span>
                   </div>
@@ -227,7 +227,7 @@ function QuantumSettingsForm({
               {credBadge(b)}
               {!b.executable_now && b.credential_state === 'ready' && (
                 <span
-                  className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-[var(--color-warning-wash)] text-[var(--color-warning-ink)] border border-[var(--color-warning-edge)]"
+                  className="px-2 py-0.5 rounded-capsule text-[12px] font-mono font-semibold bg-warning-wash text-warning-ink border border-warning-edge"
                   title="Local solving works; the cloud path for this modality is not wired yet."
                 >
                   LOCAL ONLY
@@ -237,27 +237,27 @@ function QuantumSettingsForm({
           </label>
         ))}
         {backends.length === 0 && (
-          <div className="text-[12px] text-[var(--color-muted)] font-mono p-3">No backends reported — is the daemon reachable?</div>
+          <div className="text-[12px] text-muted font-mono p-3">No backends reported — is the daemon reachable?</div>
         )}
       </div>
 
       {/* Per-harness overrides */}
       <div className="space-y-2">
-        <div className="text-xs font-semibold text-[var(--color-label-secondary)] font-mono uppercase tracking-wider flex items-center space-x-2">
-          <FlaskConical className="w-4 h-4 text-[var(--color-muted)]" />
+        <div className="text-label font-semibold text-label-secondary font-mono uppercase tracking-wider flex items-center space-x-2">
+          <FlaskConical className="w-4 h-4 text-muted" />
           <span>Per-harness overrides (optional)</span>
         </div>
         {Object.entries(harnessMap).map(([harness, backend]) => (
-          <div key={harness} className="flex items-center space-x-2 text-xs font-mono">
-            <span className="text-[var(--color-text)] bg-[var(--color-tile)] border border-[var(--color-border)] rounded-lg px-3 py-2 flex-1">{harness}</span>
-            <span className="text-[var(--color-muted)]">→</span>
+          <div key={harness} className="flex items-center space-x-2 text-label font-mono">
+            <span className="text-text bg-tile border border-border rounded-control-compact px-3 py-2 flex-1">{harness}</span>
+            <span className="text-muted">→</span>
             <label htmlFor={`quantum-harness-backend-${harness}`} className="sr-only">Backend for harness {harness}</label>
             <select
               id={`quantum-harness-backend-${harness}`}
               value={backend}
               aria-label={`Backend for harness ${harness}`}
               onChange={(e) => setHarnessMap((m) => ({ ...m, [harness]: e.target.value }))}
-              className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text)]"
+              className="bg-field border border-border rounded-control-compact px-3 py-2 text-text"
             >
               {backends.map((b) => (
                 <option key={b.provider} value={b.provider}>
@@ -274,13 +274,13 @@ function QuantumSettingsForm({
                 })
               }
               aria-label={`Remove harness ${harness}`}
-              className="px-3 py-2 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-muted)] hover:bg-[var(--color-fill-hover)]"
+              className="px-3 py-2 rounded-control-compact bg-tile border border-border text-muted hover:bg-fill-hover"
             >
               remove
             </button>
           </div>
         ))}
-        <div className="flex items-center space-x-2 text-xs font-mono">
+        <div className="flex items-center space-x-2 text-label font-mono">
           <label htmlFor="quantum-new-harness" className="sr-only">New harness name</label>
           <input
             id="quantum-new-harness"
@@ -288,16 +288,16 @@ function QuantumSettingsForm({
             aria-label="New harness name"
             onChange={(e) => setNewHarness(e.target.value)}
             placeholder="harness name (e.g. vqe-ansatz)"
-            className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text)] flex-1 placeholder:text-[var(--color-faint)]"
+            className="bg-field border border-border rounded-control-compact px-3 py-2 text-text flex-1 placeholder:text-faint"
           />
-          <span className="text-[var(--color-muted)]">→</span>
+          <span className="text-muted">→</span>
           <label htmlFor="quantum-new-harness-backend" className="sr-only">Backend for new harness</label>
           <select
             id="quantum-new-harness-backend"
             value={newBackend}
             aria-label="Backend for new harness"
             onChange={(e) => setNewBackend(e.target.value)}
-            className="bg-[var(--color-field)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-[var(--color-text)]"
+            className="bg-field border border-border rounded-control-compact px-3 py-2 text-text"
           >
             {backends.map((b) => (
               <option key={b.provider} value={b.provider}>
@@ -312,7 +312,7 @@ function QuantumSettingsForm({
               setHarnessMap((m) => ({ ...m, [h]: newBackend }));
               setNewHarness('');
             }}
-            className="px-3 py-2 rounded-lg bg-[var(--color-tile)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]"
+            className="px-3 py-2 rounded-control-compact bg-tile border border-border text-label-secondary hover:bg-fill-hover"
           >
             add
           </button>
@@ -324,33 +324,33 @@ function QuantumSettingsForm({
         <button
           onClick={() => void onSave()}
           disabled={!dirty || saving}
-          className={`px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 border ${
+          className={`px-4 py-2 rounded-row font-mono text-label font-bold flex items-center space-x-2 border ${
             dirty && !saving
-              ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border-[var(--color-info-edge)] hover:opacity-90'
-              : 'bg-[var(--color-tile)] text-[var(--color-faint)] border-[var(--color-border)] cursor-not-allowed'
+              ? 'bg-info-wash text-info-ink border-info-edge hover:opacity-90'
+              : 'bg-tile text-faint border-border cursor-not-allowed'
           }`}
         >
           <Save className="w-4 h-4" />
           <span>{saving ? 'Saving…' : dirty ? 'Save selection' : 'Saved'}</span>
         </button>
         {message?.kind === 'ok' && (
-          <span className="text-[12px] text-[var(--color-success-ink)] font-mono flex items-center space-x-1.5">
+          <span className="text-[12px] text-success-ink font-mono flex items-center space-x-1.5">
             <CheckCircle2 className="w-4 h-4" />
             <span>{message.text}</span>
           </span>
         )}
         {message?.kind === 'err' && (
-          <span className="text-[12px] text-[var(--color-danger-ink)] font-mono flex items-center space-x-1.5">
+          <span className="text-[12px] text-danger-ink font-mono flex items-center space-x-1.5">
             <AlertCircle className="w-4 h-4" />
             <span>{message.text}</span>
           </span>
         )}
         {writeSettlementLabel(settlement.write) && (
-          <span role="status" className="text-[12px] text-[var(--color-muted)] font-mono">
+          <span role="status" className="text-[12px] text-muted font-mono">
             {writeSettlementLabel(settlement.write)}
           </span>
         )}
-        <span className="text-[12px] text-[var(--color-muted)] font-mono flex items-center space-x-1.5">
+        <span className="text-[12px] text-muted font-mono flex items-center space-x-1.5">
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>Selection only — keys stay in daemon env/Bao and are never accepted here.</span>
         </span>

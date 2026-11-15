@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (156 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (158 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -28,7 +28,7 @@ arrives, place it here first and it will find its page.
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
 | **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility, ontology | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]], [[epistemic-continuum-and-ontology]], [[quantum-triage-engine]] | mostly `adopted` with mathematical grounding |
-| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
+| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[run-scoped-allowance-threat-model]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]], [[circuit-codesign-production-readiness]], [[circuit-codesign-followups]], [[circuit-codesign-implementation-plan]] | `adopted` mechanisms, `tracked` vendors, dual-model register allocation |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]], [[observatory-spatial-representation-layer]], [[runtime-honesty-and-commit-policy]] | `adopted` cognitive cockpit & AX triad |
@@ -72,7 +72,7 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 10 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (156 pages = 48 entities · 93 concepts · 10 sources · 5 meta), 2026-11-11:**
+**Census (158 pages = 48 entities · 95 concepts · 10 sources · 5 meta), 2026-11-14:**
 `settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 49 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
@@ -200,7 +200,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[workflows-and-agent-authoring]] | User- and agent-created workflows & agents; triggers, gates, registry, safety rail |
 | [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex `external_novelty`, PySCF classical anchors; MPDS/EPO OPS gated) as governed MCP resources |
 | [[market-intelligence-capability]] | Gather→curate→store ecosystem intelligence (TQI-model report, 2026-10-11): entity schema, ER, tiered validation, versioned snapshots — `candidate` |
-| [[ui-ux-vision]] | Console/UX specification & measured science surfaces (semantic dark/light axes, Spatial Workbench auto-framing, `Cmd+E` drawer, `ResultsStudio` SVG charts, native `<dialog>`, 667 Console tests; manual AT pending) |
+| [[ui-ux-vision]] | Console/UX specification & measured science surfaces (semantic dark/light axes, Spatial Workbench auto-framing, `Cmd+E` drawer, `ResultsStudio` SVG charts, native `<dialog>`, 797 Console tests; manual AT pending) |
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
 | [[risks]] | Risk register synced 2026-11-10 (public DCO/rulesets, export routing, calibration & anti-overclaim gates, scrubbed history) |
 | [[quantum-advantage-realism]] | The anti-quantum-washing policy: never claim advantage; backend, classical anchor and interval travel with every artefact |

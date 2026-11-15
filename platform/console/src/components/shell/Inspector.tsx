@@ -26,8 +26,8 @@ function num(value: unknown, digits = 5): string {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[var(--color-muted)]">{label}</dt>
-      <dd className="m-0 min-w-0 font-mono text-[var(--color-text)] break-all">{value}</dd>
+      <dt className="text-muted">{label}</dt>
+      <dd className="m-0 min-w-0 font-mono text-text break-all">{value}</dd>
     </div>
   );
 }
@@ -85,7 +85,7 @@ export const Inspector = React.memo(function Inspector({
       <aside
         aria-label="Inspector"
         style={{ '--inspector-width': `${effectiveWidth}px` } as React.CSSProperties}
-        className="fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] shrink-0 flex-col overflow-hidden border-l border-[var(--color-border)] bg-[var(--color-chrome)] shadow-[var(--shadow-float)] lg:static lg:z-auto lg:w-[var(--inspector-width)]"
+        className="fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-chrome shadow-[var(--shadow-float)] lg:static lg:z-auto lg:w-[var(--inspector-width)]"
       >
         <div
           role="separator"
@@ -109,9 +109,9 @@ export const Inspector = React.memo(function Inspector({
             if (event.key === 'ArrowLeft') setWidth((value) => Math.min(maxWidth, value + 16));
             if (event.key === 'ArrowRight') setWidth((value) => Math.max(MIN_WIDTH, value - 16));
           }}
-          className="absolute inset-y-0 left-0 hidden w-1 cursor-col-resize bg-transparent hover:bg-[var(--color-accent)]/40 focus-visible:bg-[var(--color-accent)]/60 focus-visible:outline-none lg:block"
+          className="absolute inset-y-0 left-0 hidden w-1 cursor-col-resize bg-transparent hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none lg:block"
         />
-        <header className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-2 min-w-0">
+        <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 min-w-0">
           <div role="tablist" aria-label="Inspector sections" className="flex flex-wrap sm:flex-nowrap min-w-0 gap-1">
             {TABS.map((item) => (
               <button
@@ -120,24 +120,24 @@ export const Inspector = React.memo(function Inspector({
                 role="tab"
                 aria-selected={tab === item.id}
                 onClick={() => onTab(item.id)}
-                className={`rounded-lg px-2 py-1 text-[12px] font-medium whitespace-nowrap ${tab === item.id ? 'bg-[var(--color-lit-soft)] text-[var(--color-text)]' : 'text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]'}`}
+                className={`rounded-control-compact px-2 py-1 text-[12px] font-medium whitespace-nowrap ${tab === item.id ? 'bg-lit-soft text-text' : 'text-muted hover:bg-fill hover:text-text'}`}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close inspector" className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-fill)] hover:text-[var(--color-text)]">Close</button>
+          <button type="button" onClick={onClose} aria-label="Close inspector" className="shrink-0 rounded-control-compact px-2 py-1 text-[12px] text-muted hover:bg-fill hover:text-text">Close</button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 text-[var(--color-label-secondary)]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 text-label-secondary">
           {tab === 'details' && (
             <section role="tabpanel" aria-label="Details" className="space-y-4">
               {selectedObject ? (
                 <>
                   <div>
-                    <div className="text-[12px] uppercase tracking-wide text-[var(--color-faint)]">{selectedObject.label}</div>
-                    <h2 className="mt-1 text-base font-semibold text-[var(--color-text)]">{selectedObject.title}</h2>
-                    <p className="mt-1 text-[12px] leading-relaxed text-[var(--color-muted)]">{selectedObject.detail}</p>
+                    <div className="text-[12px] uppercase tracking-wide text-faint">{selectedObject.label}</div>
+                    <h2 className="mt-1 text-body-large font-semibold text-text">{selectedObject.title}</h2>
+                    <p className="mt-1 text-[12px] leading-relaxed text-muted">{selectedObject.detail}</p>
                   </div>
                   <dl className="space-y-2 text-[12px]">{selectedObject.facts.map((fact) => <Fact key={fact.label} label={fact.label} value={fact.value} />)}</dl>
                   {selectedObject.basis && <p className="k-inspector-basis">{selectedObject.basis}</p>}
@@ -155,7 +155,7 @@ export const Inspector = React.memo(function Inspector({
                       </ul>
                     </div>
                   ) : null}
-                  {selectedObject.ref && <p className="font-mono text-[12px] text-[var(--color-faint)]">{selectedObject.ref.domain}:{selectedObject.ref.id}</p>}
+                  {selectedObject.ref && <p className="font-mono text-[12px] text-faint">{selectedObject.ref.domain}:{selectedObject.ref.id}</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
                     {onOpenObject && <Button type="button" size="compact" onClick={() => onOpenObject(selectedObject)}>Open</Button>}
                     {onFocusObject && <Button type="button" size="compact" variant="ghost" onClick={() => onFocusObject(selectedObject)}>Focus</Button>}
@@ -173,8 +173,8 @@ export const Inspector = React.memo(function Inspector({
                 </>
               ) : campaign ? (
                 <>
-                  <h2 className="text-base font-semibold text-[var(--color-text)]">{campaign.target_system || 'Campaign'}</h2>
-                  <p className="text-[12px] leading-relaxed text-[var(--color-muted)]">{campaign.research_goal || 'No research goal recorded.'}</p>
+                  <h2 className="text-body-large font-semibold text-text">{campaign.target_system || 'Campaign'}</h2>
+                  <p className="text-[12px] leading-relaxed text-muted">{campaign.research_goal || 'No research goal recorded.'}</p>
                   <dl className="space-y-2 text-[12px]">
                     <Fact label="Epistemic state" value={epistemics?.status || 'UNVERIFIED'} />
                     <Fact label="Hypothesis" value={campaign.hypothesis_id || 'not recorded'} />
@@ -182,7 +182,7 @@ export const Inspector = React.memo(function Inspector({
                     <Fact label="Anchor" value={anchor?.anchor_computed ? anchor.method : 'not computed'} />
                   </dl>
                 </>
-              ) : <p className="text-[12px] text-[var(--color-muted)]">No campaign selected.</p>}
+              ) : <p className="text-[12px] text-muted">No campaign selected.</p>}
             </section>
           )}
 
@@ -191,12 +191,12 @@ export const Inspector = React.memo(function Inspector({
               {campaign ? (
                 <>
                   <div data-provenance={epistemics ? 'measured' : undefined}>
-                    <div className="flex items-center gap-2 text-[12px] uppercase tracking-wide text-[var(--color-faint)]">
+                    <div className="flex items-center gap-2 text-[12px] uppercase tracking-wide text-faint">
                       <span>Epistemic state</span>
                       {epistemics && <ProvenanceBadge kind="measured" detail="Evaluated claim record." />}
                     </div>
-                    <p className="mt-1 leading-relaxed text-[var(--color-text)]">{epistemics?.statement || 'No evaluated claim yet.'}</p>
-                    <p className="mt-1 text-[var(--color-muted)]">{epistemics?.status || 'UNVERIFIED'}</p>
+                    <p className="mt-1 leading-relaxed text-text">{epistemics?.statement || 'No evaluated claim yet.'}</p>
+                    <p className="mt-1 text-muted">{epistemics?.status || 'UNVERIFIED'}</p>
                   </div>
                   <dl data-provenance={epistemics || anchor?.anchor_computed ? 'measured' : undefined} className="space-y-2">
                     <Fact label="Corroborated α" value={num(epistemics?.alpha_corroborated, 3)} />
@@ -209,26 +209,26 @@ export const Inspector = React.memo(function Inspector({
                   </dl>
                   {(epistemics?.sources?.length ?? 0) > 0 && (
                     <div className="min-w-0">
-                      <div className="text-[12px] uppercase tracking-wide text-[var(--color-faint)]">Sources</div>
-                      <ul className="mt-1 space-y-1 font-mono text-[var(--color-label-secondary)] break-all">
+                      <div className="text-[12px] uppercase tracking-wide text-faint">Sources</div>
+                      <ul className="mt-1 space-y-1 font-mono text-label-secondary break-all">
                         {epistemics!.sources.map((source) => <li key={source} className="min-w-0">{source}</li>)}
                       </ul>
                     </div>
                   )}
                 </>
-              ) : <p className="text-[var(--color-muted)]">No campaign evidence.</p>}
+              ) : <p className="text-muted">No campaign evidence.</p>}
             </section>
           )}
 
           {tab === 'jobs' && (
             <section role="tabpanel" aria-label="Jobs" className="space-y-2">
               {jobsError && (
-                <div role="alert" className="rounded-xl border border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,var(--color-surface))] p-2.5 text-[12px] text-[var(--color-warning)]">
+                <div role="alert" className="rounded-row border border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,var(--color-surface))] p-2.5 text-[12px] text-warning">
                   <p>Jobs unavailable: {jobsError}</p>
                   {onRefreshJobs && <button type="button" onClick={onRefreshJobs} className="mt-1 underline underline-offset-2">Retry</button>}
                 </div>
               )}
-              {!jobsError && jobs.length === 0 ? <p className="text-[12px] text-[var(--color-muted)]">{jobsStatus === 'loading' ? 'Loading jobs…' : 'No jobs recorded for this campaign.'}</p> : jobs.map((job) => (
+              {!jobsError && jobs.length === 0 ? <p className="text-[12px] text-muted">{jobsStatus === 'loading' ? 'Loading jobs…' : 'No jobs recorded for this campaign.'}</p> : jobs.map((job) => (
                 onFocusJob ? (
                   <button
                     key={job.id}
@@ -236,23 +236,23 @@ export const Inspector = React.memo(function Inspector({
                     data-testid={`inspector-job-${job.id}`}
                     onClick={() => onFocusJob(job)}
                     title="Focus this job card on the workbench canvas"
-                    className="w-full text-start rounded-xl border border-[var(--color-border)] bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] p-2.5 text-[12px] transition-colors"
+                    className="w-full text-start rounded-row border border-border bg-fill hover:bg-fill-hover p-2.5 text-[12px] transition-colors"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[var(--color-label-secondary)]">{job.job_type || 'job'}</span>
-                      <span className="text-[var(--color-muted)]">{jobStatusLabel(job.status)}</span>
+                      <span className="font-mono text-label-secondary">{job.job_type || 'job'}</span>
+                      <span className="text-muted">{jobStatusLabel(job.status)}</span>
                     </div>
-                    <div className="mt-1 font-mono text-[var(--color-faint)]">{job.id.slice(0, 12)}</div>
-                    <div className="mt-1 text-[var(--color-faint)]">created {job.created_at || 'unknown'}{job.completed_at ? ` · completed ${job.completed_at}` : ''}</div>
+                    <div className="mt-1 font-mono text-faint">{job.id.slice(0, 12)}</div>
+                    <div className="mt-1 text-faint">created {job.created_at || 'unknown'}{job.completed_at ? ` · completed ${job.completed_at}` : ''}</div>
                   </button>
                 ) : (
-                  <div key={job.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-fill)] p-2.5 text-[12px]">
+                  <div key={job.id} className="rounded-row border border-border bg-fill p-2.5 text-[12px]">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[var(--color-label-secondary)]">{job.job_type || 'job'}</span>
-                      <span className="text-[var(--color-muted)]">{jobStatusLabel(job.status)}</span>
+                      <span className="font-mono text-label-secondary">{job.job_type || 'job'}</span>
+                      <span className="text-muted">{jobStatusLabel(job.status)}</span>
                     </div>
-                    <div className="mt-1 font-mono text-[var(--color-faint)]">{job.id.slice(0, 12)}</div>
-                    <div className="mt-1 text-[var(--color-faint)]">created {job.created_at || 'unknown'}{job.completed_at ? ` · completed ${job.completed_at}` : ''}</div>
+                    <div className="mt-1 font-mono text-faint">{job.id.slice(0, 12)}</div>
+                    <div className="mt-1 text-faint">created {job.created_at || 'unknown'}{job.completed_at ? ` · completed ${job.completed_at}` : ''}</div>
                   </div>
                 )
               ))}

@@ -72,12 +72,68 @@ export interface TribunalResult {
   synthesis: string;
 }
 
+export type CitationStatus = 'verified' | 'uncited' | 'unknown_observation' | 'not_in_observation';
+
+export interface CitationClaim {
+  number: string;
+  citation?: string;
+  status: CitationStatus | string;
+}
+
+/** B5: deterministic numeric-claim citation report persisted with the turn. */
+export interface CitationReport {
+  observations: Array<{ id: string; tool: string }>;
+  claims: CitationClaim[];
+  verified: number;
+  unverified: number;
+}
+
+/** D6: canvas view unions live in the leaf types module, not in components. */
+export type ArenaView = 'workbench' | 'orbital' | 'proof-dag' | 'hardware-qpu';
+export type CanvasWidgetKind = 'circuit' | 'shadows' | 'molecule' | 'mandate' | 'job';
+
+/** D6: approval packet shape moved out of the component boundary. */
+export interface ApprovalPacketView {
+  packetId: string;
+  agentId: string;
+  backend: string;
+  programHash: string;
+  qubits: number;
+  shots: number;
+  costMaxUsd: number;
+  budgetRemainingUsd: number;
+  costBasis: string;
+  blastRadius: string;
+  reversibility: string;
+  evidence: {
+    dryRun?: string;
+    classicalAnchor?: string;
+    quoteUrl?: string;
+    notebookUrl?: string;
+  };
+  alternatives: {
+    simFirstSavings?: string;
+    fewerShotsSavings?: string;
+  };
+  expiresAtIso: string;
+  noncePreview: string;
+  // Fail-closed overspend flag: true when ceiling - spent < 0 at build time.
+  // Renderers must surface this as a breach, never clamp silently.
+  budgetBreached?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
   role: 'user' | 'assistant' | 'system' | string;
   content: string;
   proposal_json?: Proposal;
+  // B1: the server-minted launch identity. Launch sends these, never the
+  // plan itself. proposal_error explains why a plan is display-only.
+  proposal_id?: string;
+  proposal_digest?: string;
+  proposal_error?: string;
+  citations?: CitationReport;
   tribunal?: TribunalResult;
   created_at: string;
   // Model that served this reply (chat POST envelope). Shown under the
@@ -103,6 +159,25 @@ export interface Task {
   updated_at: string;
 }
 
+/** Closed typed need (C2); mirrors platform/contracts/need-kinds.json. */
+export type NeedKind =
+  | 'credentials'
+  | 'budget_exceeded'
+  | 'backend_offline'
+  | 'quota_exhausted'
+  | 'approval'
+  | 'anchor_missing'
+  | 'retry';
+
+export interface Need {
+  kind: NeedKind;
+  target?: string;
+  /** Server's verbatim reason; never re-worded by the client. */
+  reason: string;
+  /** True when the need has since been overcome. */
+  past?: boolean;
+}
+
 export interface Job {
   id: string;
   session_id: string;
@@ -119,6 +194,8 @@ export interface Job {
   completed_at?: string;
   compiler_used?: string;
   fallback_estimate?: boolean;
+  /** Typed missing precondition recorded with the failure (C2). */
+  need?: Need;
 }
 
 export interface Loop {
@@ -130,6 +207,36 @@ export interface Loop {
   diverged: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface LoopSteer {
+  id: string;
+  loop_id: string;
+  text: string;
+  status: 'pending' | 'applied' | string;
+  created_at: string;
+  applied_at?: string;
+}
+
+export type LoopPartHelper = 'lead' | 'tool' | 'quantum_job' | 'literature' | 'prover';
+export type LoopPartState = 'planned' | 'running' | 'waiting' | 'done' | 'failed' | 'stopped';
+
+/** C1: one recorded run part, projected from `loop_part` ledger events. */
+export interface LoopPart {
+  part_id: string;
+  loop_id: string;
+  helper: LoopPartHelper | string;
+  title: string;
+  goal?: string;
+  state: LoopPartState | string;
+  now?: string;
+  began_ms: number;
+  ended_ms?: number;
+  after?: string;
+  job_id?: string;
+  cited?: string[];
+  need?: Need;
+  job_status?: string;
 }
 
 export interface LedgerEvent {
@@ -853,6 +960,17 @@ export interface WorkflowPlanResponse {
   unresolved_references: string[];
   compensations_planned: WorkflowStep[];
   error?: string;
+}
+
+/** C8: the ephemeral draft published to the canvas after a dry-run plan. */
+export interface WorkflowPlanDraft {
+  workflowId: string;
+  name: string;
+  steps: WorkflowStep[];
+  unresolved: string[];
+  createdAt: number;
+  /** Task ids created from this plan (one per step, plan order). */
+  taskIds?: string[];
 }
 
 export interface WorkflowRunResponse {

@@ -23,9 +23,9 @@ const SpatialCanvas3D = dynamic(
       <div
         role="status"
         aria-label="Loading 3D observatory"
-        className="flex-1 flex items-center justify-center min-h-[520px] rounded-2xl border border-[var(--color-border)] bg-[var(--color-canvas)] animate-pulse"
+        className="flex-1 flex items-center justify-center min-h-[520px] rounded-card border border-border bg-canvas animate-pulse"
       >
-        <span className="text-xs font-mono text-[var(--color-muted)]">Loading 3D observatory…</span>
+        <span className="text-label font-mono text-muted">Loading 3D observatory…</span>
       </div>
     ),
   },
@@ -450,8 +450,8 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         const t = parseInt(cxMatch[2], 10);
         if (c < numQubits && t < numQubits) {
           const col = Math.max(colPointers[c], colPointers[t]);
-          gates.push({ id: `cx-c-${c}-${col}`, type: 'CX_CTRL', label: '•', qubit: c, col, targetQubit: t, color: 'text-[var(--color-accent-ink)]' });
-          gates.push({ id: `cx-t-${t}-${col}`, type: 'CX_TGT', label: '⊕', qubit: t, col, targetQubit: c, color: 'text-[var(--color-accent-ink)]' });
+          gates.push({ id: `cx-c-${c}-${col}`, type: 'CX_CTRL', label: '•', qubit: c, col, targetQubit: t, color: 'text-accent-ink' });
+          gates.push({ id: `cx-t-${t}-${col}`, type: 'CX_TGT', label: '⊕', qubit: t, col, targetQubit: c, color: 'text-accent-ink' });
           connections.push({ col, fromQubit: Math.min(c, t), toQubit: Math.max(c, t) });
           colPointers[c] = col + 1;
           colPointers[t] = col + 1;
@@ -463,7 +463,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         const q = parseInt(hMatch[1], 10);
         if (q < numQubits) {
           const col = colPointers[q];
-          gates.push({ id: `h-${q}-${col}`, type: 'H', label: 'H', qubit: q, col, color: 'bg-[var(--color-soft-sky-wash)] border-[var(--color-soft-sky-edge)] text-[var(--color-soft-sky-ink)]' });
+          gates.push({ id: `h-${q}-${col}`, type: 'H', label: 'H', qubit: q, col, color: 'bg-soft-sky-wash border-soft-sky-edge text-soft-sky-ink' });
           colPointers[q] = col + 1;
         }
         continue;
@@ -477,10 +477,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         if (q < numQubits) {
           const col = colPointers[q];
           const color = name === 'RY' 
-            ? 'bg-[var(--color-info-wash)] border-[var(--color-info-edge)] text-[var(--color-info-ink)]'
+            ? 'bg-info-wash border-info-edge text-info-ink'
             : name === 'RZ'
-            ? 'bg-[var(--color-success-wash)] border-[var(--color-success-edge)] text-[var(--color-success-ink)]'
-            : 'bg-[var(--color-soft-lilac-wash)] border-[var(--color-soft-lilac-edge)] text-[var(--color-soft-lilac-ink)]';
+            ? 'bg-success-wash border-success-edge text-success-ink'
+            : 'bg-soft-lilac-wash border-soft-lilac-edge text-soft-lilac-ink';
           gates.push({
             id: `${name}-${q}-${col}`,
             type: name,
@@ -498,7 +498,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         const q = parseInt(mMatch[1], 10);
         if (q < numQubits) {
           const col = colPointers[q];
-          gates.push({ id: `m-${q}-${col}`, type: 'MEASURE', label: '⏱ M', qubit: q, col, color: 'bg-[var(--color-warning-wash)] border-[var(--color-warning-edge)] text-[var(--color-warning-ink)]' });
+          gates.push({ id: `m-${q}-${col}`, type: 'MEASURE', label: '⏱ M', qubit: q, col, color: 'bg-warning-wash border-warning-edge text-warning-ink' });
           colPointers[q] = col + 1;
         }
         continue;
@@ -529,17 +529,17 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
   if (!campaign) {
     return (
-      <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border-strong)] shadow-[var(--shadow-float)] flex items-center justify-center p-8 text-center">
+      <div className="relative min-h-[560px] sm:min-h-[680px] rounded-sheet overflow-hidden bg-page border border-border-strong shadow-[var(--shadow-float)] flex items-center justify-center p-8 text-center">
         <div className="space-y-2">
-          <h2 className="text-base font-semibold text-[var(--color-text)]">Molecular Workbench</h2>
-          <p className="text-xs text-[var(--color-muted)]">No campaign proposal is selected. Create or open a campaign to give the workbench a target.</p>
+          <h2 className="text-body-large font-semibold text-text">Molecular Workbench</h2>
+          <p className="text-label text-muted">No campaign proposal is selected. Create or open a campaign to give the workbench a target.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-[var(--color-border-strong)] shadow-[var(--shadow-float)] flex flex-col justify-between p-4 sm:p-8 select-none">
+    <div className="relative min-h-[560px] sm:min-h-[680px] rounded-sheet overflow-hidden bg-page border border-border-strong shadow-[var(--shadow-float)] flex flex-col justify-between p-4 sm:p-8 select-none">
       {/* Ambient Radial Discovery Lighting */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -551,23 +551,23 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Top Floating Instrument Bar: Goal & Truth Indicator */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center shadow-inner">
-            <Atom className="w-5 h-5 text-[var(--color-accent-ink)] animate-float-gentle" />
+          <div className="w-10 h-10 rounded-card bg-surface border border-border flex items-center justify-center shadow-inner">
+            <Atom className="w-5 h-5 text-accent-ink animate-float-gentle" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-base font-semibold text-[var(--color-text)] tracking-tight">
+              <h2 className="text-body-large font-semibold text-text tracking-tight">
                 {systemDisplayName}
               </h2>
-              <span className="text-[12px] font-mono font-medium px-2 py-0.5 rounded-full bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
+              <span className="text-[12px] font-mono font-medium px-2 py-0.5 rounded-capsule bg-info-wash text-info-ink border border-info-edge">
                 Ground State PES
               </span>
               <ProvenanceBadge kind="model" detail="Morse potential visualization; measured anchors are labeled separately." />
             </div>
-            <p className="text-xs text-[var(--color-label-secondary)] mt-0.5">
+            <p className="text-label text-label-secondary mt-0.5">
               Direct physical manipulation of nuclear coordinates and electronic structure
             </p>
-            <p className="text-[12px] font-code text-[var(--color-faint)] mt-0.5">
+            <p className="text-[12px] font-code text-faint mt-0.5">
               2-atom schematic only — larger systems still render two bubbles
             </p>
           </div>
@@ -575,14 +575,14 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Mode Switcher: 2D Workbench vs 3D Observatory */}
-          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-card bg-surface border border-border shadow-inner">
             <button
               onClick={() => setCanvasMode('workbench')}
               aria-pressed={canvasMode === 'workbench'}
-              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-row text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
                 canvasMode === 'workbench'
-                  ? 'bg-[var(--color-fill-hover)] text-[var(--color-text)] font-semibold shadow-sm'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-fill-hover text-text font-semibold shadow-sm'
+                  : 'text-muted hover:text-text'
               }`}
             >
               2D Workbench
@@ -590,13 +590,13 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             <button
               onClick={() => setCanvasMode('observatory')}
               aria-pressed={canvasMode === 'observatory'}
-              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1 rounded-row text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] flex items-center gap-1.5 ${
                 canvasMode === 'observatory'
-                  ? 'bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)] font-semibold shadow-sm'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-info-wash text-info-ink border border-info-edge font-semibold shadow-sm'
+                  : 'text-muted hover:text-text'
               }`}
             >
-              <Orbit className="w-3.5 h-3.5 text-[var(--color-accent-ink)]" />
+              <Orbit className="w-3.5 h-3.5 text-accent-ink" />
               <span>3D Observatory</span>
             </button>
           </div>
@@ -613,25 +613,25 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 setLayoutStatus(out.ok ? 'layout saved' : `layout save refused (${out.error ?? 'unknown'})`);
               });
             }}
-            className="px-3 py-1.5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-label-secondary)] hover:bg-[var(--color-fill-hover)]"
+            className="px-3 py-1.5 rounded-card bg-surface border border-border text-label text-label-secondary hover:bg-fill-hover"
           >
             Save layout
           </button>
-          {layoutStatus && <span className="text-[12px] font-code text-[var(--color-muted)]">{layoutStatus}</span>}
+          {layoutStatus && <span className="text-[12px] font-code text-muted">{layoutStatus}</span>}
 
           {/* Calm Truth Status Indicator */}
-          <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-[var(--color-float)] border border-[var(--color-border-strong)]">
-            <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-[var(--color-success)] shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-[var(--color-warning)] shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
+          <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-card bg-float border border-border-strong">
+            <div className={`w-2 h-2 rounded-capsule ${energyCalculated.anchored ? 'bg-success shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-warning shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
             <ProvenanceBadge kind={energyCalculated.anchored ? 'measured' : 'model'} detail={energyCalculated.anchored ? 'At the computed FCI anchor.' : 'Morse extrapolation from a model.'} />
-            <span className="text-xs font-medium text-[var(--color-text)]">
+            <span className="text-label font-medium text-text">
               {energyCalculated.anchored
                 ? 'Anchored at computed FCI'
                 : energyCalculated.displaced
                   ? 'Morse extrapolation — not measured at this R'
                   : 'Unverified anchor (bridge unavailable)'}
             </span>
-            <span className="text-xs text-[var(--color-muted)]">•</span>
-            <span className="text-xs font-mono font-semibold text-[var(--color-text)]">
+            <span className="text-label text-muted">•</span>
+            <span className="text-label font-mono font-semibold text-text">
               {energyCalculated.deltaMHa != null && Number.isFinite(energyCalculated.deltaMHa) ? `Δ = ${energyCalculated.deltaMHa.toFixed(2)} mHa` : 'Δ = UNVERIFIED (no anchor)'}
             </span>
           </div>
@@ -665,7 +665,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           <div className="relative w-full max-w-md h-56 flex items-center justify-center">
             {/* Electron Density Wave Cloud */}
             <div 
-              className="absolute w-64 h-32 rounded-full opacity-30 blur-2xl transition-all duration-300"
+              className="absolute w-64 h-32 rounded-capsule opacity-30 blur-2xl transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-300"
               style={{
                 background: energyCalculated.anchored
                   ? 'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.4), transparent)'
@@ -676,45 +676,45 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             {/* Intersite Covalent Bond Wire with Length Indicator */}
             <div 
-              className="absolute h-0.5 bg-gradient-to-r from-[var(--color-accent)] via-[var(--color-success)] to-[var(--color-accent)] opacity-60 transition-all duration-200"
+              className="absolute h-0.5 bg-gradient-to-r from-accent via-success to-accent opacity-60 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-200"
               style={{ width: `${atomOffset}px` }}
             />
 
             {/* Left Nucleus */}
             <div 
-              className="absolute flex flex-col items-center transform -translate-x-1/2 transition-all duration-200"
+              className="absolute flex flex-col items-center transform -translate-x-1/2 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-200"
               style={{ left: `calc(50% - ${atomOffset / 2}px)` }}
             >
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 shadow-xl flex items-center justify-center text-[var(--color-on-accent)] font-bold text-base border-2 border-[var(--color-border-strong)]">
+              <div className="w-14 h-14 rounded-capsule bg-gradient-to-br from-cyan-500 to-blue-600 shadow-xl flex items-center justify-center text-on-accent font-bold text-body-large border-2 border-border-strong">
                 {atom1}
               </div>
-              <span className="text-[12px] font-mono text-[var(--color-info-ink)] mt-2 font-medium">Nuclear Core</span>
+              <span className="text-[12px] font-mono text-info-ink mt-2 font-medium">Nuclear Core</span>
             </div>
 
             {/* Right Nucleus */}
             <div 
-              className="absolute flex flex-col items-center transform translate-x-1/2 transition-all duration-200"
+              className="absolute flex flex-col items-center transform translate-x-1/2 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] duration-200"
               style={{ left: `calc(50% + ${atomOffset / 2}px)` }}
             >
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl flex items-center justify-center text-[var(--color-on-accent)] font-bold text-base border-2 border-[var(--color-border-strong)]">
+              <div className="w-14 h-14 rounded-capsule bg-gradient-to-br from-emerald-500 to-teal-600 shadow-xl flex items-center justify-center text-on-accent font-bold text-body-large border-2 border-border-strong">
                 {atom2}
               </div>
-              <span className="text-[12px] font-mono text-[var(--color-success-ink)] mt-2 font-medium">Nuclear Core</span>
+              <span className="text-[12px] font-mono text-success-ink mt-2 font-medium">Nuclear Core</span>
             </div>
 
             {/* Bond Length Badge (Floating on bond center) */}
-            <div className="absolute -top-4 px-3 py-1 rounded-full bg-[var(--color-float)] border border-[var(--color-border-strong)] text-[12px] font-mono font-bold text-[var(--color-info-ink)] shadow-md">
+            <div className="absolute -top-4 px-3 py-1 rounded-capsule bg-float border border-border-strong text-[12px] font-mono font-bold text-info-ink shadow-md">
               R = {typeof bondDistance === 'number' && Number.isFinite(bondDistance) ? bondDistance.toFixed(4) : 'UNVERIFIED'} Å
             </div>
           </div>
 
           {/* Direct Manipulation Tactile Bond Slider */}
           <div className="w-full max-w-md mt-6 space-y-3">
-            <div className="flex justify-between items-center text-xs text-[var(--color-label-secondary)] font-medium">
+            <div className="flex justify-between items-center text-label text-label-secondary font-medium">
               <span>Bond Length Control</span>
               <button 
                 onClick={() => setBondDistance(equilibriumR)}
-                className="text-xs text-[var(--color-accent-ink)] hover:underline transition-colors font-semibold"
+                className="text-label text-accent-ink hover:underline transition-colors font-semibold"
               >
                 Reset to Equilibrium ({equilibriumR} Å{equilibriumFromTable ? ' (table)' : ''})
               </button>
@@ -726,60 +726,60 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               step="0.005"
               value={bondDistance}
               onChange={(e) => setBondDistance(parseFloat(e.target.value))}
-              className="w-full h-2 bg-[var(--color-fill)] rounded-lg appearance-none cursor-pointer accent-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-edge)]"
+              className="w-full h-2 bg-fill rounded-control-compact appearance-none cursor-pointer accent-accent focus:outline-none focus:ring-2 focus:ring-accent-edge"
             />
-            <div className="flex justify-between text-xs font-mono text-[var(--color-label-secondary)] font-medium">
+            <div className="flex justify-between text-label font-mono text-label-secondary font-medium">
               <span>Compressed (Repulsive)</span>
-              <span className="text-[var(--color-success-ink)] font-bold">Equilibrium Valley</span>
+              <span className="text-success-ink font-bold">Equilibrium Valley</span>
               <span>Dissociated</span>
             </div>
           </div>
 
           {/* Molecular Pharmacology & ADMET Profile (RDKit Bridge Anchored) */}
-          <div className="w-full max-w-md mt-5 p-4 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-[var(--color-label-secondary)] uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
-                <Atom className="w-4 h-4 text-[var(--color-success-ink)]" />
+          <div className="w-full max-w-md mt-5 p-4 rounded-card bg-surface border border-border space-y-3">
+            <div className="flex items-center justify-between text-label">
+              <span className="font-semibold text-label-secondary uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
+                <Atom className="w-4 h-4 text-success-ink" />
                 <span>Molecular Pharmacology &amp; ADMET</span>
                 <ProvenanceBadge kind="measured" detail="RDKit bridge profile." />
               </span>
-              <span className="text-[var(--color-muted)] font-mono text-[12px]">
-                SMILES: <code className="text-[var(--color-info-ink)]">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}
+              <span className="text-muted font-mono text-[12px]">
+                SMILES: <code className="text-info-ink">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}
               </span>
             </div>
 
             {admetLoading && (
-              <div className="p-3 text-center text-xs text-[var(--color-muted)] font-mono">
+              <div className="p-3 text-center text-label text-muted font-mono">
                 Profiling molecular pharmacology via RDKit bridge...
               </div>
             )}
 
             {admetProfile && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-                  <div className="text-[12px] text-[var(--color-muted)] uppercase">Mol Weight</div>
-                  <div className="text-xs font-semibold text-[var(--color-text)] mt-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-label font-mono">
+                <div className="p-2.5 rounded-row bg-card border border-border">
+                  <div className="text-[12px] text-muted uppercase">Mol Weight</div>
+                  <div className="text-label font-semibold text-text mt-0.5">
                     {typeof admetProfile.molecular_weight === 'number' ? (admetProfile.molecular_weight as number).toFixed(2) : '—'} Da
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-                  <div className="text-[12px] text-[var(--color-muted)] uppercase">cLogP</div>
-                  <div className="text-xs font-semibold text-[var(--color-text)] mt-0.5">
+                <div className="p-2.5 rounded-row bg-card border border-border">
+                  <div className="text-[12px] text-muted uppercase">cLogP</div>
+                  <div className="text-label font-semibold text-text mt-0.5">
                     {typeof admetProfile.clogp === 'number' ? (admetProfile.clogp as number).toFixed(2) : '—'}
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-                  <div className="text-[12px] text-[var(--color-muted)] uppercase">TPSA</div>
-                  <div className="text-xs font-semibold text-[var(--color-text)] mt-0.5">
+                <div className="p-2.5 rounded-row bg-card border border-border">
+                  <div className="text-[12px] text-muted uppercase">TPSA</div>
+                  <div className="text-label font-semibold text-text mt-0.5">
                     {typeof admetProfile.tpsa === 'number' ? (admetProfile.tpsa as number).toFixed(1) : '—'} Å²
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)]">
-                  <div className="text-[12px] text-[var(--color-muted)] uppercase">Synthesis</div>
-                    <div className="text-xs font-semibold text-[var(--color-success-ink)] mt-0.5 truncate" title={String(admetProfile.synthesizability ?? '')}>
+                <div className="p-2.5 rounded-row bg-card border border-border">
+                  <div className="text-[12px] text-muted uppercase">Synthesis</div>
+                    <div className="text-label font-semibold text-success-ink mt-0.5 truncate" title={String(admetProfile.synthesizability ?? '')}>
                       {String(admetProfile.synthesizability ?? '—').split(' ')[0]}
                     </div>
                 </div>
@@ -792,16 +792,16 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Depth 2: Dynamic Variational Quantum Circuit Flow */}
       {canvasMode === 'workbench' && disclosureDepth === 2 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
-          <div className="w-full max-w-3xl bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between border-b border-[var(--color-border)] pb-3 gap-3">
+          <div className="w-full max-w-3xl bg-surface border border-border rounded-card p-6 space-y-6">
+            <div className="flex flex-wrap items-center justify-between border-b border-border pb-3 gap-3">
               <div>
                 <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-semibold text-[var(--color-text)]">{circuitData.ansatzTitle}</h3>
-                  <span className="text-[12px] font-mono px-2 py-0.5 rounded-md bg-[var(--color-info-wash)] text-[var(--color-info-ink)] border border-[var(--color-info-edge)]">
+                  <h3 className="text-body-strong font-semibold text-text">{circuitData.ansatzTitle}</h3>
+                  <span className="text-[12px] font-mono px-2 py-0.5 rounded-inset bg-info-wash text-info-ink border border-info-edge">
                     {circuitData.numQubits} QUBITS
                   </span>
                 </div>
-                <p className="text-xs text-[var(--color-muted)] mt-0.5">
+                <p className="text-label text-muted mt-0.5">
                   {circuitData.hasCircuit
                     ? `Proposed circuit for ${targetSystem} (Depth: ${circuitData.depthLive ? circuitData.depth : '—'} · ${circuitData.twoQLive ? `${circuitData.twoQubitGates} CNOT` : 'CNOT count not recorded'})`
                     : `No circuit proposal is recorded for ${targetSystem}.`}
@@ -810,19 +810,19 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
               <div className="flex items-center space-x-2">
                 {/* View Mode Toggle */}
-                <div className="flex items-center p-0.5 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs">
+                <div className="flex items-center p-0.5 rounded-row bg-field border border-border text-label">
                   <button
                     onClick={() => setCircuitViewMode('schematic')}
-                    className={`px-2.5 py-1 rounded-lg transition-all font-medium ${
-                      circuitViewMode === 'schematic' ? 'bg-[var(--color-surface-elev)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                    className={`px-2.5 py-1 rounded-control-compact transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] font-medium ${
+                      circuitViewMode === 'schematic' ? 'bg-surface-elev text-text shadow-sm' : 'text-muted hover:text-text'
                     }`}
                   >
                     Schematic
                   </button>
                   <button
                     onClick={() => setCircuitViewMode('qasm')}
-                    className={`px-2.5 py-1 rounded-lg transition-all font-medium flex items-center space-x-1 ${
-                      circuitViewMode === 'qasm' ? 'bg-[var(--color-surface-elev)] text-[var(--color-text)] shadow-sm' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                    className={`px-2.5 py-1 rounded-control-compact transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] font-medium flex items-center space-x-1 ${
+                      circuitViewMode === 'qasm' ? 'bg-surface-elev text-text shadow-sm' : 'text-muted hover:text-text'
                     }`}
                   >
                     <Code className="w-3 h-3" />
@@ -830,7 +830,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                   </button>
                 </div>
 
-                <span className="text-xs font-mono text-[var(--color-info-ink)] bg-[var(--color-info-wash)] px-2.5 py-1 rounded-lg border border-[var(--color-info-edge)]">
+                <span className="text-label font-mono text-info-ink bg-info-wash px-2.5 py-1 rounded-control-compact border border-info-edge">
                   Depth = {circuitData.depthLive ? circuitData.depth : '—'} | {circuitData.twoQLive ? `${circuitData.twoQubitGates} CNOT` : 'CNOT —'}
                 </span>
               </div>
@@ -838,7 +838,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             {circuitViewMode === 'schematic' ? (
               !circuitData.hasCircuit ? (
-                <div className="p-4 rounded-xl border border-[var(--color-danger-edge)] bg-[var(--color-danger-wash)] text-xs text-[var(--color-danger-ink)]">
+                <div className="p-4 rounded-row border border-danger-edge bg-danger-wash text-label text-danger-ink">
                   No circuit in this campaign — nothing to render. Propose a circuit to populate this view.
                 </div>
               ) : (
@@ -846,10 +846,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 {Array.from({ length: circuitData.numQubits }).map((_, qIdx) => {
                   return (
                     <div key={`wire-${qIdx}`} className="flex items-center space-x-3 min-w-[560px]">
-                      <span className="text-xs font-mono text-[var(--color-muted)] w-16 font-bold shrink-0">
+                      <span className="text-label font-mono text-muted w-16 font-bold shrink-0">
                         q[{qIdx}] |0⟩
                       </span>
-                      <div className="flex-1 h-0.5 bg-[var(--color-border-strong)] flex items-center justify-around relative px-4">
+                      <div className="flex-1 h-0.5 bg-border-strong flex items-center justify-around relative px-4">
                         {Array.from({ length: circuitData.totalCols }).map((__, cIdx) => {
                           const gate = circuitData.gates.find((g) => g.qubit === qIdx && g.col === cIdx);
                           if (!gate) {
@@ -859,7 +859,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                             return (
                               <div
                                 key={gate.id}
-                                className="w-3.5 h-3.5 rounded-full bg-[var(--color-accent)] shadow-md ring-2 ring-[var(--color-border-strong)] z-10"
+                                className="w-3.5 h-3.5 rounded-capsule bg-accent shadow-md ring-2 ring-border-strong z-10"
                                 title={`CNOT Control to q[${gate.targetQubit}]`}
                               />
                             );
@@ -868,7 +868,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                             return (
                               <div
                                 key={gate.id}
-                                className="w-5 h-5 rounded-full border-2 border-[var(--color-accent-edge)] flex items-center justify-center text-[12px] font-bold text-[var(--color-accent-ink)] bg-[var(--color-surface)] z-10"
+                                className="w-5 h-5 rounded-capsule border-2 border-accent-edge flex items-center justify-center text-[12px] font-bold text-accent-ink bg-surface z-10"
                                 title={`CNOT Target from q[${gate.targetQubit}]`}
                               >
                                 +
@@ -878,7 +878,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                           return (
                             <div
                               key={gate.id}
-                              className={`px-2.5 py-1 rounded-xl border text-[12px] font-mono font-bold shadow-lg z-10 ${gate.color}`}
+                              className={`px-2.5 py-1 rounded-row border text-[12px] font-mono font-bold shadow-lg z-10 ${gate.color}`}
                             >
                               {gate.label}
                             </div>
@@ -893,7 +893,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                   const gv = campaign?.quantum_factors?.gradient_variance;
                   const gvOk = typeof gv === 'number' && Number.isFinite(gv);
                   return (
-                    <p className="text-xs text-[var(--color-muted)] text-center font-sans pt-2">
+                    <p className="text-label text-muted text-center font-sans pt-2">
                       {gvOk
                         ? `Gradient variance ${(gv as number).toExponential(2)} — barren-plateau status bound to measured variance.`
                         : 'Barren-plateau status unattested — no gradient variance measured.'}
@@ -906,7 +906,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <div className="space-y-3">
                 {circuitData.hasCircuit ? (
                   <>
-                    <div className="flex items-center justify-between text-xs text-[var(--color-muted)]">
+                    <div className="flex items-center justify-between text-label text-muted">
                       <span className="font-mono">OpenQASM 2.0 proposed circuit</span>
                       <button
                         onClick={() => {
@@ -914,18 +914,18 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                           setCopiedQasm(true);
                           setTimeout(() => setCopiedQasm(false), 2000);
                         }}
-                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-[var(--color-fill)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] text-xs transition-all border border-[var(--color-border)]"
+                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded-control-compact bg-fill hover:bg-fill-hover text-label-secondary text-label transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] border border-border"
                       >
-                        {copiedQasm ? <Check className="w-3.5 h-3.5 text-[var(--color-success-ink)]" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedQasm ? <Check className="w-3.5 h-3.5 text-success-ink" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copiedQasm ? 'Copied' : 'Copy QASM'}</span>
                       </button>
                     </div>
-                    <pre className="p-4 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] text-xs font-mono text-[var(--color-text)] overflow-x-auto max-h-64 leading-relaxed scrollbar-thin">
+                    <pre className="p-4 rounded-row bg-field border border-border text-label font-mono text-text overflow-x-auto max-h-64 leading-relaxed scrollbar-thin">
                       {circuitData.rawQasm}
                     </pre>
                   </>
                 ) : (
-                  <div className="p-4 rounded-xl border border-[var(--color-danger-edge)] bg-[var(--color-danger-wash)] text-xs text-[var(--color-danger-ink)]">
+                  <div className="p-4 rounded-row border border-danger-edge bg-danger-wash text-label text-danger-ink">
                     No circuit proposal is recorded for this campaign.
                   </div>
                 )}
@@ -938,31 +938,31 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Depth 3: Exact Molecular Integrals & Hamiltonian */}
       {canvasMode === 'workbench' && disclosureDepth === 3 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
-          <div className="w-full max-w-2xl bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text)]">Full Configuration Interaction (FCI) Benchmark</h3>
+          <div className="w-full max-w-2xl bg-surface border border-border rounded-card p-6 space-y-4">
+            <h3 className="text-body-strong font-semibold text-text">Full Configuration Interaction (FCI) Benchmark</h3>
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-                <span className="text-[12px] text-[var(--color-label-secondary)] uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
-                <div className="text-base font-mono font-bold text-[var(--color-success-ink)]">
+              <div className="p-4 rounded-row bg-card border border-border space-y-1">
+                <span className="text-[12px] text-label-secondary uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
+                <div className="text-body-large font-mono font-bold text-success-ink">
                   {energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(6)} Ha` : 'UNVERIFIED'}
                 </div>
-                <span className="text-xs text-[var(--color-muted)] font-sans">{energyCalculated.anchorComputed && energyCalculated.anchorFci != null ? 'PySCF-computed anchor' : 'No anchor computed — bridge unavailable'}</span>
+                <span className="text-label text-muted font-sans">{energyCalculated.anchorComputed && energyCalculated.anchorFci != null ? 'PySCF-computed anchor' : 'No anchor computed — bridge unavailable'}</span>
               </div>
 
-              <div className="p-4 rounded-xl bg-[var(--color-card)] border border-[var(--color-border)] space-y-1">
-                <span className="text-[12px] text-[var(--color-label-secondary)] uppercase tracking-wider font-semibold">Classical Hartree-Fock</span>
-                <div className="text-base font-mono font-bold text-[var(--color-text)]">
+              <div className="p-4 rounded-row bg-card border border-border space-y-1">
+                <span className="text-[12px] text-label-secondary uppercase tracking-wider font-semibold">Classical Hartree-Fock</span>
+                <div className="text-body-large font-mono font-bold text-text">
                   {energyCalculated.rhf != null && Number.isFinite(energyCalculated.rhf) ? `${energyCalculated.rhf.toFixed(6)} Ha` : 'UNVERIFIED (no RHF baseline)'}
                 </div>
-                <span className="text-xs text-[var(--color-muted)] font-sans">Mean-field baseline{energyCalculated.rhf == null ? ' — not measured' : ''}</span>
+                <span className="text-label text-muted font-sans">Mean-field baseline{energyCalculated.rhf == null ? ' — not measured' : ''}</span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[var(--color-field)] border border-[var(--color-border)] space-y-2">
-              <span className="text-xs font-semibold text-[var(--color-text)]">Second-Quantized Hamiltonian Mapping</span>
-              <p className="text-[12px] font-code text-[var(--color-faint)]">Coefficient provenance</p>
-              <p className="text-xs font-mono text-[var(--color-info-ink)] leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-thin">
+            <div className="p-4 rounded-row bg-field border border-border space-y-2">
+              <span className="text-label font-semibold text-text">Second-Quantized Hamiltonian Mapping</span>
+              <p className="text-[12px] font-code text-faint">Coefficient provenance</p>
+              <p className="text-label font-mono text-info-ink leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-thin">
                 {hamiltonianString}
               </p>
             </div>
@@ -972,47 +972,47 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
       {/* Bottom Floating Control Pill (3-Depth Progressive Disclosure Switcher) */}
       {canvasMode === 'workbench' && (
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[var(--color-border)]">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border">
           {/* Real-time energy readouts */}
-          <div className="flex items-center space-x-6 text-xs font-mono">
+          <div className="flex items-center space-x-6 text-label font-mono">
             <div>
-              <span className="text-[var(--color-muted)] font-medium">Morse model at R: </span>
-              <span className="text-[var(--color-text)] font-bold">{energyCalculated.modelEnergy != null && Number.isFinite(energyCalculated.modelEnergy) ? `${energyCalculated.modelEnergy.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
+              <span className="text-muted font-medium">Morse model at R: </span>
+              <span className="text-text font-bold">{energyCalculated.modelEnergy != null && Number.isFinite(energyCalculated.modelEnergy) ? `${energyCalculated.modelEnergy.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
             </div>
             <div>
-              <span className="text-[var(--color-muted)] font-medium">FCI anchor: </span>
-              <span className="text-[var(--color-success-ink)] font-bold">{energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
+              <span className="text-muted font-medium">FCI anchor: </span>
+              <span className="text-success-ink font-bold">{energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
             </div>
           </div>
 
           {/* 3-Depth Progressive Disclosure Segmented Switch */}
-          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-card bg-surface border border-border shadow-inner">
             <button
               onClick={() => setDisclosureDepth(1)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+              className={`px-3.5 py-1.5 rounded-row text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
                 disclosureDepth === 1
-                  ? 'bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-sm font-semibold'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-fill-hover text-text shadow-sm font-semibold'
+                  : 'text-muted hover:text-text'
               }`}
             >
               1. Physical System
             </button>
             <button
               onClick={() => setDisclosureDepth(2)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+              className={`px-3.5 py-1.5 rounded-row text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
                 disclosureDepth === 2
-                  ? 'bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-sm font-semibold'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-fill-hover text-text shadow-sm font-semibold'
+                  : 'text-muted hover:text-text'
               }`}
             >
               2. Quantum Circuit
             </button>
             <button
               onClick={() => setDisclosureDepth(3)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+              className={`px-3.5 py-1.5 rounded-row text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] ${
                 disclosureDepth === 3
-                  ? 'bg-[var(--color-fill-hover)] text-[var(--color-text)] shadow-sm font-semibold'
-                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                  ? 'bg-fill-hover text-text shadow-sm font-semibold'
+                  : 'text-muted hover:text-text'
               }`}
             >
               3. Exact Integrals

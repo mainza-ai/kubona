@@ -131,7 +131,7 @@ func TestCanAgentActReach(t *testing.T) {
 		}
 		return textResponse("No jobs running; the session is idle.")
 	})
-	hist := srv.resolveWithTools(context.Background(), sid,
+	hist, _ := srv.resolveWithTools(context.Background(), sid,
 		[]llm.ChatMessage{{Role: "user", Content: "job status?"}})
 	if len(hist) < 4 {
 		t.Fatalf("reach leg must observe the tool (base+preamble+call+obs), got %d messages", len(hist))

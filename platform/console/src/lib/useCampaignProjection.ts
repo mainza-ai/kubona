@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchCampaignResult, type ApiFailure } from './api';
-import { subscribeInvalidation } from '@/domain/invalidation';
+import { subscribeInvalidation } from '@/lib/invalidation';
 import type { CampaignState } from '@/types';
 
 /**

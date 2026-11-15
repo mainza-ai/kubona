@@ -42,12 +42,15 @@ func (s *Server) handleOperationStatus(w http.ResponseWriter, r *http.Request) {
 	if rec.Status == ledger.IdemStatusComplete {
 		status = "complete"
 	}
+	disposition, reason := operationDisposition(rec)
 	out := map[string]any{
 		"request_id":  rec.RequestID,
 		"status":      status,
 		"status_code": rec.StatusCode,
 		"rail":        rec.Rail,
 		"updated_at":  rec.UpdatedAt,
+		"disposition": disposition,
+		"reason":      reason,
 	}
 	if rec.Status == ledger.IdemStatusComplete && len(rec.ReceiptBody) <= 64*1024 {
 		if rec.ReceiptKind == "json" {
@@ -57,4 +60,29 @@ func (s *Server) handleOperationStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// operationDisposition is the closed receipt vocabulary. admitted is not
+// applied. outcome_unknown is not a refusal and not a success.
+func operationDisposition(rec ledger.IdempotencyRecord) (string, string) {
+	if rec.Status != ledger.IdemStatusComplete {
+		return "admitted", "queued"
+	}
+	var body map[string]any
+	_ = json.Unmarshal([]byte(rec.ReceiptBody), &body)
+	if unchanged, _ := body["unchanged"].(bool); unchanged {
+		return "no_op", "unchanged"
+	}
+	if status, _ := body["status"].(string); status == "JOB_STATUS_OUTCOME_UNKNOWN" {
+		return "outcome_unknown", "vendor_unconfirmed"
+	}
+	if job, ok := body["job"].(map[string]any); ok {
+		if st, _ := job["status"].(string); st == "outcome_unknown" || st == "JOB_STATUS_OUTCOME_UNKNOWN" {
+			return "outcome_unknown", "vendor_unconfirmed"
+		}
+	}
+	if rec.StatusCode >= 400 {
+		return "refused", "handler_refused"
+	}
+	return "applied", "completed"
 }

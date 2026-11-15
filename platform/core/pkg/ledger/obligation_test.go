@@ -106,3 +106,35 @@ func TestObligationUnknowns(t *testing.T) {
 		t.Fatal("unknown must be gone after resolve")
 	}
 }
+
+// Waiting facts are read from the row, never inferred: a readable clock
+// parses, and an unreadable one stays the zero time so renderers can say
+// "unknown" instead of inventing a plausible moment.
+func TestObligationTimestampsAreReadNotInvented(t *testing.T) {
+	l := mustOpenObligationLedger(t)
+	ob, err := l.OpenObligation("job", "job-clock", []string{"receipt"}, []string{"reviewer"}, nil)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	got, err := l.GetObligation(ob.ID)
+	if err != nil || got == nil {
+		t.Fatalf("read back: %v %v", got, err)
+	}
+	if got.CreatedAt.IsZero() || got.UpdatedAt.IsZero() {
+		t.Fatalf("fresh row must carry its timestamps, got created=%v updated=%v", got.CreatedAt, got.UpdatedAt)
+	}
+	if got.CreatedAt.After(got.UpdatedAt) {
+		t.Fatalf("created %v must not follow updated %v", got.CreatedAt, got.UpdatedAt)
+	}
+
+	if _, err := l.DB().Exec(`UPDATE obligations SET created_at = '', updated_at = 'not-a-time' WHERE id = ?`, ob.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err = l.GetObligation(ob.ID)
+	if err != nil || got == nil {
+		t.Fatalf("read back after corruption: %v %v", got, err)
+	}
+	if !got.CreatedAt.IsZero() || !got.UpdatedAt.IsZero() {
+		t.Fatalf("unreadable timestamps must stay zero, got created=%v updated=%v", got.CreatedAt, got.UpdatedAt)
+	}
+}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CampaignState, ChatMessage, Proposal, RunPhase } from '@/types';
 import { useTranscript } from '@/domain/transcript-store';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
+import { launchJobId, newWriteRequestId, reconcileOperationFull, UNCONFIRMED_LAUNCH, writeSettlementLabel } from '@/domain/write-settlement';
 import { useAuthPhase } from '@/domain/auth-state';
 import {
   clearMessages,
@@ -12,6 +12,7 @@ import {
   fetchCampaignState,
   fetchJobs,
   fetchMessages,
+  isOutcomeUnknown,
   isTerminalJobStatus,
   jobStatusLabel,
   launchProposal,
@@ -19,11 +20,13 @@ import {
   rewriteChat,
   runTribunal,
   sendChatMessage,
+  mintProposal,
   sendFeedback,
   streamChatMessage,
+  StreamAcceptedError,
   wasRecentAuthFailure,
 } from '@/lib/api';
-import type { CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
+import type { CanvasWidgetKind } from '@/types';
 
 export type ChatAttachment = { name: string; text: string };
 export type FollowUpSpec = { label: string; tone: 'accent' | 'success' | 'warning'; key: string };
@@ -192,7 +195,8 @@ export function useCopilotChat({
 
   const canRegenerate = messages.length > 0 && messages[messages.length - 1].role !== 'user';
 
-  const runLaunchProposal = async (messageId: string, proposal: Proposal) => {
+  const runLaunchProposal = async (message: ChatMessage) => {
+    const messageId = message.id;
     if (launchingId) return;
     const active = await getActiveSessionId();
     if (active === null) return;
@@ -202,42 +206,67 @@ export function useCopilotChat({
     }
     const activeSessionId = active.id;
     setLaunchingId(messageId);
-    try {
-      const res = await launchProposal(activeSessionId, proposal);
-      if (res && 'job' in res && res.job) {
-        const jobId = String(res.job.id);
-        setLaunchedJobs((prev) => ({ ...prev, [messageId]: jobId }));
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
-        onExperimentLaunched?.();
-        let rounds = 0;
-        const track = async () => {
-          rounds += 1;
-          const jobs = await fetchJobs(activeSessionId);
-          const hit = jobs.find((j) => String(j.id) === jobId);
-          if (hit?.status != null) {
-            const label = jobStatusLabel(hit.status);
-            const result = (hit as { result_json?: { error?: string; error_message?: string } }).result_json;
-            const reasonText = result?.error || result?.error_message || '';
-            const reason = reasonText ? ` · ${String(reasonText).slice(0, 160)}` : '';
-            setLaunchedNote((prev) => ({
-              ...prev,
-              [messageId]: `Job ${jobId.slice(0, 8)} · ${label}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}${reason}`,
-            }));
-            if (isTerminalJobStatus(hit.status) || rounds >= 8) return;
-          } else if (rounds >= 8) {
-            setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · status unavailable` }));
-            return;
-          }
-          setTimeout(track, 3000);
-        };
+    const trackJob = (jobId: string) => {
+      setLaunchedJobs((prev) => ({ ...prev, [messageId]: jobId }));
+      setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
+      onExperimentLaunched?.();
+      let rounds = 0;
+      const track = async () => {
+        rounds += 1;
+        const jobs = await fetchJobs(activeSessionId);
+        const hit = jobs.find((j) => String(j.id) === jobId);
+        if (hit?.status != null) {
+          const label = jobStatusLabel(hit.status);
+          const result = (hit as { result_json?: { error?: string; error_message?: string } }).result_json;
+          const reasonText = result?.error || result?.error_message || '';
+          const reason = reasonText ? ` · ${String(reasonText).slice(0, 160)}` : '';
+          const finished = Boolean(hit.completed_at) && label !== 'INTERRUPTED';
+          setLaunchedNote((prev) => ({
+            ...prev,
+            [messageId]: `Job ${jobId.slice(0, 8)} · ${label}${finished ? ` · done ${new Date(hit.completed_at as string).toLocaleTimeString()}` : ''}${isOutcomeUnknown(hit.status) ? ' · reservation held' : ''}${reason}`,
+          }));
+          if (isTerminalJobStatus(hit.status) || isOutcomeUnknown(hit.status) || rounds >= 8) return;
+        } else if (rounds >= 8) {
+          setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · status unavailable` }));
+          return;
+        }
         setTimeout(track, 3000);
+      };
+      setTimeout(track, 3000);
+    };
+    try {
+      // B1: launch names a server-minted proposal. History rows carry the id;
+      // an older row mints once from its stored plan before launching.
+      let ref = message.proposal_id && message.proposal_digest
+        ? { proposalId: message.proposal_id, digest: message.proposal_digest }
+        : null;
+      if (!ref) {
+        const minted = await mintProposal(activeSessionId, 'message', { messageId });
+        if (!minted.ok) {
+          setLaunchedNote((prev) => ({ ...prev, [messageId]: `No launchable plan: ${minted.error}` }));
+          return;
+        }
+        ref = { proposalId: minted.proposal.id, digest: minted.proposal.digest };
+      }
+      const requestId = newWriteRequestId();
+      const res = await launchProposal(activeSessionId, ref, { requestId });
+      if (res && 'job' in res && res.job) {
+        trackJob(String(res.job.id));
       } else if (res && 'error' in res) {
         setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launch refused: ${res.error}` }));
       } else {
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch refused by backend — nothing dispatched.' }));
+        const settled = await reconcileOperationFull(requestId, activeSessionId);
+        const recovered = settled.phase === 'applied' ? launchJobId(settled.receipt) : null;
+        if (recovered) {
+          trackJob(recovered);
+        } else if (settled.phase === 'refused') {
+          setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launch refused: ${settled.detail}` }));
+        } else {
+          setLaunchedNote((prev) => ({ ...prev, [messageId]: UNCONFIRMED_LAUNCH }));
+        }
       }
     } catch {
-      setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch failed — nothing dispatched.' }));
+      setLaunchedNote((prev) => ({ ...prev, [messageId]: UNCONFIRMED_LAUNCH }));
     } finally {
       setLaunchingId(null);
     }
@@ -247,7 +276,7 @@ export function useCopilotChat({
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (m.role !== 'user' && m.proposal_json) {
-        await runLaunchProposal(m.id, m.proposal_json);
+        await runLaunchProposal(m);
         return;
       }
     }
@@ -428,6 +457,9 @@ export function useCopilotChat({
       user: ChatMessage;
       assistant: ChatMessage;
       proposal?: unknown;
+      proposal_id?: string;
+      proposal_digest?: string;
+      proposal_error?: string;
       campaign?: CampaignState;
       duration_ms?: number;
       usage?: Record<string, number>;
@@ -438,6 +470,13 @@ export function useCopilotChat({
         const assistant: ChatMessage = { ...done.assistant };
         if (!assistant.proposal_json && done.proposal) {
           assistant.proposal_json = done.proposal as Proposal;
+        }
+        if (!assistant.proposal_id && done.proposal_id) {
+          assistant.proposal_id = done.proposal_id;
+          assistant.proposal_digest = done.proposal_digest;
+        }
+        if (!assistant.proposal_error && done.proposal_error) {
+          assistant.proposal_error = done.proposal_error;
         }
         if (assistant.duration_ms == null && done.duration_ms != null) {
           assistant.duration_ms = done.duration_ms;
@@ -488,9 +527,13 @@ export function useCopilotChat({
         return;
       }
       if (streamErr instanceof DOMException && streamErr.name === 'AbortError') {
-        setMessages((prev) => prev.filter((m) => m.id !== liveId));
-        chatWrite.unknown(writeId, 'operator stopped; backend may still finish');
-        setInfoMessage('Stopped. The backend run may still finish — its result will appear in history.');
+        setMessages((prev) => prev.flatMap((m) => {
+          if (m.id !== liveId) return [m];
+          if (!m.content.trim()) return [];
+          return [{ ...m, content: `${m.content}\n\n[stopped] stream ended before the provider finished` }];
+        }));
+        chatWrite.unknown(writeId, 'operator stopped the stream; partial text is kept');
+        setInfoMessage('Stopped. This stream does not keep running. Text already received is kept.');
         setTimeout(() => { if (mountedRef.current) setInfoMessage(null); }, 6000);
         setLoading(false);
         setStreamingId(null);
@@ -504,7 +547,31 @@ export function useCopilotChat({
         setErrorMessage(`${streamErr.message} — the backend went quiet. Retry re-sends the same prompt.`);
         return;
       }
-      console.warn('Stream failed, falling back to unary chat:', streamErr);
+      if (streamErr instanceof StreamAcceptedError) {
+        // The prompt row already exists. Regenerating answers it; a unary
+        // POST would store the same user turn a second time.
+        console.warn('Stream stored the prompt then failed; re-answering that turn:', streamErr);
+        try {
+          const regen = await regenerateChat(activeSessionId);
+          if (!mountedRef.current) return;
+          if (regen?.assistant) {
+            setMessages((prev) => [...prev.filter((m) => m.id !== liveId), regen.assistant]);
+            onExperimentLaunched?.();
+            chatWrite.applied(writeId, 'assistant reply stored (re-answered stored prompt)');
+          } else {
+            setMessages((prev) => prev.filter((m) => m.id !== liveId));
+            chatWrite.unknown(writeId, 'stored prompt has no reply yet');
+            setErrorMessage('The prompt was stored, but the reply was not. Retry re-answers that prompt; it does not send it again.');
+          }
+        } catch (err: unknown) {
+          if (!mountedRef.current) return;
+          setMessages((prev) => prev.filter((m) => m.id !== liveId));
+          chatWrite.unknown(writeId, err instanceof Error ? err.message : 'connection error');
+          setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
+        }
+        return;
+      }
+      console.warn('Stream failed before the prompt was stored, falling back to unary chat:', streamErr);
       try {
         const res = await sendChatMessage(activeSessionId, textToSend, requestId);
         if (!mountedRef.current) return;

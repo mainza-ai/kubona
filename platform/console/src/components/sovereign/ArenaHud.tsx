@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle, LayoutDashboard, Box, ChevronDown } from 'lucide-react';
 import { formatElapsed } from '@/lib/time';
 
-export type ArenaView = 'workbench' | 'orbital' | 'proof-dag' | 'hardware-qpu';
+import type { ArenaView } from '@/types';
+
+export type { ArenaView } from '@/types';
 
 const VIEW_MODES: Array<{
   id: ArenaView;
@@ -48,12 +50,12 @@ function ElapsedClockTick({ createdAt }: { createdAt: string }) {
     return () => clearInterval(timer);
   }, [createdAt]);
 
-  return <div className="font-code text-[12px] text-[var(--color-label-secondary)]">T+ {text}</div>;
+  return <div className="font-code text-[12px] text-label-secondary">T+ {text}</div>;
 }
 
 function ElapsedClock({ createdAt, fallback = '00:00:00' }: { createdAt?: string; fallback?: string }) {
   if (!createdAt) {
-    return <div className="font-code text-[12px] text-[var(--color-label-secondary)]">T+ {fallback}</div>;
+    return <div className="font-code text-[12px] text-label-secondary">T+ {fallback}</div>;
   }
   return <ElapsedClockTick key={createdAt} createdAt={createdAt} />;
 }
@@ -80,37 +82,37 @@ export const ArenaHud = React.memo(function ArenaHud({
   const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd) && spendCapUsd > 0;
   const overCap = spendFinite && capFinite && (spendUsd as number) > (spendCapUsd as number);
   return (
-    <header className="k-arena-hud relative z-20 shrink-0 px-4 py-2.5 flex flex-wrap items-center gap-2 justify-between border-b border-[var(--color-border)] bg-[var(--color-chrome)]/95">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl sm:rounded-full px-3.5 py-1.5 shadow-[var(--shadow-raised)]">
-        <span className="w-2 h-2 rounded-full" style={{ background: statusText ? 'var(--color-info)' : 'var(--color-success)' }} />
-        <span className="font-code text-xs text-[var(--color-text)] font-medium tracking-wide truncate max-w-[14rem]">{targetLabel}</span>
+    <header className="k-arena-hud relative z-20 shrink-0 px-4 py-2.5 flex flex-wrap items-center gap-2 justify-between border-b border-border bg-chrome/95">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full bg-surface border border-border rounded-card sm:rounded-capsule px-3.5 py-1.5 shadow-[var(--shadow-raised)]">
+        <span className="w-2 h-2 rounded-capsule" style={{ background: statusText ? 'var(--color-info)' : 'var(--color-success)' }} />
+        <span className="font-code text-label text-text font-medium tracking-wide truncate max-w-[14rem]">{targetLabel}</span>
         {onOpenCampaigns && (
           <>
-            <span className="text-[var(--color-border-strong)]">|</span>
+            <span className="text-border-strong">|</span>
             <button
               type="button"
               onClick={onOpenCampaigns}
               aria-label="Switch campaign"
               title={campaignTitle ? `Campaign: ${campaignTitle}` : 'Switch campaign'}
-              className="flex items-center gap-1 min-h-[24px] px-1.5 rounded-[var(--radius-inset)] text-xs font-medium text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none max-w-[10rem]"
+              className="flex items-center gap-1 min-h-[24px] px-1.5 rounded-[var(--radius-inset)] text-label font-medium text-label-secondary hover:text-text hover:bg-fill-hover transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none max-w-[10rem]"
             >
               <span className="truncate">{campaignTitle || 'Campaigns'}</span>
               <ChevronDown className="w-3.5 h-3.5 shrink-0" />
             </button>
           </>
         )}
-        <span className="text-[var(--color-border-strong)] hidden sm:inline">|</span>
+        <span className="text-border-strong hidden sm:inline">|</span>
         {statusText ? (
-          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[12px] text-[var(--color-info)]">{statusText}</span>
+          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[12px] text-info">{statusText}</span>
         ) : (
-          <span className="font-code text-[12px] text-[var(--color-muted)] hidden sm:inline">{swarmDetail}</span>
+          <span className="font-code text-[12px] text-muted hidden sm:inline">{swarmDetail}</span>
         )}
       </div>
 
       <div
         role="tablist"
         aria-label="Arena view mode"
-        className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-[var(--shadow-raised)]"
+        className="bg-surface border border-border rounded-card sm:rounded-capsule p-1 flex items-center max-w-full overflow-x-auto shadow-[var(--shadow-raised)]"
       >
         {VIEW_MODES.filter((m) => showWorkbench || m.id !== 'workbench').map((m) => {
           const Icon = m.icon;
@@ -122,8 +124,8 @@ export const ArenaHud = React.memo(function ArenaHud({
               aria-selected={isActive}
               data-testid={`arena-view-${m.id}`}
               onClick={() => onViewChange(m.id)}
-              className={`px-3 py-1 rounded-full text-xs font-medium flex shrink-0 items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
-                isActive ? 'bg-[var(--color-lit)] text-[var(--color-on-lit)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+              className={`px-3 py-1 rounded-capsule text-label font-medium flex shrink-0 items-center gap-1.5 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
+                isActive ? 'bg-lit text-on-lit' : 'text-muted hover:text-text'
               }`}
             >
               <Icon className="w-[15px] h-[15px]" />
@@ -135,23 +137,23 @@ export const ArenaHud = React.memo(function ArenaHud({
 
       <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
         <div
-          className={`bg-[var(--color-surface)] border rounded-full px-3.5 py-1.5 flex flex-wrap items-center gap-3 max-w-full shadow-[var(--shadow-raised)] ${overCap ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
+          className={`bg-surface border rounded-capsule px-3.5 py-1.5 flex flex-wrap items-center gap-3 max-w-full shadow-[var(--shadow-raised)] ${overCap ? 'border-danger' : 'border-border'}`}
           data-testid="hud-spend"
           data-breach={overCap ? 'true' : undefined}
         >
           <div className="flex items-center gap-1.5" title={capFinite ? `$${fmt(spendUsd)} of $${fmt(spendCapUsd)} cap` : `$${fmt(spendUsd)} (no cap)`}>
             <Zap className="w-4 h-4" style={{ color: overCap ? 'var(--color-danger)' : 'var(--color-warning)' }} />
-            <span className="font-code text-xs font-medium" style={{ color: overCap ? 'var(--color-danger)' : 'var(--color-warning)', fontWeight: overCap ? 700 : 500 }}>
+            <span className="font-code text-label font-medium" style={{ color: overCap ? 'var(--color-danger)' : 'var(--color-warning)', fontWeight: overCap ? 700 : 500 }}>
               ${fmt(spendUsd)}
             </span>
             {overCap && (
-              <span className="flex items-center gap-1 font-code text-[12px] text-[var(--color-danger)] bg-[var(--color-soft-rose-wash)] border border-[var(--color-soft-rose-edge)] rounded-full px-1.5 py-0.5">
+              <span className="flex items-center gap-1 font-code text-[12px] text-danger bg-soft-rose-wash border border-soft-rose-edge rounded-capsule px-1.5 py-0.5">
                 <AlertTriangle className="w-3 h-3" />
                 OVER CAP
               </span>
             )}
           </div>
-          <span className="text-[var(--color-border-strong)]">|</span>
+          <span className="text-border-strong">|</span>
           <ElapsedClock createdAt={sessionCreatedAt} fallback={sessionElapsed} />
         </div>
 
@@ -162,13 +164,13 @@ export const ArenaHud = React.memo(function ArenaHud({
             aria-expanded={experimentLabOpen}
             title="Open Experiment & Discovery Lab (⌘E)"
             aria-label="Open Experiment & Discovery Lab"
-            className={`h-8 px-3 rounded-full border text-xs font-medium transition-all shadow-[var(--shadow-raised)] flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none ${
+            className={`h-8 px-3 rounded-capsule border text-label font-medium transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-[var(--shadow-raised)] flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
               experimentLabOpen
-                ? 'bg-[var(--color-lit)] text-[var(--color-on-lit)] border-[var(--color-lit)]'
-                : 'bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)]'
+                ? 'bg-lit text-on-lit border-lit'
+                : 'bg-surface border-border hover:border-accent-edge hover:bg-fill-hover text-label-secondary hover:text-text'
             }`}
           >
-            <Zap className={`w-3.5 h-3.5 ${experimentLabOpen ? '' : 'text-[var(--color-accent-ink)]'}`} />
+            <Zap className={`w-3.5 h-3.5 ${experimentLabOpen ? '' : 'text-accent-ink'}`} />
             <span>Experiment Lab</span>
           </button>
         )}
@@ -178,7 +180,7 @@ export const ArenaHud = React.memo(function ArenaHud({
             onClick={onOpenMoleculeView}
             title="Open molecule object view"
             aria-label="Open molecule object view"
-            className="w-8 h-8 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-[var(--color-accent-edge)] hover:bg-[var(--color-fill-hover)] text-[var(--color-accent-ink)] hover:text-[var(--color-text)] transition-all shadow-[var(--shadow-raised)] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+            className="w-8 h-8 rounded-capsule bg-surface border border-border hover:border-accent-edge hover:bg-fill-hover text-accent-ink hover:text-text transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-[var(--shadow-raised)] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
           >
             <Box className="w-4 h-4" />
           </button>
@@ -188,7 +190,7 @@ export const ArenaHud = React.memo(function ArenaHud({
           aria-label="Recenter viewport"
           title="Recenter viewport (0: fit · 1: 100%)"
           onClick={onRecenter}
-          className="w-8 h-8 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-label-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-fill-hover)] flex items-center justify-center transition-all shadow-[var(--shadow-raised)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:outline-none"
+          className="w-8 h-8 rounded-capsule bg-surface border border-border text-label-secondary hover:text-text hover:bg-fill-hover flex items-center justify-center transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] shadow-[var(--shadow-raised)] focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
         >
           <Crosshair className="w-[17px] h-[17px]" />
         </button>
