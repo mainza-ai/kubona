@@ -6249,3 +6249,26 @@ skipped is the exact failure this incident is about:
 - **Verification:** Workbench unit **32/32** (including signed-in multi-lab),
   Console **794/794** across **147** files, browser **9/9**, tsc, ESLint,
   build, token/colour/scale/theme/bundle/repo-counts clean.
+
+## [2026-11-15] verification | job completion vs agent-run state
+
+- **Observed:** proposal launch creates a supervisor loop (`max_steps=50`)
+  with the dispatched job as its only part, but no settle hook closed the loop.
+  The ledger proved the sequence: `loop_registered` → `loop_part(running)` →
+  `job_settled` → `campaign_replanned`, with no `loop_completed`.
+- **Fix:** the job settle/failure hooks now settle a loop whose entire tracked
+  work is that one job (completed → `loop_completed`; failed/cancelled →
+  `loop_aborted`). Added the missing `running/paused/sleeping → completed`
+  and `→ aborted` transitions; lifecycle parts now render aborted as failed,
+  stalled as failed, and sleeping as waiting.
+- **Restart/retroactive recovery:** `GET /api/loops` reconciles running or
+  sleeping job-tracking loops against their job's terminal state and re-reads
+  the list after reconciliation, so an existing orphan settles on the next
+  poll. The LiH run `f356d5f4` went `sleeping → completed` (job
+  `d2fae5e8` completed).
+- **Display:** the agent-run card omits the meaningless `Step 0/50` fact
+  until a supervisor step exists; job-tracking runs show state + job lane.
+- **Known gaps:** `RehydrateLoops` stamps `created_at` from last activity
+  (original creation time is not in `LoopPersist`); loop completion relies on
+  polling/SSE invalidation rather than a dedicated loop event; multi-job
+  agent runs still need their own supervisor to close them.

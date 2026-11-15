@@ -170,6 +170,15 @@ describe('workbench model', () => {
     expect(run?.facts.find((fact) => fact.label === 'Step')?.value).toBe('3 / 10');
   });
 
+  it('does not show a false 0/50 step fact for a job-tracking run', () => {
+    const objects = buildWorkbench(campaign(), [
+      { id: 'loop-jobtrack', session_id: 's1', status: 'completed', step_count: 0, max_steps: 50, diverged: false, created_at: '', updated_at: '' },
+    ]);
+    const run = objects.find((object) => object.kind === 'agent_run');
+    expect(run?.facts.some((fact) => fact.label === 'Step')).toBe(false);
+    expect(run?.meta?.pending).toBeUndefined();
+  });
+
   it('projects job records as job objects', () => {
     const objects = buildWorkbench(campaign(), [], [
       { id: 'job-123456789', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z', completed_at: '2026-11-01T00:00:02Z' },

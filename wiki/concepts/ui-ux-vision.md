@@ -417,7 +417,7 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   and overlay-inspector collisions.
 - **Contracts & Verification:** Inventory stands at **158 modeled / 14
   client-only / 0 unmodeled** contracts (`136` schemas, `143` OpenAPI paths)
-  with **803** Console test cases across **151** test files (`docs/repo-counts.md`),
+  with **804** Console test cases across **151** test files (`docs/repo-counts.md`),
   including real-Chromium `*.component.test.tsx` coverage, plus
   `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,
   `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual VoiceOver/NVDA

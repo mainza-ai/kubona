@@ -34,7 +34,7 @@ sources: [source-frontier-repo-audit-2026]
 >   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
 >   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
 > - **Console (`:3000`):** `158` modeled / `14` client-only / `0` unmodeled
->   contracts (`136` schemas, `143` OpenAPI paths), **803** cases across **151**
+>   contracts (`136` schemas, `143` OpenAPI paths), **804** cases across **151**
 >   files (including real-Chromium component tests). Role-named radius/type
 >   scales with default Tailwind scales reset, zero arbitrary colour-var
 >   utilities, per-route bundle budgets, import boundaries, and a
@@ -278,8 +278,8 @@ flowchart TB
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
 - Counts at `2026-11-14` (`docs/repo-counts.md`): **151** HTTP routes,
-  **41** Go packages (**1008** Go test funcs), **185** Python test files,
-  **151** console test files (**803** test cases), **32** Rust tests, **6**
+  **41** Go packages (**1011** Go test funcs), **185** Python test files,
+  **151** console test files (**804** test cases), **32** Rust tests, **6**
   MCP servers (**38** tools), **158** wiki pages; console contracts **158
   modeled / 14 client-only / 0 unmodeled** (`136` schemas, `143` OpenAPI
   paths); token-lint raw-palette debt **1** baseline occurrence.

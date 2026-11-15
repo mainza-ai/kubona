@@ -114,6 +114,19 @@ func validLoopTransition(from, to string) bool {
 		case LoopPaused, LoopStalled, LoopSleeping:
 			return true
 		}
+	case LoopCompleted:
+		// A tracked job settling is the normal completion path; a paused or
+		// stalled loop whose work is already over may settle too.
+		switch from {
+		case LoopRunning, LoopPaused, LoopRescoped, LoopStalled, LoopSleeping:
+			return true
+		}
+	case LoopAborted:
+		// Failure settlement is terminal, never a completion.
+		switch from {
+		case LoopRunning, LoopPaused, LoopRescoped, LoopDiverged, LoopStalled, LoopSleeping:
+			return true
+		}
 	case LoopKilled:
 		switch from {
 		case LoopRunning, LoopPaused, LoopRescoped, LoopDiverged, LoopStalled, LoopSleeping:
@@ -487,12 +500,65 @@ func (s *Supervisor) recordTransitionPart(sessionID, loopID, to string) {
 		title, state = "Completed", "done"
 	case LoopDiverged:
 		title, state = "Diverged (guardrail)", "failed"
+	case LoopStalled:
+		title, state = "Stalled (guardrail)", "failed"
+	case LoopAborted:
+		title, state = "Aborted", "failed"
+	case LoopSleeping:
+		title, state = "Sleeping", "waiting"
 	case LoopKilled:
 		title, state = "Killed", "stopped"
 	}
 	_, _ = s.RecordPart(sessionID, LoopPart{
 		LoopID: loopID, Helper: "lead", Title: title, State: state,
 	})
+}
+
+// CompleteTrackedJob settles the supervisor loop that was created to track a
+// single dispatched job. Launch creates one loop per proposal and records the
+// job as its only part; without this hook the job settled while the run card
+// stayed "running" forever (step 0/50, no transition event).
+func (s *Supervisor) CompleteTrackedJob(sessionID, jobID, outcome string) int {
+	s.mu.RLock()
+	var candidates []string
+	for id, loop := range s.loops {
+		if loop.SessionID != sessionID {
+			continue
+		}
+		switch loop.Status {
+		case LoopRunning, LoopPaused, LoopRescoped, LoopSleeping:
+			candidates = append(candidates, id)
+		}
+	}
+	s.mu.RUnlock()
+	settled := 0
+	for _, loopID := range candidates {
+		parts, err := s.LoopParts(loopID)
+		if err != nil {
+			continue
+		}
+		jobIDs := map[string]bool{}
+		for _, part := range parts {
+			if part.JobID != "" {
+				jobIDs[part.JobID] = true
+			}
+		}
+		// Only a loop whose entire tracked work is this one job can be
+		// settled here; a multi-job agent run keeps its own lifecycle.
+		if len(jobIDs) != 1 || !jobIDs[jobID] {
+			continue
+		}
+		to, event := LoopCompleted, "loop_completed"
+		if outcome != "completed" {
+			to, event = LoopAborted, "loop_aborted"
+		}
+		if err := s.transitionLoop(loopID, to, event, map[string]any{
+			"job_id": jobID, "outcome": outcome, "reason": "tracked_job_terminal",
+		}); err == nil {
+			settled++
+		}
+	}
+	return settled
 }
 
 // GetLoop returns a copy of one loop (nil,false when unknown). Callers use

@@ -1275,7 +1275,11 @@ export function buildWorkbench(
       detail: state === 'running' ? 'Agent is working; progress comes from the server record.' : 'Settled or paused; no live claim without a running record.',
       facts: [
         { label: 'State', value: state },
-        { label: 'Step', value: `${loop.step_count} / ${loop.max_steps}` },
+        // A job-tracking run has no supervisor steps; "0 / 50" was a false
+        // progress signal. Show the step fact only once a step exists.
+        ...(loop.step_count > 0
+          ? [{ label: 'Step', value: `${loop.step_count} / ${loop.max_steps}` }]
+          : []),
         { label: 'Diverged', value: loop.diverged ? 'YES' : 'no' },
       ].map(sourced('loop', loop.id)),
       meta: {

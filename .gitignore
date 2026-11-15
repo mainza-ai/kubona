@@ -49,3 +49,6 @@ platform/console/pubspec.lock
 /kubonad
 platform/core/kubonad
 platform/core/bin/
+
+# Generated local PQC recipient key (never commit)
+pqc_recipient_key.bin

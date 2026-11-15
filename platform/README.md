@@ -9,8 +9,8 @@ a reproducible CI pipeline. See `../wiki/roadmap.md` for the phase plan and
 `../wiki/overview.md` for the architecture.
 
 > **Status (2026-11-14):** generated counts live in `../docs/repo-counts.md`
-> (151 Go routes, 41 Go packages, 1008 Go test functions, 185 Python test
-> files, 151 console test files / 803 cases, 32 Rust tests, 6 MCP servers /
+> (151 Go routes, 41 Go packages, 1011 Go test functions, 185 Python test
+> files, 151 console test files / 804 cases, 32 Rust tests, 6 MCP servers /
 > 38 tools). The console/agent rails now include runtime skills, recorded
 > decision evals, role-named design-token scales, real-Chromium component
 > tests, and per-route bundle budgets. Hosted CI is authoritative for the

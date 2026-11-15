@@ -409,10 +409,14 @@ func NewServer(
 	// opens a follow-up anomaly obligation instead of rewriting history.
 	replan := s.replanCampaignOnSettled
 	jr.SetSettledHook(func(j *jobs.Job) {
+		s.supervisor.CompleteTrackedJob(j.SessionID, j.ID, "completed")
 		s.recordMandateSettlement(j)
 		replan(j)
 	})
-	jr.SetFailureHook(s.recordFailedJobResult)
+	jr.SetFailureHook(func(j *jobs.Job) {
+		s.supervisor.CompleteTrackedJob(j.SessionID, j.ID, "failed")
+		s.recordFailedJobResult(j)
+	})
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
@@ -3990,10 +3994,57 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"job": jobViewFrom(job)})
 }
 
+// reconcileTrackedLoops settles job-tracking loops whose job finished while
+// the daemon was down or before the settle hook was installed. Without this,
+// a restart leaves a completed job's run card "running" forever.
+func (s *Server) reconcileTrackedLoops(loops []*supervisor.ManagedLoop) {
+	for _, loop := range loops {
+		if loop == nil || s.jobRunner == nil {
+			continue
+		}
+		switch loop.Status {
+		case supervisor.LoopRunning, supervisor.LoopPaused, supervisor.LoopRescoped, supervisor.LoopSleeping:
+		default:
+			continue
+		}
+		parts, err := s.supervisor.LoopParts(loop.ID)
+		if err != nil {
+			continue
+		}
+		jobIDs := map[string]bool{}
+		for _, part := range parts {
+			if part.JobID != "" {
+				jobIDs[part.JobID] = true
+			}
+		}
+		if len(jobIDs) != 1 {
+			continue
+		}
+		var jobID string
+		for id := range jobIDs {
+			jobID = id
+		}
+		job, err := s.jobRunner.GetJob(jobID)
+		if err != nil || job == nil {
+			continue
+		}
+		switch job.Status {
+		case pb.JobStatus_JOB_STATUS_COMPLETED:
+			s.supervisor.CompleteTrackedJob(loop.SessionID, jobID, "completed")
+		case pb.JobStatus_JOB_STATUS_FAILED, pb.JobStatus_JOB_STATUS_CANCELLED:
+			s.supervisor.CompleteTrackedJob(loop.SessionID, jobID, "failed")
+		}
+	}
+}
+
 func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		loops := s.supervisor.ListLoops()
+		s.reconcileTrackedLoops(loops)
+		// ListLoops returns copies; re-read after reconciliation so the same
+		// response already carries the settled state (no one-poll lag).
+		loops = s.supervisor.ListLoops()
 		// K2: optional session scope. Unfiltered (all loops) stays for
 		// operators; a lab cookie only sees loops whose session belongs
 		// to that lab (2026-10-26 audit AUD-A1).
