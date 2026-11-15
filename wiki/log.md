@@ -6150,3 +6150,29 @@ skipped is the exact failure this incident is about:
   console 788 unit + 9 browser, build, all lint/contract/token/scale/theme/
   bundle/wiki/count/secret checks; the full Python suite exceeded the local
   30-minute window and was not claimed (bridge suites passed).
+
+## [2026-11-14] verification | canvas, deletion, and model-auth fixes
+
+- **Delete cascade:** `session.DeleteSession` now removes every session-FK
+  table added since the original cascade (workbench views/layouts, tasks,
+  workflow runs/steps/approvals, proposals, claim reviews/evidence, loop
+  steers, run allowances/draws, transcript scores). A campaign with a saved
+  workbench view deletes cleanly (live probe: create → PUT view → DELETE =
+  200). `delete_blocked` is a typed 409 carrying the blocker list; the client
+  preserves code/status/blockers and shows the backend reason instead of a
+  generic sentence. A committed delete with a failed audit receipt is
+  reported as success-with-warning, never “nothing was deleted.”
+- **Context chip:** `×` now renders only for a selected workbench object. The
+  campaign target is persistent campaign state and no longer offers a no-op
+  control.
+- **Clear canvas:** toolbar action hides every card as one undoable step,
+  persists through the workbench layout, and exposes “Restore all (N)”; records
+  and links are untouched.
+- **Model auth:** anonymous/read-only users now see “Sign in to change the
+  copilot model” in ModelPicker and a disabled Save in LLM Settings with a
+  direct sign-in route instead of issuing a 401 write. Authenticated/operator
+  writes keep the existing bearer policy.
+- **Verification:** Go full suite green (1008 test functions), Console unit
+  **793/793** across **147** files, browser **9/9**; delete probe 200,
+  Playwright confirms no campaign `×`, clear→0 cards→restore, and the model
+  sign-in banner with zero page errors.

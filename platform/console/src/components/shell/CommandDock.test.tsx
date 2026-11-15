@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import * as api from '@/lib/api';
 import { publishInvalidation } from '@/domain/invalidation';
+import { setAuthPhase } from '@/domain/auth-state';
 import { CommandDock } from './CommandDock';
 import { MemoryPanel } from '../MemoryPanel';
 
@@ -45,6 +46,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 describe('CommandDock', () => {
   beforeEach(() => {
+    setAuthPhase('authenticated');
     vi.clearAllMocks();
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.clear();
@@ -85,6 +87,16 @@ describe('CommandDock', () => {
     });
 
     expect(onTribunal).toHaveBeenCalledWith('Spin-orbit coupling');
+  });
+
+  it('does not show a dead clear control for campaign context', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <CommandDock onSubmit={vi.fn()} contextLabel="Lithium Hydride (LiH)" />,
+      );
+    });
+    expect(tree!.root.findAllByProps({ 'aria-label': 'Clear context' })).toHaveLength(0);
   });
 
   it('displays effective copilot model on mount before Model morph is opened', async () => {

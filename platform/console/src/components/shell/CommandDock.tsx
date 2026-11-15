@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Brain, ChevronUp, Cpu, Paperclip, Sparkles, X } from 'lucide-react';
 import type { ChatAttachment, FollowUpSpec } from '@/domain/useCopilotChat';
 import { subscribeInvalidation } from '@/domain/invalidation';
-import { fetchLLMModels, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
+import { fetchLLMModels, fetchLLMSettings, hasOperatorBearer, saveLLMSettings } from '@/lib/api';
+import { useAuthPhase } from '@/domain/auth-state';
 import { ContextReadout } from '../common/ContextReadout';
 import { MemoryPanel } from '../MemoryPanel';
 import { OverflowCard } from '../common/OverflowCard';
@@ -23,6 +24,8 @@ export interface CommandDockProps {
   onSubmit: (text: string) => Promise<void> | void;
   contextLabel?: string | null;
   onClearContext?: () => void;
+  /** Navigate to the sign-in surface (Operations → Laboratories). */
+  onRequestSignIn?: () => void;
   onAttach?: (name: string, text: string) => void;
   onDetach?: (name: string) => void;
   attachments?: ChatAttachment[];
@@ -53,6 +56,7 @@ export const CommandDock = React.memo(function CommandDock({
   onSubmit,
   contextLabel,
   onClearContext,
+  onRequestSignIn,
   onAttach,
   onDetach,
   attachments: controlledAttachments,
@@ -80,6 +84,8 @@ export const CommandDock = React.memo(function CommandDock({
   const [tribunalTopic, setTribunalTopic] = useState('');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
+  const authPhase = useAuthPhase();
+  const canWriteSettings = authPhase === 'authenticated' || hasOperatorBearer();
   const [airGapped, setAirGapped] = useState(false);
   const [providersMap, setProvidersMap] = useState<Record<string, PickerProviderConfig>>({});
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, LlmModelItem[]>>({});
@@ -241,6 +247,11 @@ export const CommandDock = React.memo(function CommandDock({
 
   const switchQuickModel = async (modelId: string, providerOverride?: string, sampling?: PickerRoleSampling) => {
     if (savingModel) return;
+    if (!canWriteSettings) {
+      setModelStatus('Sign in to change models — model settings writes require an operator token or lab session. Nothing changed.');
+      onRequestSignIn?.();
+      return;
+    }
     setSavingModel(true);
     setModelStatus(null);
     try {
@@ -315,6 +326,11 @@ export const CommandDock = React.memo(function CommandDock({
 
   const applyCopilotSampling = async (sampling: PickerRoleSampling) => {
     if (savingModel) return;
+    if (!canWriteSettings) {
+      setModelStatus('Sign in to save sampling overrides — nothing changed.');
+      onRequestSignIn?.();
+      return;
+    }
     setSavingModel(true);
     setModelStatus(null);
     try {
@@ -456,6 +472,8 @@ export const CommandDock = React.memo(function CommandDock({
         <ModelPicker
           activeProvider={activeProvider || 'omlx'}
           activeModel={activeModelName}
+          writable={canWriteSettings}
+          onRequestSignIn={onRequestSignIn}
           airGapped={airGapped}
           providers={providersMap}
           modelsByProvider={modelsByProvider}

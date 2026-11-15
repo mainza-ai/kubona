@@ -69,6 +69,9 @@ export interface ModelPickerProps {
   onOpenSettings?: () => void;
   onOpenDownloadHub?: () => void;
   restoreFocusEl?: HTMLElement | null;
+  /** Model settings writes need an operator token or lab session. */
+  writable?: boolean;
+  onRequestSignIn?: () => void;
 }
 
 const FAVORITES_KEY = 'kubona.model_picker.favorites.v1';
@@ -169,6 +172,8 @@ export function ModelPicker({
   onOpenSettings,
   onOpenDownloadHub,
   restoreFocusEl,
+  writable = true,
+  onRequestSignIn,
 }: ModelPickerProps) {
   const defaultProvider = activeProvider || Object.keys(providers)[0] || 'omlx';
   const [tabOverride, setTabOverride] = useState<{ base: string; value: string } | null>(null);
@@ -298,6 +303,10 @@ export function ModelPicker({
   };
 
   const pickModel = async (provider: string, modelId: string) => {
+    if (!writable) {
+      onRequestSignIn?.();
+      return;
+    }
     const nextRecent = [
       { provider, model: modelId },
       ...recent.filter((p) => !(p.provider === provider && p.model === modelId)),
@@ -544,6 +553,17 @@ export function ModelPicker({
           </button>
         </div>
       </div>
+
+      {!writable && (
+        <div role="status" className="rounded-row border border-warning-edge bg-warning-wash px-2.5 py-1.5 text-[12px] text-warning-ink">
+          Sign in to change the copilot model. Model settings writes require an operator token or a lab session — browsing is read-only.
+          {onRequestSignIn && (
+            <button type="button" onClick={onRequestSignIn} className="ml-1 font-semibold underline hover:no-underline">
+              Open sign-in
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[170px_1fr]">
         {/* Provider Rail */}

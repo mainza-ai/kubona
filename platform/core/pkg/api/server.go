@@ -2655,6 +2655,27 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.sessionMgr.DeleteSession(id, s.signerPrivKey); err != nil {
+			var blocked *session.DeleteBlockedError
+			if errors.As(err, &blocked) {
+				WriteAPIError(w, "delete_blocked", blocked.Error(), map[string]any{
+					"session_id": blocked.SessionID,
+					"blockers":   blocked.Blockers,
+				})
+				return
+			}
+			var receipt *session.DeleteReceiptError
+			if errors.As(err, &receipt) {
+				// The rows are gone; the audit receipt is not. A 200 with an
+				// explicit warning is honest — a 500 would invite a retry that
+				// can never succeed ("session not found").
+				writeJSON(w, http.StatusOK, map[string]any{
+					"deleted":       true,
+					"session_id":    id,
+					"receipt":       "failed",
+					"receipt_error": receipt.Error(),
+				})
+				return
+			}
 			if strings.Contains(err.Error(), "session not found") {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {
@@ -2662,7 +2683,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "session_id": id})
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "session_id": id, "receipt": "recorded"})
 		return
 	}
 	sess, err := s.sessionMgr.GetSession(id)

@@ -4,6 +4,8 @@ export class OperationError extends Error {
     readonly status: number | null,
     message: string,
     readonly path: string | null = null,
+    readonly code: string | null = null,
+    readonly details: Record<string, unknown> | null = null,
   ) {
     super(message);
     this.name = 'OperationError';

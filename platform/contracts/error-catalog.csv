@@ -33,3 +33,4 @@ proposal_not_offered,state,409,false,"this proposal was already launched, dismis
 proposal_digest_mismatch,validation,400,false,the digest does not match the server-minted body: re-read the proposal before launching
 proposal_unmintable,validation,400,false,"the plan cannot be priced or routed honestly (missing circuit, unknown backend, or unpriced metered hardware): revise the plan"
 loop_not_running,state,409,false,"steering applies only to a running run: resume it first (paused and terminal runs never consume instructions)"
+delete_blocked,state,409,false,"settle or abort the named work, then delete again; nothing was removed"

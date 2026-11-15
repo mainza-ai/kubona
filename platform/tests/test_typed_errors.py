@@ -22,12 +22,12 @@ def test_codes_match_contract():
     # proposal lifecycle and steering codes below. The count pins the
     # contract size so silent catalog drift fails loudly; the named set pins
     # *which* codes the console/agent rails depend on.
-    assert len(rows) == 34, f"catalog grew/shrank: {len(rows)} rows"
+    assert len(rows) == 35, f"catalog grew/shrank: {len(rows)} rows"
     assert {
         "credits_unavailable", "spend_limit_exceeded", "task_not_entitled",
         "revision_conflict", "precondition_required", "proposal_stale",
         "proposal_not_offered", "proposal_digest_mismatch",
-        "proposal_unmintable", "loop_not_running",
+        "proposal_unmintable", "loop_not_running", "delete_blocked",
     } <= {r["code"] for r in rows}
     assert set(ERROR_CATALOG) == {r["code"] for r in rows}
     for code in ERROR_CATALOG:

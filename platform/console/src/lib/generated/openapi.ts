@@ -690,6 +690,8 @@ export type AuthAction = {
 export type SessionDelete = {
   "deleted": boolean;
   "session_id": string;
+  "receipt"?: string;
+  "receipt_error"?: string;
 };
 
 export type TenantGrant = {

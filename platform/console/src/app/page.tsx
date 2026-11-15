@@ -532,15 +532,23 @@ export default function Home() {
     setDeleteError(null);
     const requestId = deleteWrite.begin(`deleting campaign ${sessionId.slice(0, 8)}`);
     try {
-      const success = await deleteSession(sessionId);
-      if (!success) {
-        // Fail-closed: stay open with an inline error, nothing removed.
-        deleteWrite.refused(requestId, 'backend refused; nothing was deleted');
-        setDeleteError('Delete refused by backend — nothing was deleted.');
+      const result = await deleteSession(sessionId);
+      if (!result.ok) {
+        // Fail-closed: stay open with the backend's exact reason + blockers.
+        const detail = result.blockers.length > 0
+          ? `${result.error} Blockers: ${result.blockers.join('; ')}.`
+          : result.error;
+        deleteWrite.refused(requestId, detail);
+        setDeleteError(`Delete refused — ${detail}`);
         return;
       }
       deleteWrite.applied(requestId, `campaign ${sessionId.slice(0, 8)} deleted`);
-      setToast({ key: Date.now(), text: writeSettlementLabel(settleWrite(requestId, 'applied', `campaign ${sessionId.slice(0, 8)} deleted`)) });
+      setToast({
+        key: Date.now(),
+        text: result.receiptFailed
+          ? `Campaign deleted, but its audit receipt failed: ${result.receiptFailed}`
+          : writeSettlementLabel(settleWrite(requestId, 'applied', `campaign ${sessionId.slice(0, 8)} deleted`)),
+      });
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 4000);
       setSessions((prev) => {
@@ -1721,7 +1729,13 @@ export default function Home() {
           <CommandDock
             onSubmit={handleAsk}
             contextLabel={selectedWorkbenchObject ? `${selectedWorkbenchObject.label}: ${selectedWorkbenchObject.title}` : campaign?.target_system || null}
-            onClearContext={() => setSelectedWorkbenchObject(null)}
+            // Only a selected object is clearable. The campaign target is
+            // campaign state; offering a no-op × on it was a false affordance.
+            onClearContext={selectedWorkbenchObject ? () => setSelectedWorkbenchObject(null) : undefined}
+            onRequestSignIn={() => {
+              setSurface('mesh');
+              setMeshTab('labs');
+            }}
             onAttach={copilotChat.attach}
             onDetach={copilotChat.detach}
             attachments={copilotChat.attachments}

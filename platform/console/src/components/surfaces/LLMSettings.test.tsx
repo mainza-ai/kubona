@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { LLMSettings } from './LLMSettings';
+import { setAuthPhase } from '@/domain/auth-state';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -99,6 +100,7 @@ function stubFetch(handler: (url: string, init?: RequestInit) => unknown) {
 }
 
 async function render(): Promise<TestRenderer.ReactTestRenderer> {
+  setAuthPhase('authenticated');
   let tree: TestRenderer.ReactTestRenderer;
   await act(async () => {
     tree = TestRenderer.create(<LLMSettings />);

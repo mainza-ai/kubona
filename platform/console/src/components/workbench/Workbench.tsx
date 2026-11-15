@@ -144,6 +144,10 @@ export type WorkbenchHandle = {
   /** Focus a card and report whether the card exists on this canvas. */
   focusObject: (id: string) => boolean;
   removeObject: (id: string) => void;
+  /** Hide every card (records stay); undoable as one step. */
+  clearCanvas: () => void;
+  /** Restore every hidden card. */
+  restoreAll: () => void;
 };
 
 function lodForZoom(zoom: number): WorkbenchViewLod {
@@ -487,6 +491,20 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
     onSelectObject?.(null);
   }, [selected, onSelectObject, pushUndo, captureSnapshot]);
 
+  const clearCanvas = useCallback(() => {
+    if (objects.length === 0) return;
+    pushUndo('remove', 'Undo clear canvas', 'Restore every cleared card', captureSnapshot());
+    setHidden(objects.map((object) => object.id));
+    setSelected([]);
+    onSelectObject?.(null);
+  }, [objects, onSelectObject, pushUndo, captureSnapshot]);
+
+  const restoreAll = useCallback(() => {
+    if (hidden.length === 0) return;
+    pushUndo('remove', 'Undo restore', 'Re-hide every restored card', captureSnapshot());
+    setHidden([]);
+  }, [hidden, pushUndo, captureSnapshot]);
+
   const createDirectLink = useCallback((source: string, target: string) => {
     if (!source || !target || source === target) return;
     const current = storedLinks ?? buildWorkbenchLinks(baseObjects);
@@ -622,7 +640,9 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
       setSelected((previous) => previous.filter((item) => item !== id));
       onSelectObject?.(null);
     },
-  }), [objects, selectObject, onSelectObject, pushUndo, captureSnapshot, centerCameraOnObject]);
+    clearCanvas,
+    restoreAll,
+  }), [objects, selectObject, onSelectObject, pushUndo, captureSnapshot, centerCameraOnObject, clearCanvas, restoreAll]);
 
   const applyCamera = useCallback((next: WorkbenchCamera) => {
     // Any direct (user-driven) camera move pauses follow-live. Follow itself
@@ -1783,6 +1803,27 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
           type="button"
           variant="ghost"
           size="compact"
+          disabled={objects.length === 0 || viewMode === 'list'}
+          onClick={clearCanvas}
+          title="Hide every card; records and links stay. Undo restores the canvas."
+        >
+          Clear canvas
+        </Button>
+        {hidden.length > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={restoreAll}
+            title="Restore every hidden card"
+          >
+            {`Restore all (${hidden.length})`}
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
           disabled={selected.length === 0 || viewMode === 'list'}
           onClick={groupSelected}
           title="Group the selected cards into a spatial area"
@@ -1943,6 +1984,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
             {hidden.length > 0 && (
               <div className="k-workbench-hidden" aria-label="Hidden objects">
                 <strong>Hidden objects</strong>
+                <button type="button" onClick={restoreAll}>Restore all</button>
                 {hidden.map((id) => {
                   const object = objects.find((item) => item.id === id);
                   return object ? (

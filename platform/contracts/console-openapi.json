@@ -5635,6 +5635,12 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "receipt": {
+            "type": "string"
+          },
+          "receipt_error": {
+            "type": "string"
           }
         }
       },

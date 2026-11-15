@@ -88,7 +88,7 @@ func TestErrorRegistryMatchesCatalog(t *testing.T) {
 }
 
 func TestErrorCatalogShape(t *testing.T) {
-	// The CSV parses to the same 29 codes (row-level drift guard: a
+	// The CSV parses to the same 35 codes (row-level drift guard: a
 	// silent CSV edit that the registry test above would bless by
 	// construction is caught here by count).
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "contracts", "error-catalog.csv"))
@@ -101,8 +101,8 @@ func TestErrorCatalogShape(t *testing.T) {
 			lines++
 		}
 	}
-	if lines != 35 { // header + 34 codes (trailing newline is uncounted)
-		t.Fatalf("catalog must carry header + 34 codes, got %d lines", lines)
+	if lines != 36 { // header + 35 codes (trailing newline is uncounted)
+		t.Fatalf("catalog must carry header + 35 codes, got %d lines", lines)
 	}
 	_ = http.StatusOK
 }

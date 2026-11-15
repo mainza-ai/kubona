@@ -270,11 +270,15 @@ export async function requestOperation<K extends ApiOperationName>(
   });
   if (!res.ok) {
     let detail = '';
+    let code: string | null = null;
+    let details: Record<string, unknown> | null = null;
     try {
       const text = (await res.text()).trim();
       try {
-        const body = JSON.parse(text) as { message?: unknown; error?: unknown };
+        const body = JSON.parse(text) as { message?: unknown; error?: unknown; code?: unknown; details?: unknown };
         detail = String(body.message || body.error || text);
+        code = typeof body.code === 'string' ? body.code : null;
+        details = body.details && typeof body.details === 'object' ? (body.details as Record<string, unknown>) : null;
       } catch {
         detail = text;
       }
@@ -286,6 +290,8 @@ export async function requestOperation<K extends ApiOperationName>(
       res.status,
       (detail || `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`).slice(0, 280),
       operation.path,
+      code,
+      details,
     );
   }
   return contract(operation.response as ContractName, await res.json()) as ApiOperationResponse[K];
@@ -609,13 +615,29 @@ export async function createSession(
   }
 }
 
-export async function deleteSession(sessionId: string): Promise<boolean> {
+export type DeleteSessionResult =
+  | { ok: true; receiptFailed?: string }
+  | { ok: false; error: string; blockers: string[]; code: string | null; status: number | null };
+
+export async function deleteSession(sessionId: string): Promise<DeleteSessionResult> {
   try {
     const data = await requestOperation('deleteSession', { params: { id: sessionId } });
-    return data.deleted === true;
+    if (data.deleted !== true) {
+      return { ok: false, error: 'backend did not confirm the deletion', blockers: [], code: null, status: null };
+    }
+    return { ok: true, receiptFailed: data.receipt === 'failed' ? data.receipt_error || 'audit receipt failed' : undefined };
   } catch (err) {
     console.error('Failed to delete session:', err);
-    return false;
+    const operation = err instanceof OperationError ? err : null;
+    const raw = operation?.details?.blockers;
+    const blockers = Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string') : [];
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      blockers,
+      code: operation?.code ?? null,
+      status: operation?.status ?? null,
+    };
   }
 }
 

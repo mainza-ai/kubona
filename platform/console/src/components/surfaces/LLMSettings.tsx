@@ -23,6 +23,7 @@ import {
   clearLLMProviderKey,
   discoverLocalLLMProviders,
   fetchLLMSettings,
+  hasOperatorBearer,
   saveLLMSettings,
   fetchLLMModels,
   testLLM,
@@ -34,6 +35,7 @@ import { subscribeInvalidation } from '@/domain/invalidation';
 import { AirGapToggleButton } from '@/components/common/AirGapControl';
 import { BudgetSummaryStrip } from '@/components/common/BudgetSummaryStrip';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { useAuthPhase } from '@/domain/auth-state';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
 interface ProviderConfig {
@@ -269,6 +271,8 @@ export function LLMSettings() {
   const [saveSectionError, setSaveSectionError] = useState<{ section: string; provider?: string; message: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const settlement = useWriteSettlement();
+  const authPhase = useAuthPhase();
+  const writable = authPhase === 'authenticated' || hasOperatorBearer();
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
   const dirty = settings != null && baseline != null && JSON.stringify(settings) !== baseline;
@@ -353,6 +357,10 @@ export function LLMSettings() {
 
   const handleSave = async (acknowledgeUnevaluated = false) => {
     if (!settings) return;
+    if (!writable) {
+      setSaveStatus('Sign in required — LLM settings writes need an operator token or lab session. Nothing changed.');
+      return;
+    }
     setSaving(true);
     setSaveStatus('');
     setSaveSectionError(null);
@@ -818,6 +826,11 @@ export function LLMSettings() {
 
   return (
     <div className="relative rounded-sheet overflow-hidden bg-page border border-border shadow-xl p-7 space-y-6 select-none">
+      {!writable && (
+        <div role="status" className="rounded-row border border-warning-edge bg-warning-wash px-3 py-2 text-label text-warning-ink">
+          Sign in to change LLM settings. Reads and model browsing stay public; writes require an operator token or lab session. Save and acknowledgement are disabled.
+        </div>
+      )}
       {/* Header & Primary Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center space-x-3.5">
@@ -882,7 +895,7 @@ export function LLMSettings() {
 
           <button
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || !writable}
             className="px-4 py-1.5 bg-accent hover:bg-lit text-on-accent text-label font-semibold rounded-row flex items-center space-x-2 shadow-sm active:scale-95 disabled:opacity-50 transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}

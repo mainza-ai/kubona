@@ -498,7 +498,7 @@ func (m *Manager) DeleteSession(id string, signer ed25519.PrivateKey) error {
 	if blockers, err := m.DeleteBlockers(id); err != nil {
 		return err
 	} else if len(blockers) > 0 {
-		return fmt.Errorf("session %s not deleted: %s (settle or abort first)", id, strings.Join(blockers, "; "))
+		return &DeleteBlockedError{SessionID: id, Blockers: blockers}
 	}
 	tx, err := m.ledger.DB().Begin()
 	if err != nil {
@@ -514,9 +514,36 @@ func (m *Manager) DeleteSession(id string, signer ed25519.PrivateKey) error {
 	if err != nil {
 		return fmt.Errorf("session not found: %s", id)
 	}
-	for _, table := range []string{"chat_messages", "campaign_states", "campaign_versions", "claim_records", "canvas_layouts", "jobs", "loops", "idempotency_keys"} {
-		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s WHERE session_id = ?`, table), id); err != nil {
-			return err
+	// Ordered by foreign-key dependency: children that point at another
+	// session row are removed before their parent. Every table that gained a
+	// session FK after the original cascade must be listed here — a missing
+	// one makes deletion fail on a foreign-key constraint (workbench_views did
+	// exactly that in production).
+	for _, query := range []string{
+		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claim_records WHERE session_id = ?)`,
+		`DELETE FROM claim_reviews WHERE session_id = ?`,
+		`DELETE FROM claim_records WHERE session_id = ?`,
+		`DELETE FROM run_allowance_draws WHERE allowance_id IN (SELECT id FROM run_allowances WHERE session_id = ?)`,
+		`DELETE FROM run_allowances WHERE session_id = ?`,
+		`DELETE FROM workflow_steps WHERE run_id IN (SELECT id FROM workflow_runs WHERE session_id = ?)`,
+		`DELETE FROM workflow_runs WHERE session_id = ?`,
+		`DELETE FROM workflow_approvals WHERE session_id = ?`,
+		`DELETE FROM loop_steers WHERE session_id = ?`,
+		`DELETE FROM proposals WHERE session_id = ?`,
+		`DELETE FROM tasks WHERE session_id = ?`,
+		`DELETE FROM workbench_views WHERE session_id = ?`,
+		`DELETE FROM workbench_layouts WHERE session_id = ?`,
+		`DELETE FROM transcript_scores WHERE session_id = ?`,
+		`DELETE FROM chat_messages WHERE session_id = ?`,
+		`DELETE FROM campaign_states WHERE session_id = ?`,
+		`DELETE FROM campaign_versions WHERE session_id = ?`,
+		`DELETE FROM canvas_layouts WHERE session_id = ?`,
+		`DELETE FROM jobs WHERE session_id = ?`,
+		`DELETE FROM loops WHERE session_id = ?`,
+		`DELETE FROM idempotency_keys WHERE session_id = ?`,
+	} {
+		if _, err := tx.Exec(query, id); err != nil {
+			return fmt.Errorf("delete session %s: %w", id, err)
 		}
 	}
 	res, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id)
@@ -533,7 +560,7 @@ func (m *Manager) DeleteSession(id string, signer ed25519.PrivateKey) error {
 	}
 
 	if _, err := m.ledger.AppendEventWithTenant(id, sess.TenantID, "session_deleted", map[string]string{"id": id}, signer); err != nil {
-		return fmt.Errorf("session deleted but audit receipt failed: %w", err)
+		return &DeleteReceiptError{SessionID: id, Err: err}
 	}
 	return nil
 }

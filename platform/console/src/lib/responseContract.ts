@@ -480,10 +480,16 @@ export const RESPONSE_SCHEMAS = {
   'auth.action': obj({
     ok: bool,
   }),
-  'session.delete': obj({
-    deleted: bool,
-    session_id: str,
-  }),
+  'session.delete': obj(
+    {
+      deleted: bool,
+      session_id: str,
+      // recorded: audit receipt appended; failed: rows deleted but receipt did not seal.
+      receipt: str,
+      receipt_error: str,
+    },
+    ['deleted', 'session_id'],
+  ),
   'tenant.grant': obj({
     grant_id: str,
     source_tenant: str,

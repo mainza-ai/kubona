@@ -456,6 +456,19 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
   });
 
+  it('clears the whole canvas and restores it as one undoable step', async () => {
+    const ref = React.createRef<WorkbenchHandle>();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = createTree(<Workbench ref={ref} campaign={campaign} sessionId="s1" />); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' }).length).toBeGreaterThan(0);
+    await act(async () => { ref.current!.clearCanvas(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
+    const restore = tree!.root.findAllByType('button').find((b) => String(b.props.title ?? '').includes('Restore every hidden card'));
+    expect(restore).toBeDefined();
+    await act(async () => { ref.current!.restoreAll(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' }).length).toBeGreaterThan(0);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

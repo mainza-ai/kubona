@@ -186,4 +186,30 @@ describe('ModelPicker', () => {
     });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('explains the auth gate instead of attempting a write when anonymous', async () => {
+    const onRequestSignIn = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ModelPicker
+          activeProvider="omlx"
+          activeModel="qwen-32b"
+          providers={PROVIDERS}
+          modelsByProvider={MODELS}
+          syncMatchingRoles={false}
+          writable={false}
+          onRequestSignIn={onRequestSignIn}
+          onToggleSyncMatchingRoles={vi.fn()}
+          onSelectProviderTab={vi.fn()}
+          onSelectModel={vi.fn(async () => {})}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+    expect(textOf(tree!.toJSON())).toContain('Sign in to change the copilot model');
+    const signIn = tree!.root.findAllByType('button').find((b) => textOf(b).includes('Open sign-in'))!;
+    act(() => { signIn.props.onClick(); });
+    expect(onRequestSignIn).toHaveBeenCalledTimes(1);
+  });
 });

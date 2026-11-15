@@ -123,6 +123,7 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 	if _, err := l.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-gone'`); err != nil {
 		t.Fatalf("settle loop: %v", err)
 	}
+	seedNewSessionTables(t, l, "sess-gone")
 	if err := m.DeleteSession("sess-gone", testDeleteSigner()); err != nil {
 		t.Fatalf("settled delete must succeed: %v", err)
 	}
@@ -130,8 +131,13 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 		"chat_messages": "session_id", "campaign_states": "session_id",
 		"campaign_versions": "session_id", "claim_records": "session_id",
 		"canvas_layouts": "session_id", "jobs": "session_id", "loops": "session_id",
-		"idempotency_keys": "session_id",
-		"sessions":         "id",
+		"idempotency_keys": "session_id", "workbench_views": "session_id",
+		"workbench_layouts": "session_id", "tasks": "session_id",
+		"workflow_runs": "session_id", "workflow_approvals": "session_id",
+		"proposals": "session_id", "claim_reviews": "session_id",
+		"loop_steers": "session_id", "run_allowances": "session_id",
+		"transcript_scores": "session_id",
+		"sessions":          "id",
 	}
 	for table, col := range tables {
 		var n int
@@ -156,6 +162,49 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 	}
 	if err := m.DeleteSession("sess-ghost", testDeleteSigner()); err == nil {
 		t.Fatalf("ghost delete must refuse")
+	}
+}
+
+// seedNewSessionTables exercises every session-FK table added after the
+// original cascade. Missing one is what made production deletion fail on
+// workbench_views; this seed makes that regression loud.
+func seedNewSessionTables(t *testing.T, l *ledger.Ledger, sid string) {
+	t.Helper()
+	now := time.Now().UTC()
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{`INSERT INTO workbench_views (session_id, view_revision, view_json, view_digest, updated_at) VALUES (?, 1, '{}', 'digest', ?)`, []any{sid, now}},
+		{`INSERT INTO workbench_layouts (session_id, revision, document, updated_at) VALUES (?, 1, '{}', ?)`, []any{sid, now}},
+		{`INSERT INTO tasks (id, session_id, title, status, source_domain, source_id, created_at, updated_at) VALUES ('task-'||?, ?, 'task', 'open', 'job', 'j', ?, ?)`, []any{sid, sid, now.Format(time.RFC3339), now.Format(time.RFC3339)}},
+		{`INSERT INTO workflow_runs (id, session_id, external_id, status, workflow_json, budget_ceiling_micro_usd, spent_micro_usd, error, created_at, updated_at) VALUES ('wf-'||?, ?, '', 'running', '{}', 0, 0, '', ?, ?)`, []any{sid, sid, now, now}},
+		{`INSERT INTO workflow_steps (run_id, step_id, ordinal, tool, status, job_id, result_json, error, updated_at) VALUES ('wf-'||?, 's1', 0, 'tool', 'pending', '', '{}', '', ?)`, []any{sid, now}},
+		{`INSERT INTO workflow_approvals (token_hash, session_id, workflow_sha256, approved_by, expires_at, created_at, used_at) VALUES ('tok-'||?, ?, 'sha', 'admin', ?, ?, '')`, []any{sid, sid, now.Add(time.Hour), now}},
+		{`INSERT INTO proposals (id, session_id, message_id, digest, body_json, basis_campaign_rev, basis_calibration_digest, basis_tainted, status, launched_job_id, created_at, updated_at) VALUES ('prop-'||?, ?, '', 'd', '{}', 0, '', 0, 'offered', '', ?, ?)`, []any{sid, sid, now, now}},
+		{`INSERT INTO claim_records (id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at, request_id) VALUES ('claim-'||?, ?, 'assistant', 'claim', 0.9, 0.1, 0.2, 'supported', '{}', ?, '')`, []any{sid, sid, now}},
+		{`INSERT INTO claim_reviews (id, session_id, claim_id, decision, reason, reviewer, evidence_json, created_at) VALUES ('review-'||?, ?, 'claim-'||?, 'supported', 'r', 'admin', '{}', ?)`, []any{sid, sid, sid, now}},
+		{`INSERT INTO claim_evidence (claim_id, kind, job_id, result_sha256, receipt_entry_hash, source_ref, created_at) VALUES ('claim-'||?, 'job_result', 'j', 'sha', '', '', ?)`, []any{sid, now}},
+		{`INSERT INTO loop_steers (id, loop_id, session_id, text, status, created_at) VALUES ('steer-'||?, 'loop-'||?, ?, 'go', 'pending', ?)`, []any{sid, sid, sid, now}},
+		{`INSERT INTO transcript_scores (session_id, obligation_id, role, score, signals_json, recorded_at) VALUES (?, 'ob-'||?, 'device-auditor', 0.8, '{}', ?)`, []any{sid, sid, now.Format(time.RFC3339)}},
+	}
+	for _, stmt := range stmts {
+		if _, err := l.DB().Exec(stmt.query, stmt.args...); err != nil {
+			t.Fatalf("seed %q: %v", stmt.query[:40], err)
+		}
+	}
+	allowance, err := l.MintRunAllowance(ledger.RunAllowance{
+		ID: "allow-" + sid, TenantID: "default", SessionID: sid, ScopeDigest: "scope",
+		Backends: []string{"sim"}, JobTypes: []string{"circuit_run"},
+		MaxPerJobMicroUSD: 1000, MaxTotalMicroUSD: 2000, MaxJobs: 1, ShotsCap: 10,
+		BasisRateCard: "test", Nonce: "n", SignerPubkeyHex: "pk", SignatureHex: "sig",
+		ExpiresAt: now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("seed allowance: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO run_allowance_draws (allowance_id, job_id, request_id, amount_micro_usd, created_at) VALUES (?, 'j', 'r', 1, ?)`, allowance.ID, now); err != nil {
+		t.Fatalf("seed draw: %v", err)
 	}
 }
 
