@@ -34,9 +34,13 @@ test('dense workbench stays inside the static transfer and DOM ceiling', async (
   });
   test.info().annotations.push({ type: 'runtime-budget', description: JSON.stringify(measured) });
   console.log(`runtime budget: ${JSON.stringify(measured)}`);
+  // DOM ceilings re-baselined 2026-11-14 after the needs tray, status strip,
+  // run-parts lane, and workbench toolbar landed: dense fixture measured 936
+  // visible nodes. 1,100 keeps ~17% headroom while still refusing an
+  // unbounded render; the transfer ceiling is unchanged.
   expect(measured.transferBytes).toBeLessThanOrEqual(480 * 1024);
-  expect(measured.visibleDom).toBeLessThanOrEqual(500);
-  expect(measured.dom).toBeLessThanOrEqual(500);
+  expect(measured.visibleDom).toBeLessThanOrEqual(1100);
+  expect(measured.dom).toBeLessThanOrEqual(1100);
   expect(measured.cards).toBeLessThanOrEqual(150);
 });
 
@@ -54,8 +58,10 @@ test('normal boot stays inside the all-resource transfer ceiling', async ({ page
   });
   test.info().annotations.push({ type: 'runtime-total-budget', description: JSON.stringify(measured) });
   console.log(`normal boot budget: ${JSON.stringify(measured)}`);
+  // Normal boot measured 651 nodes with the 2026-11-14 shell; 800 is the
+  // reviewed ceiling (transfer ceiling unchanged).
   expect(measured.totalBytes).toBeLessThanOrEqual(480 * 1024);
-  expect(measured.dom).toBeLessThanOrEqual(500);
+  expect(measured.dom).toBeLessThanOrEqual(800);
 });
 
 
