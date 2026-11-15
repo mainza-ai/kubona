@@ -784,6 +784,8 @@ hardening. None blocks the supported local-private deployment.
 - Lean image — blocked on toolchain (no `lake`/`elan`, image
   unresolvable); comparator stays AST-first.
 
+> Current reconciled backlog and phased plan: [[open-backlog-2026-11-15]].
+
 ## E · Feedback and notification closure
 
 See [[feedback-loops-and-notifications]] for the full audit. The short queue:

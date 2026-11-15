@@ -37,6 +37,12 @@ few closed loops:
   Director are independent mechanisms with different lifetimes and no shared
   dedupe.
 
+> ⚑ Correction (2026-11-15): the Verdict and inventories below record the
+> **pre-implementation audit state**. The P0 contracts and notification
+> foundation have since landed; see “Implementation status”. Remaining open
+> items are the reason/proposal UIs, the claim-review policy, preferences,
+> Attention Director wiring, and the P2 learning/metrics consumer.
+
 ## Feedback-loop inventory
 
 | Loop | Trigger | Persisted? | Consumer / effect | State |

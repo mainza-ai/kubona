@@ -6303,3 +6303,24 @@ skipped is the exact failure this incident is about:
 - **Still open:** reason UI, claim verdict rule, proposal dismissal UI/ranking,
   notification preferences/quiet routing, Attention Director wiring, and P2
   learning/metrics.
+
+## [2026-11-15] decision | reconciled open backlog
+
+- Added [[open-backlog-2026-11-15]]: every open item reconciled against
+  `ce149481`, the remaining-work queue, the short execution list, the
+  feedback/notification audit, and code markers.
+- P0: steering text is recorded but not consumed; no cancel/edit; feedback
+  reason/proposal-dismiss UI missing; claim-review policy undecided; operator
+  evidence (manual AT, token revocation, reviewer key, paid-QPU/rate-card)
+  incomplete; hardware-in-the-loop VQE/QAOA absent.
+- P1: notification preferences/Attention Director/live-region batching, live
+  eval invocation, skills authoring/toggles, memory inventory/S9, typed needs,
+  provenance panel/citation highlights, proposal history/pricing, hardware
+  parent allowances, plan persistence, obligation events/ageing, remaining
+  fact/part refs, legacy retirement.
+- P2: 95 renderer files, 67 UI→API couplings, 395 KiB chunk, LCP/INP/heap
+  gates, 14 token baseline/form/button debt, per-component motion, manual AT.
+- Deliberate deferrals are listed with triggers; they are not scheduled.
+- Plan: Phase 0 evidence/decisions; Phase 1 feedback/notifications; Phase 2
+  agent/runtime truth; Phase 3 skills/memory/hardware; Phase 4 console
+  quality; Phase 5 trigger-based infrastructure.

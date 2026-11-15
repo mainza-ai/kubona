@@ -33,7 +33,7 @@ sources: [source-frontier-repo-audit-2026]
 >   the shared untrusted-output fence; LLM spend reservation; declared model
 >   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
 >   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
-> - **Console (`:3000`):** `158` modeled / `14` client-only / `0` unmodeled
+> - **Console (`:3000`):** `162` modeled / `14` client-only / `0` unmodeled
 >   contracts (`139` schemas, `145` OpenAPI paths), **806** cases across **152**
 >   files (including real-Chromium component tests). Role-named radius/type
 >   scales with default Tailwind scales reset, zero arbitrary colour-var
@@ -280,7 +280,7 @@ flowchart TB
 - Counts at `2026-11-14` (`docs/repo-counts.md`): **152** HTTP routes,
   **41** Go packages (**1013** Go test funcs), **185** Python test files,
   **152** console test files (**806** test cases), **32** Rust tests, **6**
-  MCP servers (**38** tools), **159** wiki pages; console contracts **158
+  MCP servers (**38** tools), **160** wiki pages; console contracts **162
   modeled / 14 client-only / 0 unmodeled** (`139` schemas, `145` OpenAPI
   paths); token-lint raw-palette debt **1** baseline occurrence.
 - Counts at `2026-11-11` (`docs/repo-counts.md`): **141** HTTP routes,

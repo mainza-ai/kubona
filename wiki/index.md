@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (159 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (160 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -51,6 +51,7 @@ arrives, place it here first and it will find its page.
 | [[leanrea-conflicts-and-remediation]] | Conflicts vs the lean plan (LC1–LC10) with decided remediations and landed sequencing (2026-10-17). |
 | [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (Step 1 + Step 2 wire-shape freeze landed 2026-10-17; Steps 3–5 queued). |
 | [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work recorded in place). |
+| [[open-backlog-2026-11-15]] | Reconciled open backlog at `ce149481`: P0 truth blockers, P1 missing loops, P2 debt, deliberate deferrals, and phased plan. |
 | [[optional-enhancement-plan-2026-11-01]] | Post-production optional plan: API versioning, external alert routing, deeper assistive-technology audit, deferred hardening. |
 | [[full-system-test-plan]] | Diagram-complete test plan: per-node batteries basic → complex, LLM-assisted scenarios, entry/exit criteria (`candidate` — awaiting approval). |
 | [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2 (all 64 items landed 2026-10-17). |
