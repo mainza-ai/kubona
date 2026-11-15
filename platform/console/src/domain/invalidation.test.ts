@@ -13,7 +13,7 @@ describe('domain invalidation', () => {
         'llm_settings_updated',
         'llm_provider_verified',
       ]),
-    ]).toEqual(expect.arrayContaining(['jobs', 'tasks', 'campaign', 'loops', 'cost', 'llm']));
+    ]).toEqual(expect.arrayContaining(['jobs', 'tasks', 'campaign', 'loops', 'cost', 'llm', 'notifications']));
     expect([...domainsForEventTypes(['chat_message_appended'])]).toEqual([]);
   });
 

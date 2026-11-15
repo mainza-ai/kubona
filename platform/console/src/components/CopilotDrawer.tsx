@@ -644,7 +644,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                 )}
                 {!isUser && (
                   <>
-                    <Tip label="Helpful" sub="Feeds the credibility flywheel" position="top">
+                    <Tip label="Helpful" sub="Recorded for review; not yet used for ranking" position="top">
                       <button
                         onClick={() => void chat.vote(m.id, 'up')}
                         aria-label="Mark helpful"
@@ -656,7 +656,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         <ThumbsUp className="w-3 h-3" />
                       </button>
                     </Tip>
-                    <Tip label="Not helpful" sub="Feeds the credibility flywheel" position="top">
+                    <Tip label="Not helpful" sub="Recorded for review; not yet used for ranking" position="top">
                       <button
                         onClick={() => void chat.vote(m.id, 'down')}
                         aria-label="Mark not helpful"

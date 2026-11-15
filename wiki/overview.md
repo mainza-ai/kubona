@@ -322,11 +322,11 @@ governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
 
 > ⚑ Snapshot update (2026-11-14, `develop` working tree): `docs/repo-counts.md`
-> records **151** HTTP routes, **41** Go packages (**1011** Go test functions),
-> **185** Python test files, **151** console test files (**804** test cases),
+> records **152** HTTP routes, **41** Go packages (**1013** Go test functions),
+> **185** Python test files, **152** console test files (**806** test cases),
 > **32** Rust tests, **6** MCP servers (**38** tools), and **159** wiki pages.
-> Console contracts stand at **158 modeled / 14 client-only / 0 unmodeled**
-> (`136` schemas, `143` OpenAPI paths). The raw-palette debt baseline is **1**
+> Console contracts stand at **162 modeled / 14 client-only / 0 unmodeled**
+> (`139` schemas, `145` OpenAPI paths). The raw-palette debt baseline is **1**
 > after the role-named scale/colour migration; `transition-all` is
 > zero-tolerance in CSS and source. New rails: runtime skills
 > (`SKILL.md`, body-free prompt, `load_skill` sections), recorded decision

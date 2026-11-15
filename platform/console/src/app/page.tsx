@@ -27,10 +27,12 @@ import { remedyFor } from '@/lib/need';
 import type { Need } from '@/types';
 import { useNeedsYouSeen } from '@/domain/needs-you-seen';
 import { NeedsYouTray } from '@/components/shell/NeedsYouTray';
+import { NotificationCenter } from '@/components/shell/NotificationCenter';
 import { SHORTCUTS, SHORTCUT_TARGETS, shortcutFromEvent, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { CommandDock } from '@/components/shell/CommandDock';
 import { useCopilotChat } from '@/domain/useCopilotChat';
+import { useNotificationsProjection } from '@/domain/useNotificationsProjection';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
@@ -176,6 +178,8 @@ export default function Home() {
   const workbenchRef = useRef<WorkbenchHandle>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationInbox = useNotificationsProjection(currentSessionId || null);
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -1317,6 +1321,12 @@ export default function Home() {
         needsYouOpen={needsYouOpen}
         needsYouStatus={needsYouQueueStatus}
         onOpenNeedsYou={needsYouOpen ? closeNeedsYou : openNeedsYou}
+        notificationsCount={notificationInbox.notifications.filter((n) => !n.read_at).length}
+        notificationsOpen={notificationsOpen}
+        onOpenNotifications={() => {
+          setNotificationsOpen((open) => !open);
+          setNeedsYouOpen(false);
+        }}
       />
       <NeedsYouTray
         items={needsYouItems}
@@ -1325,6 +1335,26 @@ export default function Home() {
         onFocus={reviewNeed}
         onOpenQueue={openGuardrailsQueue}
         queueStatus={needsYouQueueStatus}
+      />
+      <NotificationCenter
+        open={notificationsOpen}
+        notifications={notificationInbox.notifications}
+        unread={notificationInbox.notifications.filter((n) => !n.read_at).length}
+        onClose={() => setNotificationsOpen(false)}
+        onMarkRead={(keys) => void notificationInbox.markRead(keys)}
+        onResolve={(key) => void notificationInbox.resolve(key)}
+        onOpenAction={(action) => {
+          setNotificationsOpen(false);
+          if (action.startsWith('obligation:')) {
+            setNeedsYouOpen(true);
+          } else if (action.startsWith('job:') || action.startsWith('run:')) {
+            setSurface('recorder');
+          } else if (action.startsWith('claim:')) {
+            setSurface('manifold');
+          } else if (action.startsWith('proposal:')) {
+            setSurface('arena');
+          }
+        }}
       />
 
       {/* Campaign menu (avatar popover) — grouped by tenant, filterable.

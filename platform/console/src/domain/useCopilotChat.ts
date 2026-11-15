@@ -11,6 +11,7 @@ import {
   createSession,
   fetchCampaignState,
   fetchJobs,
+  fetchChatFeedback,
   fetchMessages,
   isOutcomeUnknown,
   isTerminalJobStatus,
@@ -128,6 +129,14 @@ export function useCopilotChat({
       fetchMessages(sessionId).then((msgs) => {
         if (!live || !mountedRef.current) return;
         if (msgs && msgs.length > 0) setMessages(msgs);
+      });
+      fetchChatFeedback(sessionId).then((rows) => {
+        if (!live || !mountedRef.current) return;
+        const next: Record<string, 'up' | 'down'> = {};
+        for (const row of rows) {
+          if (row.vote === 'up' || row.vote === 'down') next[row.message_id] = row.vote;
+        }
+        setVotes(next);
       });
     }
     return () => {
@@ -690,19 +699,28 @@ export function useCopilotChat({
       return;
     }
     const activeSessionId = active.id;
-    setVotes((prev) => ({ ...prev, [messageId]: nextVote }));
+    const previous = votes[messageId];
+    // Clicking the active vote clears it; otherwise it replaces the vote.
+    const persistedVote: 'up' | 'down' | '' = previous === nextVote ? '' : nextVote;
+    setVotes((prev) => {
+      const next = { ...prev };
+      if (persistedVote === '') delete next[messageId];
+      else next[messageId] = persistedVote;
+      return next;
+    });
     const requestId = feedbackWrite.begin('chat feedback');
-    const out = await sendFeedback(activeSessionId, messageId, nextVote);
+    const out = await sendFeedback(activeSessionId, messageId, persistedVote);
     if (!out.ok) {
       feedbackWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
       setVotes((prev) => {
         const next = { ...prev };
-        delete next[messageId];
+        if (previous) next[messageId] = previous;
+        else delete next[messageId];
         return next;
       });
       setErrorMessage(`Feedback not recorded — ${out.unknown ? 'backend unreachable' : 'backend refused'} (${out.error}).`);
     } else {
-      feedbackWrite.applied(requestId, 'feedback recorded');
+      feedbackWrite.applied(requestId, out.cleared ? 'feedback cleared' : 'feedback recorded');
     }
   };
 

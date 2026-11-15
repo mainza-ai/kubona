@@ -120,6 +120,34 @@ few closed loops:
     dismissal is auditable; terminal job/loop produces one notification, not
     a toast race.
 
+## Implementation status (2026-11-15)
+
+Landed:
+
+- **Durable chat votes.** `chat_feedback` table + `GET /api/chat/feedback`
+  hydration, upsert/toggle/clear, optional reason, authenticated actor, audit
+  event with previous/new vote. Console hydrates votes on session load and
+  clicking the active vote clears it. The UI now says “recorded for review;
+  not yet used for ranking” instead of claiming a flywheel.
+- **Review identity and honesty.** Claim reviews use the caller-derived actor
+  (`operator`, `lab_admin:<tenant>`, `local_researcher`) and the UI states that
+  reviews are advisory and do not change the recorded verdict.
+- **Proposal decisions are auditable.** `proposal_launched` and
+  `proposal_dismissed` events (with actor/reason) are in the event contract;
+  dismissal accepts a reason.
+- **Notification inbox foundation.** Derived server projection
+  `GET /api/notifications` from terminal events + session-owned obligations,
+  coalescing by subject (a completed run supersedes its stalled warning),
+  server-owned read/resolve state (`POST /api/notifications`), SSE
+  `notifications` invalidation domain, and a Notification Center panel with a
+  shell bell/unread badge and deep links.
+- **Tests:** vote ledger upsert/hydration/clear, notification derivation and
+  read/resolve, notification-center browser tests, invalidation mapping.
+
+Still open: feedback reason UI, claim-review verdict rule, proposal dismiss UI
+reason/ranking, server-synced notification preferences/quiet routing,
+Attention Director wiring for all producers, and P2 metrics/learning policy.
+
 ## Implementation plan
 
 ### Phase 0 (1–2 days): stop the lies

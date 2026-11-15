@@ -343,6 +343,10 @@ func (s *Server) handleProposalByID(w http.ResponseWriter, r *http.Request) {
 	case action == "" && r.Method == http.MethodGet:
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "proposal": proposalViewFrom(p)})
 	case action == "dismiss" && r.Method == http.MethodPost:
+		var req struct {
+			Reason string `json:"reason"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		ok, err := s.ledger.CASProposalStatus(id, ledger.ProposalOffered, ledger.ProposalDismissed, "")
 		if err != nil {
 			WriteAPIError(w, "internal", "dismiss failed", nil)
@@ -352,6 +356,9 @@ func (s *Server) handleProposalByID(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "proposal_not_offered", "only an offered proposal can be dismissed", map[string]any{"status": p.Status})
 			return
 		}
+		_ = s.ledger.AppendEvent(p.SessionID, "proposal_dismissed", map[string]any{
+			"proposal_id": id, "reason": strings.TrimSpace(req.Reason), "actor": s.callerActor(r),
+		})
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id, "status": ledger.ProposalDismissed})
 	case action == "":
 		WriteAPIError(w, "method_not_allowed", "proposal reads are GET; dismissal is POST /dismiss", nil)

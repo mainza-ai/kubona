@@ -34,7 +34,7 @@ sources: [source-frontier-repo-audit-2026]
 >   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
 >   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
 > - **Console (`:3000`):** `158` modeled / `14` client-only / `0` unmodeled
->   contracts (`136` schemas, `143` OpenAPI paths), **804** cases across **151**
+>   contracts (`139` schemas, `145` OpenAPI paths), **806** cases across **152**
 >   files (including real-Chromium component tests). Role-named radius/type
 >   scales with default Tailwind scales reset, zero arbitrary colour-var
 >   utilities, per-route bundle budgets, import boundaries, and a
@@ -277,11 +277,11 @@ flowchart TB
   generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
-- Counts at `2026-11-14` (`docs/repo-counts.md`): **151** HTTP routes,
-  **41** Go packages (**1011** Go test funcs), **185** Python test files,
-  **151** console test files (**804** test cases), **32** Rust tests, **6**
+- Counts at `2026-11-14` (`docs/repo-counts.md`): **152** HTTP routes,
+  **41** Go packages (**1013** Go test funcs), **185** Python test files,
+  **152** console test files (**806** test cases), **32** Rust tests, **6**
   MCP servers (**38** tools), **159** wiki pages; console contracts **158
-  modeled / 14 client-only / 0 unmodeled** (`136` schemas, `143` OpenAPI
+  modeled / 14 client-only / 0 unmodeled** (`139` schemas, `145` OpenAPI
   paths); token-lint raw-palette debt **1** baseline occurrence.
 - Counts at `2026-11-11` (`docs/repo-counts.md`): **141** HTTP routes,
   **37** Go packages (**868** Go test funcs), **183** Python test files,

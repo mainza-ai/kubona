@@ -128,6 +128,9 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
           <RefreshCw className="w-3 h-3" /> Refresh
         </button>
       </div>
+      <p className="text-[11px] text-muted">
+        Reviews are advisory: they are recorded and listed, but do not change the claim&apos;s recorded verdict.
+      </p>
       <label className="block text-[11px] text-muted">
         Review reason (required for a decision)
         <input

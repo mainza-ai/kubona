@@ -788,16 +788,18 @@ hardening. None blocks the supported local-private deployment.
 
 See [[feedback-loops-and-notifications]] for the full audit. The short queue:
 
-- **P0:** chat votes are ledger-only (no consumer, no reload hydration);
-  claim reviews are advisory-only; proposal dismissal has no event/reason.
-  Remove the “credibility flywheel” claim or implement its consumer, add
-  idempotency/actor/reason, hydrate votes, and event proposal decisions.
-- **P1:** one server-owned notification projection + inbox + SSE domain,
-  replacing the independent page toast, API chip, local HF toast, and tray
-  read state. Blocking states stay alerts; everything else is one polite
-  live-region batch.
-- **P2:** feed votes/reviews/dismissals/steering outcomes into eval/ranking
-  with an explicit policy, and measure delivery/read/action latency.
+- **Landed 2026-11-15:** durable votes + GET hydration/toggle/actor/reason;
+  advisory-review labelling + caller identity; proposal launched/dismissed
+  events; derived notification inbox with read/resolve state, SSE domain,
+  coalescing, and Notification Center. See the page’s implementation status.
+- **Open P0:** feedback reason UI, claim-review verdict rule, proposal dismiss
+  UI reason/ranking.
+- **Open P1:** server-synced preferences/quiet routing, Attention Director
+  wiring for every producer, one polite live-region batch, removal of the
+  remaining duplicate per-surface toasts/chips.
+- **Open P2:** feed votes/reviews/dismissals/steering outcomes into
+  eval/ranking with an explicit policy, and measure delivery/read/action
+  latency.
 
 ## C · Conditional (wire when a consumer exists)
 

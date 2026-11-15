@@ -593,6 +593,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/ready", s.handleReady)
 	s.route("/api/capabilities", s.handleCapabilities)
 	// B11: body-free skill catalogue + closed loader faults for Settings.
+	s.route("/api/notifications", s.handleNotifications)
 	s.route("/api/skills", s.handleSkills)
 	// B12: recorded decision-eval status for the model picker (scores only).
 	s.route("/api/evals/llm", s.handleEvalLLM)
@@ -2533,10 +2534,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 				WriteAPIError(w, "bad_request", fmt.Sprintf("invalid review request: %v", err), nil)
 				return
 			}
-			reviewer := "operator"
-			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
-				reviewer = "operator-bearer"
-			}
+			reviewer := s.callerActor(r)
 			rec, err := s.ledger.MintClaimReview(sessionID, claimID, req.Decision, req.Reason, reviewer, req.Evidence)
 			if err != nil {
 				WriteAPIError(w, "bad_request", err.Error(), nil)
@@ -3192,10 +3190,30 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleChatFeedback records a 👍/👎 vote on an assistant message as a ledger
-// event — the training signal for the credibility flywheel. Votes outside
-// {up, down} are refused; unknown message ids are refused.
+// handleChatFeedback persists the current 👍/👎 vote on an assistant message
+// and appends the audit event. GET hydrates the votes after reload; an empty
+// vote clears the selection. The actor comes from auth, never the client.
 func (s *Server) handleChatFeedback(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if r.Method == http.MethodGet {
+		if sessionID == "" {
+			WriteAPIError(w, "bad_request", "session_id is required", nil)
+			return
+		}
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
+		rows, err := s.ledger.ListChatFeedback(sessionID)
+		if err != nil {
+			WriteAPIError(w, "internal", err.Error(), nil)
+			return
+		}
+		if rows == nil {
+			rows = []ledger.ChatFeedback{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"feedback": rows})
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -3204,17 +3222,19 @@ func (s *Server) handleChatFeedback(w http.ResponseWriter, r *http.Request) {
 		SessionID string `json:"session_id"`
 		MessageID string `json:"message_id"`
 		Vote      string `json:"vote"`
+		Reason    string `json:"reason"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeStrict(r, &req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.Vote != "up" && req.Vote != "down" {
-		http.Error(w, "vote must be 'up' or 'down'", http.StatusBadRequest)
+	if req.SessionID == "" {
+		req.SessionID = sessionID
+	}
+	if req.Vote != "up" && req.Vote != "down" && req.Vote != "" {
+		http.Error(w, "vote must be 'up', 'down', or empty", http.StatusBadRequest)
 		return
 	}
-	// T-09c: feedback writes to the session's ledger — bind the caller.
-	// Ghosts keep the legacy not-found path below.
 	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
@@ -3234,13 +3254,41 @@ func (s *Server) handleChatFeedback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "assistant message not found in session", http.StatusNotFound)
 		return
 	}
+	actor := s.callerActor(r)
+	previous, err := s.ledger.UpsertChatFeedback(req.SessionID, req.MessageID, req.Vote, req.Reason, actor)
+	if err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
 	if err := s.ledger.AppendEvent(req.SessionID, "chat_feedback", map[string]any{
-		"message_id": req.MessageID, "vote": req.Vote,
+		"message_id": req.MessageID, "vote": req.Vote, "previous": previous, "reason": req.Reason, "actor": actor,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"recorded": true, "message_id": req.MessageID, "vote": req.Vote})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"recorded": true, "message_id": req.MessageID, "vote": req.Vote,
+		"previous": previous, "cleared": req.Vote == "",
+	})
+}
+
+// callerActor names the authenticated caller for feedback/review audit rows.
+// It is a role label, never a client-supplied identity.
+func (s *Server) callerActor(r *http.Request) string {
+	if hasNoCredentials(r) {
+		if s.singleTenantStore() {
+			return "local_researcher"
+		}
+		return "anonymous"
+	}
+	tenant, _, code := s.checkAuth(r)
+	if code != http.StatusOK {
+		return "unknown"
+	}
+	if tenant == "" {
+		return "operator"
+	}
+	return "lab_admin:" + tenant
 }
 
 // handleChatRewrite implements edit-resend branching: a user message is
@@ -3613,6 +3661,9 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.ledger.AttachProposalJob(proposal.ID, job.ID)
+	_ = s.ledger.AppendEvent(req.SessionID, "proposal_launched", map[string]any{
+		"proposal_id": proposal.ID, "job_id": job.ID, "backend": body.Backend, "actor": s.callerActor(r),
+	})
 
 	loop, _ := s.supervisor.RegisterLoop(req.SessionID, 50)
 	if loop != nil {

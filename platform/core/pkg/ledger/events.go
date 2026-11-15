@@ -101,6 +101,8 @@ var KnownEventTypes = map[string]bool{
 	"prediction_sealed":                 true,
 	"prediction_asserted":               true,
 	"proposal_generated":                true,
+	"proposal_dismissed":                true,
+	"proposal_launched":                 true,
 	"session_created":                   true,
 	"session_deleted":                   true,
 	"session_imported":                  true,

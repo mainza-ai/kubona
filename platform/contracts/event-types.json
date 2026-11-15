@@ -921,6 +921,25 @@
       "payload": "Tribunal produced a proposal (pairs with claim mint).",
       "required": []
     },
+    "proposal_dismissed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Operator dismissed an offered proposal; reason is advisory input for ranking.",
+      "required": [
+        "proposal_id"
+      ]
+    },
+    "proposal_launched": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Operator launched a server-minted proposal; records proposal, job, and backend.",
+      "required": [
+        "proposal_id",
+        "job_id"
+      ]
+    },
     "session_created": {
       "emitters": [
         "go"

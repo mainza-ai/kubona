@@ -644,6 +644,42 @@ export type ChatFeedback = {
   "recorded": boolean;
   "message_id": string;
   "vote": string;
+  "previous"?: string;
+  "cleared"?: boolean;
+};
+
+export type NotificationsList = {
+  "session_id": string;
+  "notifications": {
+  "key": string;
+  "kind": string;
+  "severity": string;
+  "source": string;
+  "message": string;
+  "action": string;
+  "created_at": string;
+  "read_at": string;
+  "resolved_at": string;
+}[];
+  "unread": number;
+  "generated_at": string;
+};
+
+export type NotificationsState = {
+  "ok": boolean;
+  "updated": number;
+};
+
+export type ChatFeedbackList = {
+  "feedback": {
+  "message_id": string;
+  "session_id": string;
+  "vote": string;
+  "reason": string;
+  "actor": string;
+  "created_at": string;
+  "updated_at": string;
+}[];
 };
 
 export type LoopAction = {
@@ -1027,6 +1063,7 @@ export type ApiOperationResponse = {
   fetchCampaignResult: Campaign;
   fetchCanvasLayout: CanvasLayout;
   fetchCapabilities: Capabilities;
+  fetchChatFeedback: ChatFeedbackList;
   fetchClaimReviews: ClaimsReviews;
   fetchClaimsPage: ClaimsPage;
   fetchCodesignPacks: CodesignPacks;
@@ -1054,6 +1091,7 @@ export type ApiOperationResponse = {
   fetchMetasearchProposals: MetasearchProposals;
   fetchMolecularADMET: Admet;
   fetchNotebooks: NotebooksList;
+  fetchNotifications: NotificationsList;
   fetchObservatoryLensStatus: LensStatus;
   fetchOpenObligations: ObligationsOpen;
   fetchPredictionHistory: VaultHistory;
@@ -1082,6 +1120,7 @@ export type ApiOperationResponse = {
   launchVQEHardware: HardwareLaunch;
   listHFDownloads: HfDownloads;
   loopAction: LoopAction;
+  markNotifications: NotificationsState;
   mintProposal: ProposalMint;
   mintRunAllowance: RunAllowanceMint;
   pauseAutoresearchLoop: AutoresearchLoop;
@@ -1189,6 +1228,7 @@ export const API_OPERATIONS = {
   fetchCampaignResult: { method: "get", path: "/api/sessions/{id}/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
+  fetchChatFeedback: { method: "get", path: "/api/chat/feedback", response: "chat.feedback.list" },
   fetchClaimReviews: { method: "get", path: "/api/sessions/{sessionId}/claims/{claimId}/reviews", response: "claims.reviews" },
   fetchClaimsPage: { method: "get", path: "/api/sessions/{sessionId}/claims", response: "claims.page" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },
@@ -1216,6 +1256,7 @@ export const API_OPERATIONS = {
   fetchMetasearchProposals: { method: "get", path: "/api/metasearch/proposals", response: "metasearch.proposals" },
   fetchMolecularADMET: { method: "get", path: "/api/chemistry/admet", response: "admet" },
   fetchNotebooks: { method: "get", path: "/api/results/notebooks", response: "notebooks.list" },
+  fetchNotifications: { method: "get", path: "/api/notifications", response: "notifications.list" },
   fetchObservatoryLensStatus: { method: "get", path: "/api/observatory/lens", response: "lens.status" },
   fetchOpenObligations: { method: "get", path: "/api/obligations/open", response: "obligations.open" },
   fetchPredictionHistory: { method: "get", path: "/api/vault/predictions/history", response: "vault.history" },
@@ -1244,6 +1285,7 @@ export const API_OPERATIONS = {
   launchVQEHardware: { method: "post", path: "/api/experiments/vqe/hardware", response: "hardware.launch" },
   listHFDownloads: { method: "get", path: "/api/hf/downloads", response: "hf.downloads" },
   loopAction: { method: "post", path: "/api/loops/{id}/{action}", response: "loop.action" },
+  markNotifications: { method: "post", path: "/api/notifications", response: "notifications.state" },
   mintProposal: { method: "post", path: "/api/proposals", response: "proposal.mint" },
   mintRunAllowance: { method: "post", path: "/api/run-allowances", response: "runAllowance.mint" },
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },

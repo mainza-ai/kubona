@@ -81,11 +81,11 @@ describe('chat ops client', () => {
         ok: true,
         status: 200,
         statusText: 'OK',
-        text: async () => JSON.stringify({ recorded: true }),
-        json: async () => ({ recorded: true }),
+        text: async () => JSON.stringify({ recorded: true, message_id: 'm', vote: 'up' }),
+        json: async () => ({ recorded: true, message_id: 'm', vote: 'up' }),
       };
     });
-    await expect(sendFeedback('s', 'm', 'up')).resolves.toEqual({ ok: true });
+    await expect(sendFeedback('s', 'm', 'up')).resolves.toMatchObject({ ok: true, vote: 'up', cleared: false });
     expect(seen[0].url).toContain('/api/chat/feedback');
     expect(seen[0].init?.method).toBe('POST');
     expect(JSON.parse(String(seen[0].init?.body ?? '{}'))).toMatchObject({ session_id: 's', message_id: 'm', vote: 'up' });

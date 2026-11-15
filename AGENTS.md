@@ -92,11 +92,11 @@ development — re-verify the gate on the exact commit before citing
 
 > ⚑ State update (2026-11-14, `develop` working tree): the Zephium-insights
 > program landed the remaining console/agent rails. Current generated counts
-> are in `docs/repo-counts.md`: **151** HTTP routes, **41** Go packages,
-> **1011** Go test functions, **185** Python test files, **151** console test
-> files (**804** cases), **32** Rust tests, **6** MCP servers / **38** tools,
-> **159** wiki pages. Console contracts: **158 modeled / 14 client-only /
-> 0 unmodeled**, **136** schemas, **143** OpenAPI paths. Gates added: role-named
+> are in `docs/repo-counts.md`: **152** HTTP routes, **41** Go packages,
+> **1013** Go test functions, **185** Python test files, **152** console test
+> files (**806** cases), **32** Rust tests, **6** MCP servers / **38** tools,
+> **159** wiki pages. Console contracts: **162 modeled / 14 client-only /
+> 0 unmodeled**, **139** schemas, **145** OpenAPI paths. Gates added: role-named
 > Tailwind radius/type scales with a compiled-theme check, zero arbitrary
 > colour-var utilities, real-Chromium component tests, a test-renderer ratchet,
 > per-route bundle budgets, import boundaries, runtime skills

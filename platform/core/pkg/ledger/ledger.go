@@ -595,6 +595,29 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 	);
 
+	CREATE TABLE IF NOT EXISTS chat_feedback (
+		message_id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		vote TEXT NOT NULL,
+		reason TEXT NOT NULL DEFAULT '',
+		actor TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_chat_feedback_session ON chat_feedback(session_id);
+
+	-- Server-owned notification read/resolve state. Notifications themselves
+	-- are derived from obligations + selected ledger events, so the audit
+	-- chain stays the source and this table only records user disposition.
+	CREATE TABLE IF NOT EXISTS notification_states (
+		session_id TEXT NOT NULL,
+		notification_key TEXT NOT NULL,
+		read_at DATETIME NOT NULL DEFAULT '',
+		resolved_at DATETIME NOT NULL DEFAULT '',
+		PRIMARY KEY (session_id, notification_key)
+	);
+
 	CREATE TABLE IF NOT EXISTS idempotency_keys (
 		session_id TEXT NOT NULL,
 		request_id TEXT NOT NULL,

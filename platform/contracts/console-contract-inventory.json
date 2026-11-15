@@ -22,6 +22,7 @@
     "canvas.saved",
     "capabilities",
     "chat.feedback",
+    "chat.feedback.list",
     "chat.launch",
     "chat.regenerate",
     "chat.rewrite",
@@ -89,6 +90,8 @@
     "metasearch.change",
     "metasearch.proposals",
     "notebooks.list",
+    "notifications.list",
+    "notifications.state",
     "obligations.close",
     "obligations.open",
     "prediction.assert",
@@ -160,6 +163,7 @@
     "canvas.saved",
     "capabilities",
     "chat.feedback",
+    "chat.feedback.list",
     "chat.launch",
     "chat.regenerate",
     "chat.rewrite",
@@ -227,6 +231,8 @@
     "metasearch.change",
     "metasearch.proposals",
     "notebooks.list",
+    "notifications.list",
+    "notifications.state",
     "obligations.close",
     "obligations.open",
     "prediction.assert",
@@ -512,6 +518,12 @@
       "contract": "capabilities"
     },
     {
+      "function": "fetchChatFeedback",
+      "path": "/api/chat/feedback",
+      "method": "GET",
+      "contract": "chat.feedback.list"
+    },
+    {
       "function": "fetchClaimReviews",
       "path": "/api/sessions/:sessionId/claims/:claimId/reviews",
       "method": "GET",
@@ -672,6 +684,12 @@
       "path": "/api/results/notebooks",
       "method": "GET",
       "contract": "notebooks.list"
+    },
+    {
+      "function": "fetchNotifications",
+      "path": "/api/notifications",
+      "method": "GET",
+      "contract": "notifications.list"
     },
     {
       "function": "fetchObservatoryLensStatus",
@@ -840,6 +858,12 @@
       "path": "/api/loops/:id/:action",
       "method": "POST",
       "contract": "loop.action"
+    },
+    {
+      "function": "markNotifications",
+      "path": "/api/notifications",
+      "method": "POST",
+      "contract": "notifications.state"
     },
     {
       "function": "mintProposal",

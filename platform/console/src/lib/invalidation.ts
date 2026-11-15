@@ -1,6 +1,6 @@
 'use client';
 
-export type InvalidationDomain = 'campaign' | 'jobs' | 'tasks' | 'obligations' | 'loops' | 'cost' | 'llm';
+export type InvalidationDomain = 'campaign' | 'jobs' | 'tasks' | 'obligations' | 'loops' | 'cost' | 'llm' | 'notifications';
 
 const listeners = new Set<(domains: ReadonlySet<InvalidationDomain>) => void>();
 
@@ -14,6 +14,12 @@ export function domainsForEventTypes(eventTypes: readonly string[]): Set<Invalid
     if (type.startsWith('obligation_')) out.add('obligations');
     if (type.startsWith('llm_spend_') || type.startsWith('session_spend_')) out.add('cost');
     if (type === 'llm_settings_updated' || type === 'llm_provider_verified') out.add('llm');
+    if (
+      type === 'job_settled' || type === 'job_cancelled' ||
+      type.startsWith('loop_') || type.startsWith('proposal_') ||
+      type === 'peer_review' || type.startsWith('workflow_execution_') ||
+      type === 'memory_retracted' || type.startsWith('run_allowance_')
+    ) out.add('notifications');
   }
   return out;
 }

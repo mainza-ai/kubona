@@ -2490,18 +2490,103 @@ export async function regenerateChat(
   }
 }
 
-// Feedback: records a vote on an assistant message as a ledger event.
+export interface NotificationRow {
+  key: string;
+  kind: string;
+  severity: 'info' | 'warning' | 'danger' | string;
+  source: string;
+  message: string;
+  action: string;
+  created_at: string;
+  read_at: string;
+  resolved_at: string;
+}
+
+export interface NotificationsPayload {
+  session_id: string;
+  notifications: NotificationRow[];
+  unread: number;
+  generated_at: string;
+}
+
+export async function fetchNotifications(sessionId: string): Promise<NotificationsPayload | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/notifications?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    return contract('notifications.list', (await res.json()) as Record<string, unknown>) as unknown as NotificationsPayload;
+  } catch (err) {
+    console.error('Failed to fetch notifications:', err);
+    return null;
+  }
+}
+
+export async function markNotifications(
+  sessionId: string,
+  keys: string[],
+  action: 'read' | 'resolve',
+): Promise<boolean> {
+  if (keys.length === 0) return true;
+  try {
+    const res = await apiFetch(`${API_BASE}/api/notifications`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, keys, action }),
+    });
+    if (!res.ok) return false;
+    const data = contract('notifications.state', (await res.json()) as Record<string, unknown>) as { ok?: boolean };
+    return data.ok === true;
+  } catch (err) {
+    console.error('Failed to mark notifications:', err);
+    return false;
+  }
+}
+
+export interface ChatFeedbackRecord {
+  message_id: string;
+  session_id: string;
+  vote: 'up' | 'down';
+  reason: string;
+  actor: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Current votes for a session, so reloads do not forget them. */
+export async function fetchChatFeedback(sessionId: string): Promise<ChatFeedbackRecord[]> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/chat/feedback?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = contract('chat.feedback.list', (await res.json()) as Record<string, unknown>) as unknown as {
+      feedback?: ChatFeedbackRecord[];
+    };
+    return data.feedback ?? [];
+  } catch (err) {
+    console.error('Failed to fetch feedback:', err);
+    return [];
+  }
+}
+
+// Feedback: records the current vote (or clears it with an empty vote) and
+// returns the persisted state. The server owns actor and audit event.
 export async function sendFeedback(
   sessionId: string,
   messageId: string,
-  vote: 'up' | 'down'
-): Promise<{ ok: true } | { ok: false; error: string; unknown: boolean }> {
+  vote: 'up' | 'down' | '',
+  reason = '',
+): Promise<{ ok: true; vote: string; cleared: boolean } | { ok: false; error: string; unknown: boolean }> {
   try {
     const data = await requestOperation('sendFeedback', {
-      body: { session_id: sessionId, message_id: messageId, vote },
+      body: { session_id: sessionId, message_id: messageId, vote, reason },
     });
     if (data.recorded !== true) return { ok: false, unknown: false, error: 'feedback not recorded' };
-    return { ok: true };
+    return { ok: true, vote: data.vote, cleared: data.cleared === true };
   } catch (err) {
     console.error('Failed to send feedback:', err);
     return {

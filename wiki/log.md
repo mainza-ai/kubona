@@ -6285,3 +6285,21 @@ skipped is the exact failure this incident is about:
   inbox + SSE + preferences, P2 closed-loop learning and metrics.
 - Source counts observed: 51 `role=alert`, 70 `role=status`, 6 `aria-live`,
   2 local toast implementations, and only one product `notify()` caller.
+
+## [2026-11-15] decision | feedback contracts and notification inbox
+
+- **Feedback P0:** durable `chat_feedback` rows with GET hydration,
+  toggle/clear, optional reason, caller actor, and previous/new audit events;
+  claim reviews use caller identity and are labelled advisory; proposal
+  launch/dismiss now emit contract event types with actor/reason.
+- **Notifications P1 foundation:** derived `/api/notifications` projection
+  (terminal events + session obligations), coalescing by subject, server-owned
+  read/resolve state, SSE `notifications` invalidation, and a Notification
+  Center with unread badge and deep links. Chat votes no longer claim to feed
+  a nonexistent flywheel.
+- **Verification:** Go full suite (1013 test functions), console 795 unit +
+  11 browser, tsc, ESLint, build; live vote POST/GET/clear and notification
+  read/resolve exercised against the rebuilt stack.
+- **Still open:** reason UI, claim verdict rule, proposal dismissal UI/ranking,
+  notification preferences/quiet routing, Attention Director wiring, and P2
+  learning/metrics.

@@ -415,9 +415,9 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   bootstrap (`page.tsx`) from polling, queues concurrent SSE `pendingRefresh`
   invalidations (`resource-store.ts`), and eliminates `390×844` mobile composer
   and overlay-inspector collisions.
-- **Contracts & Verification:** Inventory stands at **158 modeled / 14
-  client-only / 0 unmodeled** contracts (`136` schemas, `143` OpenAPI paths)
-  with **804** Console test cases across **151** test files (`docs/repo-counts.md`),
+- **Contracts & Verification:** Inventory stands at **162 modeled / 14
+  client-only / 0 unmodeled** contracts (`139` schemas, `145` OpenAPI paths)
+  with **806** Console test cases across **152** test files (`docs/repo-counts.md`),
   including real-Chromium `*.component.test.tsx` coverage, plus
   `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,
   `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual VoiceOver/NVDA

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { BadgeCheck, Inbox, LayoutDashboard, Lock, Network, Settings } from 'lucide-react';
+import { BadgeCheck, Inbox, LayoutDashboard, Lock, Network, Settings , Bell} from 'lucide-react';
 
 export type ShellMode = 'workbench' | 'evidence' | 'operations' | 'settings';
 
@@ -28,6 +28,9 @@ export function ModeRail({
   needsYouOpen = false,
   needsYouStatus = 'ready',
   onOpenNeedsYou,
+  notificationsCount = 0,
+  notificationsOpen = false,
+  onOpenNotifications,
 }: {
   active: ShellMode;
   onSelect: (mode: ShellMode) => void;
@@ -39,6 +42,9 @@ export function ModeRail({
   /** Unknown is never labelled "nothing waiting". */
   needsYouStatus?: 'loading' | 'ready' | 'unavailable';
   onOpenNeedsYou?: () => void;
+  notificationsCount?: number;
+  notificationsOpen?: boolean;
+  onOpenNotifications?: () => void;
 }) {
   return (
     <aside aria-label="Primary modes" className="relative z-30 w-14 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-border bg-chrome shrink-0">
@@ -126,6 +132,28 @@ export function ModeRail({
                 className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-capsule bg-danger text-on-lit text-[11px] font-code font-bold leading-4 text-center"
               >
                 {needsYouCount > 9 ? '9+' : needsYouCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {onOpenNotifications && (
+          <button
+            type="button"
+            data-testid="dock-notifications"
+            aria-label={notificationsCount > 0 ? `Notifications: ${notificationsCount} unread` : 'Notifications: none unread'}
+            aria-expanded={notificationsOpen}
+            aria-controls="notification-center"
+            title={notificationsCount > 0 ? `${notificationsCount} unread notification(s)` : 'No unread notifications'}
+            onClick={onOpenNotifications}
+            className={`relative w-9 h-9 rounded-control-compact flex items-center justify-center border hover:bg-fill focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
+              notificationsOpen ? 'border-info-edge bg-info-wash text-info-ink' : 'border-border text-muted hover:text-text'
+            }`}
+          >
+            <Bell className="w-[18px] h-[18px]" />
+            {notificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-capsule bg-info text-on-lit text-[11px] font-code font-bold leading-4 text-center">
+                {notificationsCount > 9 ? '9+' : notificationsCount}
               </span>
             )}
           </button>

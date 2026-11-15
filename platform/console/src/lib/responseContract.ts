@@ -441,10 +441,47 @@ export const RESPONSE_SCHEMAS = {
     status: str,
     session_id: str,
   }),
-  'chat.feedback': obj({
-    recorded: bool,
-    message_id: str,
-    vote: str,
+  'chat.feedback': obj(
+    {
+      recorded: bool,
+      message_id: str,
+      vote: str,
+      previous: str,
+      cleared: bool,
+    },
+    ['recorded', 'message_id', 'vote'],
+  ),
+  'notifications.list': obj({
+    session_id: str,
+    notifications: arr(
+      obj({
+        key: str,
+        kind: str,
+        severity: str,
+        source: str,
+        message: str,
+        action: str,
+        created_at: str,
+        read_at: str,
+        resolved_at: str,
+      }),
+    ),
+    unread: num,
+    generated_at: str,
+  }),
+  'notifications.state': obj({ ok: bool, updated: num }),
+  'chat.feedback.list': obj({
+    feedback: arr(
+      obj({
+        message_id: str,
+        session_id: str,
+        vote: str,
+        reason: str,
+        actor: str,
+        created_at: str,
+        updated_at: str,
+      }),
+    ),
   }),
   'loop.action': obj({
     loop_id: str,
