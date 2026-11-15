@@ -784,6 +784,21 @@ hardening. None blocks the supported local-private deployment.
 - Lean image — blocked on toolchain (no `lake`/`elan`, image
   unresolvable); comparator stays AST-first.
 
+## E · Feedback and notification closure
+
+See [[feedback-loops-and-notifications]] for the full audit. The short queue:
+
+- **P0:** chat votes are ledger-only (no consumer, no reload hydration);
+  claim reviews are advisory-only; proposal dismissal has no event/reason.
+  Remove the “credibility flywheel” claim or implement its consumer, add
+  idempotency/actor/reason, hydrate votes, and event proposal decisions.
+- **P1:** one server-owned notification projection + inbox + SSE domain,
+  replacing the independent page toast, API chip, local HF toast, and tray
+  read state. Blocking states stay alerts; everything else is one polite
+  live-region batch.
+- **P2:** feed votes/reviews/dismissals/steering outcomes into eval/ranking
+  with an explicit policy, and measure delivery/read/action latency.
+
 ## C · Conditional (wire when a consumer exists)
 
 - Python↔Go mandate crossing — bytes agree three-way (W0.9 vector);

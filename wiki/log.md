@@ -6272,3 +6272,16 @@ skipped is the exact failure this incident is about:
   (original creation time is not in `LoopPersist`); loop completion relies on
   polling/SSE invalidation rather than a dedicated loop event; multi-job
   agent runs still need their own supervisor to close them.
+
+## [2026-11-15] verification | feedback loops and notification audit
+
+- Added [[feedback-loops-and-notifications]]: inventoried every feedback path
+  and notification surface, with evidence.
+- Key gaps: `chat_feedback` has no consumer and no reload hydration; claim
+  reviews do not change claim state and are not notified; proposal dismissal
+  has no event/reason; notifications are split across toast/status/banner/
+  inline/tray/Attention Director with no shared store or server read state.
+- Plan: P0 honesty/contract fixes, P1 server-owned notification projection +
+  inbox + SSE + preferences, P2 closed-loop learning and metrics.
+- Source counts observed: 51 `role=alert`, 70 `role=status`, 6 `aria-live`,
+  2 local toast implementations, and only one product `notify()` caller.

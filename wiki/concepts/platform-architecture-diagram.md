@@ -280,7 +280,7 @@ flowchart TB
 - Counts at `2026-11-14` (`docs/repo-counts.md`): **151** HTTP routes,
   **41** Go packages (**1011** Go test funcs), **185** Python test files,
   **151** console test files (**804** test cases), **32** Rust tests, **6**
-  MCP servers (**38** tools), **158** wiki pages; console contracts **158
+  MCP servers (**38** tools), **159** wiki pages; console contracts **158
   modeled / 14 client-only / 0 unmodeled** (`136` schemas, `143` OpenAPI
   paths); token-lint raw-palette debt **1** baseline occurrence.
 - Counts at `2026-11-11` (`docs/repo-counts.md`): **141** HTTP routes,
