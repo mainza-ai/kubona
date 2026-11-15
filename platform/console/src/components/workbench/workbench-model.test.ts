@@ -814,8 +814,9 @@ describe('computeFitCamera, cameraShowsAnyObject, and zoomCameraAtPoint', () => 
     const fitClosed = computeFitCamera(box, viewport, { minimapOpen: false });
     expect(fitClosed.zoom).toBe(MIN_WORKBENCH_ZOOM);
     expect(fitClosed.zoom).toBeLessThanOrEqual(MAX_WORKBENCH_ZOOM);
-    // Top edge of topmost card (`box.y * zoom + y`) must stay >= padTop (28px).
-    expect(box.y * fitClosed.zoom + fitClosed.y).toBeGreaterThanOrEqual(27);
+    // Top edge of topmost card (`box.y * zoom + y`) must stay below the
+    // in-canvas toolbar (padTop 64px).
+    expect(box.y * fitClosed.zoom + fitClosed.y).toBeGreaterThanOrEqual(63);
     expect(box.x * fitClosed.zoom + fitClosed.x).toBeGreaterThanOrEqual(35);
 
     const fitCompact = computeFitCamera({ x: 40, y: 40, width: 800, height: 320 }, viewport);
@@ -824,7 +825,7 @@ describe('computeFitCamera, cameraShowsAnyObject, and zoomCameraAtPoint', () => 
 
     const fitReadableSpine = computeFitCamera({ x: 40, y: 40, width: 1500, height: 740 }, { width: 1200, height: 420 }, { minZoom: 0.68 });
     expect(fitReadableSpine.zoom).toBe(0.68);
-    expect(40 * fitReadableSpine.zoom + fitReadableSpine.y).toBeGreaterThanOrEqual(27);
+    expect(40 * fitReadableSpine.zoom + fitReadableSpine.y).toBeGreaterThanOrEqual(63);
   });
 
   it('zooms around the focal point while staying inside server zoom bounds', () => {

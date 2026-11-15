@@ -368,7 +368,10 @@ jobs:
       - name: Python vulnerabilities
         working-directory: platform
         run: |
-          pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pip-audit==2.9.0"
+          # setuptools is build tooling, not a project dependency, but
+          # pip-audit --local audits it too. 84.1.0 fixes the Windows
+          # namespace-packages path escape (GHSA-xmj3-9gf7-h52w; PYSEC-2026-3447).
+          pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pip-audit==2.9.0" "setuptools>=84.1.0"
           python3 ../scripts/dependency_audit.py --audit python
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:

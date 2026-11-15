@@ -297,7 +297,9 @@ export function computeFitCamera(
   const minimapOpen = options?.minimapOpen ?? false;
   const padLeft = 36;
   const padRight = minimapOpen && width > 640 ? 208 : 36;
-  const padTop = height > 320 ? 28 : 20;
+  // The in-canvas toolbar is ~44px tall; 64 keeps the top card row below
+  // it (a 28px pad let the bar intercept hover on the first card).
+  const padTop = height > 320 ? 64 : 48;
   const padBottom = minimapOpen && height > 420 ? 156 : 24;
   const usableW = Math.max(120, width - padLeft - padRight);
   const usableH = Math.max(120, height - padTop - padBottom);
