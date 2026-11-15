@@ -2,21 +2,48 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-11-11
+updated: 2026-11-14
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
 
 # Platform Architecture Diagram
 
-> **Snapshot, not blueprint.** Latest verification: `mainza-ai/kubona` @ `119749e` /
-> `de3428c` (`2026-11-10`, live `kubona-live` Docker Compose stack, `develop` + `main`
-> synced). Earlier snapshots: `d6fff39` (2026-10-29) and `86afb3a` (2026-10-21) —
-> retained below / in [[log]].
+> **Snapshot, not blueprint.** Latest verification: `mainza-ai/kubona` @ `1ca42121`
+> (`2026-11-14`, live `kubona-live` Docker Compose stack, `develop` + `main` synced;
+> hosted CI green: develop `43670825216` / main `43670828233`, Console E2E
+> `43670825300` / `43670828231`). Earlier snapshots: `119749e` / `de3428c`
+> (2026-11-10), `d6fff39` (2026-10-29), `86afb3a` (2026-10-21) — retained below /
+> in [[log]].
 > Design intent lives on the linked concept pages; this page records only what the
 > prototype does today. **Refresh duty:** re-verify node-by-node after any slice that
 > adds/removes a service, port, store — a stale map is worse than none.
 >
+> ⚑ **Node delta (2026-11-14, `1ca42121`):**
+> - **Edge (`kubonad :8080`):** `151` HTTP routes (`docs/repo-counts.md`),
+>   including proposals (`/api/proposals`), run allowances
+>   (`/api/run-allowances`, signed mint/atomic draw), loop parts and steering
+>   (`/api/loops/{id}/parts`, `/steer`), claim provenance/evidence
+>   (`/api/claims/{id}/provenance|evidence`), runtime skills (`/api/skills`)
+>   and recorded evals (`/api/evals/llm`). The tool catalog carries the
+>   read-only `load_skill` rail.
+> - **Agent rails:** server-minted proposals bound to digest/basis; closed
+>   job-need kinds; ledger-ordered run parts + queued steering; typed
+>   claim-evidence rows and citation-checked numbers; run-scoped allowances;
+>   the shared untrusted-output fence; LLM spend reservation; declared model
+>   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
+>   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
+> - **Console (`:3000`):** `158` modeled / `14` client-only / `0` unmodeled
+>   contracts (`136` schemas, `143` OpenAPI paths), **797** cases across **150**
+>   files (including real-Chromium component tests). Role-named radius/type
+>   scales with default Tailwind scales reset, zero arbitrary colour-var
+>   utilities, per-route bundle budgets, import boundaries, and a
+>   `transition-all` source ban. Settings exposes the body-free skill
+>   catalogue/faults; ModelPicker shows evaluated/unevaluated/stale.
+> - **Contracts:** tool catalog regenerated for `load_skill`; error catalog
+>   holds **34** codes (proposal lifecycle + steering); raw-palette debt
+>   baseline **1**.
+
 > ⚑ **Node delta (2026-11-10, `119749e` / `de3428c`):**
 > - **Edge (`kubonad :8080`):** `140` HTTP routes (`docs/repo-counts.md`), adding
 >   `/api/discovery/{plan,run}` (multi-step 1–5 job planner),
@@ -62,12 +89,12 @@ sources: [source-frontier-repo-audit-2026]
 ```mermaid
 flowchart TB
     subgraph HUMAN["Human surface"]
-        CONSOLE["platform/console :3000<br/>Next.js observatory, six dock surfaces<br/>+ proof/mesh panels, live predicates only"]
+        CONSOLE["platform/console :3000<br/>Next.js observatory, four dock modes / six routed surfaces<br/>+ proof/mesh panels, live predicates only"]
         SIGN["WebCrypto Ed25519<br/>mandate cards + non-extractable custody"]
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>141 routes (docs/repo-counts.md)<br/>bearer + session edge auth, discovery, view & export"]
+        API["pkg/api<br/>151 routes (docs/repo-counts.md)<br/>bearer + session edge auth, proposals, claims,<br/>skills, evals, allowances, parts/steering"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
@@ -95,6 +122,14 @@ flowchart TB
     subgraph MCP["MCP stdio servers (Python)"]
         MSERV["compiler/execution/cost/provenance<br/>control/world — 38 tools, caller identity injected"]
         MGW["gateway + catalog<br/>single mount table, digest-pinned<br/>principal-bound tenant, cross-tenant grants"]
+    end
+
+    subgraph AGENTRAILS["Agent evidence & control rails"]
+        PROP["Proposals + typed needs<br/>server-minted digest, basis staleness<br/>closed need kinds + remedies"]
+        PROV["Claim evidence + citations<br/>typed provenance rows, [oN] checks<br/>unverified badge"]
+        SKILLS["Runtime skills<br/>names-only prompt, load_skill sections<br/>16 KiB / 64 / symlink refusal"]
+        EVALS["Recorded decision evals<br/>sha-pinned fixtures, Brier/ECE<br/>opt-in model gate"]
+        CONTROL["Run parts + steering + allowances<br/>ledger-ordered parts, signed draw<br/>taint-gated effect tools"]
     end
 
     subgraph TRUST["Trust — Go core"]
@@ -142,7 +177,7 @@ flowchart TB
         BAO["OpenBao sidecar or env<br/>leases scoped tenant/id"]
     end
 
-    LEGACY["platform/kubona console_api.py<br/>legacy shim, 23 routes remain (was 19;<br/>codesign trio now duplicated on Go rail)"]
+    LEGACY["platform/kubona console_api.py<br/>legacy shim, 22 routes remain (was 19;<br/>codesign trio now duplicated on Go rail)"]
 
     CONSOLE -->|bearer token| API
     SIGN -->|signed approvals| API
@@ -156,6 +191,13 @@ flowchart TB
     API --> LOOPS
     API --> RECALL
     API --> EV
+    API --> PROP
+    API --> PROV
+    API --> SKILLS
+    API --> EVALS
+    API --> CONTROL
+    JOBS --> CONTROL
+    LEDGER --> PROV
     API --> CDPROXY
     CDPROXY -->|local venv exec| PYEVAL
     CDPROXY -.->|no python in prod image = 503| F001
