@@ -6845,3 +6845,10 @@ skipped is the exact failure this incident is about:
   `uv sync --locked` instead of assuming a pre-existing environment.
 - The verification command runs the bridge and Python suites through the
   locked environment; the lock-drift rule is stated next to the quickstart.
+
+## [2026-11-16] decision | Next.js 16.4.5 closes the npm advisory
+
+- Bump `next` 16.4.3 → 16.4.5, the patched release for
+  GHSA-mfr8-8qww-v76h (information disclosure across root params).
+- Verified: npm audit clean, console node suite 304 passed, real-browser
+  suite 517 passed, and the production build completes.
