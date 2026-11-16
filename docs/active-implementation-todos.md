@@ -27,7 +27,7 @@ Baseline: `37103aad` on `develop`.
 - [ ] Hardware-in-the-loop VQE/QAOA, or narrow the claim.
 - [x] Plan draft persistence.
 - [x] Obligation 1 h ageing escalation.
-- [ ] Obligation push events.
+- [x] Obligation push events for session-owned rows (key-owned still polls).
 - [ ] Chart-series and campaign-level fact refs.
 - [ ] Run parts from literature/prover/tool rails.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.

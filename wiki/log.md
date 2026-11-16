@@ -6470,3 +6470,11 @@ skipped is the exact failure this incident is about:
   pauses with `budget_exceeded`. Resume clears either. Admission needs render
   in the global refusal chip because no job exists yet.
 - Added engine assertions; C2 typed needs are closed for the current rails.
+
+## [2026-11-15] decision | obligation push events
+
+- Session-owned obligations emit `obligation_opened` on owner assignment and
+  `obligation_closed` after the closure engine passes; the console already
+  maps `obligation_*` to the tray invalidation domain.
+- Key-owned (bearer) obligations still rely on polling.
+- Added event-taxonomy and lifecycle coverage.

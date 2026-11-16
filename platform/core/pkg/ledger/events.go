@@ -99,6 +99,8 @@ var KnownEventTypes = map[string]bool{
 	"metasearch_applied":                true,
 	"molecular_admet_profiled":          true,
 	"peer_review":                       true,
+	"obligation_closed":                 true,
+	"obligation_opened":                 true,
 	"prediction_evaluated":              true,
 	"prediction_sealed":                 true,
 	"prediction_asserted":               true,

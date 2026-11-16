@@ -81,6 +81,21 @@ func TestAttemptCloseHappyPath(t *testing.T) {
 	if !found {
 		t.Fatal("closure case must be on record")
 	}
+	// Session-owned obligations push open/close events for tray invalidation.
+	events, _ := l.GetRecentEvents("s", 10)
+	sawOpen, sawClose := false, false
+	for _, event := range events {
+		if event.EventType == "obligation_opened" {
+			sawOpen = true
+		}
+		if event.EventType == "obligation_closed" {
+			sawClose = true
+		}
+	}
+	if !sawOpen || !sawClose {
+		t.Fatalf("obligation events missing: open=%v close=%v", sawOpen, sawClose)
+	}
+
 	// Closed stays closed (idempotent receipt).
 	closed, _, err = agents.AttemptClose(l, id)
 	if err != nil || !closed {

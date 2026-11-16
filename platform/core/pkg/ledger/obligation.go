@@ -277,15 +277,17 @@ func (l *Ledger) SetObligationOwner(id, owner string) error {
 		return fmt.Errorf("owner must be non-empty")
 	}
 	l.lock.Lock()
-	defer l.lock.Unlock()
 	ob, err := l.getObligationLocked(id)
 	if err != nil {
+		l.lock.Unlock()
 		return err
 	}
 	if ob == nil {
+		l.lock.Unlock()
 		return fmt.Errorf("unknown obligation %q", id)
 	}
 	if ob.Owner != "" {
+		l.lock.Unlock()
 		if ob.Owner == owner {
 			return nil
 		}
@@ -293,7 +295,16 @@ func (l *Ledger) SetObligationOwner(id, owner string) error {
 	}
 	_, err = l.DB().Exec(`UPDATE obligations SET owner = ?, updated_at = ? WHERE id = ?`,
 		owner, time.Now().UTC().Format(time.RFC3339), id)
-	return err
+	l.lock.Unlock()
+	if err != nil {
+		return err
+	}
+	if sessionID, ok := strings.CutPrefix(owner, "session:"); ok && sessionID != "" {
+		_ = l.AppendEvent(sessionID, "obligation_opened", map[string]any{
+			"obligation_id": id, "subject_kind": ob.SubjectKind, "subject_id": ob.SubjectID, "owner": owner,
+		})
+	}
+	return nil
 }
 
 // RecordObligationCase stores one verdict (latest wins per key). Cases on

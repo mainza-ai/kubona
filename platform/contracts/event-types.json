@@ -860,6 +860,28 @@
         "entry_id"
       ]
     },
+    "obligation_opened": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A session-owned obligation opened; the Needs-you tray can invalidate on push.",
+      "required": [
+        "obligation_id",
+        "subject_kind",
+        "subject_id"
+      ]
+    },
+    "obligation_closed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A session-owned obligation closed after the closure engine passed.",
+      "required": [
+        "obligation_id",
+        "subject_kind",
+        "subject_id"
+      ]
+    },
     "peer_review": {
       "emitters": [
         "go"

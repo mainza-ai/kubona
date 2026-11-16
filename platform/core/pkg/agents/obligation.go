@@ -21,6 +21,7 @@ package agents
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
@@ -59,6 +60,11 @@ func AttemptClose(l *ledger.Ledger, id string) (bool, []string, error) {
 	}
 	if err := l.SetObligationDisposition(id, "closed"); err != nil {
 		return false, nil, err
+	}
+	if sessionID, ok := strings.CutPrefix(ob.Owner, "session:"); ok && sessionID != "" {
+		_ = l.AppendEvent(sessionID, "obligation_closed", map[string]any{
+			"obligation_id": id, "subject_kind": ob.SubjectKind, "subject_id": ob.SubjectID,
+		})
 	}
 	return true, nil, nil
 }
