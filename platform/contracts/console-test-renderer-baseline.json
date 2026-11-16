@@ -23,7 +23,6 @@
     "src/components/common/ExperimentPanel.test.tsx",
     "src/components/common/HardwareLaunchPanel.test.tsx",
     "src/components/common/JobProgress.test.tsx",
-    "src/components/common/JobProgressLive.test.tsx",
     "src/components/common/LabOpsPanel.test.tsx",
     "src/components/common/LoopControlList.test.tsx",
     "src/components/common/MathText.test.tsx",

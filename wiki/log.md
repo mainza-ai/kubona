@@ -6632,3 +6632,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated SystemReadinessPanel to a real-browser component test; renderer
   ratchet fell 86 → 85.
+
+## 2026-11-15 | cleanup | eleventh renderer migration
+
+- Migrated JobProgressLive to a real-browser component test with fake timers;
+  renderer ratchet fell 85 → 84.
