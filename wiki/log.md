@@ -6693,3 +6693,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated CommandPaletteTrap, ArenaHud, and KeyboardShortcutsModal to
   real-browser tests; renderer ratchet fell 68 → 65.
+
+## 2026-11-15 | cleanup | live/panel renderer batch
+
+- Migrated CopilotDrawer empty state, FlightRecorderLive, and
+  DiscoveryProtocolPanel to real-browser tests; renderer ratchet fell 65 → 62.
