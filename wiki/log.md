@@ -6637,3 +6637,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated JobProgressLive to a real-browser component test with fake timers;
   renderer ratchet fell 85 → 84.
+
+## 2026-11-15 | cleanup | twelfth renderer migration
+
+- Migrated RenderBoundary to a real-browser component test; renderer ratchet
+  fell 84 → 83.

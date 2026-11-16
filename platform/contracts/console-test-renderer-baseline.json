@@ -73,7 +73,6 @@
     "src/components/widgets/QuantumCircuitQIREditorWidget.test.tsx",
     "src/components/widgets/ShadowTomographyRadarWidget.test.tsx",
     "src/components/workbench/LoopPartsLane.test.tsx",
-    "src/components/workbench/RenderBoundary.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts",
     "src/domain/needs-you-seen-hook.test.tsx",
