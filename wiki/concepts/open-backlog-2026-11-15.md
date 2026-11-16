@@ -34,7 +34,8 @@ record on the owning pages.
 > remain. OB-18 now emits session-owned obligation open/close events; key-owned
 > bearer rows still poll. OB-16 hardware parent allowance rails are closed.
 > OB-19 chart-series and campaign fact refs have landed. The raw-palette
-> baseline is now 0; form/button debt remains. The last local HF surface toast
+> baseline is now 0; the raw-button ratchet is enforced at 368 (may only
+> shrink); form-primitive migration remains. The last local HF surface toast
 > now routes through the single page toast slot. LCP/INP/heap/request-count
 > gates now run in the dense runtime budget spec. Proposal-dismiss
 > reasons now feed the copilot prompt as a generation signal. OB-20 is closed as

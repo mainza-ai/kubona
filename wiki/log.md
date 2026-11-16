@@ -6553,3 +6553,8 @@ skipped is the exact failure this incident is about:
 - The Hugging Face surface no longer owns a local toast; its messages dispatch
   to the page's single toast slot. This removes the last duplicate per-surface
   toast implementation.
+
+## 2026-11-15 | cleanup | raw-button ratchet
+
+- Added `console-button-ratchet.mjs` and a 368-button baseline; CI fails on
+  growth outside `components/ui`. The form-primitive migration remains.

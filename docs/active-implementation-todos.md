@@ -36,7 +36,8 @@ Baseline: `37103aad` on `develop`.
 - [ ] Console: split the ~395 KiB chunk.
 - [x] Console: LCP/INP/heap/request-count gates.
 - [x] Console: raw-palette token baseline is 0.
-- [ ] Console: form primitives + raw-button ratchet.
+- [x] Console: raw-button ratchet (368 baseline, may only shrink).
+- [ ] Console: form primitive migration.
 - [ ] Console: per-component motion review.
 
 ## Operator-only
