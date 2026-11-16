@@ -6790,3 +6790,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated HuggingFaceModelHub, LabOpsPanel, and SpatialCanvas to real-browser
   tests; renderer ratchet fell 11 → 8.
+
+## 2026-11-15 | cleanup | autonomy/codesign/sovereign renderer batch
+
+- Migrated AutonomyCockpit, CodesignCockpit, and sovereign to real-browser
+  tests; renderer ratchet fell 8 → 5.
