@@ -6594,3 +6594,8 @@ skipped is the exact failure this incident is about:
 ## 2026-11-15 | cleanup | fourth renderer migration
 
 - Migrated Tip to a real-browser component test; renderer ratchet fell 92 → 91.
+
+## 2026-11-15 | cleanup | fifth renderer migration
+
+- Migrated BackendStatusBar to a real-browser component test; renderer
+  ratchet fell 91 → 90.
