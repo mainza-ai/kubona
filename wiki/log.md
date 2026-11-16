@@ -6478,3 +6478,11 @@ skipped is the exact failure this incident is about:
   maps `obligation_*` to the tray invalidation domain.
 - Key-owned (bearer) obligations still rely on polling.
 - Added event-taxonomy and lifecycle coverage.
+
+## [2026-11-15] decision | hardware parent allowance rails
+
+- Hardware experiment params now accept `run_allowance_id`; the same signed
+  allowance/per-job cap validation used by circuit runs covers
+  `hardware_experiment`, `qaoa_hardware`, and `spin_chain_hardware`.
+- Mandate and allowance remain mutually exclusive; the atomic draw is still
+  authoritative. Added a jobs test for the hardware job-type rail.

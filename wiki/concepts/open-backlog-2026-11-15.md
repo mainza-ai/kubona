@@ -31,7 +31,8 @@ record on the owning pages.
 > OB-17's plan-draft persistence has landed; unresolved refs as typed needs
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-18 now emits session-owned obligation open/close events; key-owned
-> bearer rows still poll. OB-13 now carries typed need envelopes for budget, approval, and
+> bearer rows still poll. OB-16 hardware parent allowance rails are closed.
+> OB-13 now carries typed need envelopes for budget, approval, and
 > anchor refusals, and the global refusal chip renders the sentence/remedy;
 > run-card rendering of budget/retry needs and refusal-chip rendering of
 > admission needs have landed. OB-13 is closed; job cards already render job

@@ -155,6 +155,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		BudgetUSD           float64  `json:"budget_usd"`
 		Backend             string   `json:"backend"`
 		MandateRef          string   `json:"mandate_ref"`
+		RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
 		Loop                bool     `json:"loop"`
 		MaxIterations       int      `json:"max_iterations"`
 		GrantChain          []string `json:"grant_chain"`
@@ -238,7 +239,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		Nodes:  res.Graph.Nodes, Edges: res.Graph.Edges,
 		Loop: req.Loop, MaxIterations: req.MaxIterations,
 		Shots: req.Shots, Seed: req.Seed, MaxCostUSD: req.BudgetUSD,
-		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
+		MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID, CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}
 	binding := jobs.CanonicalHardwareJobBinding("qaoa_hardware", sid, p)
@@ -313,6 +314,7 @@ type hardwareVQEIntent struct {
 	BudgetUSD           float64  `json:"budget_usd"`
 	Backend             string   `json:"backend"`
 	MandateRef          string   `json:"mandate_ref"`
+	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
 	Loop                bool     `json:"loop"`
 	MaxIterations       int      `json:"max_iterations"`
 	Mitigation          string   `json:"mitigation"`
@@ -389,7 +391,7 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		Mitigation: req.Mitigation, MitigationScales: req.MitigationScales,
 		Loop: req.Loop, MaxIterations: req.MaxIterations, AnsatzQPY: res.AnsatzQPY,
 		RequestedBackend: backend, FidelityQASM: res.AnsatzQASM,
-		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef,
+		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID,
 		CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass:   req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}
@@ -504,6 +506,7 @@ type spinChainHardwareIntent struct {
 	BudgetUSD           float64  `json:"budget_usd"`
 	Backend             string   `json:"backend"`
 	MandateRef          string   `json:"mandate_ref"`
+	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
 	TargetError         float64  `json:"target_error"`
 	CallerJurisdictions []string `json:"caller_jurisdictions"`
 	CallerExportClass   string   `json:"caller_export_class"`
@@ -576,7 +579,7 @@ func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) 
 		QASM: res.AnsatzQASM, FidelityQASM: res.AnsatzQASM,
 		PauliCoefficients: res.PauliCoefficients, EnergyExact: res.EnergyExact,
 		Provider: "ibm-qiskit", RequestedBackend: backend,
-		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef,
+		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID,
 		CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass:   req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}
@@ -692,6 +695,7 @@ type hardwarePESIntent struct {
 	BudgetUSD           float64  `json:"budget_usd"`
 	Backend             string   `json:"backend"`
 	MandateRef          string   `json:"mandate_ref"`
+	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
 	Mitigation          string   `json:"mitigation"`
 	MitigationScales    []int    `json:"mitigation_scales"`
 	CallerJurisdictions []string `json:"caller_jurisdictions"`
@@ -765,7 +769,7 @@ func (s *Server) hardwarePESParamsFromSource(req hardwarePESIntent) (jobs.Hardwa
 		Provider: "ibm-qiskit", RequestedBackend: backend,
 		FidelityQASM: points[0].QASM, Mitigation: req.Mitigation,
 		MitigationScales: req.MitigationScales, MaxCostUSD: req.BudgetUSD,
-		MandateRef: req.MandateRef, CallerJurisdictions: req.CallerJurisdictions,
+		MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID, CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}
 	return p, nil

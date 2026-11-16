@@ -23,7 +23,7 @@ Baseline: `37103aad` on `develop`.
 
 ## Later
 
-- [ ] Hardware parent allowance rails.
+- [x] Hardware parent allowance rails.
 - [ ] Hardware-in-the-loop VQE/QAOA, or narrow the claim.
 - [x] Plan draft persistence.
 - [x] Obligation 1 h ageing escalation.

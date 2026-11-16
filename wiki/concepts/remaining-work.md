@@ -261,9 +261,9 @@ Landed in later slices:
 - **Run-scoped allowances (C11, Q-60):** reviewed with the recommended
   answers and implemented server-side (schema, signed mint, atomic draw, taint
   exclusion, rate-card/calibration + air-gap suspension, revocation, reader).
-  Console control and launch-under-allowance wiring also landed. Remaining:
-  hardware parent rails (`hardware_experiment`, `qaoa_hardware`,
-  `spin_chain_hardware`) are still per-job only.
+  Console control and launch-under-allowance wiring also landed. Hardware
+  parent rails now cover `hardware_experiment`, `qaoa_hardware`, and
+  `spin_chain_hardware` through the same signed allowance and per-job cap.
 - **Mid-run steering (2026-11-14, report C10):** queued instruction rows,
   applied once at the next step boundary with a ledger event and a lane part;
   the run lane shows target/active-part disclosure and the postponement rule;

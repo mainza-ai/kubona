@@ -54,6 +54,7 @@ type HardwareExperimentParams struct {
 	Edges               [][2]int           `json:"edges"`
 	MaxCostUSD          float64            `json:"max_cost_usd"`
 	MandateRef          string             `json:"mandate_ref"`
+	RunAllowanceID      string             `json:"run_allowance_id,omitempty"`
 	CallerJurisdictions []string           `json:"caller_jurisdictions"`
 	CallerExportClass   string             `json:"caller_export_class"`
 	ExportReviewed      bool               `json:"export_reviewed"`
@@ -249,12 +250,28 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	if err := r.admitFidelity(sessionID, p.RequestedBackend, p.FidelityQASM); err != nil {
 		return "", 0, err
 	}
-	if p.MandateRef == "" {
-		return "", 0, fmt.Errorf("hardware_experiment requires a verified spend-mandate receipt (mandate_ref)")
-	}
-	if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD,
-		CanonicalHardwareJobBinding(jobType, sessionID, p)); err != nil {
-		return "", 0, err
+	if p.RunAllowanceID != "" {
+		// C11 parent rail: a signed run allowance can cover a hardware
+		// experiment, not only a per-job circuit_run. The atomic draw in
+		// reserveAndInsertJobTx remains authoritative.
+		cp := circuitRunParams{
+			RunAllowanceID:   p.RunAllowanceID,
+			MandateRef:       p.MandateRef,
+			RequestedBackend: p.RequestedBackend,
+			Shots:            p.Shots,
+			MaxCostUSD:       p.MaxCostUSD,
+		}
+		if err := r.planRunAllowance(tenantID, sessionID, jobType, &cp); err != nil {
+			return "", 0, err
+		}
+	} else {
+		if p.MandateRef == "" {
+			return "", 0, fmt.Errorf("hardware_experiment requires a verified spend-mandate receipt (mandate_ref) or a run_allowance_id")
+		}
+		if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD,
+			CanonicalHardwareJobBinding(jobType, sessionID, p)); err != nil {
+			return "", 0, err
+		}
 	}
 	if err := r.tenantStore().CheckSpend(tenantID, p.MaxCostUSD); err != nil {
 		return "", 0, err

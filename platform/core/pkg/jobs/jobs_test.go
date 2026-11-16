@@ -1536,3 +1536,25 @@ func TestHardwareExperimentH2OAndSpinExactValidation(t *testing.T) {
 		t.Fatalf("exact-state spin hardware must refuse before admission, got: %v", err)
 	}
 }
+
+func TestHardwareJobCanDrawParentRunAllowance(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	a, err := r.ledger.MintRunAllowance(ledger.RunAllowance{
+		ID: "ra-hw-1", TenantID: "default", SessionID: "sess-1", Nonce: "n", SignerPubkeyHex: "pk", SignatureHex: "sig", ScopeDigest: "scope",
+		Backends: []string{"ibm_fez"}, JobTypes: []string{"hardware_experiment"},
+		MaxPerJobMicroUSD: 2_000_000, MaxTotalMicroUSD: 10_000_000, MaxJobs: 2, ShotsCap: 1000,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp := circuitRunParams{RunAllowanceID: a.ID, RequestedBackend: "ibm_fez", Shots: 100, MaxCostUSD: 1.5}
+	if err := r.planRunAllowance("default", "sess-1", "hardware_experiment", &cp); err != nil {
+		t.Fatalf("hardware parent allowance must validate: %v", err)
+	}
+	cp.MaxCostUSD = 3
+	if err := r.planRunAllowance("default", "sess-1", "hardware_experiment", &cp); err == nil {
+		t.Fatal("per-job cap must still refuse")
+	}
+}
