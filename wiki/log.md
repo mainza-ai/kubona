@@ -6713,3 +6713,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated MathText, FlightRecorder, and JobProgress to real-browser tests;
   renderer ratchet fell 56 → 53.
+
+## 2026-11-15 | cleanup | loop/meta/inspector renderer batch
+
+- Migrated LoopControlList, MetasearchPanel, and Inspector to real-browser
+  tests; renderer ratchet fell 53 → 50.
