@@ -6838,3 +6838,10 @@ skipped is the exact failure this incident is about:
 - The bridge image installs uv at a pinned digest and syncs from the same lock.
   The hardened quantum-runner image keeps its independent sandbox stack.
 - README and AGENTS.md now name the lock as the only resolution path.
+
+## [2026-11-16] cleanup | root README uses the locked uv environment
+
+- Docker and native quickstarts now create `platform/.venv` with
+  `uv sync --locked` instead of assuming a pre-existing environment.
+- The verification command runs the bridge and Python suites through the
+  locked environment; the lock-drift rule is stated next to the quickstart.

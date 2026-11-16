@@ -163,8 +163,10 @@ curl -fsS http://127.0.0.1:8080/api/health
 curl -fsS http://127.0.0.1:8080/api/ready
 scripts/local-deployment-check.sh
 
-# 4. Run the deployment doctor
-cd platform && .venv/bin/python -m kubona.run doctor --env-file ../.env
+# 4. Create the locked Python environment and run the deployment doctor
+cd platform
+uv sync --locked --extra dev --extra qiskit --extra chemistry
+.venv/bin/python -m kubona.run doctor --env-file ../.env
 ```
 
 Open **`http://localhost:3000`** in your browser. Press **`Cmd+E`** (`Ctrl+E`) or click **Experiment Lab** in the top bar to launch single experiments, multi-step discovery protocols, or governed QPU runs.
@@ -173,7 +175,16 @@ Open **`http://localhost:3000`** in your browser. Press **`Cmd+E`** (`Ctrl+E`) o
 
 ## Quickstart: Native Development ($0.00 / Zero-QPU)
 
+Python dependencies are locked in [`platform/uv.lock`](platform/uv.lock); use
+`uv sync --locked` rather than `pip install -e`. After editing
+`platform/pyproject.toml`, run `uv lock` and commit both files.
+
 ```bash
+# 0. Create the locked Python environment (uv 0.11.28+)
+cd platform
+uv sync --locked --extra dev --extra qiskit --extra chemistry
+cd ..
+
 # 1. Start the Python Quantum Bridge (Unix socket or localhost:50051)
 cd platform/bridge
 ../.venv/bin/python server.py
@@ -215,7 +226,7 @@ cargo test --manifest-path platform/crates/qir-core/Cargo.toml
 cargo test --manifest-path platform/crates/ifc-core/Cargo.toml
 
 # Python runtime, bridge, DMRG, and scientific solvers
-PYTHONPATH=platform/bridge:platform platform/.venv/bin/pytest platform/bridge/ platform/tests/
+(cd platform && uv sync --locked --extra dev --extra qiskit --extra chemistry && .venv/bin/python -m pytest bridge/ tests/)
 
 # Console TypeScript, ESLint, Vitest, and OpenAPI/contract gates
 cd platform/console && pnpm exec tsc --noEmit && pnpm lint && pnpm test
