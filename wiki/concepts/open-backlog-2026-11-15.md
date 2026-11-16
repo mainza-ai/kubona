@@ -24,7 +24,8 @@ record on the owning pages.
 > persists, but authoring/installer UI remains. OB-12's inventory UI already
 > exists (`MemoryPanel`); the S9 cloud-edge screening remains. OB-14's
 > provenance panel has landed (typed evidence rows + completeness summary);
-> table/value citation scanning and inline number highlighting remain. See
+> inline highlighting of unverified prose numbers has landed too; table/value
+> scanning remains. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

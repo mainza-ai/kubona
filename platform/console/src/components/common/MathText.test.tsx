@@ -3,10 +3,10 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { MathText } from './MathText';
 
-function renderMathText(text: string): TestRenderer.ReactTestRenderer {
+function renderMathText(text: string, highlightNumbers: string[] = []): TestRenderer.ReactTestRenderer {
   let tree: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(<MathText text={text} />);
+    tree = TestRenderer.create(<MathText text={text} highlightNumbers={highlightNumbers} />);
   });
   return tree!;
 }
@@ -72,3 +72,17 @@ describe('MathText markdown', () => {
     expect(html).not.toContain('<strong');
   });
 });
+
+  it('marks only the supplied unverified numbers in prose', () => {
+    const html = htmlOf(renderMathText('Energy -1.13727 Ha and a second value 5.5 Ha.', ['-1.13727']));
+    expect(html).toContain('<mark');
+    expect(html).toContain('-1.13727');
+    expect(html).toContain('5.5 Ha');
+    expect(html.match(/<mark/g)?.length).toBe(1);
+  });
+
+  it('does not mark numbers inside math placeholders', () => {
+    const html = htmlOf(renderMathText('Energy $E_0$ is -1.13727 Ha.', ['-1.13727']));
+    expect(html).toContain('<mark');
+    expect(html.match(/<mark/g)?.length).toBe(1);
+  });

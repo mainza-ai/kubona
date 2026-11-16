@@ -323,7 +323,7 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 
 > ⚑ Snapshot update (2026-11-14, `develop` working tree): `docs/repo-counts.md`
 > records **154** HTTP routes, **41** Go packages (**1018** Go test functions),
-> **185** Python test files, **152** console test files (**807** test cases),
+> **185** Python test files, **152** console test files (**809** test cases),
 > **32** Rust tests, **6** MCP servers (**38** tools), and **160** wiki pages.
 > Console contracts stand at **170 modeled / 14 client-only / 0 unmodeled**
 > (`146` schemas, `151` OpenAPI paths). The raw-palette debt baseline is **1**

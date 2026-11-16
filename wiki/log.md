@@ -6356,3 +6356,10 @@ skipped is the exact failure this incident is about:
 - Added the client response contract and a test covering the panel.
 - Still open in B5: table/rendered-value scanning and inline highlighting of
   an offending number; the badge already names unverified claims.
+
+## [2026-11-15] verification | inline citation highlights
+
+- Unverified numeric claims are now marked inline in assistant prose using the
+  persisted citation report; verified numbers and table cells are untouched,
+  and math placeholders are protected from the marker pass.
+- Added MathText coverage for mark selection and math-placeholder safety.

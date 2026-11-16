@@ -20,6 +20,8 @@ interface MathTextProps {
   text?: string;
   block?: boolean;
   className?: string;
+  /** B5: unverified numeric claims to mark inline; prose only, never tables. */
+  highlightNumbers?: string[];
 }
 
 function escapeHtml(s: string): string {
@@ -72,9 +74,30 @@ function renderInline(s: string): string {
   return out;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function markNumbers(escaped: string, numbers: string[]): string {
+  if (numbers.length === 0) return escaped;
+  // Do not touch math placeholders: they contain an index digit.
+  return escaped
+    .split(/(\u0000MATH\d+\u0000)/g)
+    .map((part) => {
+      if (part.startsWith('\u0000MATH')) return part;
+      let out = part;
+      for (const number of [...numbers].sort((a, b) => b.length - a.length)) {
+        const re = new RegExp(`(^|[^\\w.])(${escapeRegExp(number)})(?![\\w.])`, 'g');
+        out = out.replace(re, `$1<mark class="rounded-chip bg-warning-wash px-0.5 text-warning-ink">$2</mark>`);
+      }
+      return out;
+    })
+    .join('');
+}
+
 // inlineRaw escapes raw model prose (placeholders survive) then formats it.
-function inlineRaw(s: string): string {
-  return renderInline(escapeHtml(s));
+function inlineRaw(s: string, highlights: string[] = []): string {
+  return renderInline(markNumbers(escapeHtml(s), highlights));
 }
 
 function isTableDivider(line: string): boolean {
@@ -82,7 +105,7 @@ function isTableDivider(line: string): boolean {
   return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
 }
 
-function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
+function renderMarkdownText(text: string, katex: KatexRenderer | null, highlights: string[] = []): string {
   // Block parsing runs on raw (math-protected) lines; every emitted text
   // fragment is escaped at the boundary via inlineRaw / escapeHtml, so raw
   // <, >, & from model output can never reach the DOM as markup.
@@ -93,7 +116,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
   let para: string[] = [];
   const flushPara = () => {
     if (para.length > 0) {
-      blocks.push(`<p class="my-1.5 leading-relaxed">${para.map(inlineRaw).join('<br/>')}</p>`);
+      blocks.push(`<p class="my-1.5 leading-relaxed">${para.map((line) => inlineRaw(line, highlights)).join('<br/>')}</p>`);
       para = [];
     }
   };
@@ -122,7 +145,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
       flushPara();
       const level = header[1].length;
       blocks.push(
-        `<div class="mt-2 mb-1 font-semibold text-text ${level <= 2 ? 'text-[13px]' : 'text-label'}">${inlineRaw(header[2])}</div>`
+        `<div class="mt-2 mb-1 font-semibold text-text ${level <= 2 ? 'text-[13px]' : 'text-label'}">${inlineRaw(header[2], highlights)}</div>`
       );
       i += 1;
       continue;
@@ -162,7 +185,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
         i += 1;
       }
       blocks.push(
-        `<ul class="my-1.5 space-y-1">${items.map((it) => `<li class="flex gap-1.5"><span class="text-accent">•</span><span>${inlineRaw(it)}</span></li>`).join('')}</ul>`
+        `<ul class="my-1.5 space-y-1">${items.map((it) => `<li class="flex gap-1.5"><span class="text-accent">•</span><span>${inlineRaw(it, highlights)}</span></li>`).join('')}</ul>`
       );
       continue;
     }
@@ -179,7 +202,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
         i += 1;
       }
       blocks.push(
-        `<ol class="my-1.5 space-y-1 list-decimal list-inside marker:text-accent">${items.map((it) => `<li>${inlineRaw(it)}</li>`).join('')}</ol>`
+        `<ol class="my-1.5 space-y-1 list-decimal list-inside marker:text-accent">${items.map((it) => `<li>${inlineRaw(it, highlights)}</li>`).join('')}</ol>`
       );
       continue;
     }
@@ -196,7 +219,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
         i += 1;
       }
       blocks.push(
-        `<div class="my-1.5 pl-2.5 border-l-2 border-accent-edge text-label-secondary">${parts.map(inlineRaw).join('<br/>')}</div>`
+        `<div class="my-1.5 pl-2.5 border-l-2 border-accent-edge text-label-secondary">${parts.map((part) => inlineRaw(part, highlights)).join('<br/>')}</div>`
       );
       continue;
     }
@@ -214,7 +237,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null): string {
   return restore(blocks.join(''));
 }
 
-export function MathText({ math, text, block = false, className = '' }: MathTextProps) {
+export function MathText({ math, text, block = false, className = '', highlightNumbers = [] }: MathTextProps) {
   const needsKatex = Boolean(math) || Boolean(text?.includes('$'));
   const [katex, setKatex] = useState<KatexRenderer | null>(null);
   const [katexFailed, setKatexFailed] = useState(false);
@@ -250,11 +273,11 @@ export function MathText({ math, text, block = false, className = '' }: MathText
     }
 
     if (text) {
-      return renderMarkdownText(text, katex);
+      return renderMarkdownText(text, katex, highlightNumbers);
     }
 
     return '';
-  }, [math, text, block, katex]);
+  }, [math, text, block, katex, highlightNumbers]);
 
   return (
     <span

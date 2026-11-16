@@ -42,6 +42,11 @@ import ConfirmDialog from './common/ConfirmDialog';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 import { prefersReducedMotion } from '@/lib/motion';
 
+function unverifiedCitationNumbers(report: ChatMessage['citations']): string[] {
+  if (!report || !Array.isArray(report.claims)) return [];
+  return report.claims.filter((claim) => claim.status !== 'verified').map((claim) => claim.number);
+}
+
 interface CopilotDrawerProps {
   sessionId: string;
   campaign?: CampaignState | null;
@@ -760,7 +765,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                         : 'rounded-card rounded-tl-chip bg-surface border border-border text-label-secondary shadow-[var(--shadow-raised)]'
                     }`}
                   >
-                    <MathText text={m.content} />
+                    <MathText text={m.content} highlightNumbers={unverifiedCitationNumbers(m.citations)} />
                     {m.id === streamingId && <span className="text-accent-ink animate-pulse"> ▍</span>}
                   </div>
                 )

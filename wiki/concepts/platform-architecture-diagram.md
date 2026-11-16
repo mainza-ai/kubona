@@ -34,7 +34,7 @@ sources: [source-frontier-repo-audit-2026]
 >   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
 >   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
 > - **Console (`:3000`):** `170` modeled / `14` client-only / `0` unmodeled
->   contracts (`146` schemas, `151` OpenAPI paths), **807** cases across **152**
+>   contracts (`146` schemas, `151` OpenAPI paths), **809** cases across **152**
 >   files (including real-Chromium component tests). Role-named radius/type
 >   scales with default Tailwind scales reset, zero arbitrary colour-var
 >   utilities, per-route bundle budgets, import boundaries, and a
