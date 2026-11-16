@@ -6723,3 +6723,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated ConfirmDialog, RunAllowancePanel, and HardwareLaunchPanel to
   real-browser tests; renderer ratchet fell 50 → 47.
+
+## 2026-11-15 | cleanup | shell/loop/widget renderer batch
+
+- Migrated StatusStrip, LoopPartsLane, and MolecularActiveSpaceWidget to
+  real-browser tests; renderer ratchet fell 47 → 44.
