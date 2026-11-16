@@ -2152,6 +2152,24 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "installSkill",
+        "tags": [
+          "skills"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: skills.install",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/skills.install"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/agents": {
@@ -2761,6 +2779,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/metasearch.change"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/{name}": {
+      "delete": {
+        "operationId": "removeSkill",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: skills.remove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/skills.remove"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "toggleSkill",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: skills.toggle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/skills.toggle"
                 }
               }
             }
@@ -3596,36 +3672,6 @@
         }
       }
     },
-    "/api/skills/{name}": {
-      "put": {
-        "operationId": "toggleSkill",
-        "tags": [
-          "skills"
-        ],
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: skills.toggle",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/skills.toggle"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/tasks/{id}": {
       "post": {
         "operationId": "updateTaskStatus",
@@ -4102,6 +4148,40 @@
             "type": "string"
           },
           "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "skills.install": {
+        "type": "object",
+        "required": [
+          "ok",
+          "name"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "skills.remove": {
+        "type": "object",
+        "required": [
+          "ok",
+          "name",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "removed": {
             "type": "boolean"
           }
         }

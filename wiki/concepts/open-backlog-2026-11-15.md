@@ -20,8 +20,8 @@ record on the owning pages.
 > the **autoresearch LLM loop** (pending steers enter the proposal prompt and
 > are marked applied only after a model turn); the supervisor optimizer loop
 > has no model prompt and remains a recorded run-lane instruction. OB-02,
-> OB-03, OB-04, and OB-07 are closed. OB-11 is partially closed: enable/disable
-> persists, but authoring/installer UI remains. OB-12's inventory UI already
+> OB-03, OB-04, and OB-07 are closed. OB-11 is closed: enable/disable,
+> authoring/install, and removal are wired through Settings. OB-12's inventory UI already
 > exists (`MemoryPanel`); the S9 cloud-LLM edge screen has landed, while
 > general ledger-write screening remains. OB-14's
 > provenance panel has landed (typed evidence rows + completeness summary);

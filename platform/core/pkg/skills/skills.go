@@ -322,6 +322,94 @@ func parse(raw []byte, dirName string, source Source) (Skill, *Fault) {
 	return Skill{Name: name, Description: description, Role: role, Tools: tools, Source: source, Body: body}, nil
 }
 
+// Validate parses one candidate SKILL.md without writing anything. The
+// directory name must match the frontmatter name (the same rule the loader
+// applies), so an install cannot smuggle a second identity.
+func Validate(raw []byte, dirName string) (Skill, *Fault) {
+	if len(raw) > MaxSkillBytes {
+		return Skill{}, &Fault{Code: FaultTooLarge, Skill: dirName, Detail: fmt.Sprintf("SKILL.md is %d bytes; limit %d", len(raw), MaxSkillBytes)}
+	}
+	return parse(raw, dirName, SourceUser)
+}
+
+// Install writes one validated user skill atomically. It refuses symlinks and
+// path separators; the name is the directory name and must match frontmatter.
+func Install(userDir, name string, raw []byte) error {
+	if userDir == "" {
+		return fmt.Errorf("user skill directory is not configured")
+	}
+	if !nameRe.MatchString(name) || len(name) > MaxName {
+		return fmt.Errorf("invalid skill name %q", name)
+	}
+	if _, fault := Validate(raw, name); fault != nil {
+		return fmt.Errorf("%s: %s", fault.Code, fault.Detail)
+	}
+	dir := filepath.Join(userDir, name)
+	if info, err := os.Lstat(dir); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("skill directory %s is a symlink; refused", name)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "SKILL.md")
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("skill file %s is a symlink; refused", name)
+	}
+	tmp, err := os.CreateTemp(dir, ".SKILL.md-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(raw); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}
+
+// Remove deletes one user skill directory. The API refuses seed skills before
+// calling this; this function still refuses invalid names and symlinks.
+func Remove(userDir, name string) error {
+	if userDir == "" {
+		return fmt.Errorf("user skill directory is not configured")
+	}
+	if !nameRe.MatchString(name) || len(name) > MaxName {
+		return fmt.Errorf("invalid skill name %q", name)
+	}
+	dir := filepath.Join(userDir, name)
+	info, err := os.Lstat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("skill directory %s is a symlink; refused", name)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("skill %s is not a directory", name)
+	}
+	return os.RemoveAll(dir)
+}
+
+// SourceOf reports the loaded source for one skill.
+func (s *Store) SourceOf(name string) (Source, bool) {
+	if s == nil {
+		return "", false
+	}
+	skill, ok := s.byName[name]
+	return skill.Source, ok
+}
+
 // Public returns the role-filtered catalogue without bodies or paths.
 // SetDisabled replaces the operator-disabled set. Unknown names are ignored:
 // a stale persisted row must not hide a newly installed skill.

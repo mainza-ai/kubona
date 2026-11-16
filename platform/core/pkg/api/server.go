@@ -78,6 +78,7 @@ type Server struct {
 	providerQueue      map[string]providerQueueSnapshot
 	toolRegistry       *tools.Registry
 	skillStore         *skills.Store
+	skillStoreMu       sync.RWMutex
 	evalStore          evals.Store
 	memoryStore        *memory.HindsightStore
 	metaSearchEngine   *metasearch.MetaSearchEngine
@@ -246,6 +247,30 @@ func newVaultLeases() *vault.VaultClient {
 		return vc
 	}
 	return vault.NewVaultClient()
+}
+
+// skillsStore returns the current immutable skill catalogue under the swap
+// lock. Writes build a fresh Store and replace the pointer; readers never see
+// a partially loaded catalogue.
+func (s *Server) skillsStore() *skills.Store {
+	s.skillStoreMu.RLock()
+	defer s.skillStoreMu.RUnlock()
+	return s.skillStore
+}
+
+// reloadSkills re-reads the embedded seeds + user directory and re-applies
+// the persisted disabled set. The old store stays live until the swap.
+func (s *Server) reloadSkills() error {
+	next := skills.Load(skills.Options{UserDir: skills.DefaultUserDir()})
+	if disabled, err := s.ledger.DisabledSkills(); err == nil {
+		next.SetDisabled(disabled)
+	} else {
+		return err
+	}
+	s.skillStoreMu.Lock()
+	s.skillStore = next
+	s.skillStoreMu.Unlock()
+	return nil
 }
 
 func NewServer(
@@ -600,7 +625,7 @@ func (s *Server) registerRoutes() {
 	// B11: body-free skill catalogue + closed loader faults for Settings.
 	s.route("/api/notifications", s.handleNotifications)
 	s.route("/api/notifications/preferences", s.handleNotificationPreferences)
-	s.route("/api/skills", s.handleSkills)
+	s.route("/api/skills", s.requireBearerForWrites(s.handleSkills))
 	s.route("/api/skills/", s.requireBearer(s.handleSkillByID))
 	// B12: recorded decision-eval status for the model picker (scores only).
 	s.route("/api/evals/llm", s.handleEvalLLM)

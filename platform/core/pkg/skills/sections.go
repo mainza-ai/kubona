@@ -75,6 +75,9 @@ func (s *Store) LoadSection(name, role, section string) (string, *Fault) {
 	if !ok || (role != "" && skill.Role != role) {
 		return "", &Fault{Code: FaultUnknown, Skill: name, Detail: "no such skill for this role"}
 	}
+	if s.isDisabled(name) {
+		return "", &Fault{Code: FaultUnknown, Skill: name, Detail: "skill is disabled by the operator"}
+	}
 	key := sectionKey(section)
 	if key == "" {
 		return skill.Body, nil

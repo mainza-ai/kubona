@@ -87,6 +87,17 @@ export type SkillsToggle = {
   "enabled": boolean;
 };
 
+export type SkillsInstall = {
+  "ok": boolean;
+  "name": string;
+};
+
+export type SkillsRemove = {
+  "ok": boolean;
+  "name": string;
+  "removed": boolean;
+};
+
 export type ClaimProvenance = {
   "ok": boolean;
   "claim": unknown;
@@ -1209,6 +1220,7 @@ export type ApiOperationResponse = {
   fetchWorkbenchView: WorkbenchView;
   getHFModelDetails: HfDetails;
   importSession: SessionImport;
+  installSkill: SkillsInstall;
   issueTenantGrant: TenantGrant;
   issueVaultLease: VaultLease;
   launchPESHardware: HardwareLaunch;
@@ -1234,6 +1246,7 @@ export type ApiOperationResponse = {
   regenerateChat: ChatRegenerate;
   registerTenantAdminKey: TenantWrite;
   rejectMetasearchProposal: MetasearchChange;
+  removeSkill: SkillsRemove;
   requestObservatoryLens: LensRequest;
   requestServerSignedMandate: MandateSign;
   rerunCodesignProposal: CodesignRerun;
@@ -1383,6 +1396,7 @@ export const API_OPERATIONS = {
   fetchWorkbenchView: { method: "get", path: "/api/workbench/view", response: "workbench.view" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
   importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
+  installSkill: { method: "post", path: "/api/skills", response: "skills.install" },
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchPESHardware: { method: "post", path: "/api/experiments/pes/hardware", response: "hardware.launch" },
@@ -1408,6 +1422,7 @@ export const API_OPERATIONS = {
   regenerateChat: { method: "post", path: "/api/chat/regenerate", response: "chat.regenerate" },
   registerTenantAdminKey: { method: "post", path: "/api/tenants/admin-key", response: "tenant.write" },
   rejectMetasearchProposal: { method: "post", path: "/api/metasearch/reject", response: "metasearch.change" },
+  removeSkill: { method: "delete", path: "/api/skills/{name}", response: "skills.remove" },
   requestObservatoryLens: { method: "post", path: "/api/observatory/lens", response: "lens.request" },
   requestServerSignedMandate: { method: "post", path: "/api/mandates/sign", response: "mandate.sign" },
   rerunCodesignProposal: { method: "post", path: "/api/codesign/rerun", response: "codesign.rerun" },

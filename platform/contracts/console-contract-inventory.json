@@ -127,6 +127,8 @@
     "sessions.list",
     "settings.update",
     "skills",
+    "skills.install",
+    "skills.remove",
     "skills.toggle",
     "task",
     "tasks.batch",
@@ -276,6 +278,8 @@
     "sessions.list",
     "settings.update",
     "skills",
+    "skills.install",
+    "skills.remove",
     "skills.toggle",
     "task",
     "tasks.batch",
@@ -852,6 +856,12 @@
       "contract": "session.import"
     },
     {
+      "function": "installSkill",
+      "path": "/api/skills",
+      "method": "POST",
+      "contract": "skills.install"
+    },
+    {
       "function": "issueTenantGrant",
       "path": "/api/tenant-grants/issue",
       "method": "POST",
@@ -1000,6 +1010,12 @@
       "path": "/api/metasearch/reject",
       "method": "POST",
       "contract": "metasearch.change"
+    },
+    {
+      "function": "removeSkill",
+      "path": "/api/skills/:name",
+      "method": "DELETE",
+      "contract": "skills.remove"
     },
     {
       "function": "requestObservatoryLens",

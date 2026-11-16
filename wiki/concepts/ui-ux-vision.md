@@ -416,7 +416,7 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   invalidations (`resource-store.ts`), and eliminates `390×844` mobile composer
   and overlay-inspector collisions.
 - **Contracts & Verification:** Inventory stands at **171 modeled / 14
-  client-only / 0 unmodeled** contracts (`147` schemas, `151` OpenAPI paths)
+  client-only / 0 unmodeled** contracts (`149` schemas, `151` OpenAPI paths)
   with **811** Console test cases across **153** test files (`docs/repo-counts.md`),
   including real-Chromium `*.component.test.tsx` coverage, plus
   `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,

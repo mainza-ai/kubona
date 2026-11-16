@@ -6396,3 +6396,13 @@ skipped is the exact failure this incident is about:
   cells as well as prose. Rendered math values remain unscanned.
 - Wired unread notification severities into the Attention Director once per
   key (warning/danger summon; informational notable; quiet suppresses).
+
+## [2026-11-15] decision | skill authoring and installer
+
+- Added validated user-skill install (`POST /api/skills`) and removal
+  (`DELETE /api/skills/{name}`), with atomic writes, symlink/path refusal,
+  seed-removal refusal, and a store reload under a swap lock.
+- Settings can now install, remove, enable, and disable skills; disabled
+  skills leave both the prompt and `load_skill`, including section reads.
+- Added package/API coverage for install, remove, traversal refusal, and
+  disabled section reads.

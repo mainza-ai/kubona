@@ -104,11 +104,11 @@ func TestSkillsEndpointReturnsCatalogueWithoutBodies(t *testing.T) {
 			t.Fatal("skills endpoint leaked a body field")
 		}
 	}
-	// POST is not a write path here.
+	// POST is the install path; an empty body refuses before any write.
 	rec = httptest.NewRecorder()
 	s.handleSkills(rec, httptest.NewRequest(http.MethodPost, "/api/skills", nil))
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("POST status = %d, want 405", rec.Code)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("empty POST status = %d, want 400", rec.Code)
 	}
 }
 
@@ -139,5 +139,43 @@ func TestSkillTogglePersistsAndLeavesPrompt(t *testing.T) {
 	fresh.SetDisabled(disabled)
 	if strings.Contains(fresh.PromptSection(CopilotRole), "pes-scan:") {
 		t.Fatal("restart did not apply the disabled set")
+	}
+}
+
+func TestSkillInstallAndDeleteUserSkill(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("KUBONA_SKILLS_DIR", dir)
+	l, err := ledger.OpenLedger(t.TempDir() + "/skill-install.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	s := &Server{skillStore: skills.Load(skills.Options{UserDir: dir}), ledger: l}
+	body := `{"name":"user-check","content":"---\nname: user-check\ndescription: user check\nrole: copilot\ntools: get_anchor\n---\nbody\n"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/skills", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleSkills(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("install status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := s.skillsStore().SourceOf("user-check"); !ok {
+		t.Fatal("installed skill not reloaded")
+	}
+	req = httptest.NewRequest(http.MethodDelete, "/api/skills/user-check", nil)
+	rec = httptest.NewRecorder()
+	s.handleSkillByID(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := s.skillsStore().SourceOf("user-check"); ok {
+		t.Fatal("deleted skill still loaded")
+	}
+	// A seed cannot be removed.
+	req = httptest.NewRequest(http.MethodDelete, "/api/skills/pes-scan", nil)
+	rec = httptest.NewRecorder()
+	s.handleSkillByID(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("seed delete status = %d, want 400", rec.Code)
 	}
 }

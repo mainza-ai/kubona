@@ -225,3 +225,39 @@ func TestDisabledSkillLeavesPromptAndBodyButStaysVisibleInCatalog(t *testing.T) 
 		t.Fatal("re-enabled skill must return to the prompt")
 	}
 }
+
+func TestInstallValidateRemoveUserSkill(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(validSkill("installed-check", "installed check", "body"))
+	if _, fault := Validate(raw, "installed-check"); fault != nil {
+		t.Fatalf("validate: %+v", fault)
+	}
+	if err := Install(dir, "installed-check", raw); err != nil {
+		t.Fatal(err)
+	}
+	store := Load(Options{UserDir: dir})
+	if _, ok := store.SourceOf("installed-check"); !ok {
+		t.Fatal("installed skill not loaded")
+	}
+	if err := Remove(dir, "installed-check"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Load(Options{UserDir: dir}).SourceOf("installed-check"); ok {
+		t.Fatal("removed skill still loaded")
+	}
+	if err := Install(dir, "../escape", raw); err == nil {
+		t.Fatal("path traversal name must refuse")
+	}
+}
+
+func TestDisabledSkillSectionRefuses(t *testing.T) {
+	dir := t.TempDir()
+	writeSkill(t, dir, "section-check", validSkill("section-check", "section check", "## One\ntext"))
+	store := Load(Options{UserDir: dir})
+	if err := store.SetEnabled("section-check", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, fault := store.LoadSection("section-check", "copilot", "One"); fault == nil || !strings.Contains(fault.Detail, "disabled") {
+		t.Fatalf("disabled section must refuse, got %+v", fault)
+	}
+}

@@ -459,7 +459,7 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if s.skillStore == nil {
 				return nil, fmt.Errorf("skill_unknown: skill store is not loaded")
 			}
-			body, fault := s.skillStore.LoadSection(a.Name, CopilotRole, a.Section)
+			body, fault := s.skillsStore().LoadSection(a.Name, CopilotRole, a.Section)
 			if fault != nil {
 				return nil, fmt.Errorf("%s: %s", fault.Code, fault.Detail)
 			}

@@ -5,50 +5,102 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/mainza-ai/kubona/core/pkg/skills"
 )
 
-// handleSkills serves the body-free skill catalogue and the closed loader
-// faults. Reads are public and spend-free; skill bodies are never returned
-// here (load_skill is the only body path, and it is tool-gated).
+// handleSkills serves the body-free skill catalogue (GET) and installs one
+// user skill (POST). Reads are public and spend-free; bodies are never
+// returned here (load_skill is the only body path, and it is tool-gated).
 func (s *Server) handleSkills(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, s.skillsStore().Public(CopilotRole))
+	case http.MethodPost:
+		var req struct {
+			Name    string `json:"name"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "body must be {\"name\":\"...\",\"content\":\"SKILL.md\"}", http.StatusBadRequest)
+			return
+		}
+		name := strings.TrimSpace(req.Name)
+		if name == "" || strings.Contains(name, "/") {
+			http.Error(w, "skill name is required and cannot contain '/'", http.StatusBadRequest)
+			return
+		}
+		userDir := skills.DefaultUserDir()
+		if userDir == "" {
+			http.Error(w, "user skill directory is not configured", http.StatusInternalServerError)
+			return
+		}
+		if err := skills.Install(userDir, name, []byte(req.Content)); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := s.reloadSkills(); err != nil {
+			http.Error(w, fmt.Sprintf("reload skills: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "name": name})
+	default:
+		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
-	writeJSON(w, http.StatusOK, s.skillStore.Public(CopilotRole))
 }
 
-// handleSkillByID toggles one skill. The body is {enabled: bool}; the store
-// validates existence and the ledger persists the decision across restarts.
+// handleSkillByID toggles (PUT) or removes (DELETE) one user skill. Toggle
+// persists in the ledger; removal refuses embedded seed skills.
 func (s *Server) handleSkillByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.Header().Set("Allow", http.MethodPut)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	name := strings.TrimPrefix(r.URL.Path, "/api/skills/")
 	if name == "" || strings.Contains(name, "/") {
 		http.Error(w, "skill path is /api/skills/{name}", http.StatusBadRequest)
 		return
 	}
-	var req struct {
-		Enabled *bool `json:"enabled"`
+	switch r.Method {
+	case http.MethodPut:
+		var req struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Enabled == nil {
+			http.Error(w, "body must be {\"enabled\": true|false}", http.StatusBadRequest)
+			return
+		}
+		if _, ok := s.skillsStore().SourceOf(name); !ok {
+			http.Error(w, "unknown skill", http.StatusNotFound)
+			return
+		}
+		if err := s.ledger.SetSkillEnabled(name, *req.Enabled); err != nil {
+			http.Error(w, fmt.Sprintf("persist skill state: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if err := s.reloadSkills(); err != nil {
+			http.Error(w, fmt.Sprintf("reload skills: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "enabled": *req.Enabled})
+	case http.MethodDelete:
+		source, ok := s.skillsStore().SourceOf(name)
+		if !ok {
+			http.Error(w, "unknown skill", http.StatusNotFound)
+			return
+		}
+		if source != skills.SourceUser {
+			http.Error(w, "embedded seed skills cannot be removed", http.StatusBadRequest)
+			return
+		}
+		if err := skills.Remove(skills.DefaultUserDir(), name); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.reloadSkills(); err != nil {
+			http.Error(w, fmt.Sprintf("reload skills: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "removed": true})
+	default:
+		w.Header().Set("Allow", "PUT, DELETE")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Enabled == nil {
-		http.Error(w, "body must be {\"enabled\": true|false}", http.StatusBadRequest)
-		return
-	}
-	if err := s.skillStore.SetEnabled(name, *req.Enabled); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	if err := s.ledger.SetSkillEnabled(name, *req.Enabled); err != nil {
-		// Keep the in-process catalogue consistent with durable state: if
-		// the write fails, undo the optimistic store flip.
-		_ = s.skillStore.SetEnabled(name, !*req.Enabled)
-		http.Error(w, fmt.Sprintf("persist skill state: %v", err), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "enabled": *req.Enabled})
 }

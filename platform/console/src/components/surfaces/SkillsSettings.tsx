@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
-import { fetchSkills, toggleSkill, type SkillsCatalog } from '@/lib/api';
+import { fetchSkills, installSkill, removeSkill, toggleSkill, type SkillsCatalog } from '@/lib/api';
 
 type LoadState = 'loading' | 'ready' | 'unavailable';
 
@@ -11,6 +11,9 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
   const [state, setState] = useState<LoadState>('loading');
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [installName, setInstallName] = useState('');
+  const [installContent, setInstallContent] = useState('');
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +33,12 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
     };
   }, [load]);
 
+  const refresh = async () => {
+    const next = await load();
+    setCatalog(next);
+    setState(next ? 'ready' : 'unavailable');
+  };
+
   return (
     <section className="space-y-3" aria-labelledby="skills-settings-title">
       <header className="space-y-1">
@@ -42,6 +51,48 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
           tool.
         </p>
       </header>
+
+      <details className="rounded-control border border-border bg-surface px-3 py-2">
+        <summary className="cursor-pointer select-none text-label font-semibold text-text">Install a user skill</summary>
+        <div className="mt-2 space-y-1.5">
+          <input
+            aria-label="New skill name"
+            value={installName}
+            onChange={(event) => setInstallName(event.target.value)}
+            placeholder="skill-name"
+            className="w-full rounded-inset border border-border bg-field px-2 py-1 font-code text-label text-text placeholder:text-faint"
+          />
+          <textarea
+            aria-label="SKILL.md content"
+            value={installContent}
+            onChange={(event) => setInstallContent(event.target.value)}
+            rows={6}
+            placeholder={'---\nname: skill-name\ndescription: one line\nrole: copilot\ntools: get_anchor\n---\nbody'}
+            className="w-full rounded-inset border border-border bg-field px-2 py-1 font-code text-[12px] text-text placeholder:text-faint"
+          />
+          <button
+            type="button"
+            disabled={installing || !installName.trim() || !installContent.trim()}
+            onClick={async () => {
+              setInstalling(true);
+              setStatus(null);
+              const out = await installSkill(installName.trim(), installContent);
+              if (out.ok) {
+                setStatus(`Installed ${installName.trim()}.`);
+                setInstallName('');
+                setInstallContent('');
+                await refresh();
+              } else {
+                setStatus(out.error);
+              }
+              setInstalling(false);
+            }}
+            className="rounded-control-compact border border-border px-2 py-1 text-label text-label-secondary hover:text-text disabled:opacity-40"
+          >
+            {installing ? 'Installing…' : 'Install skill'}
+          </button>
+        </div>
+      </details>
 
       {state === 'loading' && (
         <p role="status" className="text-label-secondary text-body">
@@ -103,6 +154,27 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
                     >
                       {busy === skill.name ? 'Saving…' : skill.enabled ? 'Disable' : 'Enable'}
                     </button>
+                    {skill.source === 'user' && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={async () => {
+                          setBusy(skill.name);
+                          setStatus(null);
+                          const out = await removeSkill(skill.name);
+                          if (out.ok) {
+                            setStatus(`Removed ${skill.name}.`);
+                            await refresh();
+                          } else {
+                            setStatus(`${skill.name}: ${out.error}`);
+                          }
+                          setBusy(null);
+                        }}
+                        className="rounded-chip border border-danger-edge px-1.5 py-0.5 text-caption text-danger-ink hover:bg-danger-wash disabled:opacity-40"
+                      >
+                        Remove
+                      </button>
+                    )}
                     {skill.tools.map((tool) => (
                       <span
                         key={`${skill.name}-${tool}`}

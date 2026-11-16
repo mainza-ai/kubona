@@ -97,6 +97,8 @@ export const RESPONSE_SCHEMAS = {
     limits: obj({ max_skills: num, max_skill_bytes: num, max_description: num }),
   }),
   'skills.toggle': obj({ ok: bool, name: str, enabled: bool }),
+  'skills.install': obj({ ok: bool, name: str }),
+  'skills.remove': obj({ ok: bool, name: str, removed: bool }),
   'claim.provenance': obj({
     ok: bool,
     claim: any,

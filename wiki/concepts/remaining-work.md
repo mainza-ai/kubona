@@ -229,8 +229,9 @@ Landed in later slices:
   skills show the catalogue and every rejected file. `load_skill` accepts an
   optional section heading and returns only that part; unknown headings name
   the available sections, and headings are matched case-insensitively. See
-  [[workflows-and-agent-authoring]]. Remaining: no skill editor/installer UI,
-  and no per-skill enable/disable.
+  [[workflows-and-agent-authoring]]. The Settings surface now installs,
+  removes, enables, and disables user skills; disabled skills leave the
+  prompt and `load_skill` but remain visible for re-enable.
 - **Declared model capabilities (B13, 2026-11-14):** substring guessing
   removed; rate-card + OpenRouter metadata + Ollama `/api/show` are the only
   sources; reasoning effort normalized per provider/model and never sent to a

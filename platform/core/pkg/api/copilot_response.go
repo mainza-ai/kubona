@@ -41,7 +41,7 @@ Keep prose tight: short paragraphs, no preamble about what you are about to do.`
 func (s *Server) copilotSystemPrompt() string {
 	skillSection := ""
 	if s != nil && s.skillStore != nil {
-		skillSection = s.skillStore.PromptSection(CopilotRole)
+		skillSection = s.skillsStore().PromptSection(CopilotRole)
 	}
 	return copilotSystemPrompt + skillSection + "\n" + untrusted.SystemRule + "\n" + citationPromptRule
 }
