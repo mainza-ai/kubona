@@ -6569,3 +6569,9 @@ skipped is the exact failure this incident is about:
 
 - Added a raw form-control ratchet (46 files / 207 controls) and wired it into
   CI. The Field/Select/Toggle migration remains.
+
+## 2026-11-15 | cleanup | first form-primitive migration
+
+- Migrated RunAllowancePanel's five numeric controls to the shared Field
+  primitive; raw form-control debt fell 207 → 202. The rest of the migration
+  remains ratcheted.

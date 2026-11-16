@@ -38,7 +38,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Console: LCP/INP/heap/request-count gates.
 - [x] Console: raw-palette token baseline is 0.
 - [x] Console: raw-button ratchet (368 baseline, may only shrink).
-- [x] Console: form-control ratchet at 46 files / 207 controls (may only shrink).
+- [x] Console: form-control ratchet at 46 files / 202 controls (may only shrink).
 - [ ] Console: continue migrating forms to Field/Select/Toggle.
 - [ ] Console: per-component motion review.
 

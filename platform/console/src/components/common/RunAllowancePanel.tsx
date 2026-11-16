@@ -10,6 +10,7 @@ import {
 } from '@/lib/api';
 import { signWithCustody } from '@/lib/custody';
 import { useSharedResource } from '@/domain/shared-resource';
+import { Field } from '@/components/ui/Forms';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import { canonicalAllowanceScope, defaultAllowanceDraft, isoSeconds } from '@/lib/runAllowance';
 
@@ -153,41 +154,16 @@ export function RunAllowancePanel({
         <span className="k-allowance-sub">one signature · bounded · expiring</span>
       </div>
       <div className="k-allowance-grid">
-        <label>
-          <span>Per job $</span>
-          <input
-            type="number" min="0.01" step="0.01" value={draft.maxPerJobUsd}
-            onChange={(e) => setDraft((d) => ({ ...d, maxPerJobUsd: Number(e.target.value) }))}
-          />
-        </label>
-        <label>
-          <span>Total $</span>
-          <input
-            type="number" min="0.01" step="0.01" value={draft.maxTotalUsd}
-            onChange={(e) => setDraft((d) => ({ ...d, maxTotalUsd: Number(e.target.value) }))}
-          />
-        </label>
-        <label>
-          <span>Jobs</span>
-          <input
-            type="number" min="1" max="100" step="1" value={draft.maxJobs}
-            onChange={(e) => setDraft((d) => ({ ...d, maxJobs: Number(e.target.value) }))}
-          />
-        </label>
-        <label>
-          <span>Shots cap</span>
-          <input
-            type="number" min="1" step="1" value={draft.shotsCap}
-            onChange={(e) => setDraft((d) => ({ ...d, shotsCap: Number(e.target.value) }))}
-          />
-        </label>
-        <label>
-          <span>Hours</span>
-          <input
-            type="number" min="0.02" max="24" step="0.5" value={draft.ttlHours}
-            onChange={(e) => setDraft((d) => ({ ...d, ttlHours: Number(e.target.value) }))}
-          />
-        </label>
+        <Field label="Per job $" type="number" min="0.01" step="0.01" value={draft.maxPerJobUsd}
+          onChange={(e) => setDraft((d) => ({ ...d, maxPerJobUsd: Number(e.target.value) }))} />
+        <Field label="Total $" type="number" min="0.01" step="0.01" value={draft.maxTotalUsd}
+          onChange={(e) => setDraft((d) => ({ ...d, maxTotalUsd: Number(e.target.value) }))} />
+        <Field label="Jobs" type="number" min="1" max="100" step="1" value={draft.maxJobs}
+          onChange={(e) => setDraft((d) => ({ ...d, maxJobs: Number(e.target.value) }))} />
+        <Field label="Shots cap" type="number" min="1" step="1" value={draft.shotsCap}
+          onChange={(e) => setDraft((d) => ({ ...d, shotsCap: Number(e.target.value) }))} />
+        <Field label="Hours" type="number" min="0.02" max="24" step="0.5" value={draft.ttlHours}
+          onChange={(e) => setDraft((d) => ({ ...d, ttlHours: Number(e.target.value) }))} />
       </div>
       <button
         type="button"

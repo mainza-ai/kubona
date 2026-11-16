@@ -36,7 +36,7 @@ record on the owning pages.
 > OB-19 chart-series and campaign fact refs have landed. The raw-palette
 > baseline is now 0; the raw-button ratchet is enforced at 368 (may only
 > shrink); the coupling ratchet is at 54 files / 55 imports; the form-control
-> ratchet is at 46 files / 207 controls. Form migration and further coupling
+> ratchet is at 46 files / 202 controls. Form migration and further coupling
 > reduction remain. The last local HF surface toast
 > now routes through the single page toast slot. LCP/INP/heap/request-count
 > gates now run in the dense runtime budget spec. Proposal-dismiss

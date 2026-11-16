@@ -1,6 +1,6 @@
 {
   "files": 46,
-  "controls": 207,
+  "controls": 202,
   "entries": {
     "platform/console/src/components/CommandPalette.tsx": 1,
     "platform/console/src/components/CopilotDrawer.tsx": 6,
@@ -16,7 +16,7 @@
     "platform/console/src/components/common/HardwareLaunchPanel.tsx": 6,
     "platform/console/src/components/common/KeyRecoveryPanel.tsx": 5,
     "platform/console/src/components/common/LabOpsPanel.tsx": 6,
-    "platform/console/src/components/common/RunAllowancePanel.tsx": 6,
+    "platform/console/src/components/common/RunAllowancePanel.tsx": 1,
     "platform/console/src/components/common/SessionPortability.tsx": 1,
     "platform/console/src/components/common/SessionRefundPanel.tsx": 3,
     "platform/console/src/components/common/SystemReadinessPanel.tsx": 3,
