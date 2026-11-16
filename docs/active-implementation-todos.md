@@ -15,7 +15,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Attention Director wiring for notification severities.
 - [x] Live-run toast duplication removed (single polite region).
 - [ ] Remaining per-surface toast/chip dedupe.
-- [ ] Proposal-dismiss reasons used in ranking.
+- [x] Proposal-dismiss reasons consumed by proposal generation (prompt signal).
 - [x] Skill authoring/installer UI.
 - [x] Live `eval-llm` model invocation (explicit provider/model).
 - [x] General ledger-write secret screening.

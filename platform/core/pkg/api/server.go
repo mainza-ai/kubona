@@ -3010,7 +3010,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 
 	// History mirrors generateCopilotResponse (same system contract).
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
-	history := []llm.ChatMessage{{Role: "system", Content: s.copilotSystemPrompt()}}
+	history := []llm.ChatMessage{{Role: "system", Content: s.copilotSystemPrompt() + s.proposalDismissalContext(sessionID)}}
 	for _, m := range recentMsgs {
 		if m.Role == "user" || m.Role == "assistant" {
 			history = append(history, llm.ChatMessage{Role: m.Role, Content: m.Content})
@@ -3490,11 +3490,34 @@ func triggerLabel(kind, text string) string {
 	return kind + ":" + t
 }
 
+// proposalDismissalContext is the feedback consumer for dismissed plans: the
+// copilot sees the operator's reasons before proposing again, so the same
+// rejected shape is less likely to repeat. It never asserts a ranking score.
+func (s *Server) proposalDismissalContext(sessionID string) string {
+	if s == nil || s.ledger == nil || sessionID == "" {
+		return ""
+	}
+	rows, err := s.ledger.RecentProposalDismissals(sessionID, 5)
+	if err != nil || len(rows) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nRecent proposal dismissals in this session (avoid repeating the same plan; honor the operator's reason):\n")
+	for _, row := range rows {
+		reason := strings.TrimSpace(row.Reason)
+		if reason == "" {
+			reason = "no reason recorded"
+		}
+		fmt.Fprintf(&b, "- proposal %s: %s\n", row.ProposalID, reason)
+	}
+	return b.String()
+}
+
 func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, []ToolObservation, error) { // 1. Fetch recent messages for session context
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
 	var history []llm.ChatMessage
 
-	sysPrompt := s.copilotSystemPrompt()
+	sysPrompt := s.copilotSystemPrompt() + s.proposalDismissalContext(sessionID)
 	history = append(history, llm.ChatMessage{Role: "system", Content: sysPrompt})
 	for _, m := range recentMsgs {
 		if m.Role == "user" || m.Role == "assistant" {

@@ -171,9 +171,10 @@ Additional landed 2026-11-15:
   leaves the prompt and `load_skill` surface but stays visible in Settings so
   it can be re-enabled; the decision persists across restarts.
 
-Still open: proposal-dismiss reasons used in ranking, remaining per-surface
-toast/chip dedupe, and P2 metrics/learning policy. Skill authoring/installer
-and the live-run announcement path have landed.
+Still open: remaining per-surface toast/chip dedupe and P2 metrics/learning
+policy. Proposal-dismiss reasons now feed the copilot prompt as a generation
+signal (not a numeric ranking score). Skill authoring/installer and the
+live-run announcement path have landed.
 
 ## Implementation plan
 

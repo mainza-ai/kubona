@@ -175,6 +175,42 @@ func (l *Ledger) AttachProposalJob(id, jobID string) error {
 	return err
 }
 
+// ProposalDismissal is one recorded operator reason for rejecting a plan.
+type ProposalDismissal struct {
+	ProposalID string
+	Reason     string
+	CreatedAt  string
+}
+
+// RecentProposalDismissals returns newest-first dismissal reasons for a
+// session. The copilot prompt consumes these as a ranking signal; they are
+// not a verdict on any future plan.
+func (l *Ledger) RecentProposalDismissals(sessionID string, limit int) ([]ProposalDismissal, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 5
+	}
+	events, err := l.GetRecentEvents(sessionID, 200)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ProposalDismissal, 0, limit)
+	for _, event := range events {
+		if event.EventType != "proposal_dismissed" {
+			continue
+		}
+		var payload struct {
+			ProposalID string `json:"proposal_id"`
+			Reason     string `json:"reason"`
+		}
+		_ = json.Unmarshal(event.Payload, &payload)
+		out = append(out, ProposalDismissal{ProposalID: payload.ProposalID, Reason: payload.Reason, CreatedAt: event.Timestamp})
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 // ListProposals returns a session's proposals newest first. The body is kept
 // so the history surface can show the target/spend without a second read.
 func (l *Ledger) ListProposals(sessionID string, limit int) ([]Proposal, error) {

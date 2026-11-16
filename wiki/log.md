@@ -6525,3 +6525,10 @@ skipped is the exact failure this incident is about:
   not loops). They are explicitly out of scope for run parts until a real run
   rail owns them; fabricating a loop would be theater.
 - Closed OB-20 as out of scope.
+
+## [2026-11-15] decision | dismissals feed proposal generation
+
+- Recent `proposal_dismissed` reasons are read back into the copilot system
+  prompt for the session, so a re-proposal sees the operator's reasons. This
+  is a generation signal, not an invented numeric ranking score.
+- Added ledger/helper coverage.
