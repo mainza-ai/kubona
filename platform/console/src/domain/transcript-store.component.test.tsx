@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
 import { useTranscript } from './transcript-store';
 import type { ChatMessage } from '@/types';
 
@@ -13,12 +13,11 @@ function Probe({ id }: { id: string }) {
   );
 }
 
-describe('transcript store', () => {
-  it('shares messages between simultaneous consumers', () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    act(() => { tree = TestRenderer.create(<><Probe id="a" /><Probe id="b" /></>); });
-    const buttons = tree!.root.findAllByType('button');
-    act(() => { buttons[0].props.onClick(); });
-    expect(tree!.root.findAllByType('button').map((button) => button.props.children)).toEqual([1, 1]);
+describe('transcript store in a real browser', () => {
+  it('shares messages between simultaneous consumers', async () => {
+    const screen = await render(<><Probe id="a" /><Probe id="b" /></>);
+    const buttons = screen.getByRole('button').elements();
+    await buttons[0].click();
+    await expect.poll(() => buttons.map((button) => button.textContent)).toEqual(['1', '1']);
   });
 });

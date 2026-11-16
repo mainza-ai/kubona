@@ -6642,3 +6642,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated RenderBoundary to a real-browser component test; renderer ratchet
   fell 84 → 83.
+
+## 2026-11-15 | cleanup | thirteenth renderer migration
+
+- Migrated transcript-store to a real-browser component test; renderer
+  ratchet fell 83 → 82.
