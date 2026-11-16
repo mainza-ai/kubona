@@ -65,3 +65,37 @@ func TestNotificationProjectionDerivesTerminalEventsAndState(t *testing.T) {
 		t.Fatalf("resolved notification still listed: %+v", rows)
 	}
 }
+
+func TestNotificationPreferencesFilterMutedKindsAndPersistQuiet(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/notification-prefs.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	const sid = "sess-prefs"
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, 'n', 'default', ?, ?, 'active', 0, 0)`,
+		sid, time.Now().UTC(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AppendEvent(sid, "job_settled", map[string]any{"id": "job-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.AppendEvent(sid, "loop_completed", map[string]any{"loop_id": "loop-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetNotificationPrefs(sid, true, []string{"run"}); err != nil {
+		t.Fatal(err)
+	}
+	prefs, err := l.GetNotificationPrefs(sid)
+	if err != nil || !prefs.Quiet || len(prefs.MutedKinds) != 1 || prefs.MutedKinds[0] != "run" {
+		t.Fatalf("prefs=%+v err=%v", prefs, err)
+	}
+	s := &Server{ledger: l}
+	rows, unread, err := s.notificationList(sid, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Kind != "job" || unread != 1 {
+		t.Fatalf("muted run must be omitted: rows=%+v unread=%d", rows, unread)
+	}
+}

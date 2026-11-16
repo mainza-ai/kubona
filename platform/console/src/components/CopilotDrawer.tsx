@@ -103,6 +103,9 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [reasonDrafts, setReasonDrafts] = useState<Record<string, string>>({});
+  const [dismissTarget, setDismissTarget] = useState<ChatMessage | null>(null);
+  const [dismissReason, setDismissReason] = useState('');
   const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -139,6 +142,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     regenerating,
     rewriting,
     votes,
+    feedbackReasons,
     canRegenerate,
     targetSystem,
     targetDisplayName,
@@ -328,13 +332,25 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             This plan is not launchable: {m.proposal_error}
           </div>
         ) : (
-          <button
-            onClick={() => void chat.launchProposal(m)}
-            disabled={launchingId === m.id}
-            className="w-full py-1.5 px-3 rounded-row bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-50"
-          >
-            {launchingId === m.id ? 'Dispatching…' : 'Launch plan'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => void chat.launchProposal(m)}
+              disabled={launchingId === m.id}
+              className="flex-1 py-1.5 px-3 rounded-row bg-accent-soft hover:bg-accent hover:text-on-accent border border-accent-edge text-accent-ink text-[12px] font-semibold transition-[color,background-color,border-color,box-shadow,opacity,transform,filter] disabled:opacity-50"
+            >
+              {launchingId === m.id ? 'Dispatching…' : 'Launch plan'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissTarget(m);
+                setDismissReason('');
+              }}
+              className="rounded-row border border-border px-3 py-1.5 text-[12px] text-label-secondary hover:bg-fill hover:text-text"
+            >
+              Dismiss
+            </button>
+          </div>
         )}
       </div>
     );
@@ -671,6 +687,38 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                   </>
                 )}
               </div>
+
+              {!isUser && votes[m.id] === 'down' && (
+                <div className="mt-1 w-full max-w-[92%] rounded-row border border-border bg-surface px-2 py-1.5">
+                  <label className="block text-[11px] text-muted">
+                    Why was this not helpful? (optional)
+                    <input
+                      aria-label="Feedback reason"
+                      maxLength={500}
+                      value={reasonDrafts[m.id] ?? feedbackReasons[m.id] ?? ''}
+                      onChange={(event) => setReasonDrafts((prev) => ({ ...prev, [m.id]: event.target.value }))}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          void chat.setFeedbackReason(m.id, reasonDrafts[m.id] ?? feedbackReasons[m.id] ?? '');
+                        }
+                      }}
+                      placeholder="What was wrong or missing?"
+                      className="mt-1 w-full rounded-control-compact border border-border bg-field px-2 py-1 text-[12px] text-text placeholder:text-faint"
+                    />
+                  </label>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-faint">Recorded for review; not yet used for ranking.</span>
+                    <button
+                      type="button"
+                      onClick={() => void chat.setFeedbackReason(m.id, reasonDrafts[m.id] ?? feedbackReasons[m.id] ?? '')}
+                      className="rounded-control-compact border border-border px-2 py-0.5 text-[11px] text-label-secondary hover:text-text"
+                    >
+                      Save reason
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {editingId === m.id && isUser ? (
                 <div className="w-full max-w-[92%] rounded-card bg-surface border border-accent-edge p-2.5 space-y-2 self-end">
@@ -1117,6 +1165,37 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             <span className="text-[12px] text-muted font-code">Autonomous AI Swarm · Local-first</span>
           </div>
         </div>
+      )}
+
+      {dismissTarget && (
+        <ConfirmDialog
+          open
+          title="Dismiss this plan?"
+          body={
+            <div className="space-y-2">
+              <p>The plan stays in the transcript; the server records the decision and reason.</p>
+              <label className="block text-label text-muted">
+                Reason (optional)
+                <input
+                  aria-label="Proposal dismissal reason"
+                  maxLength={500}
+                  value={dismissReason}
+                  onChange={(event) => setDismissReason(event.target.value)}
+                  placeholder="Why is this plan not worth pursuing?"
+                  className="mt-1 block w-full rounded-inset border border-border bg-field px-2 py-1.5 text-body-strong text-text placeholder:text-faint"
+                />
+              </label>
+            </div>
+          }
+          confirmLabel="Dismiss plan"
+          danger
+          onConfirm={async () => {
+            const target = dismissTarget;
+            setDismissTarget(null);
+            await chat.dismissProposal(target, dismissReason);
+          }}
+          onCancel={() => setDismissTarget(null)}
+        />
       )}
 
       {clearConfirmOpen && (

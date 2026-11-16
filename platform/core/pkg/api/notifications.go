@@ -27,6 +27,11 @@ type Notification struct {
 	ResolvedAt string `json:"resolved_at,omitempty"`
 }
 
+var notificationKinds = map[string]bool{
+	"job": true, "run": true, "proposal": true, "claim": true,
+	"workflow": true, "memory": true, "allowance": true, "obligation": true,
+}
+
 func notificationForEvent(e ledger.EventRecord) (Notification, bool) {
 	var p map[string]any
 	_ = json.Unmarshal(e.Payload, &p)
@@ -103,6 +108,14 @@ func (s *Server) notificationList(sessionID string, limit int) ([]Notification, 
 	if err != nil {
 		return nil, 0, err
 	}
+	prefs, err := s.ledger.GetNotificationPrefs(sessionID)
+	if err != nil {
+		return nil, 0, err
+	}
+	muted := make(map[string]bool, len(prefs.MutedKinds))
+	for _, kind := range prefs.MutedKinds {
+		muted[kind] = true
+	}
 	events, err := s.ledger.GetRecentEvents(sessionID, 300)
 	if err != nil {
 		return nil, 0, err
@@ -116,7 +129,7 @@ func (s *Server) notificationList(sessionID string, limit int) ([]Notification, 
 		if st, ok := states[n.Key]; ok {
 			n.ReadAt, n.ResolvedAt = st.ReadAt, st.ResolvedAt
 		}
-		if n.ResolvedAt != "" {
+		if n.ResolvedAt != "" || muted[n.Kind] {
 			continue
 		}
 		out = append(out, n)
@@ -133,7 +146,7 @@ func (s *Server) notificationList(sessionID string, limit int) ([]Notification, 
 			if st, ok := states[key]; ok {
 				n.ReadAt, n.ResolvedAt = st.ReadAt, st.ResolvedAt
 			}
-			if n.ResolvedAt == "" {
+			if n.ResolvedAt == "" && !muted[n.Kind] {
 				out = append(out, n)
 			}
 		}
@@ -190,8 +203,10 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "internal", "notification read failed", nil)
 			return
 		}
+		prefs, _ := s.ledger.GetNotificationPrefs(sessionID)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"session_id": sessionID, "notifications": rows, "unread": unread,
+			"preferences":  prefs,
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		})
 	case http.MethodPost:
@@ -223,4 +238,55 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (s *Server) handleNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if r.Method == http.MethodGet {
+		if sessionID == "" {
+			WriteAPIError(w, "bad_request", "session_id is required", nil)
+			return
+		}
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
+		prefs, err := s.ledger.GetNotificationPrefs(sessionID)
+		if err != nil {
+			WriteAPIError(w, "internal", "notification preferences read failed", nil)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "preferences": prefs})
+		return
+	}
+	if r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		SessionID  string   `json:"session_id"`
+		Quiet      bool     `json:"quiet"`
+		MutedKinds []string `json:"muted_kinds"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid notification preferences: %v", err), nil)
+		return
+	}
+	if req.SessionID == "" {
+		req.SessionID = sessionID
+	}
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
+	for _, kind := range req.MutedKinds {
+		if !notificationKinds[kind] {
+			WriteAPIError(w, "bad_request", "unknown notification kind: "+kind, nil)
+			return
+		}
+	}
+	if err := s.ledger.SetNotificationPrefs(req.SessionID, req.Quiet, req.MutedKinds); err != nil {
+		WriteAPIError(w, "internal", err.Error(), nil)
+		return
+	}
+	prefs, _ := s.ledger.GetNotificationPrefs(req.SessionID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "preferences": prefs})
 }

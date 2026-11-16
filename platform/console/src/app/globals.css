@@ -1950,6 +1950,14 @@ dialog::backdrop {
 .k-run-steer-row button:disabled { opacity: 0.45; cursor: default; }
 .k-run-steer [role="status"] { font-size: 11px; color: var(--color-muted); }
 .k-run-steer [role="status"][data-state="error"] { color: var(--color-warning-ink); }
+.k-run-steer-pending { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.k-run-steer-pending > li { padding: 3px 5px; border: 1px solid var(--color-border); border-radius: var(--radius-chip); background: var(--color-surface); }
+.k-run-steer-pending-row, .k-run-steer-edit { display: flex; align-items: center; gap: 5px; }
+.k-run-steer-pending-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-label-secondary); }
+.k-run-steer-pending button, .k-run-steer-edit button { border: 1px solid var(--color-border); border-radius: var(--radius-chip); background: transparent; color: var(--color-muted); font-size: 11px; padding: 1px 5px; }
+.k-run-steer-pending button:hover, .k-run-steer-edit button:hover { color: var(--color-text); }
+.k-run-steer-pending button:disabled, .k-run-steer-edit button:disabled { opacity: 0.45; cursor: default; }
+.k-run-steer-edit input { flex: 1; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-chip); background: var(--color-field); color: var(--color-text); font-size: 11px; padding: 2px 5px; }
 
 /* D2: semantic button states. */
 .k-button-danger { background: var(--color-danger-wash); border-color: var(--color-danger-edge); color: var(--color-danger-ink); }

@@ -393,6 +393,15 @@ func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
 		t.Fatalf("invalid started loop: %+v", startResp)
 	}
 
+	// 2b. Queue a steering instruction for the LLM agent loop.
+	steerBody, _ := json.Marshal(map[string]any{"text": "prefer shorter ansatz circuits"})
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/loops/"+startResp.ID+"/steer", bytes.NewReader(steerBody))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for autoresearch steer, got %d: %s", w.Code, w.Body.String())
+	}
+
 	// 3. List Loops
 	req = httptest.NewRequest(http.MethodGet, "/api/autoresearch/loops", nil)
 	w = httptest.NewRecorder()

@@ -89,6 +89,8 @@ var KnownEventTypes = map[string]bool{
 	"loop_settled":                      true,
 	"loop_snapshot_saved":               true,
 	"loop_spend_released":               true,
+	"loop_steer_canceled":               true,
+	"loop_steer_updated":                true,
 	"loop_steered":                      true,
 	"loop_stalled_timeout":              true,
 	"mandate_verified_client":           true,

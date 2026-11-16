@@ -20,6 +20,7 @@ describe('NotificationCenter in a real browser', () => {
   it('lists notifications, marks them read, and resolves one', async () => {
     const onMarkRead = vi.fn();
     const onResolve = vi.fn();
+    const onUpdatePrefs = vi.fn();
     const screen = await render(
       <NotificationCenter
         open
@@ -28,6 +29,8 @@ describe('NotificationCenter in a real browser', () => {
         onClose={vi.fn()}
         onMarkRead={onMarkRead}
         onResolve={onResolve}
+        prefs={{ quiet: false, muted_kinds: [] }}
+        onUpdatePrefs={onUpdatePrefs}
       />,
     );
     await expect.element(screen.getByText('Job d2fae5e8 completed')).toBeVisible();
@@ -36,6 +39,9 @@ describe('NotificationCenter in a real browser', () => {
     expect(onMarkRead).toHaveBeenCalledWith(['event:1', 'obligation:ob-1']);
     await screen.getByRole('button', { name: 'Resolve notification obligation:ob-1' }).click();
     expect(onResolve).toHaveBeenCalledWith('obligation:ob-1');
+    await screen.getByText('Delivery preferences').click();
+    await screen.getByLabelText('Quiet mode (keep inbox, suppress badge/announcement)').click();
+    expect(onUpdatePrefs).toHaveBeenCalledWith({ quiet: true, muted_kinds: [] });
   });
 
   it('shows an honest empty state', async () => {
@@ -47,6 +53,8 @@ describe('NotificationCenter in a real browser', () => {
         onClose={vi.fn()}
         onMarkRead={vi.fn()}
         onResolve={vi.fn()}
+        prefs={{ quiet: false, muted_kinds: [] }}
+        onUpdatePrefs={vi.fn()}
       />,
     );
     await expect.element(screen.getByText(/No notifications yet/)).toBeVisible();

@@ -1350,6 +1350,27 @@
         "state"
       ]
     },
+    "loop_steer_canceled": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A queued operator steer was cancelled before the boundary.",
+      "required": [
+        "loop_id",
+        "steer_id"
+      ]
+    },
+    "loop_steer_updated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A queued operator steer was edited before the boundary.",
+      "required": [
+        "loop_id",
+        "steer_id",
+        "text"
+      ]
+    },
     "loop_steered": {
       "emitters": [
         "go"

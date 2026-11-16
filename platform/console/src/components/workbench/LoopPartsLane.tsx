@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import { steerLoop } from '@/lib/api';
+import React, { useEffect, useState } from 'react';
+import { cancelLoopSteer, fetchLoopSteers, steerLoop, updateLoopSteer } from '@/lib/api';
 import { useLoopParts } from '@/domain/useLoopParts';
 import { activePart, columnsOf } from '@/lib/run-columns';
 import { needSentence } from '@/lib/need';
-import type { LoopPart } from '@/types';
+import type { LoopPart, LoopSteer } from '@/types';
 
 /**
  * C1 — the run lane inside an agent-run card: time-ordered helper columns,
@@ -105,6 +105,24 @@ function LoopSteerBox({ loopId, active, partsCount }: { loopId: string; active: 
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [steers, setSteers] = useState<LoopSteer[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const reload = async () => {
+    setSteers(await fetchLoopSteers(loopId));
+  };
+
+  useEffect(() => {
+    let live = true;
+    fetchLoopSteers(loopId).then((items) => {
+      if (live) setSteers(items);
+    });
+    return () => {
+      live = false;
+    };
+  }, [loopId, partsCount]);
+
   const submit = async () => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -114,12 +132,45 @@ function LoopSteerBox({ loopId, active, partsCount }: { loopId: string; active: 
     if (out.ok) {
       setReceipt(`Queued (${out.steer.id.slice(0, 8)}) — applied at the next step boundary.`);
       setText('');
+      await reload();
     } else {
       setReceipt(null);
       setError(out.error);
     }
     setBusy(false);
   };
+
+  const saveEdit = async (steerId: string) => {
+    const trimmed = editText.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setError(null);
+    const out = await updateLoopSteer(loopId, steerId, trimmed);
+    if (out.ok) {
+      setReceipt(`Updated (${steerId.slice(0, 8)}) — the next boundary sees the edited instruction.`);
+      setEditingId(null);
+      setEditText('');
+      await reload();
+    } else {
+      setError(out.error);
+    }
+    setBusy(false);
+  };
+
+  const cancel = async (steerId: string) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const out = await cancelLoopSteer(loopId, steerId);
+    if (out.ok) {
+      setReceipt(`Cancelled (${steerId.slice(0, 8)}) — it will not apply.`);
+      await reload();
+    } else {
+      setError(out.error);
+    }
+    setBusy(false);
+  };
+
   return (
     <div className="k-run-steer" data-testid="run-steer">
       <div className="k-run-steer-context">
@@ -147,6 +198,57 @@ function LoopSteerBox({ loopId, active, partsCount }: { loopId: string; active: 
           {busy ? 'Queueing…' : 'Steer run'}
         </button>
       </div>
+      {steers.length > 0 && (
+        <ul className="k-run-steer-pending" aria-label="Queued steering instructions">
+          {steers.map((steer) => (
+            <li key={steer.id} data-testid={`queued-steer-${steer.id}`}>
+              {editingId === steer.id ? (
+                <span className="k-run-steer-edit">
+                  <input
+                    aria-label="Edit queued steering instruction"
+                    value={editText}
+                    maxLength={500}
+                    onChange={(event) => setEditText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void saveEdit(steer.id);
+                      }
+                      if (event.key === 'Escape') {
+                        setEditingId(null);
+                        setEditText('');
+                      }
+                    }}
+                  />
+                  <button type="button" disabled={busy || !editText.trim()} onClick={() => void saveEdit(steer.id)}>
+                    Save
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => { setEditingId(null); setEditText(''); }}>
+                    Cancel edit
+                  </button>
+                </span>
+              ) : (
+                <span className="k-run-steer-pending-row">
+                  <span className="k-run-steer-pending-text">{steer.text}</span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setEditingId(steer.id);
+                      setEditText(steer.text);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => void cancel(steer.id)}>
+                    Cancel
+                  </button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {receipt && <p role="status" data-testid="run-steer-receipt">{receipt}</p>}
       {error && <p role="status" data-state="error" data-testid="run-steer-error">{error}</p>}
     </div>

@@ -9,6 +9,7 @@ import { useAuthPhase } from '@/domain/auth-state';
 import {
   clearMessages,
   createSession,
+  dismissProposal,
   fetchCampaignState,
   fetchJobs,
   fetchChatFeedback,
@@ -98,6 +99,7 @@ export function useCopilotChat({
   const [clearing, setClearing] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const [feedbackReasons, setFeedbackReasons] = useState<Record<string, string>>({});
   const [rewriting, setRewriting] = useState(false);
 
   const lastRequestIdRef = useRef<string | null>(null);
@@ -133,10 +135,15 @@ export function useCopilotChat({
       fetchChatFeedback(sessionId).then((rows) => {
         if (!live || !mountedRef.current) return;
         const next: Record<string, 'up' | 'down'> = {};
+        const reasons: Record<string, string> = {};
         for (const row of rows) {
-          if (row.vote === 'up' || row.vote === 'down') next[row.message_id] = row.vote;
+          if (row.vote === 'up' || row.vote === 'down') {
+            next[row.message_id] = row.vote;
+            if (row.reason) reasons[row.message_id] = row.reason;
+          }
         }
         setVotes(next);
+        setFeedbackReasons(reasons);
       });
     }
     return () => {
@@ -279,6 +286,35 @@ export function useCopilotChat({
     } finally {
       setLaunchingId(null);
     }
+  };
+
+  const runDismissProposal = async (message: ChatMessage, reason: string) => {
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
+    let proposalId = message.proposal_id;
+    if (!proposalId) {
+      const minted = await mintProposal(activeSessionId, 'message', { messageId: message.id });
+      if (!minted.ok) {
+        setLaunchedNote((prev) => ({ ...prev, [message.id]: `No dismissable plan: ${minted.error}` }));
+        return;
+      }
+      proposalId = minted.proposal.id;
+    }
+    const out = await dismissProposal(proposalId, reason);
+    if (!out.ok) {
+      setLaunchedNote((prev) => ({ ...prev, [message.id]: `Dismiss refused: ${out.error}` }));
+      return;
+    }
+    setLaunchedNote((prev) => ({
+      ...prev,
+      [message.id]: `Dismissed: plan ${proposalId.slice(0, 8)}${reason.trim() ? ' · reason recorded' : ''}`,
+    }));
+    onExperimentLaunched?.();
   };
 
   const launchLast = async () => {
@@ -691,7 +727,11 @@ export function useCopilotChat({
     }
   };
 
-  const vote = async (messageId: string, nextVote: 'up' | 'down') => {
+  const persistVote = async (
+    messageId: string,
+    nextVote: 'up' | 'down' | '',
+    reason: string,
+  ) => {
     const active = await getActiveSessionId();
     if (active === null) return;
     if (isNeedsLogin(active)) {
@@ -699,22 +739,33 @@ export function useCopilotChat({
       return;
     }
     const activeSessionId = active.id;
-    const previous = votes[messageId];
-    // Clicking the active vote clears it; otherwise it replaces the vote.
-    const persistedVote: 'up' | 'down' | '' = previous === nextVote ? '' : nextVote;
+    const previousVote = votes[messageId];
+    const previousReason = feedbackReasons[messageId] ?? '';
     setVotes((prev) => {
       const next = { ...prev };
-      if (persistedVote === '') delete next[messageId];
-      else next[messageId] = persistedVote;
+      if (nextVote === '') delete next[messageId];
+      else next[messageId] = nextVote;
+      return next;
+    });
+    setFeedbackReasons((prev) => {
+      const next = { ...prev };
+      if (nextVote === 'down' && reason.trim()) next[messageId] = reason.trim();
+      else delete next[messageId];
       return next;
     });
     const requestId = feedbackWrite.begin('chat feedback');
-    const out = await sendFeedback(activeSessionId, messageId, persistedVote);
+    const out = await sendFeedback(activeSessionId, messageId, nextVote, reason);
     if (!out.ok) {
       feedbackWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
       setVotes((prev) => {
         const next = { ...prev };
-        if (previous) next[messageId] = previous;
+        if (previousVote) next[messageId] = previousVote;
+        else delete next[messageId];
+        return next;
+      });
+      setFeedbackReasons((prev) => {
+        const next = { ...prev };
+        if (previousReason) next[messageId] = previousReason;
         else delete next[messageId];
         return next;
       });
@@ -722,6 +773,18 @@ export function useCopilotChat({
     } else {
       feedbackWrite.applied(requestId, out.cleared ? 'feedback cleared' : 'feedback recorded');
     }
+  };
+
+  const vote = async (messageId: string, nextVote: 'up' | 'down') => {
+    const previous = votes[messageId];
+    // Clicking the active vote clears it; otherwise it replaces the vote.
+    const persistedVote: 'up' | 'down' | '' = previous === nextVote ? '' : nextVote;
+    await persistVote(messageId, persistedVote, '');
+  };
+
+  const setFeedbackReason = async (messageId: string, reason: string) => {
+    if (votes[messageId] !== 'down') return;
+    await persistVote(messageId, 'down', reason);
   };
 
   const rewriteSave = async (messageId: string, draft: string): Promise<boolean> => {
@@ -830,6 +893,7 @@ export function useCopilotChat({
     regenerating,
     rewriting,
     votes,
+    feedbackReasons,
     canRegenerate,
     targetSystem,
     targetDisplayName,
@@ -842,6 +906,7 @@ export function useCopilotChat({
     conveneTribunal,
     launchLast,
     launchProposal: runLaunchProposal,
+    dismissProposal: runDismissProposal,
     runFollowUp,
     attach,
     detach,
@@ -849,6 +914,7 @@ export function useCopilotChat({
     confirmClearChat,
     regenerate,
     vote,
+    setFeedbackReason,
     rewriteSave,
     setErrorMessage,
     onMaterialize,

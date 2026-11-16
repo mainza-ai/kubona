@@ -150,9 +150,30 @@ Landed:
 - **Tests:** vote ledger upsert/hydration/clear, notification derivation and
   read/resolve, notification-center browser tests, invalidation mapping.
 
-Still open: feedback reason UI, claim-review verdict rule, proposal dismiss UI
-reason/ranking, server-synced notification preferences/quiet routing,
-Attention Director wiring for all producers, and P2 metrics/learning policy.
+Additional landed 2026-11-15:
+
+- **Feedback reason UI and proposal dismiss UI.** A downvote exposes an
+  optional reason field that persists and hydrates; the proposal card opens a
+  typed confirmation with an optional dismissal reason. Both call the existing
+  actor/reason APIs.
+- **Notification preferences.** `GET/PUT /api/notifications/preferences`
+  stores quiet mode and muted kinds per session; the Notification Center
+  exposes the controls, quiet suppresses the badge/announcer, and muted kinds
+  leave the derived inbox.
+- **Claim-review policy decided: advisory permanently.** Reviews remain
+  recorded, listed, and notified via `peer_review`; they never mutate the
+  verdict. This is now a decision, not an open question.
+- **Steering.** Queued supervisor steers can be edited/cancelled before the
+  boundary. The autoresearch LLM loop now reads pending instructions into its
+  next proposal prompt and marks them applied only after a model turn actually
+  carried them; the deterministic fallback never claims consumption.
+- **Skill enable/disable.** Operators can disable an installed skill; it
+  leaves the prompt and `load_skill` surface but stays visible in Settings so
+  it can be re-enabled; the decision persists across restarts.
+
+Still open: proposal-dismiss reasons used in ranking, Attention Director
+wiring for all producers, one polite live-region batch with duplicate-surface
+removal, skill authoring/installer UI, and P2 metrics/learning policy.
 
 ## Implementation plan
 

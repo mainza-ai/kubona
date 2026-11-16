@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -54,6 +55,7 @@ type Skill struct {
 	Role        string   `json:"role"`
 	Tools       []string `json:"tools"`
 	Source      Source   `json:"source"`
+	Enabled     bool     `json:"enabled"`
 	Body        string   `json:"-"`
 }
 
@@ -103,9 +105,11 @@ type Catalog struct {
 // Store is the loaded, immutable skill set. Load once at startup; a reload is
 // a new Store, never a mutation under readers.
 type Store struct {
-	skills []Skill
-	faults []Fault
-	byName map[string]Skill
+	mu       sync.RWMutex
+	skills   []Skill
+	faults   []Fault
+	byName   map[string]Skill
+	disabled map[string]bool
 }
 
 // Options controls loading. UserDir may be empty to load seeds only.
@@ -133,7 +137,7 @@ var seedFS embed.FS
 // absent user directory is normal (no fault); every malformed entry becomes a
 // fault and the rest still load.
 func Load(opts Options) *Store {
-	s := &Store{byName: map[string]Skill{}}
+	s := &Store{byName: map[string]Skill{}, disabled: map[string]bool{}}
 	s.loadFS(seedFS, "seeds", SourceSeed)
 	if opts.UserDir != "" {
 		s.loadDir(opts.UserDir)
@@ -319,6 +323,47 @@ func parse(raw []byte, dirName string, source Source) (Skill, *Fault) {
 }
 
 // Public returns the role-filtered catalogue without bodies or paths.
+// SetDisabled replaces the operator-disabled set. Unknown names are ignored:
+// a stale persisted row must not hide a newly installed skill.
+func (s *Store) SetDisabled(names []string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.disabled = make(map[string]bool, len(names))
+	for _, name := range names {
+		if _, ok := s.byName[name]; ok {
+			s.disabled[name] = true
+		}
+	}
+}
+
+// SetEnabled flips one skill and reports whether it exists. The caller
+// persists the decision; the store only owns the in-process view.
+func (s *Store) SetEnabled(name string, enabled bool) error {
+	if s == nil {
+		return fmt.Errorf("skill store unavailable")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.byName[name]; !ok {
+		return fmt.Errorf("unknown skill: %s", name)
+	}
+	if enabled {
+		delete(s.disabled, name)
+	} else {
+		s.disabled[name] = true
+	}
+	return nil
+}
+
+func (s *Store) isDisabled(name string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.disabled[name]
+}
+
 func (s *Store) Public(role string) Catalog {
 	out := Catalog{Skills: []Skill{}, Faults: []Fault{}, Limits: advertisedLimits}
 	if s == nil {
@@ -330,6 +375,7 @@ func (s *Store) Public(role string) Catalog {
 			continue
 		}
 		skill.Body = ""
+		skill.Enabled = !s.isDisabled(skill.Name)
 		out.Skills = append(out.Skills, skill)
 	}
 	return out
@@ -342,6 +388,9 @@ func (s *Store) ForRole(role string) []Skill {
 	}
 	var out []Skill
 	for _, skill := range s.skills {
+		if s.isDisabled(skill.Name) {
+			continue
+		}
 		if role == "" || skill.Role == role {
 			out = append(out, skill)
 		}
@@ -376,6 +425,9 @@ func (s *Store) LoadBody(name, role string) (string, *Fault) {
 	skill, ok := s.byName[name]
 	if !ok || (role != "" && skill.Role != role) {
 		return "", &Fault{Code: FaultUnknown, Skill: name, Detail: "no such skill for this role"}
+	}
+	if s.isDisabled(name) {
+		return "", &Fault{Code: FaultUnknown, Skill: name, Detail: "skill is disabled by the operator"}
 	}
 	return skill.Body, nil
 }

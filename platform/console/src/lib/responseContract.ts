@@ -90,11 +90,13 @@ export const RESPONSE_SCHEMAS = {
         role: str,
         tools: arr(str),
         source: str,
+        enabled: bool,
       }),
     ),
     faults: arr(obj({ code: str, skill: str, detail: str })),
     limits: obj({ max_skills: num, max_skill_bytes: num, max_description: num }),
   }),
+  'skills.toggle': obj({ ok: bool, name: str, enabled: bool }),
   'llm.eval.status': obj({
     role: str,
     provider: str,
@@ -213,6 +215,9 @@ export const RESPONSE_SCHEMAS = {
   'proposal.mint': obj({ ok: bool, proposal: proposalSchema }),
   'loop.parts': obj({ ok: bool, loop_id: str, parts: arr(any), count: num }),
   'loop.steer': obj({ ok: bool, steer: obj({ id: str, loop_id: str, text: str, status: str, created_at: str }) }),
+  'loop.steers': obj({ steers: arr(obj({ id: str, loop_id: str, text: str, status: str, created_at: str })) }),
+  'loop.steer.update': obj({ ok: bool, steer: obj({ id: str, loop_id: str, text: str, status: str }) }),
+  'loop.steer.cancel': obj({ ok: bool, steer_id: str, status: str }),
   'tasks.batch': obj({ tasks: arr(any), count: num }),
   'runAllowances.list': obj({ ok: bool, allowances: arr(any), count: num }),
   'runAllowance.mint': obj({ ok: bool, allowance: any }),
@@ -222,6 +227,7 @@ export const RESPONSE_SCHEMAS = {
     harnesses: arr(any),
     docker_runner: any,
   }),
+  'autoresearch.steer': obj({ ok: bool, steer: obj({ id: str, loop_id: str, text: str, status: str, created_at: str }) }),
   'autoresearch.loop': obj({
     id: str,
     session_id: str,
@@ -467,9 +473,14 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
     unread: num,
+    preferences: obj({ quiet: bool, muted_kinds: arr(str), updated_at: str }),
     generated_at: str,
   }),
   'notifications.state': obj({ ok: bool, updated: num }),
+  'notifications.preferences': obj({
+    ok: bool,
+    preferences: obj({ quiet: bool, muted_kinds: arr(str), updated_at: str }),
+  }),
   'chat.feedback.list': obj({
     feedback: arr(
       obj({

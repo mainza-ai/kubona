@@ -16,6 +16,15 @@ queues ([[remaining-work]], `docs/remaining-todos.md`), [[feedback-loops-and-not
 the **current execution backlog**; it does not replace the durable design
 record on the owning pages.
 
+> ⚑ Status update (2026-11-15, local working tree): OB-01 is implemented for
+> the **autoresearch LLM loop** (pending steers enter the proposal prompt and
+> are marked applied only after a model turn); the supervisor optimizer loop
+> has no model prompt and remains a recorded run-lane instruction. OB-02,
+> OB-03, OB-04, and OB-07 are closed. OB-11 is partially closed: enable/disable
+> persists, but authoring/installer UI remains. OB-12's inventory UI already
+> exists (`MemoryPanel`); the S9 cloud-edge screening remains. See
+> [[feedback-loops-and-notifications]].
+
 ## Method and evidence
 
 - **Read:** the full remaining-work queue, the short execution list, the

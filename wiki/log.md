@@ -6324,3 +6324,25 @@ skipped is the exact failure this incident is about:
 - Plan: Phase 0 evidence/decisions; Phase 1 feedback/notifications; Phase 2
   agent/runtime truth; Phase 3 skills/memory/hardware; Phase 4 console
   quality; Phase 5 trigger-based infrastructure.
+
+## [2026-11-15] decision | P0 truth loops and P1 controls
+
+- **Feedback/proposal closure:** downvote reason UI persists/hydrates; the
+  proposal card has a typed dismiss dialog with an optional reason.
+- **Claim reviews:** decided advisory permanently; `peer_review` already
+  feeds the derived notification inbox.
+- **Steering:** supervisor queued steers can be edited/cancelled before the
+  boundary; the autoresearch LLM loop reads pending steers into the next
+  proposal prompt and marks them applied only after a model turn carries them.
+- **Notifications:** server-synced quiet/muted preferences; Notification
+  Center controls; quiet suppresses badge/announcer; muted kinds leave the
+  inbox.
+- **Skills:** operator enable/disable persists in `skill_disabled`; disabled
+  skills leave the prompt and `load_skill` but remain visible to re-enable.
+- **Verification:** full Go suite (1018 test functions), console 795 unit +
+  11 browser, tsc/ESLint/build; contracts 169 modeled / 14 client-only / 0
+  unmodeled, 145 schemas, 150 OpenAPI paths.
+- **Still open:** Attention Director wiring, single live-region batch,
+  proposal reasons in ranking, skill authoring/installer, live eval, memory
+  S9, typed needs, provenance panel, proposal history, hardware parent rails,
+  HITL hardware, console debt.

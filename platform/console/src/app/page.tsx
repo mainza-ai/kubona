@@ -1321,7 +1321,7 @@ export default function Home() {
         needsYouOpen={needsYouOpen}
         needsYouStatus={needsYouQueueStatus}
         onOpenNeedsYou={needsYouOpen ? closeNeedsYou : openNeedsYou}
-        notificationsCount={notificationInbox.notifications.filter((n) => !n.read_at).length}
+        notificationsCount={notificationInbox.prefs.quiet ? 0 : notificationInbox.notifications.filter((n) => !n.read_at).length}
         notificationsOpen={notificationsOpen}
         onOpenNotifications={() => {
           setNotificationsOpen((open) => !open);
@@ -1336,6 +1336,11 @@ export default function Home() {
         onOpenQueue={openGuardrailsQueue}
         queueStatus={needsYouQueueStatus}
       />
+      <div className="sr-only" role="status" aria-live="polite" data-testid="notification-announcer">
+        {!notificationInbox.prefs.quiet && notificationInbox.notifications.some((n) => !n.read_at)
+          ? `${notificationInbox.notifications.filter((n) => !n.read_at).length} unread notifications`
+          : ''}
+      </div>
       <NotificationCenter
         open={notificationsOpen}
         notifications={notificationInbox.notifications}
@@ -1343,6 +1348,8 @@ export default function Home() {
         onClose={() => setNotificationsOpen(false)}
         onMarkRead={(keys) => void notificationInbox.markRead(keys)}
         onResolve={(key) => void notificationInbox.resolve(key)}
+        prefs={notificationInbox.prefs}
+        onUpdatePrefs={(next) => void notificationInbox.updatePrefs(next)}
         onOpenAction={(action) => {
           setNotificationsOpen(false);
           if (action.startsWith('obligation:')) {

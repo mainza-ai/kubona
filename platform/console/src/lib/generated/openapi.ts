@@ -67,6 +67,7 @@ export type Skills = {
   "role": string;
   "tools": string[];
   "source": string;
+  "enabled": boolean;
 }[];
   "faults": {
   "code": string;
@@ -78,6 +79,12 @@ export type Skills = {
   "max_skill_bytes": number;
   "max_description": number;
 };
+};
+
+export type SkillsToggle = {
+  "ok": boolean;
+  "name": string;
+  "enabled": boolean;
 };
 
 export type LlmEvalStatus = {
@@ -262,6 +269,32 @@ export type LoopSteer = {
 };
 };
 
+export type LoopSteers = {
+  "steers": {
+  "id": string;
+  "loop_id": string;
+  "text": string;
+  "status": string;
+  "created_at": string;
+}[];
+};
+
+export type LoopSteerUpdate = {
+  "ok": boolean;
+  "steer": {
+  "id": string;
+  "loop_id": string;
+  "text": string;
+  "status": string;
+};
+};
+
+export type LoopSteerCancel = {
+  "ok": boolean;
+  "steer_id": string;
+  "status": string;
+};
+
 export type TasksBatch = {
   "tasks": unknown[];
   "count": number;
@@ -293,6 +326,17 @@ export type ProposalDismiss = {
 export type AutoresearchHarnesses = {
   "harnesses": unknown[];
   "docker_runner": unknown;
+};
+
+export type AutoresearchSteer = {
+  "ok": boolean;
+  "steer": {
+  "id": string;
+  "loop_id": string;
+  "text": string;
+  "status": string;
+  "created_at": string;
+};
 };
 
 export type AutoresearchLoop = {
@@ -662,12 +706,26 @@ export type NotificationsList = {
   "resolved_at": string;
 }[];
   "unread": number;
+  "preferences": {
+  "quiet": boolean;
+  "muted_kinds": string[];
+  "updated_at": string;
+};
   "generated_at": string;
 };
 
 export type NotificationsState = {
   "ok": boolean;
   "updated": number;
+};
+
+export type NotificationsPreferences = {
+  "ok": boolean;
+  "preferences": {
+  "quiet": boolean;
+  "muted_kinds": string[];
+  "updated_at": string;
+};
 };
 
 export type ChatFeedbackList = {
@@ -1036,6 +1094,7 @@ export type ApiOperationResponse = {
   authSessions: AuthSessions;
   authWhoami: AuthWhoami;
   cancelHFDownload: HfCancel;
+  cancelLoopSteer: LoopSteerCancel;
   cancelQuantumJob: QuantumCancel;
   clearLLMProviderKey: LlmKeyDelete;
   clearMessages: MessagesClear;
@@ -1085,12 +1144,14 @@ export type ApiOperationResponse = {
   fetchLedgerExport: LedgerExportDocument;
   fetchLensHistory: LensHistory;
   fetchLoopParts: LoopParts;
+  fetchLoopSteers: LoopSteers;
   fetchLoopsResult: LoopsList;
   fetchMemoryRecall: MemoryRecall;
   fetchMessages: MessagesList;
   fetchMetasearchProposals: MetasearchProposals;
   fetchMolecularADMET: Admet;
   fetchNotebooks: NotebooksList;
+  fetchNotificationPreferences: NotificationsPreferences;
   fetchNotifications: NotificationsList;
   fetchObservatoryLensStatus: LensStatus;
   fetchOpenObligations: ObligationsOpen;
@@ -1158,6 +1219,7 @@ export type ApiOperationResponse = {
   runWorkflow: WorkflowRun;
   saveCanvasLayout: CanvasSaved;
   saveLLMSettings: SettingsUpdate;
+  saveNotificationPreferences: NotificationsPreferences;
   saveQuantumSettings: SettingsUpdate;
   saveWorkbenchLayout: WorkbenchSave;
   saveWorkbenchView: WorkbenchViewSave;
@@ -1173,6 +1235,7 @@ export type ApiOperationResponse = {
   setTenantStatus: TenantWrite;
   startAutoresearchLoop: AutoresearchLoop;
   startHFDownload: HfDownload;
+  steerAutoresearchLoop: AutoresearchSteer;
   steerLoop: LoopSteer;
   stepAutoresearchLoop: AutoresearchStep;
   stopAutoresearchLoop: AutoresearchLoop;
@@ -1180,6 +1243,8 @@ export type ApiOperationResponse = {
   submitQuantumJob: QuantumSubmit;
   synthesizeCampaign: Campaign;
   testLLM: LlmTest;
+  toggleSkill: SkillsToggle;
+  updateLoopSteer: LoopSteerUpdate;
   updateTaskStatus: Task;
   uploadObservatoryAsset: LensAsset;
   verifyLLMProvider: LlmVerify;
@@ -1201,6 +1266,7 @@ export const API_OPERATIONS = {
   authSessions: { method: "get", path: "/api/auth/sessions", response: "auth.sessions" },
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
   cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
+  cancelLoopSteer: { method: "delete", path: "/api/loops/{loopId}/steers/{steerId}", response: "loop.steer.cancel" },
   cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
   clearLLMProviderKey: { method: "delete", path: "/api/llm/providers/{provider}/key", response: "llm.key.delete" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
@@ -1250,12 +1316,14 @@ export const API_OPERATIONS = {
   fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   fetchLensHistory: { method: "get", path: "/api/observatory/lens/history", response: "lens.history" },
   fetchLoopParts: { method: "get", path: "/api/loops/{id}/parts", response: "loop.parts" },
+  fetchLoopSteers: { method: "get", path: "/api/loops/{loopId}/steers", response: "loop.steers" },
   fetchLoopsResult: { method: "get", path: "/api/loops", response: "loops.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
   fetchMessages: { method: "get", path: "/api/sessions/{id}/messages", response: "messages.list" },
   fetchMetasearchProposals: { method: "get", path: "/api/metasearch/proposals", response: "metasearch.proposals" },
   fetchMolecularADMET: { method: "get", path: "/api/chemistry/admet", response: "admet" },
   fetchNotebooks: { method: "get", path: "/api/results/notebooks", response: "notebooks.list" },
+  fetchNotificationPreferences: { method: "get", path: "/api/notifications/preferences", response: "notifications.preferences" },
   fetchNotifications: { method: "get", path: "/api/notifications", response: "notifications.list" },
   fetchObservatoryLensStatus: { method: "get", path: "/api/observatory/lens", response: "lens.status" },
   fetchOpenObligations: { method: "get", path: "/api/obligations/open", response: "obligations.open" },
@@ -1323,6 +1391,7 @@ export const API_OPERATIONS = {
   runWorkflow: { method: "post", path: "/api/workflows/run", response: "workflow.run" },
   saveCanvasLayout: { method: "put", path: "/api/canvas/layout", response: "canvas.saved" },
   saveLLMSettings: { method: "post", path: "/api/llm/settings", response: "settings.update" },
+  saveNotificationPreferences: { method: "put", path: "/api/notifications/preferences", response: "notifications.preferences" },
   saveQuantumSettings: { method: "put", path: "/api/quantum/settings", response: "settings.update" },
   saveWorkbenchLayout: { method: "put", path: "/api/workbench/layout", response: "workbench.save" },
   saveWorkbenchView: { method: "put", path: "/api/workbench/view", response: "workbench.view.save" },
@@ -1338,6 +1407,7 @@ export const API_OPERATIONS = {
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
   startHFDownload: { method: "post", path: "/api/hf/download", response: "hf.download" },
+  steerAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{loopId}/steer", response: "autoresearch.steer" },
   steerLoop: { method: "post", path: "/api/loops/{id}/steer", response: "loop.steer" },
   stepAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/step", response: "autoresearch.step" },
   stopAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/stop", response: "autoresearch.loop" },
@@ -1345,6 +1415,8 @@ export const API_OPERATIONS = {
   submitQuantumJob: { method: "post", path: "/api/quantum/jobs", response: "quantum.submit" },
   synthesizeCampaign: { method: "post", path: "/api/sessions/{id}/campaign/synthesize", response: "campaign" },
   testLLM: { method: "post", path: "/api/llm/test", response: "llm.test" },
+  toggleSkill: { method: "put", path: "/api/skills/{name}", response: "skills.toggle" },
+  updateLoopSteer: { method: "patch", path: "/api/loops/{loopId}/steers/{steerId}", response: "loop.steer.update" },
   updateTaskStatus: { method: "post", path: "/api/tasks/{id}", response: "task" },
   uploadObservatoryAsset: { method: "post", path: "/api/observatory/assets", response: "lens.asset" },
   verifyLLMProvider: { method: "post", path: "/api/llm/providers/{provider}/verify", response: "llm.verify" },

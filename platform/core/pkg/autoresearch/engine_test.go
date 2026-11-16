@@ -2,6 +2,7 @@ package autoresearch
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -185,5 +186,18 @@ func TestLoopEngineStagnationAutonomousReflection(t *testing.T) {
 
 	if recalled[0].EffectiveScore != 1.0 {
 		t.Fatalf("expected reflected model to have full score 1.0, got %f", recalled[0].EffectiveScore)
+	}
+}
+
+func TestMutationPromptCarriesSteering(t *testing.T) {
+	prompt := mutationPrompt("program", "champion", []SteerInstruction{
+		{ID: "s1", Text: "prefer shorter ansatz circuits"},
+	})
+	if !strings.Contains(prompt, "Operator steering for this iteration") || !strings.Contains(prompt, "prefer shorter ansatz circuits") {
+		t.Fatalf("prompt must carry steering text: %s", prompt)
+	}
+	plain := mutationPrompt("program", "champion", nil)
+	if strings.Contains(plain, "Operator steering") {
+		t.Fatalf("prompt without steers must not claim steering: %s", plain)
 	}
 }

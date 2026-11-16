@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -146,4 +147,62 @@ func (l *Ledger) MarkNotifications(sessionID string, keys []string, resolve bool
 		}
 	}
 	return tx.Commit()
+}
+
+// NotificationPrefs is the server-synced delivery policy for one session.
+// Quiet keeps the inbox but suppresses the unread badge/announcement; muted
+// kinds are omitted from the derived inbox entirely.
+type NotificationPrefs struct {
+	Quiet      bool     `json:"quiet"`
+	MutedKinds []string `json:"muted_kinds"`
+	UpdatedAt  string   `json:"updated_at"`
+}
+
+func (l *Ledger) GetNotificationPrefs(sessionID string) (NotificationPrefs, error) {
+	var prefs NotificationPrefs
+	var quiet int
+	var raw string
+	err := l.db.QueryRow(`SELECT quiet, muted_kinds_json, updated_at FROM notification_prefs WHERE session_id = ?`, sessionID).
+		Scan(&quiet, &raw, &prefs.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return NotificationPrefs{MutedKinds: []string{}}, nil
+	}
+	if err != nil {
+		return prefs, err
+	}
+	prefs.Quiet = quiet != 0
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &prefs.MutedKinds)
+	}
+	if prefs.MutedKinds == nil {
+		prefs.MutedKinds = []string{}
+	}
+	return prefs, nil
+}
+
+func (l *Ledger) SetNotificationPrefs(sessionID string, quiet bool, muted []string) error {
+	if sessionID == "" {
+		return fmt.Errorf("notification preferences need a session")
+	}
+	if muted == nil {
+		muted = []string{}
+	}
+	raw, err := json.Marshal(muted)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	_, err = l.db.Exec(`INSERT INTO notification_prefs (session_id, quiet, muted_kinds_json, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(session_id) DO UPDATE SET quiet = excluded.quiet,
+			muted_kinds_json = excluded.muted_kinds_json, updated_at = excluded.updated_at`,
+		sessionID, func() int {
+			if quiet {
+				return 1
+			}
+			return 0
+		}(), string(raw), now)
+	return err
 }

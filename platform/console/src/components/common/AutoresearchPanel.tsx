@@ -10,6 +10,7 @@ import {
   resumeAutoresearchLoop,
   wakeAutoresearchLoop,
   stopAutoresearchLoop,
+  steerAutoresearchLoop,
 } from '@/lib/api';
 import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
@@ -23,6 +24,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [maxIterations, setMaxIterations] = useState('10');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [steerDrafts, setSteerDrafts] = useState<Record<string, string>>({});
   const settlement = useWriteSettlement();
 
   const load = useCallback(async () => {
@@ -116,6 +118,40 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
             </span>
           </div>
           <div className="text-faint font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
+          {loop.status === 'running' && (
+            <div className="flex items-center gap-1.5 pt-1">
+              <input
+                aria-label={`Steer autoresearch loop ${loop.id.slice(0, 8)}`}
+                value={steerDrafts[loop.id] ?? ''}
+                maxLength={500}
+                placeholder="Instruction for the next model turn…"
+                onChange={(event) => setSteerDrafts((prev) => ({ ...prev, [loop.id]: event.target.value }))}
+                className="flex-1 min-w-0 bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono"
+              />
+              <button
+                type="button"
+                disabled={busy !== null || !(steerDrafts[loop.id] ?? '').trim()}
+                onClick={async () => {
+                  const text = (steerDrafts[loop.id] ?? '').trim();
+                  if (!text) return;
+                  setBusy('steer');
+                  setNotice(null);
+                  const out = await steerAutoresearchLoop(loop.id, text);
+                  if (out.ok) {
+                    setNotice(`Queued (${out.steer.id.slice(0, 8)}) — consumed by the next model turn.`);
+                    setSteerDrafts((prev) => ({ ...prev, [loop.id]: '' }));
+                    await load();
+                  } else {
+                    setNotice(out.error);
+                  }
+                  setBusy(null);
+                }}
+                className="px-2 py-1 rounded-chip bg-info-wash border border-info-edge text-info-ink disabled:opacity-40"
+              >
+                Steer
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

@@ -189,6 +189,7 @@ func seedNewSessionTables(t *testing.T, l *ledger.Ledger, sid string) {
 		{`INSERT INTO transcript_scores (session_id, obligation_id, role, score, signals_json, recorded_at) VALUES (?, 'ob-'||?, 'device-auditor', 0.8, '{}', ?)`, []any{sid, sid, now.Format(time.RFC3339)}},
 		{`INSERT INTO chat_feedback (message_id, session_id, vote, reason, actor, created_at, updated_at) VALUES ('msg-'||?, ?, 'up', 'test', 'local_researcher', ?, ?)`, []any{sid, sid, now.Format(time.RFC3339), now.Format(time.RFC3339)}},
 		{`INSERT INTO notification_states (session_id, notification_key, read_at, resolved_at) VALUES (?, 'event:1', '', '')`, []any{sid}},
+		{`INSERT INTO notification_prefs (session_id, quiet, muted_kinds_json, updated_at) VALUES (?, 0, '[]', ?)`, []any{sid, now.Format(time.RFC3339)}},
 	}
 	for _, stmt := range stmts {
 		if _, err := l.DB().Exec(stmt.query, stmt.args...); err != nil {

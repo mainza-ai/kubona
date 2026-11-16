@@ -33,8 +33,8 @@ sources: [source-frontier-repo-audit-2026]
 >   the shared untrusted-output fence; LLM spend reservation; declared model
 >   capabilities; `SKILL.md` runtime skills (names-only prompt); sha-pinned
 >   decision evals with Brier/ECE and an opt-in `KUBONA_REQUIRE_LLM_EVAL` gate.
-> - **Console (`:3000`):** `162` modeled / `14` client-only / `0` unmodeled
->   contracts (`139` schemas, `145` OpenAPI paths), **806** cases across **152**
+> - **Console (`:3000`):** `169` modeled / `14` client-only / `0` unmodeled
+>   contracts (`145` schemas, `150` OpenAPI paths), **806** cases across **152**
 >   files (including real-Chromium component tests). Role-named radius/type
 >   scales with default Tailwind scales reset, zero arbitrary colour-var
 >   utilities, per-route bundle budgets, import boundaries, and a

@@ -344,6 +344,11 @@ func NewServer(
 		fg = jr.FidelityGate()
 	}
 
+	skillStore := skills.Load(skills.Options{UserDir: skills.DefaultUserDir()})
+	if disabled, derr := l.DisabledSkills(); derr == nil {
+		skillStore.SetDisabled(disabled)
+	}
+
 	s := &Server{
 		httpMetrics:           newHTTPMetrics(),
 		ledger:                l,
@@ -365,7 +370,7 @@ func NewServer(
 		metaSearchEngine:      metaEngine,
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
-		skillStore:            skills.Load(skills.Options{UserDir: skills.DefaultUserDir()}),
+		skillStore:            skillStore,
 		evalStore:             evals.Store{Dir: evals.DefaultDir()},
 		hfClient:              hf.NewHubClient(""),
 		customAgents:          agents.NewCustomAgentRegistryWithDB(l.DB()),
@@ -594,7 +599,9 @@ func (s *Server) registerRoutes() {
 	s.route("/api/capabilities", s.handleCapabilities)
 	// B11: body-free skill catalogue + closed loader faults for Settings.
 	s.route("/api/notifications", s.handleNotifications)
+	s.route("/api/notifications/preferences", s.handleNotificationPreferences)
 	s.route("/api/skills", s.handleSkills)
+	s.route("/api/skills/", s.requireBearer(s.handleSkillByID))
 	// B12: recorded decision-eval status for the model picker (scores only).
 	s.route("/api/evals/llm", s.handleEvalLLM)
 	s.route("/api/access", s.handleAccess)
@@ -4194,6 +4201,55 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 			"cost_usd":  0.0,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
+	case "steers":
+		if len(parts) == 2 {
+			if r.Method != http.MethodGet {
+				WriteAPIError(w, "method_not_allowed", "queued steers are GET-only", nil)
+				return
+			}
+			items, lerr := s.supervisor.PendingSteers(loopID)
+			if lerr != nil {
+				WriteAPIError(w, "internal", "steer list failed", nil)
+				return
+			}
+			if items == nil {
+				items = []supervisor.LoopSteer{}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"steers": items})
+			return
+		}
+		if len(parts) != 3 || parts[2] == "" {
+			WriteAPIError(w, "bad_request", "steer path is /api/loops/{id}/steers[/{steer_id}]", nil)
+			return
+		}
+		steerID := parts[2]
+		switch r.Method {
+		case http.MethodPatch:
+			var req struct {
+				Text string `json:"text"`
+			}
+			if derr := decodeStrict(r, &req); derr != nil {
+				WriteAPIError(w, "bad_request", fmt.Sprintf("invalid steer edit: %v", derr), nil)
+				return
+			}
+			item, uerr := s.supervisor.UpdateSteer(loopID, steerID, req.Text)
+			if uerr != nil {
+				WriteAPIError(w, "bad_request", uerr.Error(), nil)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "steer": item})
+			return
+		case http.MethodDelete:
+			if cerr := s.supervisor.CancelSteer(loopID, steerID); cerr != nil {
+				WriteAPIError(w, "bad_request", cerr.Error(), nil)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "steer_id": steerID, "status": "cancelled"})
+			return
+		default:
+			WriteAPIError(w, "method_not_allowed", "queued steer supports PATCH or DELETE", nil)
+			return
+		}
 	case "steer":
 		if r.Method != http.MethodPost {
 			WriteAPIError(w, "method_not_allowed", "steering is POST-only", nil)
@@ -6247,6 +6303,21 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	engine.SetSpendRecorder(func(role string, promptTokens, completionTokens int) (float64, error) {
 		return s.recordLoopSpend(loopID, role, promptTokens, completionTokens)
 	})
+	// C10: autoresearch is the LLM agent loop. Pending operator steers are
+	// read into the next proposal prompt; the engine calls back only after a
+	// model turn actually carried them, so the deterministic fallback never
+	// claims consumption.
+	engine.SetSteerSource(func(id string) []autoresearch.SteerInstruction {
+		items, _ := s.supervisor.PendingSteers(id)
+		out := make([]autoresearch.SteerInstruction, 0, len(items))
+		for _, item := range items {
+			out = append(out, autoresearch.SteerInstruction{ID: item.ID, Text: item.Text})
+		}
+		return out
+	})
+	engine.SetSteersApplied(func(id string, ids []string) {
+		s.supervisor.MarkSteersApplied(id, req.SessionID, ids)
+	})
 
 	// Hook up Section 13 Meta-Search stagnation trigger
 	engine.SetStagnationCallback(func(lID string, discards int, champion string) {
@@ -6374,6 +6445,17 @@ func (s *Server) rehydrateAutoloops() {
 			p.LastActivity, p.Drain, p.ReservedAmount, p.ConsumedAmount, p.RequestID,
 		)
 		engine.SetMemoryStore(s.memoryStore)
+		engine.SetSteerSource(func(id string) []autoresearch.SteerInstruction {
+			items, _ := s.supervisor.PendingSteers(id)
+			out := make([]autoresearch.SteerInstruction, 0, len(items))
+			for _, item := range items {
+				out = append(out, autoresearch.SteerInstruction{ID: item.ID, Text: item.Text})
+			}
+			return out
+		})
+		engine.SetSteersApplied(func(id string, ids []string) {
+			s.supervisor.MarkSteersApplied(id, p.SessionID, ids)
+		})
 		s.activeAutoloops[p.ID] = engine
 	}
 }
@@ -6663,6 +6745,30 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 			"step":  rec,
 			"state": engine.State(),
 		})
+	case "steer":
+		if r.Method != http.MethodPost {
+			WriteAPIError(w, "method_not_allowed", "steering is POST-only", nil)
+			return
+		}
+		st := engine.State()
+		if st.Status != autoresearch.StatusRunning {
+			WriteAPIError(w, "loop_not_running", fmt.Sprintf("loop is %s: steering applies only to a running run", st.Status), nil)
+			return
+		}
+		var req struct {
+			Text string `json:"text"`
+		}
+		if derr := decodeStrict(r, &req); derr != nil {
+			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid steer request: %v", derr), nil)
+			return
+		}
+		steer, serr := s.supervisor.QueueSteer(loopID, st.SessionID, req.Text)
+		if serr != nil {
+			WriteAPIError(w, "bad_request", serr.Error(), nil)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "steer": steer})
+		return
 	case "pause":
 		engine.Pause()
 		s.persistLoopRow(engine)

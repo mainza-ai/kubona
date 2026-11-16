@@ -12,6 +12,7 @@ const catalog: SkillsCatalog = {
       role: 'copilot',
       tools: ['get_anchor', 'submit_local_sim'],
       source: 'seed',
+      enabled: true,
     },
     {
       name: 'lab-check',
@@ -19,6 +20,7 @@ const catalog: SkillsCatalog = {
       role: 'copilot',
       tools: [],
       source: 'user',
+      enabled: true,
     },
   ],
   faults: [{ code: 'skill_symlink', skill: 'linked', detail: 'SKILL.md is a symlink; refused' }],

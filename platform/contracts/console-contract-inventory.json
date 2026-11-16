@@ -16,6 +16,7 @@
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
+    "autoresearch.steer",
     "autoresearch.step",
     "campaign",
     "canvas.layout",
@@ -79,6 +80,9 @@
     "loop.action",
     "loop.parts",
     "loop.steer",
+    "loop.steer.cancel",
+    "loop.steer.update",
+    "loop.steers",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -91,6 +95,7 @@
     "metasearch.proposals",
     "notebooks.list",
     "notifications.list",
+    "notifications.preferences",
     "notifications.state",
     "obligations.close",
     "obligations.open",
@@ -120,6 +125,7 @@
     "sessions.list",
     "settings.update",
     "skills",
+    "skills.toggle",
     "task",
     "tasks.batch",
     "tasks.list",
@@ -157,6 +163,7 @@
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
+    "autoresearch.steer",
     "autoresearch.step",
     "campaign",
     "canvas.layout",
@@ -220,6 +227,9 @@
     "loop.action",
     "loop.parts",
     "loop.steer",
+    "loop.steer.cancel",
+    "loop.steer.update",
+    "loop.steers",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -232,6 +242,7 @@
     "metasearch.proposals",
     "notebooks.list",
     "notifications.list",
+    "notifications.preferences",
     "notifications.state",
     "obligations.close",
     "obligations.open",
@@ -261,6 +272,7 @@
     "sessions.list",
     "settings.update",
     "skills",
+    "skills.toggle",
     "task",
     "tasks.batch",
     "tasks.list",
@@ -354,6 +366,12 @@
       "path": "/api/hf/downloads/:id/cancel",
       "method": "POST",
       "contract": "hf.cancel"
+    },
+    {
+      "function": "cancelLoopSteer",
+      "path": "/api/loops/:loopId/steers/:steerId",
+      "method": "DELETE",
+      "contract": "loop.steer.cancel"
     },
     {
       "function": "cancelQuantumJob",
@@ -650,6 +668,12 @@
       "contract": "loop.parts"
     },
     {
+      "function": "fetchLoopSteers",
+      "path": "/api/loops/:loopId/steers",
+      "method": "GET",
+      "contract": "loop.steers"
+    },
+    {
       "function": "fetchLoopsResult",
       "path": "/api/loops",
       "method": "GET",
@@ -684,6 +708,12 @@
       "path": "/api/results/notebooks",
       "method": "GET",
       "contract": "notebooks.list"
+    },
+    {
+      "function": "fetchNotificationPreferences",
+      "path": "/api/notifications/preferences",
+      "method": "GET",
+      "contract": "notifications.preferences"
     },
     {
       "function": "fetchNotifications",
@@ -1088,6 +1118,12 @@
       "contract": "settings.update"
     },
     {
+      "function": "saveNotificationPreferences",
+      "path": "/api/notifications/preferences",
+      "method": "PUT",
+      "contract": "notifications.preferences"
+    },
+    {
       "function": "saveQuantumSettings",
       "path": "/api/quantum/settings",
       "method": "PUT",
@@ -1178,6 +1214,12 @@
       "contract": "hf.download"
     },
     {
+      "function": "steerAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:loopId/steer",
+      "method": "POST",
+      "contract": "autoresearch.steer"
+    },
+    {
       "function": "steerLoop",
       "path": "/api/loops/:id/steer",
       "method": "POST",
@@ -1218,6 +1260,18 @@
       "path": "/api/llm/test",
       "method": "POST",
       "contract": "llm.test"
+    },
+    {
+      "function": "toggleSkill",
+      "path": "/api/skills/:name",
+      "method": "PUT",
+      "contract": "skills.toggle"
+    },
+    {
+      "function": "updateLoopSteer",
+      "path": "/api/loops/:loopId/steers/:steerId",
+      "method": "PATCH",
+      "contract": "loop.steer.update"
     },
     {
       "function": "updateTaskStatus",

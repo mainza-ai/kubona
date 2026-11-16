@@ -63,3 +63,50 @@ func TestLoopSteerEndpoint(t *testing.T) {
 		t.Fatalf("paused steer must 409 loop_not_running, got %d %s", code, body)
 	}
 }
+
+func TestQueuedSteerCanBeEditedAndCancelled(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "steer edit drill")
+	code, body := partsPost(t, h, "/api/loops", map[string]any{"session_id": sid, "max_steps": 4})
+	if code != http.StatusCreated {
+		t.Fatalf("register loop: %d %s", code, body)
+	}
+	var loop struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(body), &loop); err != nil || loop.ID == "" {
+		t.Fatalf("loop decode: %v %s", err, body)
+	}
+	code, body = partsPost(t, h, "/api/loops/"+loop.ID+"/steer", map[string]any{"text": "original"})
+	if code != http.StatusCreated {
+		t.Fatalf("steer: %d %s", code, body)
+	}
+	var created struct {
+		Steer struct {
+			ID string `json:"id"`
+		} `json:"steer"`
+	}
+	if err := json.Unmarshal([]byte(body), &created); err != nil || created.Steer.ID == "" {
+		t.Fatalf("steer decode: %v %s", err, body)
+	}
+	if code, body := partsGet(t, h, "/api/loops/"+loop.ID+"/steers"); code != http.StatusOK || !strings.Contains(body, "original") {
+		t.Fatalf("list pending: %d %s", code, body)
+	}
+	if code, body := partsMethod(t, h, http.MethodPatch, "/api/loops/"+loop.ID+"/steers/"+created.Steer.ID, map[string]any{"text": "edited"}); code != http.StatusOK || !strings.Contains(body, "edited") {
+		t.Fatalf("edit: %d %s", code, body)
+	}
+	if code, body := partsMethod(t, h, http.MethodDelete, "/api/loops/"+loop.ID+"/steers/"+created.Steer.ID, nil); code != http.StatusOK || !strings.Contains(body, "cancelled") {
+		t.Fatalf("cancel: %d %s", code, body)
+	}
+	if code, body := partsGet(t, h, "/api/loops/"+loop.ID+"/steers"); code != http.StatusOK || strings.Contains(body, "edited") {
+		t.Fatalf("cancelled steer still pending: %d %s", code, body)
+	}
+	if code, body := partsPost(t, h, "/api/loops/"+loop.ID+"/step?grad=0.1", map[string]any{}); code != http.StatusOK {
+		t.Fatalf("step: %d %s", code, body)
+	}
+	if code, body := partsGet(t, h, "/api/loops/"+loop.ID+"/parts"); code != http.StatusOK || strings.Contains(body, "edited") {
+		t.Fatalf("cancelled steer applied: %d %s", code, body)
+	}
+}

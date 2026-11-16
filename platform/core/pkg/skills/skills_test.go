@@ -192,3 +192,36 @@ func TestNilStoreIsSafe(t *testing.T) {
 		t.Fatalf("nil store body fault = %+v", fault)
 	}
 }
+
+func TestDisabledSkillLeavesPromptAndBodyButStaysVisibleInCatalog(t *testing.T) {
+	dir := t.TempDir()
+	writeSkill(t, dir, "custom-check", validSkill("custom-check", "check one thing", "body"))
+	store := Load(Options{UserDir: dir})
+	if err := store.SetEnabled("custom-check", false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(store.PromptSection("copilot"), "custom-check") {
+		t.Fatal("disabled skill must not enter the prompt")
+	}
+	if _, fault := store.LoadBody("custom-check", "copilot"); fault == nil || !strings.Contains(fault.Detail, "disabled") {
+		t.Fatalf("disabled body must refuse with a named reason, got %+v", fault)
+	}
+	found := false
+	for _, skill := range store.Public("copilot").Skills {
+		if skill.Name == "custom-check" {
+			found = true
+			if skill.Enabled {
+				t.Fatal("catalog must expose enabled=false so Settings can re-enable it")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("disabled skill disappeared from the catalog")
+	}
+	if err := store.SetEnabled("custom-check", true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(store.PromptSection("copilot"), "custom-check") {
+		t.Fatal("re-enabled skill must return to the prompt")
+	}
+}

@@ -48,6 +48,13 @@ type IterationRecord struct {
 	LLMMeta           *llm.InvocationMeta `json:"llm_meta,omitempty"`
 }
 
+// SteerInstruction is one queued operator instruction consumed by the next
+// model turn. The engine never applies it as a tool call; it is prompt context.
+type SteerInstruction struct {
+	ID   string
+	Text string
+}
+
 // ParetoPoint tracks the multi-objective trade-off
 type ParetoPoint struct {
 	Iteration         int     `json:"iteration"`
@@ -143,6 +150,12 @@ type LoopEngine struct {
 	spendRecorder      func(role string, promptTokens, completionTokens int) (float64, error)
 	spendReservedTotal float64
 	spendConsumed      float64
+	// steerSource returns pending operator instructions for this loop; the
+	// engine consumes them into the next proposal prompt. onSteersApplied is
+	// called only after a model call actually carried them, so a fallback
+	// mutation never claims the instruction was read.
+	steerSource     func(loopID string) []SteerInstruction
+	onSteersApplied func(loopID string, ids []string)
 	// admissionRequestID is the caller's idempotency key, copied onto the
 	// loop row at birth. It is not part of the client-visible loop state.
 	admissionRequestID string
@@ -249,6 +262,21 @@ func (e *LoopEngine) touchLocked() {
 	e.state.UpdatedAt = e.lastActivity
 	e.state.LastActivity = e.lastActivity
 	e.state.Drained = e.drained
+}
+
+// SetSteerSource wires the pending-instruction reader. Nil clears it.
+func (e *LoopEngine) SetSteerSource(fn func(loopID string) []SteerInstruction) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.steerSource = fn
+}
+
+// SetSteersApplied records the ids that were actually included in a model
+// prompt. It is never called for the deterministic fallback path.
+func (e *LoopEngine) SetSteersApplied(fn func(loopID string, ids []string)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onSteersApplied = fn
 }
 
 func (e *LoopEngine) SetMemoryStore(store *memory.HindsightStore) {
@@ -506,11 +534,25 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 	e.touchLocked()
 	currentChampion := e.state.ChampionArtifact
 	championMetric := e.state.ChampionMetric
+	loopID := e.state.ID
+	steerSource := e.steerSource
+	onSteersApplied := e.onSteersApplied
 	bm := e.branchMgr
 	e.mu.Unlock()
 
+	var steers []SteerInstruction
+	if steerSource != nil {
+		steers = steerSource(loopID)
+	}
 	// 1. Propose mutation via LLM or algorithmic mutation operator
-	mutatedCode, rationale, proposeMeta := e.proposeMutation(ctx, iterNum, currentChampion)
+	mutatedCode, rationale, proposeMeta, promptConsumed := e.proposeMutation(ctx, iterNum, currentChampion, steers)
+	if promptConsumed && len(steers) > 0 && onSteersApplied != nil {
+		ids := make([]string, 0, len(steers))
+		for _, steer := range steers {
+			ids = append(ids, steer.ID)
+		}
+		onSteersApplied(loopID, ids)
+	}
 
 	// 1b. Stage on ephemeral git experiment branch if BranchManager is configured
 	var branchName string
@@ -711,20 +753,37 @@ func (e *LoopEngine) TriggerAutonomousReflection(ctx context.Context, memoryStor
 	return reflection, nil
 }
 
-// proposeMutation generates a code modification via LLM or deterministic genetic operator
-func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion string) (string, string, *llm.InvocationMeta) {
-	// Try LLM if client is available
-	if e.llmClient != nil {
-		prompt := fmt.Sprintf(`You are the Kubona Quantum Autonomous Researcher.
+// mutationPrompt builds the coder prompt. Steering is explicit context, not a
+// tool call; the caller only marks it consumed after a model response.
+func mutationPrompt(program, champion string, steers []SteerInstruction) string {
+	steerBlock := ""
+	if len(steers) > 0 {
+		var b strings.Builder
+		b.WriteString("\nOperator steering for this iteration (follow unless it conflicts with safety or the fixed harness):\n")
+		for _, steer := range steers {
+			b.WriteString("- ")
+			b.WriteString(steer.Text)
+			b.WriteString("\n")
+		}
+		steerBlock = b.String()
+	}
+	return fmt.Sprintf(`You are the Kubona Quantum Autonomous Researcher.
 %s
 
 Current best champion code:
 `+"```python"+`
 %s
 `+"```"+`
-
+%s
 Propose ONE focused algorithmic mutation to improve the metric.
-Output only the mutated Python code inside triple backticks.`, e.programMd, champion)
+Output only the mutated Python code inside triple backticks.`, program, champion, steerBlock)
+}
+
+// proposeMutation generates a code modification via LLM or deterministic genetic operator
+func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion string, steers []SteerInstruction) (string, string, *llm.InvocationMeta, bool) {
+	// Try LLM if client is available
+	if e.llmClient != nil {
+		prompt := mutationPrompt(e.programMd, champion, steers)
 
 		msgs := []llm.ChatMessage{
 			{Role: "system", Content: "You are an autonomous quantum circuit researcher optimizing variational ansatz circuits."},
@@ -752,14 +811,14 @@ Output only the mutated Python code inside triple backticks.`, e.programMd, cham
 			}
 			code := extractCodeBlock(content)
 			if code != "" {
-				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement", meta
+				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement", meta, true
 			}
 		}
 	}
 
 	// Algorithmic mutation operator fallback (resilient and deterministic)
 	code, rationale := algorithmicMutate(e.harness.ID(), iter, champion)
-	return code, rationale, nil
+	return code, rationale, nil, false
 }
 
 func extractCodeBlock(text string) string {

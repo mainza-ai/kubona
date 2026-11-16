@@ -32,6 +32,20 @@ func partsPost(t *testing.T, h http.Handler, path string, body any) (int, string
 	return w.Code, w.Body.String()
 }
 
+func partsMethod(t *testing.T, h http.Handler, method, path string, body any) (int, string) {
+	t.Helper()
+	var raw []byte
+	if body != nil {
+		raw, _ = json.Marshal(body)
+	}
+	req := httptest.NewRequest(method, path, bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer op-token")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w.Code, w.Body.String()
+}
+
 func TestLoopPartsProjectLaunchedJob(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()

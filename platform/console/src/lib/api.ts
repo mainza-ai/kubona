@@ -880,9 +880,15 @@ export async function mintProposal(
   }
 }
 
-export async function dismissProposal(proposalId: string): Promise<{ ok: boolean; error?: string; status?: string }> {
+export async function dismissProposal(
+  proposalId: string,
+  reason = '',
+): Promise<{ ok: boolean; error?: string; status?: string }> {
   try {
-    const data = (await requestOperation('dismissProposal', { params: { id: proposalId }, body: {} })) as unknown as {
+    const data = (await requestOperation('dismissProposal', {
+      params: { id: proposalId },
+      body: { reason },
+    })) as unknown as {
       status?: string;
     };
     return { ok: true, status: data.status };
@@ -945,6 +951,65 @@ export async function steerLoop(
       steer: import('@/types').LoopSteer;
     };
     return { ok: true, steer: data.steer };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function fetchLoopSteers(loopId: string): Promise<import('@/types').LoopSteer[]> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/loops/${encodeURIComponent(loopId)}/steers`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = contract('loop.steers', (await res.json()) as Record<string, unknown>) as unknown as {
+      steers?: import('@/types').LoopSteer[];
+    };
+    return data.steers ?? [];
+  } catch (err) {
+    console.error('Failed to fetch queued steers:', err);
+    return [];
+  }
+}
+
+export async function updateLoopSteer(
+  loopId: string,
+  steerId: string,
+  text: string,
+): Promise<{ ok: true; steer: import('@/types').LoopSteer } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/loops/${encodeURIComponent(loopId)}/steers/${encodeURIComponent(steerId)}`,
+      {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ text }),
+      },
+    );
+    if (!res.ok) return { ok: false, error: `steer edit refused (${res.status})` };
+    const data = contract('loop.steer.update', (await res.json()) as Record<string, unknown>) as unknown as {
+      steer: import('@/types').LoopSteer;
+    };
+    return { ok: true, steer: data.steer };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function cancelLoopSteer(
+  loopId: string,
+  steerId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/loops/${encodeURIComponent(loopId)}/steers/${encodeURIComponent(steerId)}`,
+      { method: 'DELETE', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return { ok: false, error: `steer cancel refused (${res.status})` };
+    contract('loop.steer.cancel', (await res.json()) as Record<string, unknown>);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
@@ -1256,6 +1321,30 @@ export async function startAutoresearchLoop(
   } catch (err) {
     console.error('Failed to start autoresearch loop:', err);
     return null;
+  }
+}
+
+export async function steerAutoresearchLoop(
+  loopId: string,
+  text: string,
+): Promise<{ ok: true; steer: import('@/types').LoopSteer } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/steer`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { ok: false, error: detail.slice(0, 280) || `steer refused (${res.status})` };
+    }
+    const data = contract('autoresearch.steer', (await res.json()) as Record<string, unknown>) as unknown as {
+      steer: import('@/types').LoopSteer;
+    };
+    return { ok: true, steer: data.steer };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1577,6 +1666,7 @@ export interface SkillSummary {
   role: string;
   tools: string[];
   source: 'seed' | 'user';
+  enabled: boolean;
 }
 
 export interface SkillFault {
@@ -1589,6 +1679,27 @@ export interface SkillsCatalog {
   skills: SkillSummary[];
   faults: SkillFault[];
   limits: { max_skills: number; max_skill_bytes: number; max_description: number };
+}
+
+export async function toggleSkill(
+  name: string,
+  enabled: boolean,
+): Promise<{ ok: true; enabled: boolean } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/skills/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) return { ok: false, error: `skill toggle refused (${res.status})` };
+    const data = contract('skills.toggle', (await res.json()) as Record<string, unknown>) as unknown as {
+      enabled: boolean;
+    };
+    return { ok: true, enabled: data.enabled };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
 }
 
 export async function fetchSkills(): Promise<SkillsCatalog | null> {
@@ -2502,10 +2613,17 @@ export interface NotificationRow {
   resolved_at: string;
 }
 
+export interface NotificationPreferences {
+  quiet: boolean;
+  muted_kinds: string[];
+  updated_at?: string;
+}
+
 export interface NotificationsPayload {
   session_id: string;
   notifications: NotificationRow[];
   unread: number;
+  preferences: NotificationPreferences;
   generated_at: string;
 }
 
@@ -2519,6 +2637,47 @@ export async function fetchNotifications(sessionId: string): Promise<Notificatio
     return contract('notifications.list', (await res.json()) as Record<string, unknown>) as unknown as NotificationsPayload;
   } catch (err) {
     console.error('Failed to fetch notifications:', err);
+    return null;
+  }
+}
+
+export async function fetchNotificationPreferences(sessionId: string): Promise<NotificationPreferences> {
+  const fallback: NotificationPreferences = { quiet: false, muted_kinds: [] };
+  try {
+    const res = await apiFetch(`${API_BASE}/api/notifications/preferences?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return fallback;
+    const data = contract('notifications.preferences', (await res.json()) as Record<string, unknown>) as unknown as {
+      preferences?: NotificationPreferences;
+    };
+    return data.preferences ?? fallback;
+  } catch (err) {
+    console.error('Failed to fetch notification preferences:', err);
+    return fallback;
+  }
+}
+
+export async function saveNotificationPreferences(
+  sessionId: string,
+  quiet: boolean,
+  mutedKinds: string[],
+): Promise<NotificationPreferences | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/notifications/preferences`, {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, quiet, muted_kinds: mutedKinds }),
+    });
+    if (!res.ok) return null;
+    const data = contract('notifications.preferences', (await res.json()) as Record<string, unknown>) as unknown as {
+      preferences?: NotificationPreferences;
+    };
+    return data.preferences ?? null;
+  } catch (err) {
+    console.error('Failed to save notification preferences:', err);
     return null;
   }
 }

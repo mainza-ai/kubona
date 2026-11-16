@@ -2,13 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
-import { fetchSkills, type SkillsCatalog } from '@/lib/api';
+import { fetchSkills, toggleSkill, type SkillsCatalog } from '@/lib/api';
 
 type LoadState = 'loading' | 'ready' | 'unavailable';
 
 export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<SkillsCatalog | null> }) {
   const [catalog, setCatalog] = useState<SkillsCatalog | null>(null);
   const [state, setState] = useState<LoadState>('loading');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +66,8 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
             </span>
           </div>
 
+          {status && <p role="status" className="text-label-secondary text-body">{status}</p>}
+
           {catalog.skills.length === 0 ? (
             <p className="text-label-secondary text-body">No skills are installed for the copilot role.</p>
           ) : (
@@ -76,6 +80,29 @@ export function SkillsSettings({ load = fetchSkills }: { load?: () => Promise<Sk
                     <span className="rounded-chip border border-border px-1.5 py-0.5 text-caption text-label-secondary">
                       {skill.source}
                     </span>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      aria-pressed={skill.enabled}
+                      onClick={async () => {
+                        setBusy(skill.name);
+                        setStatus(null);
+                        const out = await toggleSkill(skill.name, !skill.enabled);
+                        if (out.ok) {
+                          setCatalog((prev) => prev ? {
+                            ...prev,
+                            skills: prev.skills.map((item) => item.name === skill.name ? { ...item, enabled: out.enabled } : item),
+                          } : prev);
+                          setStatus(`${skill.name}: ${out.enabled ? 'enabled' : 'disabled'}`);
+                        } else {
+                          setStatus(`${skill.name}: ${out.error}`);
+                        }
+                        setBusy(null);
+                      }}
+                      className="rounded-chip border border-border px-1.5 py-0.5 text-caption text-label-secondary hover:text-text disabled:opacity-40"
+                    >
+                      {busy === skill.name ? 'Saving…' : skill.enabled ? 'Disable' : 'Enable'}
+                    </button>
                     {skill.tools.map((tool) => (
                       <span
                         key={`${skill.name}-${tool}`}

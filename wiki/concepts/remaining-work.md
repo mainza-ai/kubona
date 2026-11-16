@@ -793,12 +793,13 @@ See [[feedback-loops-and-notifications]] for the full audit. The short queue:
 - **Landed 2026-11-15:** durable votes + GET hydration/toggle/actor/reason;
   advisory-review labelling + caller identity; proposal launched/dismissed
   events; derived notification inbox with read/resolve state, SSE domain,
-  coalescing, and Notification Center. See the page’s implementation status.
-- **Open P0:** feedback reason UI, claim-review verdict rule, proposal dismiss
-  UI reason/ranking.
-- **Open P1:** server-synced preferences/quiet routing, Attention Director
+  coalescing, and Notification Center; feedback-reason UI and proposal-dismiss
+  UI/reason; server-synced quiet/muted notification preferences; skill
+  enable/disable persisted across restarts; steer edit/cancel and autoresearch
+  prompt consumption. Claim reviews are **advisory permanently** (decided).
+- **Open P1:** proposal-dismiss reasons used in ranking, Attention Director
   wiring for every producer, one polite live-region batch, removal of the
-  remaining duplicate per-surface toasts/chips.
+  remaining duplicate per-surface toasts/chips, skill editor/installer.
 - **Open P2:** feed votes/reviews/dismissals/steering outcomes into
   eval/ranking with an explicit policy, and measure delivery/read/action
   latency.

@@ -610,6 +610,19 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	-- Server-owned notification read/resolve state. Notifications themselves
 	-- are derived from obligations + selected ledger events, so the audit
 	-- chain stays the source and this table only records user disposition.
+	CREATE TABLE IF NOT EXISTS skill_disabled (
+		name TEXT PRIMARY KEY,
+		disabled_at DATETIME NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS notification_prefs (
+		session_id TEXT PRIMARY KEY,
+		quiet INTEGER NOT NULL DEFAULT 0,
+		muted_kinds_json TEXT NOT NULL DEFAULT '[]',
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+
 	CREATE TABLE IF NOT EXISTS notification_states (
 		session_id TEXT NOT NULL,
 		notification_key TEXT NOT NULL,

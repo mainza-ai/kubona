@@ -1,7 +1,14 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
-import { fetchNotifications, markNotifications, type NotificationRow } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  fetchNotificationPreferences,
+  fetchNotifications,
+  markNotifications,
+  saveNotificationPreferences,
+  type NotificationPreferences,
+  type NotificationRow,
+} from '@/lib/api';
 import { subscribeInvalidation } from './invalidation';
 import { useSharedResource } from './shared-resource';
 
@@ -14,6 +21,8 @@ export function useNotificationsProjection(sessionId: string | null) {
     return payload?.notifications ?? [];
   }, [sessionId]);
 
+  const [prefs, setPrefs] = useState<NotificationPreferences>({ quiet: false, muted_kinds: [] });
+
   const { data, status, error, refresh, setPollMs } = useSharedResource<NotificationRow[]>(
     `notifications:${sessionId ?? 'none'}`,
     load,
@@ -25,6 +34,17 @@ export function useNotificationsProjection(sessionId: string | null) {
     if (sessionId) refresh();
   }, [sessionId, refresh, setPollMs]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    let live = true;
+    fetchNotificationPreferences(sessionId).then((next) => {
+      if (live) setPrefs(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [sessionId, refresh]);
+
   useEffect(() => subscribeInvalidation(['notifications'], refresh), [refresh]);
 
   const markRead = useCallback(
@@ -32,6 +52,18 @@ export function useNotificationsProjection(sessionId: string | null) {
       if (!sessionId) return;
       await markNotifications(sessionId, keys, 'read');
       refresh();
+    },
+    [sessionId, refresh],
+  );
+
+  const updatePrefs = useCallback(
+    async (next: NotificationPreferences) => {
+      if (!sessionId) return;
+      const saved = await saveNotificationPreferences(sessionId, next.quiet, next.muted_kinds);
+      if (saved) {
+        setPrefs(saved);
+        refresh();
+      }
     },
     [sessionId, refresh],
   );
@@ -45,5 +77,5 @@ export function useNotificationsProjection(sessionId: string | null) {
     [sessionId, refresh],
   );
 
-  return { notifications: data ?? [], status, error, refresh, markRead, resolve };
+  return { notifications: data ?? [], prefs, status, error, refresh, markRead, resolve, updatePrefs };
 }

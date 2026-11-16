@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/skills"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 )
@@ -108,5 +109,35 @@ func TestSkillsEndpointReturnsCatalogueWithoutBodies(t *testing.T) {
 	s.handleSkills(rec, httptest.NewRequest(http.MethodPost, "/api/skills", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("POST status = %d, want 405", rec.Code)
+	}
+}
+
+func TestSkillTogglePersistsAndLeavesPrompt(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/skills.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	s := &Server{skillStore: skills.Load(skills.Options{UserDir: t.TempDir()}), ledger: l}
+	req := httptest.NewRequest(http.MethodPut, "/api/skills/pes-scan", strings.NewReader(`{"enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleSkillByID(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("toggle status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(s.copilotSystemPrompt(), "pes-scan:") {
+		t.Fatal("disabled skill still advertised in the prompt")
+	}
+	disabled, err := l.DisabledSkills()
+	if err != nil || len(disabled) != 1 || disabled[0] != "pes-scan" {
+		t.Fatalf("persisted disabled = %v err=%v", disabled, err)
+	}
+	// A fresh load applies the persisted set, so restart does not silently
+	// re-enable the skill.
+	fresh := skills.Load(skills.Options{UserDir: t.TempDir()})
+	fresh.SetDisabled(disabled)
+	if strings.Contains(fresh.PromptSection(CopilotRole), "pes-scan:") {
+		t.Fatal("restart did not apply the disabled set")
 	}
 }

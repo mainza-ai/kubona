@@ -256,6 +256,80 @@
         }
       }
     },
+    "/api/loops/{loopId}/steers/{steerId}": {
+      "delete": {
+        "operationId": "cancelLoopSteer",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "loopId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "steerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.steer.cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.steer.cancel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateLoopSteer",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "loopId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "steerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.steer.update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.steer.update"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quantum/jobs/{id}/cancel": {
       "post": {
         "operationId": "cancelQuantumJob",
@@ -1514,6 +1588,36 @@
         }
       }
     },
+    "/api/loops/{loopId}/steers": {
+      "get": {
+        "operationId": "fetchLoopSteers",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "loopId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.steers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.steers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/loops": {
       "get": {
         "operationId": "fetchLoopsResult",
@@ -1607,6 +1711,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/notebooks.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/preferences": {
+      "get": {
+        "operationId": "fetchNotificationPreferences",
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: notifications.preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/notifications.preferences"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveNotificationPreferences",
+        "tags": [
+          "notifications"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: notifications.preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/notifications.preferences"
                 }
               }
             }
@@ -3188,6 +3330,36 @@
         }
       }
     },
+    "/api/autoresearch/loops/{loopId}/steer": {
+      "post": {
+        "operationId": "steerAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "loopId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.steer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.steer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/loops/{id}/steer": {
       "post": {
         "operationId": "steerLoop",
@@ -3361,6 +3533,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/llm.test"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/{name}": {
+      "put": {
+        "operationId": "toggleSkill",
+        "tags": [
+          "skills"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: skills.toggle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/skills.toggle"
                 }
               }
             }
@@ -3758,7 +3960,8 @@
                 "description",
                 "role",
                 "tools",
-                "source"
+                "source",
+                "enabled"
               ],
               "properties": {
                 "name": {
@@ -3778,6 +3981,9 @@
                 },
                 "source": {
                   "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
                 }
               }
             }
@@ -3822,6 +4028,25 @@
                 "type": "number"
               }
             }
+          }
+        }
+      },
+      "skills.toggle": {
+        "type": "object",
+        "required": [
+          "ok",
+          "name",
+          "enabled"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
           }
         }
       },
@@ -4422,6 +4647,98 @@
           }
         }
       },
+      "loop.steers": {
+        "type": "object",
+        "required": [
+          "steers"
+        ],
+        "properties": {
+          "steers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "loop_id",
+                "text",
+                "status",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "loop_id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "loop.steer.update": {
+        "type": "object",
+        "required": [
+          "ok",
+          "steer"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "steer": {
+            "type": "object",
+            "required": [
+              "id",
+              "loop_id",
+              "text",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "loop_id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "loop.steer.cancel": {
+        "type": "object",
+        "required": [
+          "ok",
+          "steer_id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "steer_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "tasks.batch": {
         "type": "object",
         "required": [
@@ -4521,6 +4838,45 @@
             "items": {}
           },
           "docker_runner": {}
+        }
+      },
+      "autoresearch.steer": {
+        "type": "object",
+        "required": [
+          "ok",
+          "steer"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "steer": {
+            "type": "object",
+            "required": [
+              "id",
+              "loop_id",
+              "text",
+              "status",
+              "created_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "loop_id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            }
+          }
         }
       },
       "autoresearch.loop": {
@@ -5602,6 +5958,7 @@
           "session_id",
           "notifications",
           "unread",
+          "preferences",
           "generated_at"
         ],
         "properties": {
@@ -5657,6 +6014,28 @@
           "unread": {
             "type": "number"
           },
+          "preferences": {
+            "type": "object",
+            "required": [
+              "quiet",
+              "muted_kinds",
+              "updated_at"
+            ],
+            "properties": {
+              "quiet": {
+                "type": "boolean"
+              },
+              "muted_kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            }
+          },
           "generated_at": {
             "type": "string"
           }
@@ -5674,6 +6053,40 @@
           },
           "updated": {
             "type": "number"
+          }
+        }
+      },
+      "notifications.preferences": {
+        "type": "object",
+        "required": [
+          "ok",
+          "preferences"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "preferences": {
+            "type": "object",
+            "required": [
+              "quiet",
+              "muted_kinds",
+              "updated_at"
+            ],
+            "properties": {
+              "quiet": {
+                "type": "boolean"
+              },
+              "muted_kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            }
           }
         }
       },

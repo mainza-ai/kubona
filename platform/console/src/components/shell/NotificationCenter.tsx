@@ -2,7 +2,9 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Bell, Check, X } from 'lucide-react';
-import type { NotificationRow } from '@/lib/api';
+import type { NotificationPreferences, NotificationRow } from '@/lib/api';
+
+const KINDS = ['job', 'run', 'proposal', 'claim', 'workflow', 'memory', 'allowance', 'obligation'];
 
 export function NotificationCenter({
   open,
@@ -12,6 +14,8 @@ export function NotificationCenter({
   onMarkRead,
   onResolve,
   onOpenAction,
+  prefs,
+  onUpdatePrefs,
 }: {
   open: boolean;
   notifications: NotificationRow[];
@@ -20,6 +24,8 @@ export function NotificationCenter({
   onMarkRead: (keys: string[]) => void;
   onResolve: (key: string) => void;
   onOpenAction?: (action: string) => void;
+  prefs: NotificationPreferences;
+  onUpdatePrefs: (next: NotificationPreferences) => void;
 }) {
   const marked = useRef(new Set<string>());
   useEffect(() => {
@@ -55,6 +61,34 @@ export function NotificationCenter({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
+      <details className="border-b border-border px-3 py-1.5 text-caption text-muted">
+        <summary className="cursor-pointer select-none">Delivery preferences</summary>
+        <label className="mt-1 flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={prefs.quiet}
+            onChange={(event) => onUpdatePrefs({ ...prefs, quiet: event.target.checked })}
+          />
+          Quiet mode (keep inbox, suppress badge/announcement)
+        </label>
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+          {KINDS.map((kind) => (
+            <label key={kind} className="inline-flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={!prefs.muted_kinds.includes(kind)}
+                onChange={(event) => {
+                  const next = event.target.checked
+                    ? prefs.muted_kinds.filter((item) => item !== kind)
+                    : [...prefs.muted_kinds, kind];
+                  onUpdatePrefs({ ...prefs, muted_kinds: next });
+                }}
+              />
+              {kind}
+            </label>
+          ))}
+        </div>
+      </details>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {notifications.length === 0 ? (
           <p className="px-1 py-4 text-body text-muted">No notifications yet. Terminal runs, proposals, reviews, and decisions land here.</p>

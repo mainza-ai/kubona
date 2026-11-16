@@ -536,6 +536,7 @@ func (m *Manager) DeleteSession(id string, signer ed25519.PrivateKey) error {
 		`DELETE FROM transcript_scores WHERE session_id = ?`,
 		`DELETE FROM chat_feedback WHERE session_id = ?`,
 		`DELETE FROM notification_states WHERE session_id = ?`,
+		`DELETE FROM notification_prefs WHERE session_id = ?`,
 		`DELETE FROM chat_messages WHERE session_id = ?`,
 		`DELETE FROM campaign_states WHERE session_id = ?`,
 		`DELETE FROM campaign_versions WHERE session_id = ?`,
