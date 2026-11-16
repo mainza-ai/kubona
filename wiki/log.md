@@ -6683,3 +6683,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated useQuantumSettingsProjection, needs-you-seen-hook, and
   useCampaignProjection to real-browser tests; renderer ratchet fell 74 → 71.
+
+## 2026-11-15 | cleanup | form-panel renderer batch
+
+- Migrated SessionRefundPanel, TenantGrantPanel, and WorkflowPanel to
+  real-browser tests; renderer ratchet fell 71 → 68.
