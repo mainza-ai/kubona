@@ -1134,6 +1134,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/claims/{claimId}/provenance": {
+      "get": {
+        "operationId": "fetchClaimProvenance",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: claim.provenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/claim.provenance"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}/claims/{claimId}/reviews": {
       "get": {
         "operationId": "fetchClaimReviews",
@@ -4047,6 +4085,78 @@
           },
           "enabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "claim.provenance": {
+        "type": "object",
+        "required": [
+          "ok",
+          "claim",
+          "evidence",
+          "summary"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "claim": {},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "claim_id",
+                "kind",
+                "job_id",
+                "result_sha256",
+                "receipt_entry_hash",
+                "source_ref",
+                "created_at"
+              ],
+              "properties": {
+                "claim_id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "job_id": {
+                  "type": "string"
+                },
+                "result_sha256": {
+                  "type": "string"
+                },
+                "receipt_entry_hash": {
+                  "type": "string"
+                },
+                "source_ref": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "measured",
+              "general_knowledge",
+              "complete"
+            ],
+            "properties": {
+              "measured": {
+                "type": "number"
+              },
+              "general_knowledge": {
+                "type": "boolean"
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },

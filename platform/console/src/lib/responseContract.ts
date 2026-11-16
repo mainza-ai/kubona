@@ -97,6 +97,22 @@ export const RESPONSE_SCHEMAS = {
     limits: obj({ max_skills: num, max_skill_bytes: num, max_description: num }),
   }),
   'skills.toggle': obj({ ok: bool, name: str, enabled: bool }),
+  'claim.provenance': obj({
+    ok: bool,
+    claim: any,
+    evidence: arr(
+      obj({
+        claim_id: str,
+        kind: str,
+        job_id: str,
+        result_sha256: str,
+        receipt_entry_hash: str,
+        source_ref: str,
+        created_at: str,
+      }),
+    ),
+    summary: obj({ measured: num, general_knowledge: bool, complete: bool }),
+  }),
   'llm.eval.status': obj({
     role: str,
     provider: str,

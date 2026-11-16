@@ -12,6 +12,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
     sendChatMessage: vi.fn(),
     appendLedgerEvent: vi.fn(),
     fetchClaimReviews: vi.fn(),
+    fetchClaimProvenance: vi.fn(),
     reviewClaim: vi.fn(),
   };
 });
@@ -165,3 +166,23 @@ describe('ClaimHistory', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('claim history unavailable');
   });
 });
+
+  it('opens typed provenance rows and an honest completeness summary', async () => {
+    vi.mocked(api.fetchClaimsPage).mockResolvedValueOnce({ claims: [claim], offset: 0, limit: 50, next_offset: 1, has_more: false });
+    vi.mocked(api.fetchClaimReviews).mockResolvedValueOnce([]);
+    vi.mocked(api.fetchClaimProvenance).mockResolvedValueOnce({
+      claim: { id: claim.id, session_id: 's1', turn_kind: claim.turn_kind, statement: claim.statement, verdict: claim.verdict },
+      evidence: [{ claim_id: claim.id, kind: 'job_result', job_id: 'job-12345678', result_sha256: 'sha256:abcdef0123456789', created_at: '2026-11-08T10:01:00Z' }],
+      summary: { measured: 1, general_knowledge: false, complete: true },
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<ClaimHistory sessionId="s1" />); });
+    const button = tree!.root.findAllByType('button').find((item) => String(item.props.children).includes('Provenance'));
+    if (!button) throw new Error('provenance button missing');
+    await act(async () => { button.props.onClick(); await Promise.resolve(); });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Complete');
+    expect(text).toContain('measured 1');
+    expect(text).toContain('job-1234');
+    expect(api.fetchClaimProvenance).toHaveBeenCalledWith('s1', claim.id);
+  });

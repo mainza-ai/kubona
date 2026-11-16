@@ -87,6 +87,25 @@ export type SkillsToggle = {
   "enabled": boolean;
 };
 
+export type ClaimProvenance = {
+  "ok": boolean;
+  "claim": unknown;
+  "evidence": {
+  "claim_id": string;
+  "kind": string;
+  "job_id": string;
+  "result_sha256": string;
+  "receipt_entry_hash": string;
+  "source_ref": string;
+  "created_at": string;
+}[];
+  "summary": {
+  "measured": number;
+  "general_knowledge": boolean;
+  "complete": boolean;
+};
+};
+
 export type LlmEvalStatus = {
   "role": string;
   "provider": string;
@@ -1123,6 +1142,7 @@ export type ApiOperationResponse = {
   fetchCanvasLayout: CanvasLayout;
   fetchCapabilities: Capabilities;
   fetchChatFeedback: ChatFeedbackList;
+  fetchClaimProvenance: ClaimProvenance;
   fetchClaimReviews: ClaimsReviews;
   fetchClaimsPage: ClaimsPage;
   fetchCodesignPacks: CodesignPacks;
@@ -1295,6 +1315,7 @@ export const API_OPERATIONS = {
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
   fetchChatFeedback: { method: "get", path: "/api/chat/feedback", response: "chat.feedback.list" },
+  fetchClaimProvenance: { method: "get", path: "/api/sessions/{sessionId}/claims/{claimId}/provenance", response: "claim.provenance" },
   fetchClaimReviews: { method: "get", path: "/api/sessions/{sessionId}/claims/{claimId}/reviews", response: "claims.reviews" },
   fetchClaimsPage: { method: "get", path: "/api/sessions/{sessionId}/claims", response: "claims.page" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },

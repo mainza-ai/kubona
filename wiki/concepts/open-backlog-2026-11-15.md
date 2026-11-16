@@ -22,7 +22,9 @@ record on the owning pages.
 > has no model prompt and remains a recorded run-lane instruction. OB-02,
 > OB-03, OB-04, and OB-07 are closed. OB-11 is partially closed: enable/disable
 > persists, but authoring/installer UI remains. OB-12's inventory UI already
-> exists (`MemoryPanel`); the S9 cloud-edge screening remains. See
+> exists (`MemoryPanel`); the S9 cloud-edge screening remains. OB-14's
+> provenance panel has landed (typed evidence rows + completeness summary);
+> table/value citation scanning and inline number highlighting remain. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

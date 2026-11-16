@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { History, MessageSquare, RefreshCw } from 'lucide-react';
-import { appendLedgerEvent, fetchClaimReviews, fetchClaimsPage, reviewClaim, sendChatMessage, type ClaimRecord, type ClaimReview } from '@/lib/api';
+import { appendLedgerEvent, fetchClaimProvenance, fetchClaimReviews, fetchClaimsPage, reviewClaim, sendChatMessage, type ClaimRecord, type ClaimReview } from '@/lib/api';
+import type { ClaimProvenance } from '@/types';
 
 function evidenceJob(record: ClaimRecord): string | null {
   try {
@@ -27,6 +28,8 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
   const [reason, setReason] = useState('');
   const [nonce, setNonce] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [provenance, setProvenance] = useState<Record<string, ClaimProvenance | null>>({});
+  const [openProvenance, setOpenProvenance] = useState<string | null>(null);
 
   const loadReviews = (sid: string, rowsToLoad: ClaimRecord[]) => {
     const slice = rowsToLoad.slice(0, 8);
@@ -70,6 +73,18 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
     } finally {
       setLoadingMore(false);
     }
+  };
+
+  const toggleProvenance = async (record: ClaimRecord) => {
+    if (!sessionId) return;
+    if (openProvenance === record.id) {
+      setOpenProvenance(null);
+      return;
+    }
+    setOpenProvenance(record.id);
+    if (Object.prototype.hasOwnProperty.call(provenance, record.id)) return;
+    const next = await fetchClaimProvenance(sessionId, record.id);
+    setProvenance((prev) => ({ ...prev, [record.id]: next }));
   };
 
   const requestReview = async (record: ClaimRecord) => {
@@ -158,9 +173,50 @@ export function ClaimHistory({ sessionId }: { sessionId: string | null }) {
                   <span className="rounded-capsule border border-border px-2 py-0.5 text-muted">{claim.turn_kind}</span>
                   <span className="rounded-capsule border border-border px-2 py-0.5 text-text">{claim.verdict}</span>
                   {job && <span className="font-code text-muted">job {job.slice(0, 8)}</span>}
+                  <button
+                    type="button"
+                    onClick={() => void toggleProvenance(claim)}
+                    aria-expanded={openProvenance === claim.id}
+                    className="rounded-control-compact border border-border px-2 py-0.5 text-muted hover:text-text"
+                  >
+                    {openProvenance === claim.id ? 'Hide provenance' : 'Provenance'}
+                  </button>
                   <span className="ml-auto text-faint">{claim.created_at}</span>
                 </div>
                 <p className="text-[12px] leading-relaxed text-text">{claim.statement}</p>
+                {openProvenance === claim.id && (
+                  <div className="rounded-row border border-border bg-surface px-2 py-1.5 text-[11px] text-muted" data-testid={`claim-provenance-${claim.id}`}>
+                    {!Object.prototype.hasOwnProperty.call(provenance, claim.id) ? (
+                      <span>Loading provenance…</span>
+                    ) : provenance[claim.id] === null ? (
+                      <span>Provenance unavailable — no evidence read was confirmed.</span>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={provenance[claim.id]!.summary.complete ? 'text-success' : 'text-warning'}>
+                            {provenance[claim.id]!.summary.complete ? 'Complete' : 'Incomplete'}
+                          </span>
+                          <span>{`measured ${provenance[claim.id]!.summary.measured}`}</span>
+                          <span>{`general knowledge ${provenance[claim.id]!.summary.general_knowledge ? 'yes' : 'no'}`}</span>
+                        </div>
+                        {provenance[claim.id]!.evidence.length === 0 ? (
+                          <p className="mt-1">No evidence rows linked.</p>
+                        ) : (
+                          <ul className="mt-1 space-y-0.5">
+                            {provenance[claim.id]!.evidence.map((row) => (
+                              <li key={`${row.kind}-${row.created_at}-${row.job_id ?? row.source_ref ?? ''}`} className="font-code">
+                                {row.kind}
+                                {row.job_id ? ` · job ${row.job_id.slice(0, 8)}` : ''}
+                                {row.source_ref ? ` · ${row.source_ref}` : ''}
+                                {row.result_sha256 ? ` · ${row.result_sha256.slice(0, 18)}…` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-3 text-[11px] text-muted">
                   <span>α {claim.alpha < 0 ? 'not evaluated' : claim.alpha.toFixed(2)}</span>
                   <span>β {claim.beta < 0 ? 'not evaluated' : claim.beta.toFixed(2)}</span>

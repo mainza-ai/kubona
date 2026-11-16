@@ -2821,6 +2821,24 @@ export interface ClaimReview {
   created_at: string;
 }
 
+export async function fetchClaimProvenance(
+  sessionId: string,
+  claimId: string,
+): Promise<import('@/types').ClaimProvenance | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/provenance`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const data = contract('claim.provenance', (await res.json()) as Record<string, unknown>) as unknown as import('@/types').ClaimProvenance;
+    return data;
+  } catch (err) {
+    console.error('Failed to fetch claim provenance:', err);
+    return null;
+  }
+}
+
 export async function fetchClaimReviews(sessionId: string, claimId: string): Promise<ClaimReview[] | null> {
   if (!sessionId || !claimId) return null;
   try {

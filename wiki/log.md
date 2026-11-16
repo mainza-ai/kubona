@@ -6346,3 +6346,13 @@ skipped is the exact failure this incident is about:
   proposal reasons in ranking, skill authoring/installer, live eval, memory
   S9, typed needs, provenance panel, proposal history, hardware parent rails,
   HITL hardware, console debt.
+
+## [2026-11-15] verification | claim provenance panel
+
+- Added the B4 claim-provenance panel to Claim History: on-demand typed
+  evidence rows, job/source/digest labels, and measured/general-knowledge/
+  complete summary. Unknown or failed reads render an explicit unavailable
+  state, never an empty success.
+- Added the client response contract and a test covering the panel.
+- Still open in B5: table/rendered-value scanning and inline highlighting of
+  an offending number; the badge already names unverified claims.

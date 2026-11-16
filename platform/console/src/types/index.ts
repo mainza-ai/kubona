@@ -80,6 +80,29 @@ export interface CitationClaim {
   status: CitationStatus | string;
 }
 
+/** B4: typed evidence links behind a claim, with a completeness summary. */
+export interface ClaimEvidence {
+  claim_id: string;
+  kind: 'job_result' | 'classical_anchor' | 'literature' | 'tribunal_turn' | 'general_knowledge' | string;
+  job_id?: string;
+  result_sha256?: string;
+  receipt_entry_hash?: string;
+  source_ref?: string;
+  created_at: string;
+}
+
+export interface ClaimProvenance {
+  claim: {
+    id: string;
+    session_id: string;
+    turn_kind: string;
+    statement: string;
+    verdict: string;
+  };
+  evidence: ClaimEvidence[];
+  summary: { measured: number; general_knowledge: boolean; complete: boolean };
+}
+
 /** B5: deterministic numeric-claim citation report persisted with the turn. */
 export interface CitationReport {
   observations: Array<{ id: string; tool: string }>;

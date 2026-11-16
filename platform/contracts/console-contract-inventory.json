@@ -29,6 +29,7 @@
     "chat.rewrite",
     "chat.send",
     "chat.stream.done",
+    "claim.provenance",
     "claims.page",
     "claims.review",
     "claims.reviews",
@@ -176,6 +177,7 @@
     "chat.rewrite",
     "chat.send",
     "chat.stream.done",
+    "claim.provenance",
     "claims.page",
     "claims.review",
     "claims.reviews",
@@ -540,6 +542,12 @@
       "path": "/api/chat/feedback",
       "method": "GET",
       "contract": "chat.feedback.list"
+    },
+    {
+      "function": "fetchClaimProvenance",
+      "path": "/api/sessions/:sessionId/claims/:claimId/provenance",
+      "method": "GET",
+      "contract": "claim.provenance"
     },
     {
       "function": "fetchClaimReviews",
