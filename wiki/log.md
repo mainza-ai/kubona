@@ -6770,3 +6770,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated AuthPanel, QuantumSettings, and CommandDock to real-browser tests;
   renderer ratchet fell 23 → 20.
+
+## 2026-11-15 | cleanup | chart/output/mesh renderer batch
+
+- Migrated DataChart, MeasuredOutputs, and CognitiveMesh to real-browser
+  tests; renderer ratchet fell 20 → 17.

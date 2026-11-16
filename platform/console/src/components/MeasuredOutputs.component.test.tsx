@@ -1,7 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'vitest-browser-react';
 import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
 import { MeasuredOutputs } from './MeasuredOutputs';
+
+// Real-browser port of MeasuredOutputs.test.tsx. The component is driven by
+// the real fetch rail (no `vi.mock('@/lib/api')`): each test stubs global
+// `fetch` by URL/method with `{ ok, status, json }` and then asserts against
+// the rendered DOM, including the scoping of measured <li> rows and the
+// live-progress job that must never leak into them.
 
 const JOBS = [
   {
@@ -80,33 +86,52 @@ const JOBS = [
   },
 ];
 
-describe('MeasuredOutputs', () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals();
-  });
+const RUNNING_JOB = {
+  job: {
+    id: 'job-run-1', session_id: 's', status: 'JOB_STATUS_RUNNING', job_type: 'circuit_run',
+    created_at: new Date().toISOString(),
+  },
+};
 
-  it('renders nothing without a session', () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    act(() => {
-      tree = TestRenderer.create(<MeasuredOutputs sessionId={null} />);
-    });
-    expect(tree!.toJSON()).toBeNull();
+type StubResponse = { ok: boolean; status?: number; json: () => Promise<unknown> };
+
+const ok = (body: unknown): StubResponse => ({ ok: true, status: 200, json: async () => body });
+
+// One stub for the whole job rail: `/api/jobs?session_id=…` lists, and
+// `/api/jobs/{id}` is the JobProgress detail poll.
+function stubJobRail(listing: unknown, detail: unknown = RUNNING_JOB) {
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const parsed = new URL(url, 'http://localhost');
+    if (/^\/api\/jobs\/[^/]+$/.test(parsed.pathname)) return ok(detail);
+    expect(parsed.pathname.endsWith('/api/jobs')).toBe(true);
+    expect(parsed.searchParams.get('session_id')).toBe('s');
+    return ok(listing);
+  });
+}
+
+const waitForText = async (screen: { container: HTMLElement }, needle: string) => {
+  await expect.poll(() => screen.container.textContent, { timeout: 3000 }).toContain(needle);
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('MeasuredOutputs in a real browser', () => {
+  it('renders nothing without a session', async () => {
+    const screen = await render(<MeasuredOutputs sessionId={null} />);
+    expect(screen.container.textContent).toBe('');
+    expect(screen.container.childElementCount).toBe(0);
   });
 
   it('binds latest completed jobs per type, skipping the running', async () => {
-    vi.stubGlobal('fetch', async (url: string) => {
-      if (String(url).includes('/api/jobs/job-run-1')) {
-        return { ok: true, json: async () => ({ job: { id: 'job-run-1', status: 'JOB_STATUS_RUNNING', job_type: 'circuit_run', created_at: new Date().toISOString() } }) };
-      }
-      expect(String(url)).toContain('/api/jobs?session_id=s');
-      return { ok: true, json: async () => ({ jobs: JOBS }) };
-    });
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />);
-    });
-    const text = JSON.stringify(tree!.toJSON());
-    expect(text).toContain('krylov_solve');
+    stubJobRail({ jobs: JOBS });
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'krylov_solve');
+    await waitForText(screen, 'RUNNING');
+    const text = screen.container.textContent ?? '';
+
     expect(text).toContain('-1.13699');
     expect(text).toContain('classical emulation');
     expect(text).toContain('circuit_run');
@@ -128,84 +153,71 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('hardware spin chain tfim n=4');
     expect(text).toContain('excited state ground -1.134600');
     expect(text).toContain('reaction H2 -> 2 H');
-    expect(text).toContain('job-kry'.slice(0, 8));
+    expect(text).toContain('job-kry');
+
     // The running job must not appear as a measured row (R7 gate holds);
     // it renders in the live-progress section instead (S8b/c) — including
     // its sr-only status announcer, which legitimately names the job id.
     // So the assertion is scoped to measured <li> rows, not the whole tree.
-    const textOf = (node: unknown): string => {
-      if (typeof node === 'string' || typeof node === 'number') return String(node);
-      if (node == null || typeof node !== 'object') return '';
-      const kids = (node as { children?: unknown; props?: { children?: unknown } }).children
-        ?? (node as { props?: { children?: unknown } }).props?.children;
-      return Array.isArray(kids) ? kids.map(textOf).join('') : textOf(kids);
-    };
-    const rows = tree!.root.findAllByType('li');
+    const rows = Array.from(screen.container.querySelectorAll('li'));
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(textOf(row)).not.toContain('job-run-');
+      expect(row.textContent ?? '').not.toContain('job-run-');
     }
     // The newer FAILED krylov job must not displace (or appear as) measured.
     expect(text).not.toContain('bridge blew up');
-    expect(text).not.toContain('job-fail'.slice(0, 8));
+    expect(text).not.toContain('job-fail');
     // S8b/c: the running job renders live progress beside the table.
     expect(text).toContain('RUNNING');
   });
 
   it('says so when nothing completed', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: [] }) }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />);
-    });
-    expect(JSON.stringify(tree!.toJSON())).toContain('No completed jobs yet');
+    stubJobRail({ jobs: [] });
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'No completed jobs yet');
+    expect(screen.container.textContent).toContain('No completed jobs yet');
   });
 
   it('surfaces a hardware QAOA final-state cut alongside the simulator result', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: [{
+    stubJobRail({ jobs: [{
       id: 'job-qaoa-hw-1', session_id: 's', status: 'JOB_STATUS_COMPLETED', job_type: 'circuit_run',
       params_json: {}, result_json: {
         counts: { '01': 2, '10': 1 }, resolved_backend: 'ibm_marrakesh',
         measured_cut: 0.75, approximation_ratio: 0.375, qaoa_meta: { optimal_cut: 2 },
       }, created_at: '', completed_at: '2026-11-08T10:00:00Z',
-    }] }) }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
-    expect(JSON.stringify(tree!.toJSON())).toContain('QAOA hardware cut 0.7500');
+    }] });
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'QAOA hardware cut 0.7500');
+    expect(screen.container.textContent).toContain('QAOA hardware cut 0.7500');
   });
 
   it('excludes wrong-molecule, FCI-incompatible, and off-domain jobs when targetScope is set', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: JOBS }) }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(
-        <MeasuredOutputs
-          sessionId="s"
-          targetScope={{
-            targetMolecule: 'Hydrogen Molecule (H2)',
-            molecularFormula: 'H2',
-            researchGoal: 'Live QPU loop acceptance',
-            anchorFci: -1.13727,
-          }}
-        />
-      );
-    });
-    const text = JSON.stringify(tree!.toJSON());
+    stubJobRail({ jobs: JOBS });
+    const screen = await render(
+      <MeasuredOutputs
+        sessionId="s"
+        targetScope={{
+          targetMolecule: 'Hydrogen Molecule (H2)',
+          molecularFormula: 'H2',
+          researchGoal: 'Live QPU loop acceptance',
+          anchorFci: -1.13727,
+        }}
+      />
+    );
+    await waitForText(screen, 'off-target jobs excluded');
+    const text = screen.container.textContent ?? '';
     expect(text).toContain('VQE -1.136800 Ha');
     expect(text).toContain('reaction H2 -> 2 H');
-    expect(text).toContain('off-target jobs excluded');
     expect(text).not.toContain('spin_chain');
     expect(text).not.toContain('conjecture_run');
     expect(text).not.toContain('qaoa_run');
   });
 
   it('stays silent when the backend is unreachable', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: false }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />);
-    });
-    expect(JSON.stringify(tree!.toJSON())).toContain('No completed jobs yet');
+    vi.stubGlobal('fetch', async () => ({ ok: false, status: 503, json: async () => ({}) }));
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'No completed jobs yet');
+    expect(screen.container.textContent).toContain('No completed jobs yet');
   });
 
   it('renders governed hardware VQE/QAOA with the local-optimizer label', async () => {
@@ -221,17 +233,17 @@ describe('MeasuredOutputs', () => {
         result_json: { success: true, measured_cut: 7.95, approximation_ratio: 0.795, simulated_optimizer: true },
       },
     ];
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs: hardwareJobs }) }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
-    const text = JSON.stringify(tree!.toJSON());
+    stubJobRail({ jobs: hardwareJobs });
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'hardware VQE');
+    const text = screen.container.textContent ?? '';
     expect(text).toContain('hardware VQE');
     expect(text).toContain('local optimizer');
     expect(text).toContain('hardware QAOA');
   });
 });
 
-describe('MeasuredOutputs new science variants', () => {
+describe('MeasuredOutputs new science variants in a real browser', () => {
   it('renders geometry, repeated-VQE, and lattice trajectories', async () => {
     const jobs = [
       {
@@ -259,10 +271,10 @@ describe('MeasuredOutputs new science variants', () => {
         },
       },
     ];
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ jobs }) }));
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => { tree = TestRenderer.create(<MeasuredOutputs sessionId="s" />); });
-    const text = JSON.stringify(tree!.toJSON());
+    stubJobRail({ jobs });
+    const screen = await render(<MeasuredOutputs sessionId="s" />);
+    await waitForText(screen, 'geometry optimized at R=0.73500');
+    const text = screen.container.textContent ?? '';
     expect(text).toContain('geometry optimized at R=0.73500');
     expect(text).toContain('repeated VQE 2 runs');
     expect(text).toContain('2D TFIM quench 2×2');
