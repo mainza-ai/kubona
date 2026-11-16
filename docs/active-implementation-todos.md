@@ -7,8 +7,10 @@ Baseline: `37103aad` on `develop`.
 
 - [x] Proposal history/list surface (server list + console panel).
 - [ ] Typed need emitters: `budget_exceeded`, `approval`, `anchor_missing`.
-- [ ] Table/rendered-value citation scanning.
-- [ ] Attention Director wiring + duplicate announcement cleanup.
+- [x] Table citation scanning + inline table highlights.
+- [ ] Rendered math-value citation scanning.
+- [x] Attention Director wiring for notification severities.
+- [ ] Duplicate announcement cleanup.
 - [ ] Proposal-dismiss reasons used in ranking.
 - [ ] Skill authoring/installer UI.
 - [ ] Live `eval-llm` model invocation.

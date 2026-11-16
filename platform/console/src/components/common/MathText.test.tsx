@@ -39,6 +39,13 @@ describe('MathText markdown', () => {
     expect(html).not.toContain('|---|');
   });
 
+  it('marks unverified numbers in table cells too', () => {
+    const html = htmlOf(renderMathText('| Quantity | Value |\n|---|---|\n| Energy | -1.13727 |', ['-1.13727']));
+    expect(html).toContain('<table');
+    expect(html).toContain('<mark');
+    expect(html).toContain('-1.13727');
+  });
+
   it('lazy-loads KaTeX and renders math without formatting inside it', async () => {
     const tree = renderMathText('Energy $E_0$ with **bold** nearby.');
     const start = Date.now();

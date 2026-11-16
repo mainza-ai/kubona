@@ -6380,3 +6380,19 @@ skipped is the exact failure this incident is about:
   launched job id; an empty session states that no proposals are recorded.
 - Added API and real-browser coverage. Pricing plans without a numeric bound
   remains open.
+
+## [2026-11-15] verification | table citations and attention bridge
+
+- Confirmed the deterministic citation checker already scans table cells;
+  added a regression test. Extended inline highlighting to unverified table
+  cells as well as prose. Rendered math values remain unscanned.
+- Wired unread notification severities into the Attention Director once per
+  key (warning/danger summon; informational notable; quiet suppresses).
+
+## [2026-11-15] verification | table citations and attention bridge
+
+- Confirmed the deterministic citation checker already scans table cells;
+  added a regression test. Extended inline highlighting to unverified table
+  cells as well as prose. Rendered math values remain unscanned.
+- Wired unread notification severities into the Attention Director once per
+  key (warning/danger summon; informational notable; quiet suppresses).

@@ -28,6 +28,7 @@ import type { Need } from '@/types';
 import { useNeedsYouSeen } from '@/domain/needs-you-seen';
 import { NeedsYouTray } from '@/components/shell/NeedsYouTray';
 import { NotificationCenter } from '@/components/shell/NotificationCenter';
+import { NotificationAttentionBridge } from '@/components/shell/NotificationAttentionBridge';
 import { SHORTCUTS, SHORTCUT_TARGETS, shortcutFromEvent, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { CommandDock } from '@/components/shell/CommandDock';
@@ -1218,6 +1219,7 @@ export default function Home() {
     <div className="flex h-dvh w-full bg-canvas text-text overflow-hidden font-sovereign">
       <a href="#kubona-main" className="k-skip-link">Skip to main content</a>
       <AttentionProvider>
+      <NotificationAttentionBridge notifications={notificationInbox.notifications} quiet={notificationInbox.prefs.quiet} />
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
       <CommandPalette

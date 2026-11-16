@@ -281,9 +281,10 @@ Landed in later slices:
 - **Citation-checked numeric claims (2026-11-14, report B5):** observation
   ids in the tool loop, a prompt rule, deterministic post-check with
   tolerance, streaming-safe citation marks, persisted `citations_json`, and
-  a per-reply console badge that names unverified numbers. Remaining: tables
-  and rendered values are not scanned (prose only), and no inline highlight
-  of the offending number yet (the badge names it in the title).
+  a per-reply console badge that names unverified numbers, inline highlights
+  for unverified prose and table-cell numbers. Table cells are scanned by the
+  checker (regression-tested). Remaining: rendered math values are not
+  scanned.
 - **Claim provenance rows (2026-11-14, report B4):** typed `claim_evidence`
   rows (job_result/classical_anchor/literature/tribunal_turn/general_knowledge),
   automatic measured links at the job-claim mints, a provenance endpoint with

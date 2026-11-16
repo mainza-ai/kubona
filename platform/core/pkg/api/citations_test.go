@@ -131,3 +131,21 @@ func TestCitationReportPersistsOnMessage(t *testing.T) {
 	}
 	_ = l
 }
+
+func TestCheckCitationsScansTableCells(t *testing.T) {
+	observations := []ToolObservation{observation("o1", "get_job", `{"energy":-1.13727}`)}
+	reply := "| Quantity | Value |\n|---|---|\n| Energy | -1.13727 [o1] |"
+	report := CheckCitations(reply, observations)
+	found := false
+	for _, claim := range report.Claims {
+		if claim.Number == "-1.13727" {
+			found = true
+			if claim.Status != "verified" {
+				t.Fatalf("table value must verify: %+v", claim)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("table value was not scanned: %+v", report.Claims)
+	}
+}

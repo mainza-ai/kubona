@@ -25,9 +25,9 @@ record on the owning pages.
 > exists (`MemoryPanel`); the S9 cloud-LLM edge screen has landed, while
 > general ledger-write screening remains. OB-14's
 > provenance panel has landed (typed evidence rows + completeness summary);
-> inline highlighting of unverified prose numbers has landed too; table/value
-> scanning remains. OB-15's proposal history surface has landed; the
-> priced-proposal rule remains. See
+> inline highlighting of unverified prose and table-cell numbers has landed;
+> table cells are scanned by the checker. Rendered math values remain. OB-15's
+> proposal history surface has landed; the priced-proposal rule remains. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

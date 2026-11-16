@@ -20,7 +20,7 @@ interface MathTextProps {
   text?: string;
   block?: boolean;
   className?: string;
-  /** B5: unverified numeric claims to mark inline; prose only, never tables. */
+  /** B5: unverified numeric claims to mark inline in prose and table cells. */
   highlightNumbers?: string[];
 }
 
@@ -160,11 +160,11 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null, highlight
         rows.push(lines[i].trim().split('|').map((c) => c.trim()).filter(Boolean));
         i += 1;
       }
-      const th = headerCells.map((c) => `<th class="px-2 py-1 text-left font-semibold text-text border-b border-border">${inlineRaw(c)}</th>`).join('');
+      const th = headerCells.map((c) => `<th class="px-2 py-1 text-left font-semibold text-text border-b border-border">${inlineRaw(c, highlights)}</th>`).join('');
       const tb = rows
         .map(
           (r) =>
-            `<tr class="border-b border-border">${r.map((c) => `<td class="px-2 py-1 text-label-secondary">${inlineRaw(c)}</td>`).join('')}</tr>`
+            `<tr class="border-b border-border">${r.map((c) => `<td class="px-2 py-1 text-label-secondary">${inlineRaw(c, highlights)}</td>`).join('')}</tr>`
         )
         .join('');
       blocks.push(
