@@ -50,7 +50,7 @@ import { Button } from '@/components/ui/Button';
 import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
-import { CodeBlock, CompareMatrix, Workbench } from '@/components/workbench/Workbench';
+import { CodeBlock, CompareMatrix } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
 import { BannerStack, describeCreateFailure } from '@/components/shell/Banners';
 import { KeyHint } from '@/components/ui/Controls';
@@ -81,6 +81,7 @@ const CodesignCockpit = dynamic(() => import('@/components/surfaces/CodesignCock
 const VaultLeasePanel = dynamic(() => import('@/components/common/VaultLeasePanel').then((mod) => ({ default: mod.VaultLeasePanel })), { ssr: false, loading: () => <SurfaceLoading label="vault leases" /> });
 const SystemReadinessPanel = dynamic(() => import('@/components/common/SystemReadinessPanel').then((mod) => ({ default: mod.SystemReadinessPanel })), { ssr: false, loading: () => <SurfaceLoading label="readiness" /> });
 const WidgetStage = dynamic(() => import('@/components/sovereign/WidgetStage').then((mod) => ({ default: mod.WidgetStage })), { ssr: false, loading: () => <SurfaceLoading label="widget" /> });
+const Workbench = React.lazy(() => import('@/components/workbench/Workbench').then((mod) => ({ default: mod.Workbench })));
 
 export default function Home() {
   const [access, setAccess] = useState<AccessState | null>(null);
@@ -1544,6 +1545,7 @@ export default function Home() {
 
             <div className="relative min-h-0 flex-1 overflow-hidden">
             {arenaView === 'workbench' && !moleculeObjectViewOpen && (
+              <React.Suspense fallback={<SurfaceLoading label="workbench" />}>
               <Workbench
                 key={currentSessionId}
                 ref={workbenchRef}
@@ -1592,6 +1594,7 @@ export default function Home() {
                   openInspector('copilot');
                 }}
               />
+              </React.Suspense>
             )}
             {arenaView === 'orbital' && !moleculeObjectViewOpen && (
               <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} atRest={runPhase === 'idle'} />

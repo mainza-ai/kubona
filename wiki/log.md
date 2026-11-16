@@ -6609,3 +6609,11 @@ skipped is the exact failure this incident is about:
 
 - Migrated ContextReadout to a real-browser component test; renderer ratchet
   fell 89 → 88.
+
+## 2026-11-15 | decision | lazy Workbench chunk
+
+- Workbench is lazy-loaded with Suspense while preserving its forwarded ref.
+  Largest first-load chunk fell from ~400 KiB to ~277 KiB; total 1133.4 KiB
+  raw / 336.2 KiB gzip, within the route ceiling. Bundle budget baseline
+  updated to the measured split, max single chunk 300 KiB.
+- Live console E2E passes 16/16 after the split.

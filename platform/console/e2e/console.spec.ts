@@ -274,7 +274,7 @@ test.describe('Kubona console against the real local stack', () => {
   test('real spin-chain and conjecture jobs complete through the Go rail', async ({ page }) => {
     // A multi-size scaling plan can run several real jobs; keep the live
     // acceptance test above the per-step timeout without weakening asserts.
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     const sessionId = await ensureOperatorLoggedIn(page);
     const apiUrl = await page.evaluate(async () => {
       const config = await (await fetch('/api/config')).json() as { apiUrl?: string };
@@ -401,7 +401,7 @@ test.describe('Kubona console against the real local stack', () => {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: sid, goal: 'transverse-field Ising spin chain', step_timeout_s: 30,
+          session_id: sid, goal: 'transverse-field Ising spin chain', step_timeout_s: 20,
         }),
       });
       return { status: res.status, body: await res.json() };

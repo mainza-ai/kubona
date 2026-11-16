@@ -176,9 +176,10 @@ Landed in later slices:
   largest chunk 410 KiB — keeps three/elkjs/KaTeX out of first-load, and
   requires large lazy chunks to carry a stable marker + reason with stale
   records failing. The check found KaTeX in first-load; `MathText` now
-  lazy-loads it only for `$…$` prose (−257 KiB raw / −75 KiB gzip). Remaining:
-  no other route has a budget yet (the console is single-route), and the
-  first-load total still leans on one 395 KiB chunk worth splitting.
+  lazy-loads it only for `$…$` prose (−257 KiB raw / −75 KiB gzip). The
+  Workbench is now lazy-loaded with Suspense; the largest first-load chunk
+  fell from ~400 KiB to ~277 KiB. Remaining: no other route has a budget yet
+  (the console is single-route).
 - **Browser component tests (D8, 2026-11-14):** a separate Vitest browser
   project (`vitest.browser.config.ts`, Playwright provider, Chromium,
   `vitest-browser-react`) runs every `*.component.test.tsx` against a real

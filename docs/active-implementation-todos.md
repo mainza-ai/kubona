@@ -34,7 +34,7 @@ Baseline: `37103aad` on `develop`.
 - [ ] Console: 88 renderer migrations (CitationBadge, ErrorBoundary, ProvenanceBadge, Tip, BackendStatusBar, LedgerVerifyPanel, ContextReadout migrated).
 - [x] Console: coupling ratchet at 54 files / 55 imports (may only shrink).
 - [ ] Console: continue reducing direct `components → lib/api` imports.
-- [ ] Console: split the ~395 KiB chunk.
+- [x] Console: split the ~395 KiB chunk (largest now ~277 KiB).
 - [x] Console: LCP/INP/heap/request-count gates.
 - [x] Console: raw-palette token baseline is 0.
 - [x] Console: raw-button ratchet (368 baseline, may only shrink).
