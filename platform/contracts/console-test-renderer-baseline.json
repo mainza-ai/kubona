@@ -33,7 +33,6 @@
     "src/components/common/MetasearchPanel.test.tsx",
     "src/components/common/ObligationsPanel.test.tsx",
     "src/components/common/OverflowCard.test.tsx",
-    "src/components/common/ProvenanceBadge.test.tsx",
     "src/components/common/RunAllowancePanel.test.tsx",
     "src/components/common/SessionPortability.test.tsx",
     "src/components/common/SessionRefundPanel.test.tsx",

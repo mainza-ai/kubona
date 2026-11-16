@@ -6585,3 +6585,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated ErrorBoundary to a real-browser component test; renderer ratchet
   fell 94 → 93.
+
+## 2026-11-15 | cleanup | third renderer migration
+
+- Migrated ProvenanceBadge to a real-browser component test; renderer ratchet
+  fell 93 → 92.
