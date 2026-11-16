@@ -4,13 +4,10 @@
   "files": [
     "src/components/CopilotDrawer.sessionguard.test.tsx",
     "src/components/CopilotDrawer.tribunal.test.tsx",
-    "src/components/common/LabOpsPanel.test.tsx",
     "src/components/sovereign/sovereign.test.tsx",
     "src/components/surfaces/AutonomyCockpit.test.tsx",
     "src/components/surfaces/CodesignCockpit.test.tsx",
-    "src/components/surfaces/HuggingFaceModelHub.download.test.tsx",
     "src/components/surfaces/LLMSettings.test.tsx",
-    "src/components/surfaces/SpatialCanvas.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts"
   ]
