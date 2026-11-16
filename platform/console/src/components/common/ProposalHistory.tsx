@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { History } from 'lucide-react';
-import { fetchProposals, type ProposalRecord } from '@/lib/api';
+import { fetchProposals, type ProposalRecord } from '@/domain/proposal-history';
 
 export function ProposalHistory({
   sessionId,

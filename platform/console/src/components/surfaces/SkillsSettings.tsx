@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
-import { fetchSkills, installSkill, removeSkill, toggleSkill, type SkillsCatalog } from '@/lib/api';
+import { fetchSkills, installSkill, removeSkill, toggleSkill, type SkillsCatalog } from '@/domain/skills';
 
 type LoadState = 'loading' | 'ready' | 'unavailable';
 

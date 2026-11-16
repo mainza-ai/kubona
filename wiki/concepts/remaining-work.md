@@ -167,8 +167,9 @@ Landed in later slices:
 - **Import boundaries (D6, 2026-11-14):** deterministic layer check in CI
   (`types < lib < domain < components < app`); upward type imports moved to
   `types`, and three domain stores moved to `lib` with re-export shims.
-  Remaining: the 67 downward `components → lib/api` imports are legal but
-  still a coupling to reduce via domain projections.
+  A coupling ratchet now holds **54 component files / 55 direct imports** and
+  may only shrink; the proposal-history, autoresearch, and skills surfaces use
+  domain projections. Remaining: continue migrating the rest.
 - **Bundle budgets (D7, 2026-11-14):** `console-bundle-budgets.mjs` enforces
   first-load ceilings on the real build — recorded **1108.5 KiB raw / 326.8
   KiB gzip** plus **40 / 24 KiB** growth allowance (ceiling 1148.5 / 350.8),

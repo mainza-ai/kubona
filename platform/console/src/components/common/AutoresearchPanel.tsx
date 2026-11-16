@@ -11,7 +11,7 @@ import {
   wakeAutoresearchLoop,
   stopAutoresearchLoop,
   steerAutoresearchLoop,
-} from '@/lib/api';
+} from '@/domain/autoresearch';
 import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
 import { needSentence, remedyFor } from '@/lib/need';
 import { useWriteSettlement } from '@/domain/use-write-settlement';

@@ -6558,3 +6558,9 @@ skipped is the exact failure this incident is about:
 
 - Added `console-button-ratchet.mjs` and a 368-button baseline; CI fails on
   growth outside `components/ui`. The form-primitive migration remains.
+
+## 2026-11-15 | cleanup | coupling ratchet
+
+- Added a components→lib/api coupling ratchet (54 files / 55 imports, may only
+  shrink). Proposal history, autoresearch, and skills now consume domain
+  projections instead of transport directly.

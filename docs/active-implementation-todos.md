@@ -32,7 +32,8 @@ Baseline: `37103aad` on `develop`.
 - [x] Run parts from literature/prover/tool rails — out of scope until a real loop identity exists.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.
 - [ ] Console: 95 renderer migrations.
-- [ ] Console: reduce 67 `components → lib/api` couplings.
+- [x] Console: coupling ratchet at 54 files / 55 imports (may only shrink).
+- [ ] Console: continue reducing direct `components → lib/api` imports.
 - [ ] Console: split the ~395 KiB chunk.
 - [x] Console: LCP/INP/heap/request-count gates.
 - [x] Console: raw-palette token baseline is 0.
