@@ -20,10 +20,13 @@ a reproducible CI pipeline. See `../wiki/roadmap.md` for the phase plan and
 
 ```bash
 cd platform
-uv venv .venv
-uv pip install --python .venv/bin/python -e ".[dev]"
+uv sync --locked --extra dev --extra qiskit --extra chemistry
 .venv/bin/python -m pytest -q
 ```
+
+`uv.lock` is committed and is the single resolved dependency set for local
+runs, CI, and the bridge image (uv 0.11.28 or newer). After changing
+`pyproject.toml`, regenerate it with `uv lock` and commit both files.
 
 ## The P0 gate
 
@@ -69,7 +72,7 @@ open-source dependencies.
 - **Phase 1 gate test** (`tests/test_phase1_gate.py`) — budget-enforced VQE loop
   with step-level provenance, plus the paid-provider approval + x402 quote flows.
 
-Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q`.
+Run everything: `uv run --locked --extra dev --extra qiskit --extra chemistry python -m pytest -q` or `.venv/bin/python -m pytest -q`.
 
 ## Phase 2 additions (multi-provider + control plane)
 

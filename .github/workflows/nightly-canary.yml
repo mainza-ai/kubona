@@ -34,15 +34,19 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit]"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit
       - name: Run canary with ledger record
         run: |
           mkdir -p state
-          KUBONA_STATE_DIR="$PWD/state" python -m kubona.canary
+          KUBONA_STATE_DIR="$PWD/state" .venv/bin/python -m kubona.canary
       - name: Correctness-regression harness
         run: |
-          KUBONA_STATE_DIR="$PWD/state" python -m pytest tests/test_autoresearch.py -k correctness -q
+          KUBONA_STATE_DIR="$PWD/state" .venv/bin/python -m pytest tests/test_autoresearch.py -k correctness -q
       - name: Upload canary ledger
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -66,7 +70,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       - name: Runner capacity (diagnose shutdowns)
         run: |
           free -h
@@ -82,11 +89,12 @@ jobs:
           sudo mkswap /swapfile
           sudo swapon /swapfile || echo "swap unavailable on this runner"
           free -h
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Slice60 test_rs_composition_end_to_end (bounded)
         env:
           PYTHONUNBUFFERED: "1"
-        run: KUBONA_STATE_DIR="$(mktemp -d)" timeout 9000 python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_composition_end_to_end" --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" timeout 9000 .venv/bin/python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_composition_end_to_end" --durations=20
 
   slice60-determinism:
     name: Slice60 determinism (thesis-scale, nightly)
@@ -100,7 +108,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       - name: Runner capacity (diagnose shutdowns)
         run: |
           free -h
@@ -116,11 +127,12 @@ jobs:
           sudo mkswap /swapfile
           sudo swapon /swapfile || echo "swap unavailable on this runner"
           free -h
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Slice60 test_rs_pins_determinism_layout (bounded)
         env:
           PYTHONUNBUFFERED: "1"
-        run: KUBONA_STATE_DIR="$(mktemp -d)" timeout 9000 python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_pins_determinism_layout" --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" timeout 9000 .venv/bin/python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_pins_determinism_layout" --durations=20
 
   console-perf:
     name: Console 100/300-object FPS (nightly)

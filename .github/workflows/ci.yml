@@ -31,9 +31,12 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-      - run: pip install pyyaml
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       - name: Wiki structural lint (blueprint invariants)
-        run: python scripts/wiki-lint.py --strict
+        run: uv run --no-project --with pyyaml python3 scripts/wiki-lint.py --strict
 
   secret-scan:
     name: Secret + local-path scan (versioned pre-commit mirror)
@@ -42,6 +45,26 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Scan tracked tree for secrets and local-only paths
         run: ./scripts/secret-scan.sh
+
+  uv-lock:
+    name: uv lock is current
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      # pyproject.toml and uv.lock are one unit: a dependency edit that does
+      # not regenerate the lock fails before any suite starts.
+      - run: uv lock --check
 
   dco-check:
     name: DCO sign-off on new commits (CONTRIBUTING.md)
@@ -80,7 +103,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       # Counts are generated, not hand-maintained (README/wiki drift fix).
       # The step is source-only; it does not need Go/Rust/Node.
       - name: Repository counts are current
@@ -98,7 +124,9 @@ jobs:
       # W2.4: install the suite-verified set — qiskit/chemistry extras pinned
       # == in pyproject (floors previously resolved untested combos; the
       # chemistry extra was missing so RDKit coverage silently skipped).
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pytest-cov==7.1.0"
+      # uv.lock is the single resolved source for direct and transitive deps.
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       # Phase-1 depth: coverage hold-the-line floor. Measured 57% 2026-10-28
       # (fast lane: tests/ minus paper-scale slices, --cov=kubona; local
       # py3.12/macOS vs CI py3.11/ubuntu, so the floor carries epsilon).
@@ -109,17 +137,17 @@ jobs:
       - name: Full python suite, fast lane (KUBONA_QIR_CORE wired)
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs --ignore-glob='*/test_codesign_slice*.py' --durations=20 --cov=kubona --cov-report=term-missing --cov-fail-under=55
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs --ignore-glob='*/test_codesign_slice*.py' --durations=20 --cov=kubona --cov-report=term-missing --cov-fail-under=55
       # Bridge contract suite lives outside testpaths (bridge/test_bridge.py)
       # so the default run skips it — a red bridge test went unnoticed.
       # It is fast (~seconds) and hermetic (no creds, no network).
       - name: Bridge contract suite (credential fail-closed pins)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py bridge/test_adapt.py -q
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py bridge/test_adapt.py -q
       - name: doctor (state-root + fail-closed config check)
         run: |
-          KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
+          KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.run doctor
           KUBONA_ENV=production KUBONA_STATE_DIR="$(mktemp -d)" \
-            python -c 'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
+            .venv/bin/python -c 'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
       # R0: wiki-lint is its own fail-fast job (top of this file) —
       # it no longer hides here behind the full suite.
 
@@ -149,10 +177,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python paper-scale A (slices 0-32)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice[12]*.py tests/test_codesign_slice[3-9].py tests/test_codesign_slice3[0-2].py --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice[12]*.py tests/test_codesign_slice[3-9].py tests/test_codesign_slice3[0-2].py --durations=20
 
   python-slow-b:
     name: Python paper-scale B (slices 33-47)
@@ -167,10 +199,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python paper-scale B (slices 33-47)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice3[3-9].py tests/test_codesign_slice4[0-7].py --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice3[3-9].py tests/test_codesign_slice4[0-7].py --durations=20
 
   python-slow-c:
     name: Python paper-scale C (slices 48-57, 61-62)
@@ -185,10 +221,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python paper-scale C (slices 48-57, 61-62)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice4[89].py tests/test_codesign_slice5[0-7].py tests/test_codesign_slice6[12].py --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice4[89].py tests/test_codesign_slice5[0-7].py tests/test_codesign_slice6[12].py --durations=20
 
   python-slow-d:
     name: Python paper-scale D (slice58 walks)
@@ -203,10 +243,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python paper-scale D (slice58 walks)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice58.py --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice58.py --durations=20
 
   python-slow-e:
     name: Python paper-scale E (slice59 EEA)
@@ -221,10 +265,14 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python paper-scale E (slice59 EEA)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice59.py --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice59.py --durations=20
 
   # Slice60 (composition + determinism) is thesis-scale: each test can
   # exceed 30 minutes and was being preempted on the PR runners. It now
@@ -244,15 +292,19 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev]"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
         working-directory: platform
+        run: uv sync --locked --python 3.11 --extra dev
       - name: Live container execution + refusal pins
         working-directory: platform
         env:
           KUBONA_SANDBOX_CONTAINER: "1"
           KUBONA_SANDBOX_IMAGE: kubona-quantum-runner:1.1.0
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q tests/test_watchdog_and_sandbox.py -k container_sandbox
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q tests/test_watchdog_and_sandbox.py -k container_sandbox
 
   rust-tests:
     name: Rust crates (qir-core + ifc-core)
@@ -364,15 +416,23 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        working-directory: platform
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Python vulnerabilities
         working-directory: platform
         run: |
           # setuptools is build tooling, not a project dependency, but
           # pip-audit --local audits it too. 84.1.0 fixes the Windows
           # namespace-packages path escape (GHSA-xmj3-9gf7-h52w; PYSEC-2026-3447).
-          pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pip-audit==2.9.0" "setuptools>=84.1.0"
-          python3 ../scripts/dependency_audit.py --audit python
+          # Keep pip-audit inside the project venv so --local audits the
+          # locked environment, not a separate tool environment.
+          uv pip install --python .venv/bin/python "pip-audit==2.9.0" "setuptools>=84.1.0"
+          PATH="$PWD/.venv/bin:$PATH" .venv/bin/python ../scripts/dependency_audit.py --audit python
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.18.0
@@ -404,7 +464,7 @@ jobs:
     # verified-green CI run (run 40786519756, all 20 checks green).
     # sast) join the release gate — no release ships with new lint, SAST, or
     # coverage-floor debt.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast, image-scan, dependency-audit]
+    needs: [wiki-lint, secret-scan, uv-lock, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast, image-scan, dependency-audit]
     defaults:
       run:
         working-directory: platform
@@ -413,13 +473,17 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - name: Sync locked Python environment
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
       - name: Hardware canary (simulator/GA providers)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary
+        run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.canary
       - name: Correctness-regression harness (release gate)
         run: |
-          KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary --gate
+          KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.canary --gate
 
   go-core-tests:
     name: Go Orchestrator Core (tests + race detector)
@@ -443,20 +507,22 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      # W2.4: suite-verified pins (== in pyproject), never floors.
-      - run: pip install "numpy==2.4.6" "qiskit==2.5.2" "qiskit-aer==0.17.2"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      # W2.4: the lock selects the suite-verified numpy/qiskit set for 3.11.
       # Launch-day red (2026-10-22): three codesign proxy tests 503d here
       # while green locally. Two compounding causes: (1) findPythonVenv
       # handed exec a nonexistent dir whenever no dev venv exists (fixed
       # in server.go to never return a missing dir); (2) the kubona
       # package itself was never installed, so even with a valid dir the
-      # snippets died on import. Install it (base set only — the codesign
-      # chain is stdlib-only, verified import graph). Chemistry extras are
+      # snippets died on import. uv sync installs the editable project into
+      # platform/.venv, which findPythonVenv resolves. Chemistry extras are
       # deliberately absent: their tests skip without rdkit by design.
-      - name: Install kubona package (local-exec rail for codesign tests)
+      - name: Sync locked Python environment (local-exec rail)
         working-directory: platform
-        run: pip install -e .
+        run: uv sync --locked --python 3.11 --extra qiskit
       - run: go test -v -race -coverprofile="$RUNNER_TEMP/cover.out" ./...
       # Phase-1 depth: Go coverage hold-the-line floor. MEASURED 66.3%
       # with the pinned go1.27.4 toolchain (full ./..., local macOS).
@@ -607,7 +673,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       # The tree carries 375 pre-existing violations (2026-10-28; mostly
       # F401 unused-imports and E402 path bootstraps — see
       # .github/ruff-baseline.txt for the breakdown, measured on HEAD plus
@@ -617,7 +686,8 @@ jobs:
       # debt. `ruff format --check` is deliberately absent: 356 files are
       # unformatted, so a format gate would cry wolf on day one (check-only
       # lane; revisit after a formatting pass).
-      - run: pip install "ruff==0.15.21"
+      - run: uv tool install "ruff==0.15.21"
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Ruff hold-the-line (fail if violations increase)
         run: |
           ruff check kubona bridge tests --output-format concise > /tmp/ruff.out 2> /tmp/ruff.err || true
@@ -660,7 +730,10 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-          cache: "pip"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
       # One SAST gate, not two: Semgrep with a vendored 11-rule python+go
       # ruleset (.github/semgrep.yml) instead of Bandit+Gosec. Why: a single
       # hermetic offline run (vendored rules, no --config auto network
@@ -673,7 +746,8 @@ jobs:
       # --error exits 1 on any match: a new dangerous pattern fails the
       # build. Ruleset verified green 2026-10-28 AND verified to fire on
       # planted bad patterns (not vacuous).
-      - run: pip install "semgrep==1.182.1"
+      - run: uv tool install "semgrep==1.182.1"
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Semgrep (fail on any match)
         env:
           SEMGREP_SEND_METRICS: "off"

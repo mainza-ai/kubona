@@ -1,7 +1,7 @@
 # Kubona Python gRPC Bridge — production image (D1).
 #
-# Carries the compute stack (qiskit + chemistry extras, all == pinned in
-# pyproject.toml — same discipline as CI). Slimming the chemistry deps
+# Carries the compute stack (qiskit + chemistry extras) from the committed
+# uv.lock, the same resolved set CI uses. Slimming the chemistry deps
 # out of this image is a follow-up, not this slice: the bridge imports
 # them at module load (server.py), so omitting them is a crash, not a diet.
 # Nonroot; HEALTHCHECK dials the UDS with plain grpc (no reflection
@@ -13,18 +13,26 @@
 
 FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
+# uv is the resolver for the shipped Python environment; pin the binary by
+# digest just like the base image. The lock is copied before source so the
+# dependency layer survives kubona/ edits.
+COPY --from=ghcr.io/astral-sh/uv:0.11.28@sha256:0f36cb9361a3346885ca3677e3767016687b5a170c1a6b88465ec14aefec90aa /uv /uvx /bin/
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_NO_CACHE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    PATH="/app/.venv/bin:$PATH" \
     DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
-# Install first (better layer caching): project metadata + package, then
-# the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
-COPY pyproject.toml ./
+# Install first (better layer caching): lock + metadata, then the package,
+# then the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project --extra qiskit --extra chemistry
 COPY kubona ./kubona
-RUN pip install --no-cache-dir ".[qiskit,chemistry]" \
+RUN uv sync --locked --extra qiskit --extra chemistry \
+    && rm -f /bin/uv /bin/uvx \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 
 COPY bridge ./bridge

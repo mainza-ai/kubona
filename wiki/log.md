@@ -6826,3 +6826,15 @@ skipped is the exact failure this incident is about:
 - The console coverage gate now runs the real-browser suite, so the console
   CI job installs Playwright Chromium before `pnpm test:coverage`. The E2E
   lane already had the binary; the push gate did not.
+
+## [2026-11-16] decision | Python dependencies are uv-locked
+
+- `platform/uv.lock` is now committed (186 resolved packages) and is the single
+  dependency set for local runs, CI, nightly, and the bridge image.
+- `pytest-cov==7.1.0` moved into the `dev` extra so the coverage gate is inside
+  the lock.
+- CI adds a fail-fast `uv-lock` job (`uv lock --check`); every Python lane uses
+  `uv sync --locked` and `.venv/bin/python`.
+- The bridge image installs uv at a pinned digest and syncs from the same lock.
+  The hardened quantum-runner image keeps its independent sandbox stack.
+- README and AGENTS.md now name the lock as the only resolution path.

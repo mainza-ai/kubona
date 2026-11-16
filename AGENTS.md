@@ -234,6 +234,10 @@ bar before it lands. "Works" is necessary and insufficient.
 - **Drift-proof shared values.** Any literal a second file depends on
   (match/strip string pairs, weight sets, source labels) lives in one
   shared const — never two copies that can rot apart.
+- **One Python resolution.** `platform/uv.lock` is the only resolved
+  dependency set for local runs, CI, and the bridge image. Change
+  `platform/pyproject.toml`, run `uv lock`, and commit both; the CI
+  `uv-lock` job fails when the two drift apart.
 - **Line audit before landing.** Re-read the full diff line by line before
   every slice lands: check edge cases, error paths, float-bit and
   ordering subtleties, and every caller that could break. Then prove it

@@ -34,7 +34,7 @@ dependencies = [
 kubona = "kubona.run:_cli"
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "pytest-cov==7.1.0"]
 qiskit = ["qiskit==2.5.2", "qiskit-aer==0.17.2", "qiskit-ibm-runtime==0.50.0", "qiskit-nature==0.8.0", "qiskit-nature-pyscf==0.4.0"]
 chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6", "quimb==1.10.0"]
 providers = [
@@ -76,6 +76,10 @@ orchestration = ["langgraph==1.2.18"]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# CI and the bridge image pin this resolver; the committed lock is revision 3.
+required-version = ">=0.11.28"
 
 [tool.setuptools.packages.find]
 include = ["kubona*"]
