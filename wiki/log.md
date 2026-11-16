@@ -6780,3 +6780,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated SpatialCanvas3D, LabsView, and ExperimentPanel to real-browser
   tests; renderer ratchet fell 17 → 14.
+
+## 2026-11-15 | cleanup | dispatch/tribunal/results renderer batch
+
+- Migrated QuantumDispatch, EpistemicTribunalRoom, and ResultsStudio to
+  real-browser tests; renderer ratchet fell 14 → 11.

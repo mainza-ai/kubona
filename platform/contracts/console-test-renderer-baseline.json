@@ -8,11 +8,8 @@
     "src/components/sovereign/sovereign.test.tsx",
     "src/components/surfaces/AutonomyCockpit.test.tsx",
     "src/components/surfaces/CodesignCockpit.test.tsx",
-    "src/components/surfaces/EpistemicTribunalRoom.test.tsx",
     "src/components/surfaces/HuggingFaceModelHub.download.test.tsx",
     "src/components/surfaces/LLMSettings.test.tsx",
-    "src/components/surfaces/QuantumDispatch.test.tsx",
-    "src/components/surfaces/ResultsStudio.test.tsx",
     "src/components/surfaces/SpatialCanvas.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts"
