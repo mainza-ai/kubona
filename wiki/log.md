@@ -6765,3 +6765,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated ModelPicker, session-banner, and AuthPanel.expiry to real-browser
   tests; renderer ratchet fell 26 → 23.
+
+## 2026-11-15 | cleanup | settings/shell renderer batch
+
+- Migrated AuthPanel, QuantumSettings, and CommandDock to real-browser tests;
+  renderer ratchet fell 23 → 20.
