@@ -29,7 +29,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Obligation 1 h ageing escalation.
 - [x] Obligation push events for session-owned rows (key-owned still polls).
 - [x] Chart-series and campaign-level fact refs.
-- [ ] Run parts from literature/prover/tool rails.
+- [x] Run parts from literature/prover/tool rails — out of scope until a real loop identity exists.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.
 - [ ] Console: 95 renderer migrations.
 - [ ] Console: reduce 67 `components → lib/api` couplings.

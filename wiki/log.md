@@ -6518,3 +6518,10 @@ skipped is the exact failure this incident is about:
   the campaign ref. Points without a source id stay unattributed rather than
   guessing.
 - Added workbench-model assertions.
+
+## [2026-11-15] decision | no fabricated tool parts
+
+- Literature/prover/copilot tool calls have no loop identity (chat turns are
+  not loops). They are explicitly out of scope for run parts until a real run
+  rail owns them; fabricating a loop would be theater.
+- Closed OB-20 as out of scope.

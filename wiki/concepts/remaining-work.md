@@ -306,10 +306,11 @@ Landed in later slices:
 - **Run parts / lanes (2026-11-14, report C1):** supervisor steps, lifecycle
   transitions, manual registrations, and dispatched jobs record `loop_part`
   events; the parts endpoint enriches job state + typed need; the agent-run
-  card renders helper columns with an active marker. Remaining: parts from
-  literature/prover/tool rails (none record them yet), copilot tool-call
-  parts (chat turns are not loops), pending placeholders (C4), follow-live
-  (C5), arrival announcements (C6), and viewport culling (C7).
+  card renders helper columns with an active marker. Literature/prover/tool
+  and copilot tool-call parts are intentionally out of scope until a real loop
+  identity exists (chat turns are not loops). Remaining: pending placeholders
+  (C4), follow-live (C5), arrival announcements (C6), and viewport culling
+  (C7).
 - **Untrusted tool-output boundary (2026-11-14, report B6/S4):** one shared
   provenance fence and system rule across the copilot and tribunal rails;
   payload markers neutralized; effectful tools refuse after untrusted output

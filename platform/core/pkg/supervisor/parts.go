@@ -16,8 +16,9 @@ import (
 )
 
 // Closed helper vocabulary. Adding a helper means adding it here and in the
-// console run-column order; literature/prover parts remain unwritten until
-// those rails record them.
+// console run-column order. Literature/prover and copilot tool calls have no
+// loop identity today (chat turns are not loops); they are intentionally not
+// fabricated into parts until a real run rail owns them.
 var LoopPartHelpers = map[string]bool{
 	"lead":        true,
 	"tool":        true,
