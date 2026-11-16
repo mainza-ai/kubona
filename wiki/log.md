@@ -6363,3 +6363,11 @@ skipped is the exact failure this incident is about:
   persisted citation report; verified numbers and table cells are untouched,
   and math placeholders are protected from the marker pass.
 - Added MathText coverage for mark selection and math-placeholder safety.
+
+## [2026-11-15] decision | cloud-edge secret screen
+
+- Wired the shared secret-shape detector into the cloud-LLM request edge:
+  credential-shaped message content refuses with `secret_in_prompt` before
+  any egress; local providers are unaffected.
+- Added tests for cloud refusal and local pass-through. General ledger-write
+  screening remains open.

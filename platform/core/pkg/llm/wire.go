@@ -28,6 +28,7 @@ const (
 	FaultUnreachable        = "unreachable"
 	FaultAirGapBlocked      = "air_gap_blocked"
 	FaultCloudOptInRequired = "cloud_opt_in_required"
+	FaultSecretInPrompt     = "secret_in_prompt"
 	FaultInvalidEndpoint    = "invalid_endpoint"
 )
 

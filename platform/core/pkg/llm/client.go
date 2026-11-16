@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/rates"
+	"github.com/mainza-ai/kubona/core/pkg/secret"
 )
 
 type ChatMessage struct {
@@ -149,6 +150,24 @@ func readBoundedBody(body io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("provider response exceeds %d-byte cap: refusing unbounded body", maxLLMResponseBytes)
 	}
 	return raw, nil
+}
+
+// screenCloudPrompt is the S9 cloud-edge secret screen. A credential-shaped
+// value in any message refuses the call before it leaves the host; local
+// providers are untouched because the value never crosses the network.
+func (c *Client) screenCloudPrompt(providerType ProviderType, messages []ChatMessage) error {
+	if c.isProviderLocal(providerType) {
+		return nil
+	}
+	for _, message := range messages {
+		if kind, found := secret.Detect(message.Content); found {
+			return &WireError{
+				Fault:   FaultSecretInPrompt,
+				Message: "prompt contains a credential shape (" + kind + "); refusing cloud egress",
+			}
+		}
+	}
+	return nil
 }
 
 func (c *Client) isProviderLocal(providerType ProviderType) bool {
@@ -424,6 +443,10 @@ func (c *Client) executeRoleHops(ctx context.Context, role string, messages []Ch
 }
 
 func (c *Client) runCompletionAttempt(ctx context.Context, providerType ProviderType, provConfig ProviderConfig, model string, messages []ChatMessage, tools []map[string]any, opts completionAttemptOpts) (string, []ToolCall, *ChatCompletionResponse, time.Duration, error) {
+	if serr := c.screenCloudPrompt(providerType, messages); serr != nil {
+		return "", nil, nil, 0, serr
+	}
+
 	// B3: bound the call against the budget before anything leaves the host.
 	// The release runs after the measured spend has been recorded.
 	if ceiling, release, rerr := c.reserveCall(providerType, model, messages, opts.MaxTokens); rerr != nil {
@@ -574,6 +597,11 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 		if verr != nil {
 			lastErr = verr
 			attemptErrors = append(attemptErrors, fmt.Sprintf("%s/%s: %v", hop.Provider, hop.Model, verr))
+			continue
+		}
+		if serr := c.screenCloudPrompt(hop.Provider, messages); serr != nil {
+			lastErr = serr
+			attemptErrors = append(attemptErrors, fmt.Sprintf("%s/%s: %v", hop.Provider, hop.Model, serr))
 			continue
 		}
 		// B3: reserve before the hop leaves the host; release after the
