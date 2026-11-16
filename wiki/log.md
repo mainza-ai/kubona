@@ -6673,3 +6673,8 @@ skipped is the exact failure this incident is about:
 - Migrated CryptographicMandateCardWidget, EpistemicManifoldSurfaceWidget, and
   QuantumCircuitQIREditorWidget to real-browser tests; renderer ratchet fell
   78 → 75.
+
+## 2026-11-15 | cleanup | eighteenth renderer migration
+
+- Migrated consequential to a real-browser component test; renderer ratchet
+  fell 75 → 74.

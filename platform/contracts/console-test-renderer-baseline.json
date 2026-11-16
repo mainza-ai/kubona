@@ -73,7 +73,6 @@
     "src/domain/needs-you-seen-hook.test.tsx",
     "src/domain/useQuantumSettingsProjection.test.tsx",
     "src/lib/attention-context.test.tsx",
-    "src/lib/consequential.test.tsx",
     "src/lib/motion.test.tsx",
     "src/lib/shortcuts.test.tsx",
     "src/lib/useCampaignProjection.test.tsx"
