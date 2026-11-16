@@ -77,3 +77,22 @@ func TestRecordSpendNilRecorderSkips(t *testing.T) {
 		t.Fatalf("nil recorder must skip silently: %+v", st)
 	}
 }
+
+func TestBudgetBreachPausesWithTypedNeedAndResumeClearsIt(t *testing.T) {
+	e := spendTestEngine(t)
+	e.mu.Lock()
+	e.state.Status = StatusRunning
+	e.mu.Unlock()
+	e.SetBudgetCheck(func() error { return errors.New("tenant ceiling exceeded") })
+	if _, err := e.Step(t.Context()); err == nil {
+		t.Fatal("budget breach must refuse the step")
+	}
+	st := e.State()
+	if st.Status != StatusPaused || st.Need == nil || st.Need.Kind != "budget_exceeded" || st.Need.Reason != "tenant ceiling exceeded" {
+		t.Fatalf("typed budget need missing: %+v", st)
+	}
+	e.Resume()
+	if e.State().Need != nil {
+		t.Fatal("resume must clear the resolved need")
+	}
+}

@@ -774,6 +774,7 @@ export interface AutoresearchLoop {
   iterations: IterationRecord[];
   pareto_frontier: ParetoPoint[];
   stagnation_reason?: string;
+  need?: Need;
 }
 
 export interface MetaProposal {

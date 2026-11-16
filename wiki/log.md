@@ -6455,3 +6455,11 @@ skipped is the exact failure this incident is about:
   like generic errors.
 - Added a chip test. Job/run-card rendering of admission needs and loop
   failure fields remain.
+
+## [2026-11-15] decision | loop budget need
+
+- A mid-run budget breach now stamps a typed `budget_exceeded` need on the
+  autoresearch loop state; resume clears it. The run card renders the
+  sentence and remedy.
+- Added engine and panel coverage. Non-budget loop failure fields and
+  job-card admission needs remain.

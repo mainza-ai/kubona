@@ -79,6 +79,14 @@ const (
 	StatusSleeping LoopStatus = "sleeping"
 )
 
+// LoopNeed is the typed missing precondition for a paused/failed run. It
+// mirrors the job need vocabulary without importing the jobs package.
+type LoopNeed struct {
+	Kind   string `json:"kind"`
+	Reason string `json:"reason"`
+	Past   bool   `json:"past,omitempty"`
+}
+
 // LoopState is the telemetry state object exported to the API and UI
 type LoopState struct {
 	ID                  string             `json:"id"`
@@ -97,6 +105,9 @@ type LoopState struct {
 	Iterations          []*IterationRecord `json:"iterations"`
 	ParetoFrontier      []*ParetoPoint     `json:"pareto_frontier"`
 	StagnationReason    string             `json:"stagnation_reason,omitempty"`
+	// Need names a missing precondition when the run paused on a structured
+	// condition (today: budget breach). nil means no known remedy.
+	Need *LoopNeed `json:"need,omitempty"`
 	// S3: exported for the idle sweeper + console (additive field).
 	LastActivity time.Time `json:"last_activity"`
 	Drained      bool      `json:"drained"`
@@ -522,6 +533,7 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 			if e.state.Status == StatusRunning {
 				e.state.Status = StatusPaused
 			}
+			e.state.Need = &LoopNeed{Kind: "budget_exceeded", Reason: berr.Error()}
 			e.touchLocked()
 			e.mu.Unlock()
 			return nil, fmt.Errorf("loop paused: spend bound breached mid-run: %w", berr)
@@ -952,6 +964,7 @@ func (e *LoopEngine) Resume() {
 	defer e.mu.Unlock()
 	if e.state.Status == StatusPaused || e.state.Status == StatusStagnant || e.state.Status == StatusSleeping {
 		e.state.Status = StatusRunning
+		e.state.Need = nil
 		e.state.ConsecutiveDiscards = 0 // Reset on resume after human approval
 	}
 	e.touchLocked()

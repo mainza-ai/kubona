@@ -63,3 +63,15 @@ describe('AutoresearchPanel settlement', () => {
     expect(JSON.stringify(tree.toJSON())).toContain('unknown · start not confirmed');
   });
 });
+
+  it('renders a typed budget need on a paused run', async () => {
+    stub((url) => {
+      if (url.endsWith('/api/autoresearch/harnesses')) return { ok: true, json: async () => ({ harnesses: [{ id: 'h1' }] }) };
+      if (url.endsWith('/api/autoresearch/loops')) return { ok: true, json: async () => ({ loops: [{ ...loop(), status: 'paused', need: { kind: 'budget_exceeded', reason: 'tenant ceiling exceeded' } }] }) };
+      throw new Error(`unexpected ${url}`);
+    });
+    const tree = await render();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain('tenant ceiling exceeded');
+    expect(text).toContain('Review spend & mandates');
+  });

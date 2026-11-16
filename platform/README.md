@@ -9,7 +9,7 @@ a reproducible CI pipeline. See `../wiki/roadmap.md` for the phase plan and
 `../wiki/overview.md` for the architecture.
 
 > **Status (2026-11-14):** generated counts live in `../docs/repo-counts.md`
-> (154 Go routes, 41 Go packages, 1027 Go test functions, 185 Python test
+> (154 Go routes, 41 Go packages, 1028 Go test functions, 185 Python test
 > files, 152 console test files / 806 cases, 32 Rust tests, 6 MCP servers /
 > 38 tools). The console/agent rails now include runtime skills, recorded
 > decision evals, role-named design-token scales, real-Chromium component

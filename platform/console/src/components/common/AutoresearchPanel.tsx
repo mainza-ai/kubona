@@ -13,6 +13,7 @@ import {
   steerAutoresearchLoop,
 } from '@/lib/api';
 import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
+import { needSentence, remedyFor } from '@/lib/need';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
@@ -118,6 +119,12 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
             </span>
           </div>
           <div className="text-faint font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
+          {loop.need && (
+            <p className="rounded-control-compact border border-warning-edge bg-warning-wash px-2 py-1 text-[11px] text-warning-ink" data-need={loop.need.kind}>
+              {needSentence(loop.need)}
+              {remedyFor(loop.need.kind) ? ` · ${remedyFor(loop.need.kind)!.label}` : ''}
+            </p>
+          )}
           {loop.status === 'running' && (
             <div className="flex items-center gap-1.5 pt-1">
               <input
