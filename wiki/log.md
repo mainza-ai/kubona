@@ -6728,3 +6728,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated StatusStrip, LoopPartsLane, and MolecularActiveSpaceWidget to
   real-browser tests; renderer ratchet fell 47 → 44.
+
+## 2026-11-15 | cleanup | primitives/modal/approval renderer batch
+
+- Migrated primitives, NewCampaignModal, and ApprovalPacketCard to
+  real-browser tests; renderer ratchet fell 44 → 41.
