@@ -6755,3 +6755,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated motion, attention-context, and shortcuts off react-test-renderer
   (node logic tests + real-browser probes); renderer ratchet fell 32 → 29.
+
+## 2026-11-15 | cleanup | claim/fleet/recorder renderer batch
+
+- Migrated ClaimHistory, FleetRadar, and FlightRecorderCard to real-browser
+  tests; renderer ratchet fell 29 → 26.
