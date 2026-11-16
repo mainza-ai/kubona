@@ -24,7 +24,7 @@ Baseline: `37103aad` on `develop`.
 ## Later
 
 - [x] Hardware parent allowance rails.
-- [ ] Hardware-in-the-loop VQE/QAOA, or narrow the claim.
+- [x] Hardware-in-the-loop VQE/QAOA (bridge implements both; live evidence recorded).
 - [x] Plan draft persistence.
 - [x] Obligation 1 h ageing escalation.
 - [x] Obligation push events for session-owned rows (key-owned still polls).

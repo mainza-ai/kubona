@@ -113,8 +113,8 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: LiH/BeH2 PES through the measured VQE rail (active-space; full-space
       optional) and per-point uncertainty/FCI.
 - [x] P1: `/api/fleet` calibration age/provenance; console stale-age column.
-- [ ] P1: hardware-in-the-loop VQE/QAOA (current hardware path is local
-      optimizer + final-state measurement only).
+- [x] P1: hardware-in-the-loop VQE/QAOA (bridge implements both; live QPU
+      evidence recorded; local test env lacks qiskit).
 
 ## Production blockers
 

@@ -6500,3 +6500,13 @@ skipped is the exact failure this incident is about:
 - The copilot proposal schema now asks for numeric `max_cost_usd` and `shots`;
   the prompt states that `spend_estimate` text is not a spend bound. Metered
   plans that still omit a numeric bound continue to refuse rather than guess.
+
+## [2026-11-15] correction | hardware-in-the-loop exists
+
+- Corrected the stale backlog claim that hardware VQE/QAOA used only a local
+  optimizer. The bridge implements `run_vqe_hardware_loop` and
+  `run_qaoa_hardware_loop` with every objective evaluation submitted as a
+  hardware batch; live QPU evidence is already recorded in [[vqa-vqe]] and
+  `docs/live-qpu-2026-11-09.md`.
+- Local bridge loop tests could not run here because qiskit is unavailable in
+  this environment; that is an environment gap, not a missing rail.
