@@ -6703,3 +6703,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated AutoresearchPanel, AboutLabModal, and OverflowCard to real-browser
   tests; renderer ratchet fell 62 → 59.
+
+## 2026-11-15 | cleanup | settings/memory/composer renderer batch
+
+- Migrated AppearanceSettings, MemoryPanel, and Composer to real-browser
+  tests; renderer ratchet fell 59 → 56.
