@@ -6652,3 +6652,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated shared-resource to a real-browser component test; renderer ratchet
   fell 82 → 81.
+
+## 2026-11-15 | cleanup | fifteenth renderer migration
+
+- Migrated use-write-settlement to a real-browser component test; renderer
+  ratchet fell 81 → 80.
