@@ -16,7 +16,7 @@ function Probe({ id }: { id: string }) {
 describe('transcript store in a real browser', () => {
   it('shares messages between simultaneous consumers', async () => {
     const screen = await render(<><Probe id="a" /><Probe id="b" /></>);
-    const buttons = screen.getByRole('button').elements();
+    const buttons = screen.getByRole('button').elements() as HTMLElement[];
     await buttons[0].click();
     await expect.poll(() => buttons.map((button) => button.textContent)).toEqual(['1', '1']);
   });

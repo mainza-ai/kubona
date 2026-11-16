@@ -6667,3 +6667,9 @@ skipped is the exact failure this incident is about:
 
 - Migrated ShadowTomographyRadarWidget to a real-browser component test;
   renderer ratchet fell 79 → 78.
+
+## 2026-11-15 | cleanup | widget renderer batch
+
+- Migrated CryptographicMandateCardWidget, EpistemicManifoldSurfaceWidget, and
+  QuantumCircuitQIREditorWidget to real-browser tests; renderer ratchet fell
+  78 → 75.

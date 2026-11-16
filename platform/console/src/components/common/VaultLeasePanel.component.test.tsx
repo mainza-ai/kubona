@@ -12,7 +12,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('VaultLeasePanel in a real browser', () => {
   it('issues and revokes an opaque lease id', async () => {
-    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    vi.stubGlobal('fetch', async (url: string) => {
       if (String(url).includes('revoke')) {
         return { ok: true, status: 200, json: async () => ({ revoked: true }) };
       }
