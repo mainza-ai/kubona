@@ -125,6 +125,9 @@ describe('workbench model', () => {
     expect(objects.map((object) => object.id)).toEqual(
       expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'evidence', 'proof', 'manuscript', 'chart']),
     );
+    const campaignObject = objects.find((object) => object.id === 'campaign')!;
+    expect(campaignObject.facts.find((fact) => fact.label === 'Target')?.from).toEqual({ domain: 'campaign', id: 's1' });
+
     const measurement = objects.find((object) => object.id === 'measurement')!;
     expect(measurement.facts.find((fact) => fact.label === 'FCI')?.value).toBe('-1.13727 Ha');
     expect(measurement.facts.find((fact) => fact.label === 'UNCERTAINTY')?.value).toBe('not recorded');
@@ -147,7 +150,7 @@ describe('workbench model', () => {
         below_fci: true, source: 'shot-sampled Pauli expectation',
       },
       pes_points: [
-        { bond_distance: 0.7, energy: -1.1371356, fci_exact_energy: -1.1361895, delta_mha: 0.946, uncertainty_mha: 1.867, chemical_accuracy: true },
+        { bond_distance: 0.7, energy: -1.1371356, fci_exact_energy: -1.1361895, delta_mha: 0.946, uncertainty_mha: 1.867, chemical_accuracy: true, hardware_job_id: 'hw-job-12345678' },
         { bond_distance: 0.9, energy: -1.1212512, fci_exact_energy: -1.1205603, delta_mha: 0.691, uncertainty_mha: 1.996, chemical_accuracy: true },
       ],
     });
@@ -159,6 +162,8 @@ describe('workbench model', () => {
     const chart = objects.find((object) => object.id === 'pes-chart')!;
     expect(chart.chart?.series[0]?.name).toBe('VQE energy');
     expect(chart.chart?.series[0]?.points.map((p) => p.x)).toEqual([0.7, 0.9]);
+    expect(chart.chart?.series[0]?.points[0]?.evidence?.[0]?.key).toBe('job:hw-job-12345678');
+    expect(chart.facts.find((fact) => fact.label === 'Source')?.from?.id).toBe('hw-job-12345678');
   });
 
   it('projects loop records as agent-run objects', () => {

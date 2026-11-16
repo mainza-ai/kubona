@@ -6510,3 +6510,11 @@ skipped is the exact failure this incident is about:
   `docs/live-qpu-2026-11-09.md`.
 - Local bridge loop tests could not run here because qiskit is unavailable in
   this environment; that is an environment gap, not a missing rail.
+
+## [2026-11-15] verification | chart and campaign refs
+
+- PES chart points carry the producing hardware job as evidence; trajectory
+  points use the recorded `source` id when present. Campaign-level facts carry
+  the campaign ref. Points without a source id stay unattributed rather than
+  guessing.
+- Added workbench-model assertions.

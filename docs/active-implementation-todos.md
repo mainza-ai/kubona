@@ -28,7 +28,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Plan draft persistence.
 - [x] Obligation 1 h ageing escalation.
 - [x] Obligation push events for session-owned rows (key-owned still polls).
-- [ ] Chart-series and campaign-level fact refs.
+- [x] Chart-series and campaign-level fact refs.
 - [ ] Run parts from literature/prover/tool rails.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.
 - [ ] Console: 95 renderer migrations.

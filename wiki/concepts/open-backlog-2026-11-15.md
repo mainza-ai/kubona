@@ -33,6 +33,7 @@ record on the owning pages.
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-18 now emits session-owned obligation open/close events; key-owned
 > bearer rows still poll. OB-16 hardware parent allowance rails are closed.
+> OB-19 chart-series and campaign fact refs have landed.
 > OB-13 now carries typed need envelopes for budget, approval, and
 > anchor refusals, and the global refusal chip renders the sentence/remedy;
 > run-card rendering of budget/retry needs and refusal-chip rendering of

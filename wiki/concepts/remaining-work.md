@@ -280,8 +280,10 @@ Landed in later slices:
 - **Per-fact source chips (2026-11-14, report C9):** job/loop/approval/task
   facts name their record; measurement/proof facts resolve to the measured
   job (else campaign); chips focus the owning card, including folded runs.
-  Remaining: chart series facts and campaign-level facts do not carry refs
-  yet (the chart's producing jobs are not attributed per point).
+  Chart points now carry producing-job evidence where the source records one
+  (PES `hardware_job_id`, trajectory `source`), and campaign facts carry the
+  campaign ref. Per-point attribution for trajectories without a source id
+  remains unknown rather than guessed.
 - **Citation-checked numeric claims (2026-11-14, report B5):** observation
   ids in the tool loop, a prompt rule, deterministic post-check with
   tolerance, streaming-safe citation marks, persisted `citations_json`, and

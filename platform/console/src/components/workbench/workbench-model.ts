@@ -479,7 +479,12 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
   const trajectory = campaign.trajectory ?? [];
   const points = trajectory
     .filter((step) => Number.isFinite(step.step) && Number.isFinite(step.energy))
-    .map((step) => ({ x: step.step, y: step.energy, display: `${step.energy.toFixed(5)} Ha` }));
+    .map((step) => ({
+      x: step.step,
+      y: step.energy,
+      display: `${step.energy.toFixed(5)} Ha`,
+      ...(step.source ? { evidence: [{ key: `job:${step.source}`, label: `job ${step.source.slice(0, 8)}`, origin: 'job' }] } : {}),
+    }));
   if (points.length === 0) return undefined;
   const anchor = campaign.classical_anchor;
   const anchorEnergy = anchor?.fci_exact_energy;
@@ -895,11 +900,11 @@ export function buildWorkbench(
     title: campaignHeadline || 'Untitled campaign',
     detail: campaign.research_goal || 'No research goal recorded.',
     facts: [
-      { label: 'Target', value: value(campaign.target_system) },
-      { label: 'Status', value: value(epistemics?.status) },
-      { label: 'Anchor', value: anchored ? 'computed' : 'UNVERIFIED' },
-      { label: 'Spend', value: typeValue(sessionSpendUsd) },
-      { label: 'Est. spend', value: typeValue(qf?.estimated_spend_usd) },
+      { label: 'Target', value: value(campaign.target_system), from: { domain: 'campaign', id: campaign.session_id } },
+      { label: 'Status', value: value(epistemics?.status), from: { domain: 'campaign', id: campaign.session_id } },
+      { label: 'Anchor', value: anchored ? 'computed' : 'UNVERIFIED', from: { domain: 'campaign', id: campaign.session_id } },
+      { label: 'Spend', value: typeValue(sessionSpendUsd), from: { domain: 'campaign', id: campaign.session_id } },
+      { label: 'Est. spend', value: typeValue(qf?.estimated_spend_usd), from: { domain: 'campaign', id: campaign.session_id } },
     ],
   });
 
@@ -1058,11 +1063,11 @@ export function buildWorkbench(
     const traj = campaign.trajectory ?? [];
     const firstE = traj[0]?.energy;
     const lastE = traj[traj.length - 1]?.energy;
-    const chartFacts: { label: string; value: string }[] = traj.length > 0
+    const chartFacts: WorkbenchFact[] = traj.length > 0
       ? [
-          { label: 'Steps', value: String(traj.length) },
-          ...(typeof firstE === 'number' && Number.isFinite(firstE) ? [{ label: 'Initial', value: `${firstE.toFixed(5)} Ha` }] : []),
-          ...(typeof lastE === 'number' && Number.isFinite(lastE) ? [{ label: 'Latest', value: `${lastE.toFixed(5)} Ha` }] : []),
+          { label: 'Steps', value: String(traj.length), from: { domain: 'campaign', id: campaign.session_id } },
+          ...(typeof firstE === 'number' && Number.isFinite(firstE) ? [{ label: 'Initial', value: `${firstE.toFixed(5)} Ha`, from: { domain: 'campaign', id: campaign.session_id } }] : []),
+          ...(typeof lastE === 'number' && Number.isFinite(lastE) ? [{ label: 'Latest', value: `${lastE.toFixed(5)} Ha`, from: { domain: 'campaign', id: campaign.session_id } }] : []),
         ]
       : [];
     placeSpine(2, {
@@ -1087,13 +1092,18 @@ export function buildWorkbench(
       label: 'Figure',
       title: `Potential energy surface · ${campaign.target_system || 'campaign'}`,
       detail: 'Measured energy vs bond distance, with the classical FCI anchor.',
-      facts: [],
+      facts: points.some((p) => p.hardware_job_id)
+        ? [{ label: 'Source', value: 'measured hardware points', from: { domain: 'job', id: points.find((p) => p.hardware_job_id)!.hardware_job_id! } }]
+        : [],
       minHeight: 360,
       chart: {
         kind: 'line',
         title: `Potential energy surface · ${campaign.target_system || 'campaign'}`,
         series: [
-          { name: 'VQE energy', points: points.map((p) => ({ x: p.bond_distance, y: p.energy, display: `${p.energy.toFixed(6)} Ha` })) },
+          { name: 'VQE energy', points: points.map((p) => ({
+            x: p.bond_distance, y: p.energy, display: `${p.energy.toFixed(6)} Ha`,
+            ...(p.hardware_job_id ? { evidence: [{ key: `job:${p.hardware_job_id}`, label: `job ${p.hardware_job_id.slice(0, 8)}`, origin: 'job' }] } : {}),
+          })) },
           { name: 'FCI anchor', points: points.map((p) => ({ x: p.bond_distance, y: p.fci_exact_energy, display: `${p.fci_exact_energy.toFixed(6)} Ha` })) },
         ],
         x: { label: 'Bond distance (Å)', kind: 'linear' },
