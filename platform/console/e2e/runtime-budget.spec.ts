@@ -2,6 +2,26 @@ import { test, expect } from '@playwright/test';
 import { mockApi } from './workbench-fixtures';
 
 test('dense workbench stays inside the static transfer and DOM ceiling', async ({ page }) => {
+  await page.addInitScript(() => {
+    const perf = { lcp: 0, inp: 0 };
+    (window as unknown as { __kubonaPerf: typeof perf }).__kubonaPerf = perf;
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) perf.lcp = Math.max(perf.lcp, entry.startTime);
+      }).observe({ type: 'largest-contentful-paint', buffered: true });
+    } catch {
+      /* browser without LCP */
+    }
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as PerformanceEventTiming[]) {
+          if (typeof entry.duration === 'number') perf.inp = Math.max(perf.inp, entry.duration);
+        }
+      }).observe({ type: 'event', buffered: true, durationThreshold: 16 } as PerformanceObserverInit);
+    } catch {
+      /* browser without event timing */
+    }
+  });
   await mockApi(page);
   await page.goto('/');
   await expect(page.getByTestId('workbench')).toBeVisible();
@@ -32,7 +52,22 @@ test('dense workbench stays inside the static transfer and DOM ceiling', async (
       placeholders: document.querySelectorAll('.k-workbench-placeholder').length,
     };
   });
+  await page.mouse.click(24, 24);
+  await page.waitForTimeout(250);
+  const perf = await page.evaluate(() => {
+    const p = (window as unknown as { __kubonaPerf?: { lcp: number; inp: number } }).__kubonaPerf;
+    const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+    const lcpEntries = performance.getEntriesByType('largest-contentful-paint') as PerformanceEntry[];
+    const lcpFallback = lcpEntries.length > 0 ? lcpEntries[lcpEntries.length - 1].startTime : 0;
+    return {
+      lcpMs: Math.round(p?.lcp || lcpFallback),
+      inpMs: Math.round(p?.inp ?? 0),
+      heapMB: memory ? Math.round(memory.usedJSHeapSize / (1024 * 1024)) : null,
+      requests: performance.getEntriesByType('resource').length,
+    };
+  });
   test.info().annotations.push({ type: 'runtime-budget', description: JSON.stringify(measured) });
+  test.info().annotations.push({ type: 'runtime-perf', description: JSON.stringify(perf) });
   console.log(`runtime budget: ${JSON.stringify(measured)}`);
   // DOM ceilings re-baselined 2026-11-14 after the needs tray, status strip,
   // run-parts lane, and workbench toolbar landed: dense fixture measured 936
@@ -42,6 +77,11 @@ test('dense workbench stays inside the static transfer and DOM ceiling', async (
   expect(measured.visibleDom).toBeLessThanOrEqual(1250);
   expect(measured.dom).toBeLessThanOrEqual(1250);
   expect(measured.cards).toBeLessThanOrEqual(150);
+  expect(perf.lcpMs).toBeGreaterThan(0);
+  expect(perf.lcpMs).toBeLessThanOrEqual(4000);
+  expect(perf.inpMs).toBeLessThanOrEqual(500);
+  if (perf.heapMB !== null) expect(perf.heapMB).toBeLessThanOrEqual(250);
+  expect(perf.requests).toBeLessThanOrEqual(120);
 });
 
 test('normal boot stays inside the all-resource transfer ceiling', async ({ page }) => {

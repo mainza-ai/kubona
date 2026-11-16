@@ -708,7 +708,7 @@ export const CommandDock = React.memo(function CommandDock({
               </span>
               <span>Inspector</span>
               {inspectorShortcut && (
-                <kbd className="hidden sm:inline rounded-chip border border-border bg-fill px-1.5 py-0.5 font-code text-[10px] text-muted">
+                <kbd className="hidden sm:inline rounded-chip border border-border bg-fill px-1.5 py-0.5 font-code text-caption text-muted">
                   {inspectorShortcut}
                 </kbd>
               )}

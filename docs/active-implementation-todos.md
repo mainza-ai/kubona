@@ -34,8 +34,9 @@ Baseline: `37103aad` on `develop`.
 - [ ] Console: 95 renderer migrations.
 - [ ] Console: reduce 67 `components → lib/api` couplings.
 - [ ] Console: split the ~395 KiB chunk.
-- [ ] Console: LCP/INP/heap/request-count gates.
-- [ ] Console: final 14 token baseline, form primitives, raw-button ratchet.
+- [x] Console: LCP/INP/heap/request-count gates.
+- [x] Console: raw-palette token baseline is 0.
+- [ ] Console: form primitives + raw-button ratchet.
 - [ ] Console: per-component motion review.
 
 ## Operator-only

@@ -6532,3 +6532,18 @@ skipped is the exact failure this incident is about:
   prompt for the session, so a re-proposal sees the operator's reasons. This
   is a generation signal, not an invented numeric ranking score.
 - Added ledger/helper coverage.
+
+## [2026-11-15] cleanup | raw-palette baseline zero
+
+- Replaced the last `text-[10px]` occurrence in CommandDock with the
+  `text-caption` role token; the token baseline is now 0/0. Form primitives
+  and the raw-button ratchet remain.
+
+## [2026-11-15] verification | runtime gates and live E2E
+
+- Added LCP/INP/heap/request-count measurement and ceilings to the mocked
+  dense runtime budget spec; the spec passes locally.
+- Fixed the live spin-chain acceptance test to accept the planner's
+  multi-size scaling plans and gave it a 120s budget. The full live console
+  E2E suite now passes 16/16 against the running compose stack.
+- Removed the final raw-palette token occurrence; baseline is 0/0.

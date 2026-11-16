@@ -436,7 +436,7 @@ Still open (as of 2026-11-10):
 - Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **425 KB
   static / 435 KB all-resource / 473 DOM** on the normal mocked boot, plus
   **186 visible Settings DOM**; the dense 361-object boot is **425 KB static /
-  473 DOM**. LCP/INP/heap/request-count gates remain open. The full nightly is green at `d1a48ed` (run `41418158035`: canary, 100/300 FPS,
+  473 DOM**. LCP/INP/heap/request-count gates now run in `runtime-budget.spec.ts`; the full nightly is green at `d1a48ed` (run `41418158035`: canary, 100/300 FPS,
   slice60 composition + determinism).
 - Transport hardening: the typed auth phase store now bootstraps through
   `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
@@ -453,8 +453,8 @@ Still open (as of 2026-11-10):
 > queues concurrent SSE `pendingRefresh` invalidations; mobile `390×844` drawer
 > overlays and `runtime-budget.spec.ts` / `stream-invalidation.spec.ts` pass
 > against `kubona-live`. Remaining from above: retiring the final 14 baseline
-> token occurrences, remaining form primitive migrations, and LCP/INP/heap
-> budget gates.
+> token occurrences, remaining form primitive migrations, and the runtime
+> budget gates now measured in `runtime-budget.spec.ts`.
   and carries `Last-Event-ID`; telemetry invalidates campaign/jobs/tasks/loops/
   obligations and pauses their fallback polls while live; ledger history pages
   backwards. Operation receipts are queryable and layout/task writes are

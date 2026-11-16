@@ -33,7 +33,9 @@ record on the owning pages.
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-18 now emits session-owned obligation open/close events; key-owned
 > bearer rows still poll. OB-16 hardware parent allowance rails are closed.
-> OB-19 chart-series and campaign fact refs have landed. Proposal-dismiss
+> OB-19 chart-series and campaign fact refs have landed. The raw-palette
+> baseline is now 0; form/button debt remains. LCP/INP/heap/request-count
+> gates now run in the dense runtime budget spec. Proposal-dismiss
 > reasons now feed the copilot prompt as a generation signal. OB-20 is closed as
 > out of scope: literature/prover/copilot tool paths have no loop identity, so
 > no parts are fabricated.

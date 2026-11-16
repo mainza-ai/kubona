@@ -103,7 +103,7 @@ development — re-verify the gate on the exact commit before citing
 > (`pkg/skills`, body-free prompt, section-addressed `load_skill`), recorded
 > decision evals (`pkg/evals`, `kubonad eval-llm`, Brier/ECE, opt-in
 > `KUBONA_REQUIRE_LLM_EVAL` gate), and a zero-tolerance `transition-all` source
-> scan. The raw-palette baseline fell to **1**. Re-verify the full gate on the
+> scan. The raw-palette baseline is **0**. Re-verify the full gate on the
 > pushed commit before citing “green”.
 
 ## Three layers
