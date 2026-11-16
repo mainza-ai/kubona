@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --coverage.reportsDirectory=coverage-node && vitest run --config vitest.browser.config.ts --coverage --coverage.reportsDirectory=coverage-browser && node scripts/merge-coverage.mjs",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "lint": "eslint",
     "test:e2e": "playwright test"
@@ -36,6 +36,7 @@
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "istanbul-lib-coverage": "^3.2.2",
     "react-test-renderer": "19.2.8",
     "tailwindcss": "^4",
     "typescript": "^5",

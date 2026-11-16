@@ -6743,3 +6743,10 @@ skipped is the exact failure this incident is about:
 
 - Migrated CommandPalette, CheckInStrip, and NeedsYouTray to real-browser
   tests; renderer ratchet fell 38 → 35.
+
+## 2026-11-15 | cleanup | surface renderer batch and merged coverage
+
+- Migrated provenance-coverage, EpistemicManifold, and LiteraturePanel to
+  real-browser tests; renderer ratchet fell 35 → 32.
+- Coverage now merges node + browser maps before enforcing the unchanged
+  floors (59.52/57.73/58.10/62.33 vs 53/54/51/56).

@@ -1,7 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
-import type { ReactTestInstance } from 'react-test-renderer';
 import {
   MolecularActiveSpaceWidget,
   QuantumCircuitQIREditorWidget,
@@ -10,20 +9,17 @@ import {
 import { buildWorkbench } from '@/components/workbench/workbench-model';
 import type { CampaignState } from '@/types';
 
-function hasProvenanceAncestor(node: ReactTestInstance): boolean {
-  let current: ReactTestInstance | null = node;
-  while (current) {
-    if (typeof current.props?.['data-provenance'] === 'string') return true;
-    current = current.parent;
-  }
-  return false;
-}
-
-function assertMetricsCarryProvenance(tree: TestRenderer.ReactTestRenderer) {
-  const metrics = tree.root.findAll((node) => node.props?.['data-metric'] !== undefined);
+// Migrated from react-test-renderer (provenance-coverage.test.tsx): the
+// invariant is a DOM one — every [data-metric] node must sit inside a
+// [data-provenance] subtree — so it is asserted against the real rendered
+// tree, where closest() is the browser's own ancestor walk rather than a
+// hand-rolled props walk over test-renderer instances.
+function assertMetricsCarryProvenance(container: HTMLElement) {
+  const metrics = Array.from(container.querySelectorAll('[data-metric]'));
   expect(metrics.length).toBeGreaterThan(0);
   for (const metric of metrics) {
-    expect(hasProvenanceAncestor(metric), `metric without provenance: ${JSON.stringify(metric.props.children)}`).toBe(true);
+    const scope = metric.closest('[data-provenance]');
+    expect(scope, `metric without provenance: ${metric.textContent ?? ''}`).not.toBeNull();
   }
 }
 
@@ -66,38 +62,29 @@ const campaign = {
   updated_at: '',
 } as unknown as CampaignState;
 
-describe('provenance coverage', () => {
+describe('provenance coverage in a real browser', () => {
   it('tags molecular proposal metrics with proposed provenance', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(
-        <MolecularActiveSpaceWidget moleculeName="H2" numElectrons={2} numOrbitals={2} homoLumoGapHa={0.05} />
-      );
-    });
-    expect(tree!.root.findByProps({ 'data-provenance': 'proposed' })).toBeTruthy();
-    assertMetricsCarryProvenance(tree!);
+    const screen = await render(
+      <MolecularActiveSpaceWidget moleculeName="H2" numElectrons={2} numOrbitals={2} homoLumoGapHa={0.05} />,
+    );
+    expect(screen.container.querySelector('[data-provenance="proposed"]')).not.toBeNull();
+    assertMetricsCarryProvenance(screen.container);
   });
 
   it('tags QIR receipt metrics with measured provenance', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(
-        <QuantumCircuitQIREditorWidget qubits={2} circuitDepth={4} qirCode="define void @main() #0 { ret void }" />
-      );
-    });
-    expect(tree!.root.findByProps({ 'data-provenance': 'measured' })).toBeTruthy();
-    assertMetricsCarryProvenance(tree!);
+    const screen = await render(
+      <QuantumCircuitQIREditorWidget qubits={2} circuitDepth={4} qirCode="define void @main() #0 { ret void }" />,
+    );
+    expect(screen.container.querySelector('[data-provenance="measured"]')).not.toBeNull();
+    assertMetricsCarryProvenance(screen.container);
   });
 
   it('tags manifold geometry metrics with measured provenance', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(
-        <EpistemicManifoldSurfaceWidget currentCurvatureScalar={-0.4} fisherInfoNorm={2.5} entropyReduction={0.2} />
-      );
-    });
-    expect(tree!.root.findByProps({ 'data-provenance': 'measured' })).toBeTruthy();
-    assertMetricsCarryProvenance(tree!);
+    const screen = await render(
+      <EpistemicManifoldSurfaceWidget currentCurvatureScalar={-0.4} fisherInfoNorm={2.5} entropyReduction={0.2} />,
+    );
+    expect(screen.container.querySelector('[data-provenance="measured"]')).not.toBeNull();
+    assertMetricsCarryProvenance(screen.container);
   });
 
   it('gives every workbench object a controlled provenance value', () => {
