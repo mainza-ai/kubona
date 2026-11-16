@@ -6617,3 +6617,8 @@ skipped is the exact failure this incident is about:
   raw / 336.2 KiB gzip, within the route ceiling. Bundle budget baseline
   updated to the measured split, max single chunk 300 KiB.
 - Live console E2E passes 16/16 after the split.
+
+## 2026-11-15 | cleanup | eighth renderer migration
+
+- Migrated VaultLeasePanel to a real-browser component test; renderer ratchet
+  fell 88 → 87.
