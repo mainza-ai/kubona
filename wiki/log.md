@@ -6575,3 +6575,8 @@ skipped is the exact failure this incident is about:
 - Migrated RunAllowancePanel's five numeric controls to the shared Field
   primitive; raw form-control debt fell 207 → 202. The rest of the migration
   remains ratcheted.
+
+## 2026-11-15 | cleanup | first renderer migration
+
+- Migrated CitationBadge from react-test-renderer to a real-browser component
+  test; the renderer ratchet fell 95 → 94. The rest remain.
