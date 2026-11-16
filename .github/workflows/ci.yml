@@ -550,9 +550,12 @@ jobs:
       - name: Placeholder literal gate
         working-directory: .
         run: python3 scripts/check-console-placeholders.py
-      # U0: the 103 vitest tests + eslint previously ran nowhere in CI —
-      # the console could rot green while build-only stayed green. Test
-      # first (fastest signal), then lint, then build.
+      # U0: the console unit + real-browser suites and eslint previously ran
+      # nowhere in CI — the console could rot green while build-only stayed
+      # green. Test first (fastest signal), then lint, then build. Browser
+      # coverage needs the Playwright Chromium binary in this job too.
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:coverage
       - run: pnpm lint
       - run: pnpm build

@@ -6820,3 +6820,9 @@ skipped is the exact failure this incident is about:
   added for accepting a verified claim without evidence.
 - Run the console raw-button, coupling, and form ratchets from the repo root;
   they previously ran from `platform/console` and could not find the scripts.
+
+## 2026-11-16 | verification | CI installs Chromium for merged coverage
+
+- The console coverage gate now runs the real-browser suite, so the console
+  CI job installs Playwright Chromium before `pnpm test:coverage`. The E2E
+  lane already had the binary; the push gate did not.
