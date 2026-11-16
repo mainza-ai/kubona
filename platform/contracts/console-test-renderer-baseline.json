@@ -63,7 +63,6 @@
     "src/components/surfaces/QuantumDispatch.test.tsx",
     "src/components/surfaces/QuantumSettings.test.tsx",
     "src/components/surfaces/ResultsStudio.test.tsx",
-    "src/components/surfaces/ResultsStudioHeading.test.tsx",
     "src/components/surfaces/SpatialCanvas.test.tsx",
     "src/components/surfaces/SpatialCanvas3D.test.tsx",
     "src/components/ui/primitives.test.tsx",

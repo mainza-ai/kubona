@@ -6657,3 +6657,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated use-write-settlement to a real-browser component test; renderer
   ratchet fell 81 → 80.
+
+## 2026-11-15 | cleanup | sixteenth renderer migration
+
+- Migrated ResultsStudioHeading to a real-browser component test; renderer
+  ratchet fell 80 → 79.
