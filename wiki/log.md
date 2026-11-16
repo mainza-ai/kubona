@@ -6688,3 +6688,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated SessionRefundPanel, TenantGrantPanel, and WorkflowPanel to
   real-browser tests; renderer ratchet fell 71 → 68.
+
+## 2026-11-15 | cleanup | modal/shell renderer batch
+
+- Migrated CommandPaletteTrap, ArenaHud, and KeyboardShortcutsModal to
+  real-browser tests; renderer ratchet fell 68 → 65.
