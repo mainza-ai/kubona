@@ -6463,3 +6463,10 @@ skipped is the exact failure this incident is about:
   sentence and remedy.
 - Added engine and panel coverage. Non-budget loop failure fields and
   job-card admission needs remain.
+
+## [2026-11-15] decision | non-budget loop needs
+
+- Recorder failure pauses a run with a typed `retry` need; spend overrun
+  pauses with `budget_exceeded`. Resume clears either. Admission needs render
+  in the global refusal chip because no job exists yet.
+- Added engine assertions; C2 typed needs are closed for the current rails.

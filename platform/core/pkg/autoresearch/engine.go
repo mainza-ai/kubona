@@ -226,7 +226,7 @@ func (e *LoopEngine) recordSpend(role string, promptTokens, completionTokens int
 	cost, err := rec(role, promptTokens, completionTokens)
 	if err != nil {
 		slog.Error("[autoresearch] loop spend record failed, pausing", "loop_id", e.state.ID, "error", err)
-		e.Pause()
+		e.pauseWithNeed("retry", "loop spend ledger is unreachable: "+err.Error())
 		return
 	}
 	e.mu.Lock()
@@ -235,7 +235,7 @@ func (e *LoopEngine) recordSpend(role string, promptTokens, completionTokens int
 	e.mu.Unlock()
 	if reserved > 0 && consumed > reserved {
 		slog.Error("[autoresearch] loop spend overrun, pausing", "loop_id", e.state.ID, "consumed_usd", consumed, "reserved_usd", reserved)
-		e.Pause()
+		e.pauseWithNeed("budget_exceeded", "loop spend exceeded its reservation")
 	}
 }
 
@@ -956,6 +956,18 @@ func (e *LoopEngine) Pause() {
 	if e.state.Status == StatusRunning {
 		e.state.Status = StatusPaused
 	}
+	e.touchLocked()
+}
+
+// pauseWithNeed pauses on a structured condition and records the one remedy.
+// A manual Pause leaves Need nil (there is no missing precondition to name).
+func (e *LoopEngine) pauseWithNeed(kind, reason string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.state.Status == StatusRunning {
+		e.state.Status = StatusPaused
+	}
+	e.state.Need = &LoopNeed{Kind: kind, Reason: reason}
 	e.touchLocked()
 }
 

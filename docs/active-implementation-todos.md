@@ -8,7 +8,8 @@ Baseline: `37103aad` on `develop`.
 - [x] Proposal history/list surface (server list + console panel).
 - [x] Typed need envelopes: `budget_exceeded`, `approval`, `anchor_missing`.
 - [x] Refusal chip renders the typed need sentence and remedy.
-- [x] Run card renders a typed budget need; resume clears it.
+- [x] Run card renders typed budget/retry needs; resume clears them.
+- [x] Admission needs render in the refusal chip (no job exists).
 - [x] Table citation scanning + inline table highlights.
 - [x] Rendered math-source citation scanning.
 - [x] Attention Director wiring for notification severities.

@@ -32,8 +32,9 @@ record on the owning pages.
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-13 now carries typed need envelopes for budget, approval, and
 > anchor refusals, and the global refusal chip renders the sentence/remedy;
-> run-card rendering of the budget need has landed; job-card rendering of
-> admission needs and non-budget loop failure fields remain. See
+> run-card rendering of budget/retry needs and refusal-chip rendering of
+> admission needs have landed. OB-13 is closed; job cards already render job
+> needs, and loop needs carry the structured failure field. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

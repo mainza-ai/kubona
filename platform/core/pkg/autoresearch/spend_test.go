@@ -52,8 +52,12 @@ func TestRecordSpendRecorderErrorPauses(t *testing.T) {
 	})
 	e.SetSpendReservation(3.0)
 	e.recordSpend("coder", 100, 200)
-	if e.State().Status == StatusRunning {
+	st := e.State()
+	if st.Status == StatusRunning {
 		t.Fatal("unrecordable spend must pause the loop")
+	}
+	if st.Need == nil || st.Need.Kind != "retry" {
+		t.Fatalf("unrecordable spend must carry a retry need: %+v", st)
 	}
 }
 
@@ -64,8 +68,12 @@ func TestRecordSpendOverrunPauses(t *testing.T) {
 	})
 	e.SetSpendReservation(3.0)
 	e.recordSpend("coder", 100000, 100000)
-	if e.State().Status == StatusRunning {
+	st := e.State()
+	if st.Status == StatusRunning {
 		t.Fatal("overrun past the reservation must pause the loop")
+	}
+	if st.Need == nil || st.Need.Kind != "budget_exceeded" {
+		t.Fatalf("overrun must carry a budget need: %+v", st)
 	}
 }
 
