@@ -70,11 +70,8 @@
     "src/components/workbench/LoopPartsLane.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts",
-    "src/domain/needs-you-seen-hook.test.tsx",
-    "src/domain/useQuantumSettingsProjection.test.tsx",
     "src/lib/attention-context.test.tsx",
     "src/lib/motion.test.tsx",
-    "src/lib/shortcuts.test.tsx",
-    "src/lib/useCampaignProjection.test.tsx"
+    "src/lib/shortcuts.test.tsx"
   ]
 }

@@ -6678,3 +6678,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated consequential to a real-browser component test; renderer ratchet
   fell 75 → 74.
+
+## 2026-11-15 | cleanup | domain-hook renderer batch
+
+- Migrated useQuantumSettingsProjection, needs-you-seen-hook, and
+  useCampaignProjection to real-browser tests; renderer ratchet fell 74 → 71.
