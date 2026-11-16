@@ -10,7 +10,8 @@ Baseline: `37103aad` on `develop`.
 - [x] Table citation scanning + inline table highlights.
 - [ ] Rendered math-value citation scanning.
 - [x] Attention Director wiring for notification severities.
-- [ ] Duplicate announcement cleanup.
+- [x] Live-run toast duplication removed (single polite region).
+- [ ] Remaining per-surface toast/chip dedupe.
 - [ ] Proposal-dismiss reasons used in ranking.
 - [x] Skill authoring/installer UI.
 - [ ] Live `eval-llm` model invocation.

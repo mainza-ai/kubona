@@ -138,6 +138,7 @@ export default function Home() {
   const [runElapsedSec, setRunElapsedSec] = useState(0);
   const runPhaseRef = useRef<RunPhase>('idle');
   const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
+  const [runAnnouncement, setRunAnnouncement] = useState<string | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loopsAuthHaltedRef = useRef(false);
@@ -428,8 +429,8 @@ export default function Home() {
                 setEvents(e);
               }
             }
-            // Heartbeat toasts: while a run is live, surface fresh ledger events
-            // on the canvas (max one per poll, auto-fading). Baseline on run start.
+            // Live-run announcements: while a run is live, surface fresh ledger
+            // events through the single polite region (max one per poll). Baseline on run start.
             if (prevPhase.current === 'idle' && runPhase !== 'idle') {
               if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
             } else if (runPhase !== 'idle' && e.length > 0) {
@@ -438,9 +439,7 @@ export default function Home() {
                 const last = fresh[fresh.length - 1];
                 const label = String(last.event_type || 'event').replace(/_/g, ' ');
                 const text = fresh.length === 1 ? `${label} · recorded` : `${fresh.length} new events — view recorder`;
-                setToast({ key: last.id, text });
-                if (toastTimer.current) clearTimeout(toastTimer.current);
-                toastTimer.current = setTimeout(() => setToast(null), 4000);
+                setRunAnnouncement(text);
               }
               lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
             }
@@ -1339,9 +1338,10 @@ export default function Home() {
         queueStatus={needsYouQueueStatus}
       />
       <div className="sr-only" role="status" aria-live="polite" data-testid="notification-announcer">
-        {!notificationInbox.prefs.quiet && notificationInbox.notifications.some((n) => !n.read_at)
-          ? `${notificationInbox.notifications.filter((n) => !n.read_at).length} unread notifications`
-          : ''}
+        {runAnnouncement ||
+          (!notificationInbox.prefs.quiet && notificationInbox.notifications.some((n) => !n.read_at)
+            ? `${notificationInbox.notifications.filter((n) => !n.read_at).length} unread notifications`
+            : '')}
       </div>
       <NotificationCenter
         open={notificationsOpen}

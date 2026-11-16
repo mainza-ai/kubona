@@ -6413,3 +6413,10 @@ skipped is the exact failure this incident is about:
   hashing/insertion; credential-shaped values are replaced with visible
   markers, and a redaction that would corrupt JSON refuses the append.
 - Added a ledger regression test proving a token never reaches the event row.
+
+## [2026-11-15] decision | one live-run announcement path
+
+- Removed the visual live-run heartbeat toast; fresh ledger events now update
+  the single polite announcement region. The outage toast remains because it
+  is a blocking-state signal.
+- Skill authoring/installer and ledger-write screening are now complete.

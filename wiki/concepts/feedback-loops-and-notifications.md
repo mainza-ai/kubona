@@ -171,9 +171,9 @@ Additional landed 2026-11-15:
   leaves the prompt and `load_skill` surface but stays visible in Settings so
   it can be re-enabled; the decision persists across restarts.
 
-Still open: proposal-dismiss reasons used in ranking, Attention Director
-wiring for all producers, one polite live-region batch with duplicate-surface
-removal, skill authoring/installer UI, and P2 metrics/learning policy.
+Still open: proposal-dismiss reasons used in ranking, remaining per-surface
+toast/chip dedupe, and P2 metrics/learning policy. Skill authoring/installer
+and the live-run announcement path have landed.
 
 ## Implementation plan
 
