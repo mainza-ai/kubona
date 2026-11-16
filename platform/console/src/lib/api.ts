@@ -1,4 +1,4 @@
-import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
+import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab, type Need } from '@/types';
 import { contract, setContractDriftHandler, type ContractName } from './responseContract';
 import { setAuthPhase, setMultiLabAuthRequired } from '@/lib/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
@@ -119,10 +119,12 @@ export interface ApiProblem {
   status: number | null;
   message: string;
   at: number;
+  /** Typed need carried by a budget/approval/anchor refusal. */
+  need?: Need;
 }
 let lastProblemKey = '';
 let lastProblemAt = 0;
-function notifyApiProblem(input: RequestInfo | URL, status: number | null, message: string): void {
+function notifyApiProblem(input: RequestInfo | URL, status: number | null, message: string, need?: Need): void {
   const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : String(input.url || '');
   let path = raw;
   if (raw.startsWith('contract:')) {
@@ -141,7 +143,7 @@ function notifyApiProblem(input: RequestInfo | URL, status: number | null, messa
   if (status === 403) setAuthPhase('forbidden');
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent<ApiProblem>(API_PROBLEM_EVENT, {
-      detail: { path, status, message: message.slice(0, 240), at: now },
+      detail: { path, status, message: message.slice(0, 240), at: now, ...(need ? { need } : {}) },
     }));
   }
 }
@@ -291,6 +293,8 @@ export async function requestOperation<K extends ApiOperationName>(
     } catch {
       /* no body */
     }
+    const need = details && typeof details.need === 'object' ? (details.need as Need) : undefined;
+    if (need) notifyApiProblem(url, res.status, detail || 'typed need refusal', need);
     throw new OperationError(
       name,
       res.status,

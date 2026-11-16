@@ -31,7 +31,8 @@ record on the owning pages.
 > OB-17's plan-draft persistence has landed; unresolved refs as typed needs
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-13 now carries typed need envelopes for budget, approval, and
-> anchor refusals; loop failure fields remain. See
+> anchor refusals, and the global refusal chip renders the sentence/remedy;
+> job/run-card rendering of admission needs and loop failure fields remain. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

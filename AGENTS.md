@@ -94,7 +94,7 @@ development — re-verify the gate on the exact commit before citing
 > program landed the remaining console/agent rails. Current generated counts
 > are in `docs/repo-counts.md`: **154** HTTP routes, **41** Go packages,
 > **1027** Go test functions, **185** Python test files, **153** console test
-> files (**812** cases), **32** Rust tests, **6** MCP servers / **38** tools,
+> files (**813** cases), **32** Rust tests, **6** MCP servers / **38** tools,
 > **160** wiki pages. Console contracts: **173 modeled / 14 client-only /
 > 0 unmodeled**, **149** schemas, **151** OpenAPI paths. Gates added: role-named
 > Tailwind radius/type scales with a compiled-theme check, zero arbitrary

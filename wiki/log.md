@@ -6447,3 +6447,11 @@ skipped is the exact failure this incident is about:
 - Accepting a verified claim without measured/general-knowledge evidence now
   returns `anchor_missing` and wraps `ledger.ErrAnchorMissing`.
 - Added registry and ledger coverage. Loop failure needs remain open.
+
+## [2026-11-15] decision | typed need chip
+
+- The global API refusal chip now renders the typed need kind, sentence, and
+  remedy from `details.need`; budget/approval/anchor refusals stop looking
+  like generic errors.
+- Added a chip test. Job/run-card rendering of admission needs and loop
+  failure fields remain.

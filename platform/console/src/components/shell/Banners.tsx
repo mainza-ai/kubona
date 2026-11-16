@@ -8,6 +8,7 @@ import {
 } from '@/lib/api';
 import { useAuthPhase } from '@/domain/auth-state';
 import { isContractDrift, problemChipLabel } from '@/lib/api-problem';
+import { needSentence, remedyFor } from '@/lib/need';
 import type { Session } from '@/types';
 
 function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void; onDismiss: () => void }) {
@@ -46,18 +47,25 @@ function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void;
  */
 export function ApiProblemChip({ problem, onDismiss }: { problem: ApiProblem; onDismiss: () => void }) {
   const drift = isContractDrift(problem);
+  const remedy = problem.need ? remedyFor(problem.need.kind) : null;
+  const needText = problem.need
+    ? `${needSentence(problem.need)}${remedy ? ` · ${remedy.label}` : ''}`
+    : '';
   return (
     <span
       data-testid={drift ? 'contract-drift-chip' : 'api-problem-chip'}
       role="status"
-      title={`${problem.message}${problem.at ? ` · ${new Date(problem.at).toLocaleTimeString()}` : ''}`}
+      title={`${problem.message}${needText ? ` · ${needText}` : ''}${problem.at ? ` · ${new Date(problem.at).toLocaleTimeString()}` : ''}`}
       className={`inline-flex max-w-64 shrink-0 items-center gap-1 truncate rounded-chip border px-1.5 py-0.5 font-code text-[11px] ${
         drift
           ? 'border-warning-edge bg-warning-wash text-warning-ink'
           : 'border-danger-edge bg-danger-wash text-danger-ink'
       }`}
     >
-      <span className="truncate">{problemChipLabel(problem)}</span>
+      <span className="truncate">
+        {problemChipLabel(problem)}
+        {problem.need ? ` · ${problem.need.kind}` : ''}
+      </span>
       <button
         type="button"
         onClick={onDismiss}

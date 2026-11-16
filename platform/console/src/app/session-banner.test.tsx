@@ -95,6 +95,25 @@ describe('ApiProblemChip', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a typed need sentence and remedy in the refusal chip', () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <ApiProblemChip
+          problem={{
+            path: '/api/chat/launch', status: 403, message: 'ceiling exceeded', at: Date.now(),
+            need: { kind: 'budget_exceeded', reason: 'tenant spend ceiling refused this work' },
+          }}
+          onDismiss={() => {}}
+        />,
+      );
+    });
+    const chip = tree!.root.findByProps({ 'data-testid': 'api-problem-chip' });
+    expect(textOf(chip)).toContain('budget_exceeded');
+    expect(chip.props.title).toContain('tenant spend ceiling refused this work');
+    expect(chip.props.title).toContain('Review spend & mandates');
+  });
+
   it('renders contract drift as its own chip with the schema name', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {

@@ -7,6 +7,7 @@ Baseline: `37103aad` on `develop`.
 
 - [x] Proposal history/list surface (server list + console panel).
 - [x] Typed need envelopes: `budget_exceeded`, `approval`, `anchor_missing`.
+- [x] Refusal chip renders the typed need sentence and remedy.
 - [x] Table citation scanning + inline table highlights.
 - [x] Rendered math-source citation scanning.
 - [x] Attention Director wiring for notification severities.
