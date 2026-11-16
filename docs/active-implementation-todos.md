@@ -31,7 +31,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Chart-series and campaign-level fact refs.
 - [x] Run parts from literature/prover/tool rails — out of scope until a real loop identity exists.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.
-- [ ] Console: 62 renderer migrations (…, modal/shell batch, CopilotDrawer, FlightRecorderLive, DiscoveryProtocolPanel migrated).
+- [ ] Console: 59 renderer migrations (…, live/panel batch, AutoresearchPanel, AboutLabModal, OverflowCard migrated).
 - [x] Console: coupling ratchet at 54 files / 55 imports (may only shrink).
 - [ ] Console: continue reducing direct `components → lib/api` imports.
 - [x] Console: split the ~395 KiB chunk (largest now ~277 KiB).

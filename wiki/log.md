@@ -6698,3 +6698,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated CopilotDrawer empty state, FlightRecorderLive, and
   DiscoveryProtocolPanel to real-browser tests; renderer ratchet fell 65 → 62.
+
+## 2026-11-15 | cleanup | panel/modal renderer batch
+
+- Migrated AutoresearchPanel, AboutLabModal, and OverflowCard to real-browser
+  tests; renderer ratchet fell 62 → 59.
