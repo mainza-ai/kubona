@@ -6622,3 +6622,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated VaultLeasePanel to a real-browser component test; renderer ratchet
   fell 88 → 87.
+
+## 2026-11-15 | cleanup | ninth renderer migration
+
+- Migrated ObligationsPanel to a real-browser component test; renderer
+  ratchet fell 87 → 86.

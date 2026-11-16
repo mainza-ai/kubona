@@ -28,7 +28,6 @@
     "src/components/common/LoopControlList.test.tsx",
     "src/components/common/MathText.test.tsx",
     "src/components/common/MetasearchPanel.test.tsx",
-    "src/components/common/ObligationsPanel.test.tsx",
     "src/components/common/OverflowCard.test.tsx",
     "src/components/common/RunAllowancePanel.test.tsx",
     "src/components/common/SessionPortability.test.tsx",
