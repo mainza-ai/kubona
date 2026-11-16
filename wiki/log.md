@@ -6795,3 +6795,13 @@ skipped is the exact failure this incident is about:
 
 - Migrated AutonomyCockpit, CodesignCockpit, and sovereign to real-browser
   tests; renderer ratchet fell 8 → 5.
+
+## 2026-11-15 | verification | renderer migration complete
+
+- All former `react-test-renderer` tests now run as node logic tests or
+  real-browser component tests; the dependency and its types are removed and
+  the ratchet reports 0 files.
+- Node + browser coverage is merged before enforcing the unchanged floors
+  (62.99/59.72/61.16/66.53 vs 53/54/51/56).
+- Workbench lazy split reduced the largest first-load chunk from ~400 KiB to
+  ~277 KiB; live console E2E is 16/16.

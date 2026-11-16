@@ -47,7 +47,11 @@ record on the owning pages.
 > anchor refusals, and the global refusal chip renders the sentence/remedy;
 > run-card rendering of budget/retry needs and refusal-chip rendering of
 > admission needs have landed. OB-13 is closed; job cards already render job
-> needs, and loop needs carry the structured failure field. See
+> needs, and loop needs carry the structured failure field.
+> **Completion update:** the `react-test-renderer` migration is at **0 files**
+> and the dependency is removed; node + browser coverage is merged before the
+> unchanged floors; the Workbench lazy split reduced the largest first-load
+> chunk from ~400 KiB to ~277 KiB; live console E2E is 16/16. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence
@@ -214,7 +218,7 @@ explicitly marked unclaimed.
 - OB-22 renderer migration; OB-23 coupling reduction.
 - OB-24 chunk split; OB-25 runtime budgets.
 - OB-26 token/form/button debt; OB-27 motion review.
-- Acceptance: 95 → 0 renderer files; chunk under target; LCP/INP/heap gates
+- Acceptance: renderer files **0** (done); chunk under target (done); LCP/INP/heap gates
   green; token baseline 0; no new raw-button growth.
 
 ### Phase 5 — optional infrastructure (trigger-based)
