@@ -14,7 +14,7 @@ Baseline: `37103aad` on `develop`.
 - [ ] Proposal-dismiss reasons used in ranking.
 - [x] Skill authoring/installer UI.
 - [ ] Live `eval-llm` model invocation.
-- [ ] General ledger-write secret screening.
+- [x] General ledger-write secret screening.
 - [ ] Proposal pricing rule for plans without a numeric bound.
 
 ## Later

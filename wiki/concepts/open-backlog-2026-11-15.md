@@ -22,8 +22,8 @@ record on the owning pages.
 > has no model prompt and remains a recorded run-lane instruction. OB-02,
 > OB-03, OB-04, and OB-07 are closed. OB-11 is closed: enable/disable,
 > authoring/install, and removal are wired through Settings. OB-12's inventory UI already
-> exists (`MemoryPanel`); the S9 cloud-LLM edge screen has landed, while
-> general ledger-write screening remains. OB-14's
+> exists (`MemoryPanel`); the S9 cloud-LLM edge screen and ledger/spool write
+> screening have landed. OB-14's
 > provenance panel has landed (typed evidence rows + completeness summary);
 > inline highlighting of unverified prose and table-cell numbers has landed;
 > table cells are scanned by the checker. Rendered math values remain. OB-15's

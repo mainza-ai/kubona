@@ -59,6 +59,10 @@ func (l *Ledger) spoolEvent(sessionID, eventType string, payload any, ledgerErr 
 	if err != nil {
 		return fmt.Errorf("marshal spooled payload: %w", err)
 	}
+	payloadJSON, err = screenPayload(payloadJSON)
+	if err != nil {
+		return err
+	}
 	record, err := json.Marshal(spooledEvent{
 		SessionID:   sessionID,
 		EventType:   eventType,

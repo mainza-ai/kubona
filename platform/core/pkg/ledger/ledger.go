@@ -18,6 +18,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/mainza-ai/kubona/core/pkg/money"
+
+	"github.com/mainza-ai/kubona/core/pkg/secret"
 )
 
 type EventRecord struct {
@@ -985,6 +987,10 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
 	}
+	data, err = screenPayload(data)
+	if err != nil {
+		return nil, err
+	}
 
 	ts := time.Now().UTC().Format(time.RFC3339)
 	tenantID := l.resolveTenantLocked(sessionID)
@@ -1032,6 +1038,21 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 // AppendEventWithTenant writes an unsigned event with an explicit tenant
 // scope. Used for receipts that must outlive the session row (session_deleted)
 // so the event carries the lab attribution instead of resolving to default.
+// screenPayload is the S9 ledger-write secret screen. Event payloads are
+// audit evidence, never a credential store; a recognised secret shape is
+// replaced before hashing/insertion. If redaction would break JSON, the append
+// refuses rather than writing an unparseable payload.
+func screenPayload(data []byte) ([]byte, error) {
+	if !secret.ContainsSecret(string(data)) {
+		return data, nil
+	}
+	clean, _ := secret.Redact(string(data))
+	if !json.Valid([]byte(clean)) {
+		return nil, fmt.Errorf("event payload contains a credential shape and redaction would corrupt JSON; refusing append")
+	}
+	return []byte(clean), nil
+}
+
 func (l *Ledger) AppendEventWithTenant(sessionID, tenantID, eventType string, payload any, privKey ed25519.PrivateKey) (*EventRecord, error) {
 	if !IsKnownEventType(eventType) {
 		return nil, fmt.Errorf("unregistered event_type %q: add it to KnownEventTypes (pkg/ledger/events.go) with its payload contract", eventType)
@@ -1041,6 +1062,10 @@ func (l *Ledger) AppendEventWithTenant(sessionID, tenantID, eventType string, pa
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+	data, err = screenPayload(data)
+	if err != nil {
+		return nil, err
 	}
 	if tenantID == "" {
 		tenantID = l.resolveTenantLocked(sessionID)
@@ -1223,6 +1248,10 @@ func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
 	}
+	data, err = screenPayload(data)
+	if err != nil {
+		return nil, err
+	}
 
 	ts := time.Now().UTC().Format(time.RFC3339)
 	tenantID := l.resolveTenantLocked(sessionID)
@@ -1284,6 +1313,10 @@ func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload 
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+	data, err = screenPayload(data)
+	if err != nil {
+		return nil, err
 	}
 
 	tenantID := l.resolveTenantLocked(sessionID)

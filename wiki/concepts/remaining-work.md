@@ -244,8 +244,9 @@ Landed in later slices:
   tombstones (content cleared, embedding removed, event sealed, hidden from
   recall); explicit facts remain a separate bank. The shared screen now also
   refuses credential-shaped prompts at the cloud-LLM request edge (S9).
-  Remaining: general ledger-write screening, and the memory list/inventory UI
-  already exists in `MemoryPanel` (retraction included).
+  The same screen now also redacts credential shapes before ledger/spool
+  writes. The memory list/inventory UI already exists in `MemoryPanel`
+  (retraction included).
 - **LLM budget reservation (B3, 2026-11-14):** a client-level spend guard
   reserves before every metered call, applies an affordable `max_tokens`
   ceiling, and releases after measured spend; unpriced/unmetered/unreadable

@@ -6406,3 +6406,10 @@ skipped is the exact failure this incident is about:
   skills leave both the prompt and `load_skill`, including section reads.
 - Added package/API coverage for install, remove, traversal refusal, and
   disabled section reads.
+
+## [2026-11-15] decision | ledger-write secret screening
+
+- Event and spool payloads now pass the shared secret-shape screen before
+  hashing/insertion; credential-shaped values are replaced with visible
+  markers, and a redaction that would corrupt JSON refuses the append.
+- Added a ledger regression test proving a token never reaches the event row.
