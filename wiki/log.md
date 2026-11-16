@@ -6708,3 +6708,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated AppearanceSettings, MemoryPanel, and Composer to real-browser
   tests; renderer ratchet fell 59 → 56.
+
+## 2026-11-15 | cleanup | math/recorder/progress renderer batch
+
+- Migrated MathText, FlightRecorder, and JobProgress to real-browser tests;
+  renderer ratchet fell 56 → 53.
