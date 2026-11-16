@@ -6627,3 +6627,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated ObligationsPanel to a real-browser component test; renderer
   ratchet fell 87 → 86.
+
+## 2026-11-15 | cleanup | tenth renderer migration
+
+- Migrated SystemReadinessPanel to a real-browser component test; renderer
+  ratchet fell 86 → 85.
