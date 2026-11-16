@@ -6371,3 +6371,12 @@ skipped is the exact failure this incident is about:
   any egress; local providers are unaffected.
 - Added tests for cloud refusal and local pass-through. General ledger-write
   screening remains open.
+
+## [2026-11-15] verification | proposal history surface
+
+- Added `GET /api/proposals?session_id=...` (session-bound, newest first) and
+  the Copilot drawer's collapsed proposal-history panel.
+- History shows target, status, tier, spend estimate, creation time, and the
+  launched job id; an empty session states that no proposals are recorded.
+- Added API and real-browser coverage. Pricing plans without a numeric bound
+  remains open.

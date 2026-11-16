@@ -880,6 +880,34 @@ export async function mintProposal(
   }
 }
 
+export interface ProposalRecord {
+  id: string;
+  session_id: string;
+  message_id?: string;
+  digest: string;
+  body: import('@/types').Proposal;
+  status: string;
+  launched_job_id?: string;
+  created_at: string;
+}
+
+export async function fetchProposals(sessionId: string): Promise<ProposalRecord[]> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/proposals?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = contract('proposals.list', (await res.json()) as Record<string, unknown>) as unknown as {
+      proposals?: ProposalRecord[];
+    };
+    return data.proposals ?? [];
+  } catch (err) {
+    console.error('Failed to fetch proposal history:', err);
+    return [];
+  }
+}
+
 export async function dismissProposal(
   proposalId: string,
   reason = '',

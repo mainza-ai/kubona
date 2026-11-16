@@ -105,6 +105,7 @@
     "prediction.seal",
     "proposal.dismiss",
     "proposal.mint",
+    "proposals.list",
     "qir.compile",
     "quantum.backends",
     "quantum.canary",
@@ -253,6 +254,7 @@
     "prediction.seal",
     "proposal.dismiss",
     "proposal.mint",
+    "proposals.list",
     "qir.compile",
     "quantum.backends",
     "quantum.canary",
@@ -746,6 +748,12 @@
       "path": "/api/vault/predictions/history",
       "method": "GET",
       "contract": "vault.history"
+    },
+    {
+      "function": "fetchProposals",
+      "path": "/api/proposals",
+      "method": "GET",
+      "contract": "proposals.list"
     },
     {
       "function": "fetchQirCompile",

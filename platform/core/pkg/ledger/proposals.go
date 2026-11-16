@@ -175,6 +175,43 @@ func (l *Ledger) AttachProposalJob(id, jobID string) error {
 	return err
 }
 
+// ListProposals returns a session's proposals newest first. The body is kept
+// so the history surface can show the target/spend without a second read.
+func (l *Ledger) ListProposals(sessionID string, limit int) ([]Proposal, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	l.lock.RLock()
+	rows, err := l.db.Query(`SELECT id FROM proposals WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`, sessionID, limit)
+	if err != nil {
+		l.lock.RUnlock()
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			l.lock.RUnlock()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	l.lock.RUnlock()
+	out := make([]Proposal, 0, len(ids))
+	for _, id := range ids {
+		p, err := l.GetProposal(id)
+		if err != nil {
+			return nil, err
+		}
+		if p != nil {
+			out = append(out, *p)
+		}
+	}
+	return out, nil
+}
+
 // FindOfferedProposal returns an unlaunched proposal with the same body
 // digest for a session. Minting is idempotent on content: a double-click or a
 // reload mints one plan, not a pile of identical offered rows.

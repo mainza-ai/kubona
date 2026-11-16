@@ -26,7 +26,8 @@ record on the owning pages.
 > general ledger-write screening remains. OB-14's
 > provenance panel has landed (typed evidence rows + completeness summary);
 > inline highlighting of unverified prose numbers has landed too; table/value
-> scanning remains. See
+> scanning remains. OB-15's proposal history surface has landed; the
+> priced-proposal rule remains. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence

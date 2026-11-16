@@ -236,6 +236,24 @@ func TestProposalDismissAndSessionBinding(t *testing.T) {
 		t.Fatalf("owner read must 200, got %d", code)
 	}
 
+	code, body := b1Get(t, h, "/api/proposals?session_id="+sid)
+	if code != http.StatusOK {
+		t.Fatalf("proposal history: %d %s", code, body)
+	}
+	var history struct {
+		Proposals []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"proposals"`
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal([]byte(body), &history); err != nil {
+		t.Fatal(err)
+	}
+	if history.Count != 1 || len(history.Proposals) != 1 || history.Proposals[0].ID != pid || history.Proposals[0].Status != "offered" {
+		t.Fatalf("proposal history mismatch: %s", body)
+	}
+
 	// Dismiss is a CAS offered→dismissed; launch afterwards refuses.
 	if code, body, _ := idemPost(t, h, "/api/proposals/"+pid+"/dismiss", map[string]any{}); code != http.StatusOK {
 		t.Fatalf("dismiss: %d %s", code, body)

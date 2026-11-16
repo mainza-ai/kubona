@@ -229,6 +229,7 @@ export const RESPONSE_SCHEMAS = {
     loop: any,
   }),
   'proposal.mint': obj({ ok: bool, proposal: proposalSchema }),
+  'proposals.list': obj({ proposals: arr(proposalSchema), count: num }),
   'loop.parts': obj({ ok: bool, loop_id: str, parts: arr(any), count: num }),
   'loop.steer': obj({ ok: bool, steer: obj({ id: str, loop_id: str, text: str, status: str, created_at: str }) }),
   'loop.steers': obj({ steers: arr(obj({ id: str, loop_id: str, text: str, status: str, created_at: str })) }),

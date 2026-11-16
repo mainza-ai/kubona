@@ -38,6 +38,7 @@ import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
 import { Tip } from './common/Tip';
 import { MemoryPanel } from './MemoryPanel';
+import { ProposalHistory } from './common/ProposalHistory';
 import ConfirmDialog from './common/ConfirmDialog';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 import { prefersReducedMotion } from '@/lib/motion';
@@ -1057,6 +1058,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           </div>
 
           <MemoryPanel sessionId={sessionId} />
+          <ProposalHistory sessionId={sessionId} />
 
           <form
             onSubmit={(e) => {

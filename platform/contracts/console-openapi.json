@@ -1910,6 +1910,44 @@
         }
       }
     },
+    "/api/proposals": {
+      "get": {
+        "operationId": "fetchProposals",
+        "tags": [
+          "proposals"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: proposals.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/proposals.list"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "mintProposal",
+        "tags": [
+          "proposals"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: proposal.mint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/proposal.mint"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/qir/compile": {
       "post": {
         "operationId": "fetchQirCompile",
@@ -2453,26 +2491,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/loop.action"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/proposals": {
-      "post": {
-        "operationId": "mintProposal",
-        "tags": [
-          "proposals"
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: proposal.mint",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/proposal.mint"
                 }
               }
             }
@@ -4691,6 +4709,62 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "proposals.list": {
+        "type": "object",
+        "required": [
+          "proposals",
+          "count"
+        ],
+        "properties": {
+          "proposals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "session_id",
+                "digest",
+                "body",
+                "status",
+                "created_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "message_id": {
+                  "type": "string"
+                },
+                "digest": {
+                  "type": "string"
+                },
+                "body": {},
+                "basis_campaign_rev": {
+                  "type": "number"
+                },
+                "basis_calibration_digest": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "launched_job_id": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "count": {
+            "type": "number"
           }
         }
       },

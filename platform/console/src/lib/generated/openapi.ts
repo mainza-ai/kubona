@@ -270,6 +270,22 @@ export type ProposalMint = {
 };
 };
 
+export type ProposalsList = {
+  "proposals": {
+  "id": string;
+  "session_id": string;
+  "message_id"?: string;
+  "digest": string;
+  "body": unknown;
+  "basis_campaign_rev"?: number;
+  "basis_calibration_digest"?: string;
+  "status": string;
+  "launched_job_id"?: string;
+  "created_at": string;
+}[];
+  "count": number;
+};
+
 export type LoopParts = {
   "ok": boolean;
   "loop_id": string;
@@ -1176,6 +1192,7 @@ export type ApiOperationResponse = {
   fetchObservatoryLensStatus: LensStatus;
   fetchOpenObligations: ObligationsOpen;
   fetchPredictionHistory: VaultHistory;
+  fetchProposals: ProposalsList;
   fetchQirCompile: QirCompile;
   fetchQuantumBackends: QuantumBackends;
   fetchQuantumJob: QuantumJob;
@@ -1349,6 +1366,7 @@ export const API_OPERATIONS = {
   fetchObservatoryLensStatus: { method: "get", path: "/api/observatory/lens", response: "lens.status" },
   fetchOpenObligations: { method: "get", path: "/api/obligations/open", response: "obligations.open" },
   fetchPredictionHistory: { method: "get", path: "/api/vault/predictions/history", response: "vault.history" },
+  fetchProposals: { method: "get", path: "/api/proposals", response: "proposals.list" },
   fetchQirCompile: { method: "post", path: "/api/qir/compile", response: "qir.compile" },
   fetchQuantumBackends: { method: "get", path: "/api/quantum/backends", response: "quantum.backends" },
   fetchQuantumJob: { method: "get", path: "/api/quantum/jobs/{id}", response: "quantum.job" },

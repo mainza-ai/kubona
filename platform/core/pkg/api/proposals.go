@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -241,8 +242,35 @@ func (s *Server) proposalBodyFromMessage(sessionID, messageID string) (proposalB
 
 // handleProposals mints a proposal from server-owned state.
 func (s *Server) handleProposals(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+		if sessionID == "" {
+			WriteAPIError(w, "bad_request", "session_id is required", nil)
+			return
+		}
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
+		limit := 50
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 && n <= 200 {
+				limit = n
+			}
+		}
+		rows, err := s.ledger.ListProposals(sessionID, limit)
+		if err != nil {
+			WriteAPIError(w, "internal", "proposal history read failed", nil)
+			return
+		}
+		views := make([]*proposalView, 0, len(rows))
+		for i := range rows {
+			views = append(views, proposalViewFrom(&rows[i]))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"proposals": views, "count": len(views)})
+		return
+	}
 	if r.Method != http.MethodPost {
-		WriteAPIError(w, "method_not_allowed", "proposals are POST-only (mint)", nil)
+		WriteAPIError(w, "method_not_allowed", "proposals are GET (history) or POST (mint)", nil)
 		return
 	}
 	var req struct {

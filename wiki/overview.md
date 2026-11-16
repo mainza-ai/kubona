@@ -325,8 +325,8 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 > records **154** HTTP routes, **41** Go packages (**1020** Go test functions),
 > **185** Python test files, **152** console test files (**809** test cases),
 > **32** Rust tests, **6** MCP servers (**38** tools), and **160** wiki pages.
-> Console contracts stand at **170 modeled / 14 client-only / 0 unmodeled**
-> (`146` schemas, `151` OpenAPI paths). The raw-palette debt baseline is **1**
+> Console contracts stand at **171 modeled / 14 client-only / 0 unmodeled**
+> (`147` schemas, `151` OpenAPI paths). The raw-palette debt baseline is **1**
 > after the role-named scale/colour migration; `transition-all` is
 > zero-tolerance in CSS and source. New rails: runtime skills
 > (`SKILL.md`, body-free prompt, `load_skill` sections), recorded decision
