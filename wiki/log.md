@@ -6427,3 +6427,9 @@ skipped is the exact failure this incident is about:
   scoped to its originating session; a reload restores the canvas plan, while
   a different session never adopts it. Clearing the draft removes storage.
 - Unresolved tool references as typed needs remains open.
+
+## [2026-11-15] verification | math-source citations
+
+- Added a regression test proving numeric values inside `$...$` math source
+  are checked and verified like prose/table numbers. The earlier "rendered
+  values" note was stale.

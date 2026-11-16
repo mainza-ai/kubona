@@ -322,7 +322,7 @@ governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
 
 > ⚑ Snapshot update (2026-11-14, `develop` working tree): `docs/repo-counts.md`
-> records **154** HTTP routes, **41** Go packages (**1025** Go test functions),
+> records **154** HTTP routes, **41** Go packages (**1026** Go test functions),
 > **185** Python test files, **152** console test files (**809** test cases),
 > **32** Rust tests, **6** MCP servers (**38** tools), and **160** wiki pages.
 > Console contracts stand at **173 modeled / 14 client-only / 0 unmodeled**

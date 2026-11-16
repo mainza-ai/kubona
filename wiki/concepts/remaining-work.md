@@ -285,8 +285,7 @@ Landed in later slices:
   tolerance, streaming-safe citation marks, persisted `citations_json`, and
   a per-reply console badge that names unverified numbers, inline highlights
   for unverified prose and table-cell numbers. Table cells are scanned by the
-  checker (regression-tested). Remaining: rendered math values are not
-  scanned.
+  checker (regression-tested), and math source values are scanned too.
 - **Claim provenance rows (2026-11-14, report B4):** typed `claim_evidence`
   rows (job_result/classical_anchor/literature/tribunal_turn/general_knowledge),
   automatic measured links at the job-claim mints, a provenance endpoint with

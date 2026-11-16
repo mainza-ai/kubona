@@ -8,7 +8,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Proposal history/list surface (server list + console panel).
 - [ ] Typed need emitters: `budget_exceeded`, `approval`, `anchor_missing`.
 - [x] Table citation scanning + inline table highlights.
-- [ ] Rendered math-value citation scanning.
+- [x] Rendered math-source citation scanning.
 - [x] Attention Director wiring for notification severities.
 - [x] Live-run toast duplication removed (single polite region).
 - [ ] Remaining per-surface toast/chip dedupe.
