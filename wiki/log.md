@@ -6564,3 +6564,8 @@ skipped is the exact failure this incident is about:
 - Added a components→lib/api coupling ratchet (54 files / 55 imports, may only
   shrink). Proposal history, autoresearch, and skills now consume domain
   projections instead of transport directly.
+
+## 2026-11-15 | cleanup | form-control ratchet
+
+- Added a raw form-control ratchet (46 files / 207 controls) and wired it into
+  CI. The Field/Select/Toggle migration remains.
