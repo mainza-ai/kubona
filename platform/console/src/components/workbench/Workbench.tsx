@@ -237,7 +237,7 @@ export const Workbench = React.memo(React.forwardRef<WorkbenchHandle, Props>(fun
   const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
   const obligations = useMemo(() => suppliedObligations ?? [], [suppliedObligations]);
   const tasks = useMemo(() => suppliedTasks ?? [], [suppliedTasks]);
-  const planDraft = useWorkflowPlan();
+  const planDraft = useWorkflowPlan(sessionId);
   const baseObjects = useMemo(() => {
     const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks, sessionSpendUsd, pins, planDraft);
     if (!campaign || !hydrationSettled) return projected;

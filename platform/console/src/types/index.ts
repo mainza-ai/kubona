@@ -988,6 +988,8 @@ export interface WorkflowPlanResponse {
 /** C8: the ephemeral draft published to the canvas after a dry-run plan. */
 export interface WorkflowPlanDraft {
   workflowId: string;
+  /** Session that produced the draft; a different session never adopts it. */
+  sessionId?: string;
   name: string;
   steps: WorkflowStep[];
   unresolved: string[];

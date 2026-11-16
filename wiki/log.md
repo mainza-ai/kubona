@@ -6420,3 +6420,10 @@ skipped is the exact failure this incident is about:
   the single polite announcement region. The outage toast remains because it
   is a blocking-state signal.
 - Skill authoring/installer and ledger-write screening are now complete.
+
+## [2026-11-15] decision | persisted plan drafts
+
+- The dry-run workflow plan draft is now stored in browser localStorage and
+  scoped to its originating session; a reload restores the canvas plan, while
+  a different session never adopts it. Clearing the draft removes storage.
+- Unresolved tool references as typed needs remains open.

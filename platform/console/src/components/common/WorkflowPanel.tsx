@@ -58,6 +58,7 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
       // C8: publish the dry-run draft so the watchable plan is on the canvas.
       publishWorkflowPlan({
         workflowId: out.workflow_id,
+        sessionId,
         name: workflow.name,
         steps: Array.isArray(out.steps) && out.steps.length > 0 ? out.steps : workflow.steps,
         unresolved: Array.isArray(out.unresolved_references) ? out.unresolved_references : [],

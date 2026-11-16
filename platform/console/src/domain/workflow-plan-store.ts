@@ -10,7 +10,32 @@ import type { WorkflowPlanDraft } from '@/types';
  * (idempotently) so the card can flip to "Open in Tasks".
  */
 
-let latest: WorkflowPlanDraft | null = null;
+const STORAGE_KEY = 'kubona.workflow-plan.v1';
+
+function readStored(): WorkflowPlanDraft | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WorkflowPlanDraft;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.steps)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(draft: WorkflowPlanDraft | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (draft) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    else window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable: keep the in-memory draft; never fail the planner.
+  }
+}
+
+let latest: WorkflowPlanDraft | null = readStored();
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -34,12 +59,14 @@ function getServerSnapshot(): WorkflowPlanDraft | null {
 
 export function publishWorkflowPlan(draft: Omit<WorkflowPlanDraft, 'createdAt'> & { createdAt?: number }): void {
   latest = { ...draft, createdAt: draft.createdAt ?? Date.now() };
+  writeStored(latest);
   emit();
 }
 
 export function setWorkflowPlanTaskIds(taskIds: string[]): void {
   if (!latest) return;
   latest = { ...latest, taskIds };
+  writeStored(latest);
   emit();
 }
 
@@ -49,14 +76,24 @@ export function getWorkflowPlan(): WorkflowPlanDraft | null {
 
 export function clearWorkflowPlan(): void {
   latest = null;
+  writeStored(null);
   emit();
 }
 
-export function useWorkflowPlan(): WorkflowPlanDraft | null {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+export function useWorkflowPlan(sessionId?: string): WorkflowPlanDraft | null {
+  const draft = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  if (!draft || !sessionId || !draft.sessionId) return draft;
+  return draft.sessionId === sessionId ? draft : null;
 }
 
 export function resetWorkflowPlanForTests(): void {
   latest = null;
   listeners.clear();
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }
 }

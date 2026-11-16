@@ -272,9 +272,9 @@ Landed in later slices:
   is a later wiring step).
 - **Plan → tasks (2026-11-14, report C8):** dry-run plans publish a canvas
   `plan` card; batch task creation (`POST /api/tasks/batch`) is idempotent,
-  ordered, and bounded; the card flips to Open in Tasks. Remaining: the plan
-  draft is ephemeral (lost on reload; tasks persist), and unresolved tool
-  references are facts rather than typed needs.
+  ordered, and bounded; the card flips to Open in Tasks. The draft now
+  persists in browser storage scoped to its session. Remaining: unresolved
+  tool references are facts rather than typed needs.
 - **Per-fact source chips (2026-11-14, report C9):** job/loop/approval/task
   facts name their record; measurement/proof facts resolve to the measured
   job (else campaign); chips focus the owning card, including folded runs.

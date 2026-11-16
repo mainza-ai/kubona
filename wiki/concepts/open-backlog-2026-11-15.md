@@ -27,7 +27,9 @@ record on the owning pages.
 > provenance panel has landed (typed evidence rows + completeness summary);
 > inline highlighting of unverified prose and table-cell numbers has landed;
 > table cells are scanned by the checker. Rendered math values remain. OB-15's
-> proposal history surface has landed; the priced-proposal rule remains. See
+> proposal history surface has landed; the priced-proposal rule remains.
+> OB-17's plan-draft persistence has landed; unresolved refs as typed needs
+> remain. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence
