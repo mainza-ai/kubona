@@ -17,7 +17,7 @@ Baseline: `37103aad` on `develop`.
 - [ ] Remaining per-surface toast/chip dedupe.
 - [ ] Proposal-dismiss reasons used in ranking.
 - [x] Skill authoring/installer UI.
-- [ ] Live `eval-llm` model invocation.
+- [x] Live `eval-llm` model invocation (explicit provider/model).
 - [x] General ledger-write secret screening.
 - [ ] Proposal pricing rule for plans without a numeric bound.
 

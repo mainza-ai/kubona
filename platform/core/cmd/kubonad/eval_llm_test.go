@@ -53,3 +53,22 @@ func TestEvalLLMRecordsCompletePredictionsAndRefusesIncomplete(t *testing.T) {
 		t.Fatal("incomplete predictions must refuse")
 	}
 }
+
+func TestEvalLLMLiveRequiresExplicitTarget(t *testing.T) {
+	if code := runEvalLLM([]string{"--role", "copilot", "--live"}); code != 2 {
+		t.Fatalf("live without provider/model must be a usage error, got %d", code)
+	}
+}
+
+func TestParseProbabilityObjectRefusesIncompleteJSON(t *testing.T) {
+	got, err := parseProbabilityObject("```json\n{\"supported\":0.7,\"refuted\":0.2,\"unverified\":0.1}\n```")
+	if err != nil || got["supported"] != 0.7 || got["unverified"] != 0.1 {
+		t.Fatalf("parse = %+v err=%v", got, err)
+	}
+	if _, err := parseProbabilityObject(`{"supported":1}`); err == nil {
+		t.Fatal("missing labels must refuse")
+	}
+	if _, err := parseProbabilityObject("no json here"); err == nil {
+		t.Fatal("non-JSON must refuse")
+	}
+}

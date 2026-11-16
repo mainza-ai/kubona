@@ -6486,3 +6486,11 @@ skipped is the exact failure this incident is about:
   `hardware_experiment`, `qaoa_hardware`, and `spin_chain_hardware`.
 - Mandate and allowance remain mutually exclusive; the atomic draw is still
   authoritative. Added a jobs test for the hardware job-type rail.
+
+## [2026-11-15] decision | live eval invocation
+
+- `kubonad eval-llm --live --provider --model` calls the configured provider,
+  requires a strict probability JSON object per fixture, and refuses to write
+  a report on missing labels or unreadable output. Recorded-file scoring stays
+  the default.
+- Added usage/parser coverage. Additional eval roles still need fixtures.

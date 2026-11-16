@@ -219,9 +219,10 @@ Landed in later slices:
   gate** (`KUBONA_REQUIRE_LLM_EVAL=1`) refuses a changed copilot model that is
   unevaluated/stale unless the same write carries
   `acknowledge_unevaluated:true`; Settings surfaces that acknowledgement
-  button and the backend records `llm_eval_acknowledged`. Remaining: the CLI
-  scores recorded predictions only (no live model call), and only the copilot
-  role has fixtures.
+  button and the backend records `llm_eval_acknowledged`. The CLI now has an
+  explicit `--live --provider --model` path that calls the configured
+  provider and refuses incomplete/unparseable probability vectors. Remaining:
+  only the copilot role has fixtures.
 - **Runtime skills (B11, 2026-11-14):** strict `SKILL.md` loader (16 KiB,
   64 skills, name charset, no symlinks, closed `SkillFault` codes), six
   embedded seeds, and user skills in `~/.kubona/skills/`. Only names and
