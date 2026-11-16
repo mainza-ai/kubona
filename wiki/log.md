@@ -6604,3 +6604,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated LedgerVerifyPanel to a real-browser component test; renderer
   ratchet fell 90 → 89.
+
+## 2026-11-15 | cleanup | seventh renderer migration
+
+- Migrated ContextReadout to a real-browser component test; renderer ratchet
+  fell 89 → 88.

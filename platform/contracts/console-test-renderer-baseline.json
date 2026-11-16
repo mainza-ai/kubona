@@ -19,7 +19,6 @@
     "src/components/common/AutoresearchPanel.test.tsx",
     "src/components/common/ClaimHistory.test.tsx",
     "src/components/common/ConfirmDialog.test.tsx",
-    "src/components/common/ContextReadout.test.tsx",
     "src/components/common/DiscoveryProtocolPanel.test.tsx",
     "src/components/common/ExperimentPanel.test.tsx",
     "src/components/common/HardwareLaunchPanel.test.tsx",
