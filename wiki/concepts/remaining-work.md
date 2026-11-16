@@ -186,11 +186,11 @@ Landed in later slices:
   page, so focus, keyboard, layout, and CSS are observable. The first suite
   pins `SegmentedControl` roving tabindex/arrow/Home/End behavior and
   `IconButton` non-submitting `type="button"` inside a form. A baseline
-  ratchet (`console-test-renderer-ratchet.mjs`, 82 files) freezes new
+  ratchet (`console-test-renderer-ratchet.mjs`, 81 files) freezes new
   `react-test-renderer` use; the list may only shrink. Browser tests run in
   the Console E2E lane, where Chromium/Chrome is already installed. The
   token-sheet browser test now consumes the real palette/tokens/axes CSS.
-  Remaining: migrate the 93 grandfathered `react-test-renderer` files; CitationBadge, ErrorBoundary, ProvenanceBadge, Tip, BackendStatusBar, and LedgerVerifyPanel, and ContextReadout, and VaultLeasePanel, and ObligationsPanel, and SystemReadinessPanel, and JobProgressLive, and RenderBoundary and transcript-store moved to real-browser tests.
+  Remaining: migrate the 93 grandfathered `react-test-renderer` files; CitationBadge, ErrorBoundary, ProvenanceBadge, Tip, BackendStatusBar, and LedgerVerifyPanel, and ContextReadout, and VaultLeasePanel, and ObligationsPanel, and SystemReadinessPanel, and JobProgressLive, and RenderBoundary and transcript-store and shared-resource moved to real-browser tests.
 - **Chart accessibility/refusal (D5, 2026-11-14):** announced summary via
   `<desc>` + `aria-describedby`, all-null refusal, compact exact-values table,
   actionable evidence buttons. **Split landed:** pure geometry/tick/scale

@@ -6647,3 +6647,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated transcript-store to a real-browser component test; renderer
   ratchet fell 83 → 82.
+
+## 2026-11-15 | cleanup | fourteenth renderer migration
+
+- Migrated shared-resource to a real-browser component test; renderer ratchet
+  fell 82 → 81.

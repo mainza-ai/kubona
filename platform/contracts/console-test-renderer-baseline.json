@@ -76,7 +76,6 @@
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts",
     "src/domain/needs-you-seen-hook.test.tsx",
-    "src/domain/shared-resource.test.tsx",
     "src/domain/use-write-settlement.test.tsx",
     "src/domain/useQuantumSettingsProjection.test.tsx",
     "src/lib/attention-context.test.tsx",
