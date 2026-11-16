@@ -22,6 +22,10 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/secret"
 )
 
+// ErrAnchorMissing marks an acceptance attempt on a verified claim whose
+// provenance has no measured or explicit general-knowledge anchor.
+var ErrAnchorMissing = errors.New("verified claim has no measured or explicit general-knowledge anchor")
+
 type EventRecord struct {
 	ID           int64           `json:"id"`
 	Timestamp    string          `json:"timestamp"`
@@ -1865,7 +1869,7 @@ func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer,
 			return nil, fmt.Errorf("claim %s not found in session %s", claimID, shortID(sessionID))
 		}
 		if claim.Verdict == "verified" && !summary.Complete {
-			return nil, fmt.Errorf("claim %s is verified but carries no measured job evidence or explicit general_knowledge: record evidence before accepting", claimID)
+			return nil, fmt.Errorf("%w: claim %s is verified but carries no measured job evidence or explicit general_knowledge; record evidence before accepting", ErrAnchorMissing, claimID)
 		}
 	}
 	if evidenceJSON == "" {

@@ -340,10 +340,11 @@ Landed in later slices:
   `isIssueWorkbenchObject` and the job card. Emitted: credentials,
   backend_offline, quota_exhausted, retry. Remaining: emitters for
   `budget_exceeded` / `approval` / `anchor_missing` once the owning rail
-  records the fact; loop needs need a recorded failure field;
-  `ProofDagView`'s watchdog/branch status matching is campaign-trajectory
-  classification, not job-failure inference, and waits for typed campaign
-  verdicts.
+  records the fact. Budget, approval, and anchor refusals now carry a typed
+  `need` object in their API error details, and accepting a verified claim
+  without evidence returns the `anchor_missing` code. Loop needs still need a
+  recorded failure field; `ProofDagView`'s watchdog/branch status matching is
+  campaign-trajectory classification, not job-failure inference.
 - The workbench object-kind set is covered: job, agent-run, table, approval,
   and note cards join the campaign/hypothesis/circuit/measurement/evidence/
   proof/manuscript/chart cards. Records now carry distinct refs; links, area

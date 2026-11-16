@@ -43,6 +43,7 @@ var errorRegistry = map[string]errorSpec{
 	"rate_limited":             {"auth", 429, true, "back off and retry after the limiter window"},
 	"bad_request":              {"validation", 400, false, "fix the request shape (see message details)"},
 	"approval_required":        {"validation", 400, false, "approve the exact workflow with POST /api/workflows/approve then pass approval_token"},
+	"anchor_missing":           {"validation", 400, false, "record measured job evidence or an explicit general_knowledge assertion before accepting the verified claim"},
 	"ghost_session":            {"validation", 404, false, "create the session first; ids are never auto-vivified"},
 	"not_found":                {"validation", 404, false, "the named object does not exist: list first, check the id"},
 	"unknown_rail":             {"validation", 400, false, "use a documented rail name (see message)"},
@@ -105,7 +106,28 @@ func (e *APIError) Write(w http.ResponseWriter) {
 // error carried, now typed. Construction cannot fail for catalogued
 // codes; a failure falls back to the legacy shape (never a 500 for a
 // 400-class refusal).
+func needDetailsFor(code string) map[string]any {
+	switch code {
+	case "ceiling_exceeded", "budget_exceeded", "spend_limit_exceeded":
+		return map[string]any{"kind": "budget_exceeded", "reason": "the spend ceiling refused this work"}
+	case "approval_required":
+		return map[string]any{"kind": "approval", "reason": "a human decision is required before this can proceed"}
+	case "anchor_missing":
+		return map[string]any{"kind": "anchor_missing", "reason": "no measured or explicit general-knowledge anchor is recorded"}
+	default:
+		return nil
+	}
+}
+
 func WriteAPIError(w http.ResponseWriter, code, message string, details map[string]any) {
+	if need := needDetailsFor(code); need != nil {
+		if details == nil {
+			details = map[string]any{}
+		}
+		if _, exists := details["need"]; !exists {
+			details["need"] = need
+		}
+	}
 	e, err := NewAPIError(code, message, details)
 	if err != nil {
 		http.Error(w, message, http.StatusInternalServerError)

@@ -4,6 +4,7 @@ package ledger
 // measured-evidence rule. The human acceptance gate cannot outrank evidence.
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -25,8 +26,8 @@ func TestClaimEvidenceSummaryAndReviewGate(t *testing.T) {
 	}
 
 	// Accepting it refuses until evidence exists.
-	if _, err := l.MintClaimReview("sess-b4", claim.ID, "accepted", "looks right", "reviewer", "{}"); err == nil {
-		t.Fatal("accepting a verified claim without evidence must refuse")
+	if _, err := l.MintClaimReview("sess-b4", claim.ID, "accepted", "looks right", "reviewer", "{}"); err == nil || !errors.Is(err, ErrAnchorMissing) {
+		t.Fatalf("accepting a verified claim without evidence must refuse with ErrAnchorMissing, got %v", err)
 	}
 
 	if err := l.AddClaimEvidence("sess-b4", claim.ID, ClaimEvidence{

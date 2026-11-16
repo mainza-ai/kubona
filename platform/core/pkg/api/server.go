@@ -2569,6 +2569,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			reviewer := s.callerActor(r)
 			rec, err := s.ledger.MintClaimReview(sessionID, claimID, req.Decision, req.Reason, reviewer, req.Evidence)
 			if err != nil {
+				if errors.Is(err, ledger.ErrAnchorMissing) {
+					WriteAPIError(w, "anchor_missing", err.Error(), nil)
+					return
+				}
 				WriteAPIError(w, "bad_request", err.Error(), nil)
 				return
 			}

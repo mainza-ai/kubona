@@ -30,7 +30,8 @@ record on the owning pages.
 > proposal history surface has landed; the priced-proposal rule remains.
 > OB-17's plan-draft persistence has landed; unresolved refs as typed needs
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
-> remain. See
+> remain. OB-13 now carries typed need envelopes for budget, approval, and
+> anchor refusals; loop failure fields remain. See
 > [[feedback-loops-and-notifications]].
 
 ## Method and evidence
@@ -98,7 +99,7 @@ claim. Fix the claim or supply the evidence before broadening scope.
 | OB-10 | **Live model invocation in `eval-llm`.** The CLI scores recorded predictions only; no live model call; only the copilot role has fixtures. | [[remaining-work]] (B12). | `eval-llm --live` runs a model, records predictions/report with provenance; strict gate uses it; at least one non-copilot role gains fixtures. |
 | OB-11 | **Skills editor/installer and per-skill enable/disable.** | Catalogue + `load_skill` exist; no authoring UI or toggle. | Install/edit/validate a skill from Settings; disable excludes it from prompt/tool; rejected files still name their fault. |
 | OB-12 | **Memory inventory/retraction UI and S9 edge screening.** | Tombstones + recall defence exist; no list/retract UI; the secret screen is not wired to cloud-LLM request edge or general ledger writes. | Inventory lists/retracts memories; S9 screen refuses secret-shaped payloads at the cloud edge and ledger write path with tests. |
-| OB-13 | **Typed need emitters are incomplete.** `budget_exceeded`, `approval`, and `anchor_missing` are in the vocabulary but not emitted; loop needs need a recorded failure field. | [[remaining-work]] (C2). | Owning rails emit each need from structured evidence; job/run cards render one sentence + remedy; no free-text inference returns. |
+| OB-13 | **Typed need rendering is incomplete.** Budget/approval/anchor refusals now carry typed `need` envelopes, but job/run cards do not render these envelopes and loop needs still lack a recorded failure field. | [[remaining-work]] (C2). | Owning rails emit each need from structured evidence; job/run cards render one sentence + remedy; no free-text inference returns. |
 | OB-14 | **Claim provenance panel and citation highlights.** Provenance endpoint exists; console has no panel. Citation check scans prose only, not tables/rendered values, and has no inline highlight. | [[remaining-work]] (B4/B5). | Claim card opens provenance rows; offending numbers are highlighted inline; table/value scanning is covered or explicitly out of scope. |
 | OB-15 | **Proposal history/list and priced proposals.** Id-addressed GET exists for operators; no history surface; proposals without numeric price bounds are refused rather than priced. | [[remaining-work]] (B1). | Proposal list/history with decision state; priced proposal path with explicit bound or an honest refusal reason. |
 | OB-16 | **Hardware parent allowance rails.** `hardware_experiment`, `qaoa_hardware`, `spin_chain_hardware` remain per-job only. | [[remaining-work]] (C11). | Parent allowance covers hardware child jobs; draw/revoke/suspend tests; taint exclusion preserved. |

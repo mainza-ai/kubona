@@ -6,7 +6,7 @@ Baseline: `37103aad` on `develop`.
 ## Now
 
 - [x] Proposal history/list surface (server list + console panel).
-- [ ] Typed need emitters: `budget_exceeded`, `approval`, `anchor_missing`.
+- [x] Typed need envelopes: `budget_exceeded`, `approval`, `anchor_missing`.
 - [x] Table citation scanning + inline table highlights.
 - [x] Rendered math-source citation scanning.
 - [x] Attention Director wiring for notification severities.

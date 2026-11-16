@@ -6439,3 +6439,11 @@ skipped is the exact failure this incident is about:
 - Rows with a readable server clock older than one hour now render an
   `escalated` marker in the Needs-you tray. Unknown clocks never escalate.
 - Obligation push events remain open.
+
+## [2026-11-15] decision | typed need envelopes
+
+- Budget, approval, and anchor refusals now carry a typed `need` object in
+  their API error details; the error catalog gained `anchor_missing`.
+- Accepting a verified claim without measured/general-knowledge evidence now
+  returns `anchor_missing` and wraps `ledger.ErrAnchorMissing`.
+- Added registry and ledger coverage. Loop failure needs remain open.
