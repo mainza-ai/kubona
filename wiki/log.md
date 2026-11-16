@@ -6662,3 +6662,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated ResultsStudioHeading to a real-browser component test; renderer
   ratchet fell 80 → 79.
+
+## 2026-11-15 | cleanup | seventeenth renderer migration
+
+- Migrated ShadowTomographyRadarWidget to a real-browser component test;
+  renderer ratchet fell 79 → 78.

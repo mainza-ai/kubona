@@ -70,7 +70,6 @@
     "src/components/widgets/EpistemicManifoldSurfaceWidget.test.tsx",
     "src/components/widgets/MolecularActiveSpaceWidget.test.tsx",
     "src/components/widgets/QuantumCircuitQIREditorWidget.test.tsx",
-    "src/components/widgets/ShadowTomographyRadarWidget.test.tsx",
     "src/components/workbench/LoopPartsLane.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
     "src/components/workbench/workbench-perf.test.ts",
