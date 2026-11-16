@@ -129,7 +129,7 @@ claim. Fix the claim or supply the evidence before broadening scope.
 
 | ID | Gap | Current state | Exit criterion |
 |---|---|---|---|
-| OB-22 | **94 grandfathered `react-test-renderer` files.** | Baseline ratchet only shrinks; CitationBadge is the first migrated file. | 94 → 0; browser/real-DOM tests cover focus/layout; no new renderer use. |
+| OB-22 | **93 grandfathered `react-test-renderer` files.** | Baseline ratchet only shrinks; CitationBadge is the first migrated file. | 94 → 0; browser/real-DOM tests cover focus/layout; no new renderer use. |
 | OB-23 | **67 downward `components → lib/api` imports.** | Legal by layer rule, but couples UI to transport. | Move behind domain projections; target agreed per surface; import gate prevents regression. |
 | OB-24 | **One ~395 KiB first-load chunk.** | Largest chunk; total 1108.5 KiB raw / 326.8 KiB gzip. | Split the chunk; per-route budgets remain green; record lazy marker/reason. |
 | OB-25 | **LCP/INP/heap/request-count gates.** | Static/DOM budgets exist; runtime metrics do not gate. | Reproducible LCP/INP/heap/request budgets in CI with documented hardware variance. |

@@ -6580,3 +6580,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated CitationBadge from react-test-renderer to a real-browser component
   test; the renderer ratchet fell 95 → 94. The rest remain.
+
+## 2026-11-15 | cleanup | second renderer migration
+
+- Migrated ErrorBoundary to a real-browser component test; renderer ratchet
+  fell 94 → 93.

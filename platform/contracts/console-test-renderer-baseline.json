@@ -9,7 +9,6 @@
     "src/components/CopilotDrawer.empty.test.tsx",
     "src/components/CopilotDrawer.sessionguard.test.tsx",
     "src/components/CopilotDrawer.tribunal.test.tsx",
-    "src/components/ErrorBoundary.test.tsx",
     "src/components/FlightRecorderCard.test.tsx",
     "src/components/KeyboardShortcutsModal.test.tsx",
     "src/components/MeasuredOutputs.test.tsx",
