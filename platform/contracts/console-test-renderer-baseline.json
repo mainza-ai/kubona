@@ -30,9 +30,6 @@
     "src/components/surfaces/SpatialCanvas.test.tsx",
     "src/components/surfaces/SpatialCanvas3D.test.tsx",
     "src/components/workbench/Workbench.test.tsx",
-    "src/components/workbench/workbench-perf.test.ts",
-    "src/lib/attention-context.test.tsx",
-    "src/lib/motion.test.tsx",
-    "src/lib/shortcuts.test.tsx"
+    "src/components/workbench/workbench-perf.test.ts"
   ]
 }

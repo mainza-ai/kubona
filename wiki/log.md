@@ -6750,3 +6750,8 @@ skipped is the exact failure this incident is about:
   real-browser tests; renderer ratchet fell 35 → 32.
 - Coverage now merges node + browser maps before enforcing the unchanged
   floors (59.52/57.73/58.10/62.33 vs 53/54/51/56).
+
+## 2026-11-15 | cleanup | lib renderer batch
+
+- Migrated motion, attention-context, and shortcuts off react-test-renderer
+  (node logic tests + real-browser probes); renderer ratchet fell 32 → 29.

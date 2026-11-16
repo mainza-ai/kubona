@@ -9,8 +9,8 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | Go packages | 41 | directories under `platform/core` containing `.go` files |
 | Go test functions | 1032 | top-level `func Test...` in `*_test.go` |
 | Python test files | 185 | `test_*.py` under `platform/tests` |
-| Console test files | 153 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
-| Console test cases | 820 | `it(` / `test(` declarations in console test files |
+| Console test files | 155 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
+| Console test cases | 823 | `it(` / `test(` declarations in console test files |
 | Rust tests | 32 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |
