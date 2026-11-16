@@ -6718,3 +6718,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated LoopControlList, MetasearchPanel, and Inspector to real-browser
   tests; renderer ratchet fell 53 → 50.
+
+## 2026-11-15 | cleanup | form renderer batch
+
+- Migrated ConfirmDialog, RunAllowancePanel, and HardwareLaunchPanel to
+  real-browser tests; renderer ratchet fell 50 → 47.
