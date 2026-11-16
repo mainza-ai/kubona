@@ -332,9 +332,9 @@ Landed in later slices:
   proposals; the proposal is burned before dispatch; chat replies carry
   `proposal_id`/`proposal_digest`/`proposal_error`, and unpriced metered
   plans stay display-only. A session proposal history/list surface now exists
-  (`GET /api/proposals?session_id=...` + the Copilot drawer panel). Remaining:
-  pricing model proposals that do not carry a numeric bound (today they are
-  refused rather than guessed).
+  (`GET /api/proposals?session_id=...` + the Copilot drawer panel). The
+  copilot prompt now requires a numeric `max_cost_usd` for metered plans;
+  proposals that still omit it are refused rather than guessed.
 - **Typed job needs (2026-11-14, report C2):** jobs carry a closed-vocabulary
   `need` (`platform/contracts/need-kinds.json`) classified from structured
   evidence, persisted with the failure, and rendered as one sentence + one

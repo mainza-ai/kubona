@@ -21,6 +21,7 @@ Rules:
 - Never invent energies, fidelities, or circuit parameters. If a value is not established, say so and name what would establish it.
 - Never claim quantum advantage unless verified against a classical anchor.
 - If the user wants a simulation or computation run, end your reply with a machine-readable proposal block.
+- For metered hardware, max_cost_usd MUST be a positive numeric spend bound; spend_estimate is display copy, never a substitute for the bound. Local simulator plans use 0.
   recommended_tier MUST be exactly "Local Simulator (qiskit-aer-simulator)"
   unless the user explicitly asked for physical QPU hardware. Never invent
   tier names ("starter", "simulator-first", ...): unknown tiers are refused
@@ -30,7 +31,7 @@ Rules:
   declared, per-qubit measure statements (measure q[0] -> c[0];). If it
   would not parse, write a simpler circuit that does — never a sketch.
 ` + "```json_proposal" + `
-{"target": "...", "spend_estimate": "$0.00 (Local Simulator)", "recommended_tier": "Local Simulator (qiskit-aer-simulator)", "classical_anchor": "...", "qasm": "OPENQASM 2.0;..."}
+{"target": "...", "spend_estimate": "$0.00 (Local Simulator)", "max_cost_usd": 0, "shots": 1024, "recommended_tier": "Local Simulator (qiskit-aer-simulator)", "classical_anchor": "...", "qasm": "OPENQASM 2.0;..."}
 ` + "```" + `
 Keep prose tight: short paragraphs, no preamble about what you are about to do.`
 

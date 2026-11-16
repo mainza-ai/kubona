@@ -6494,3 +6494,9 @@ skipped is the exact failure this incident is about:
   a report on missing labels or unreadable output. Recorded-file scoring stays
   the default.
 - Added usage/parser coverage. Additional eval roles still need fixtures.
+
+## [2026-11-15] decision | explicit metered proposal bound
+
+- The copilot proposal schema now asks for numeric `max_cost_usd` and `shots`;
+  the prompt states that `spend_estimate` text is not a spend bound. Metered
+  plans that still omit a numeric bound continue to refuse rather than guess.

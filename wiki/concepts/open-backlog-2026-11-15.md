@@ -27,7 +27,8 @@ record on the owning pages.
 > provenance panel has landed (typed evidence rows + completeness summary);
 > inline highlighting of unverified prose and table-cell numbers has landed;
 > table cells and math source values are scanned by the checker. OB-15's
-> proposal history surface has landed; the priced-proposal rule remains.
+> proposal history surface has landed; the copilot prompt now demands a
+> numeric metered bound, while absent bounds still refuse.
 > OB-17's plan-draft persistence has landed; unresolved refs as typed needs
 > remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. OB-18 now emits session-owned obligation open/close events; key-owned
