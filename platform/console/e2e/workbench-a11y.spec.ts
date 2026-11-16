@@ -161,8 +161,21 @@ test('Light theme inversion, hover opacity invariance, zero card overlap, and zo
   expect(overlaps).toEqual([]);
 
   // Hover opacity invariance: hovered and sibling cards stay opacity === 1.
-  const firstCard = cards.first();
-  await firstCard.hover();
+  // Pick a card whose center actually hit-tests to itself. Auto-framing can
+  // leave the first DOM card partly above the viewport, where the filter bar
+  // intercepts pointer events; hovering that card would test the bar, not the
+  // card, and Playwright would retry until the test timeout.
+  const findHoverIndex = () => workbench.evaluate((root) => {
+    const candidates = Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card'));
+    return candidates.findIndex((card) => {
+      const rect = card.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return Boolean(hit && card.contains(hit));
+    });
+  });
+  await expect.poll(findHoverIndex, { timeout: 5_000 }).toBeGreaterThanOrEqual(0);
+  const hoverIndex = await findHoverIndex();
+  await cards.nth(hoverIndex).hover();
   await page.waitForTimeout(100);
   const cardOpacities = await workbench.evaluate((root) =>
     Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card')).map((el) => ({

@@ -6805,3 +6805,11 @@ skipped is the exact failure this incident is about:
   (62.99/59.72/61.16/66.53 vs 53/54/51/56).
 - Workbench lazy split reduced the largest first-load chunk from ~400 KiB to
   ~277 KiB; live console E2E is 16/16.
+
+## 2026-11-16 | verification | workbench hover E2E flake fixed
+
+- The Light-theme workbench E2E failed on main because Playwright hovered the
+  first DOM card whose center sat above the viewport; the filter bar
+  intercepted the pointer and the action retried to timeout. The test now
+  selects a card whose center hit-tests to itself, with a bounded poll.
+- `workbench-a11y.spec.ts` passes 5/5 against the live compose stack.
