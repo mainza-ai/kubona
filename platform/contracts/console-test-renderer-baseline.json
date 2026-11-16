@@ -38,7 +38,6 @@
     "src/components/common/SessionRefundPanel.test.tsx",
     "src/components/common/SystemReadinessPanel.test.tsx",
     "src/components/common/TenantGrantPanel.test.tsx",
-    "src/components/common/Tip.test.tsx",
     "src/components/common/VaultLeasePanel.test.tsx",
     "src/components/common/WorkflowPanel.test.tsx",
     "src/components/common/provenance-coverage.test.tsx",

@@ -6590,3 +6590,7 @@ skipped is the exact failure this incident is about:
 
 - Migrated ProvenanceBadge to a real-browser component test; renderer ratchet
   fell 93 → 92.
+
+## 2026-11-15 | cleanup | fourth renderer migration
+
+- Migrated Tip to a real-browser component test; renderer ratchet fell 92 → 91.
