@@ -6733,3 +6733,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated primitives, NewCampaignModal, and ApprovalPacketCard to
   real-browser tests; renderer ratchet fell 44 → 41.
+
+## 2026-11-15 | cleanup | surface renderer batch
+
+- Migrated SessionPortability, ProofDagView, and GenerativeUIStudio to
+  real-browser tests; renderer ratchet fell 41 → 38.

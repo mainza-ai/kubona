@@ -1,24 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
 import { GenerativeUIStudio } from './GenerativeUIStudio';
 import { CampaignState } from '@/types';
 
-function textOf(node: unknown): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(textOf).join(' ');
-  if (node !== null && typeof node === 'object') {
-    const obj = node as { children?: unknown; props?: { children?: unknown } };
-    if ('children' in obj && obj.children != null) {
-      return textOf(obj.children);
-    }
-    if ('props' in obj && obj.props?.children != null) {
-      return textOf(obj.props.children);
-    }
-  }
-  return '';
-}
-
+// Surface 9 in a real browser: the header, the widget gallery and the filter
+// pills are real DOM, so the tab interaction is a real click rather than a
+// synthetic onClick call.
 const mockCampaign: CampaignState = {
   session_id: 'sess-test-01',
   research_goal: 'Lithium Hydride equilibrium state VQE',
@@ -85,14 +73,11 @@ const mockCampaign: CampaignState = {
   updated_at: '2026-10-18T00:00:00Z',
 };
 
-describe('GenerativeUIStudio (Surface 9)', () => {
+describe('GenerativeUIStudio (Surface 9) in a real browser', () => {
   it('renders Surface 9 header and all 6 widgets when tab is all', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<GenerativeUIStudio campaign={mockCampaign} />);
-    });
+    const screen = await render(<GenerativeUIStudio campaign={mockCampaign} />);
 
-    const text = textOf(tree!.toJSON());
+    const text = screen.container.textContent ?? '';
     expect(text).toContain('Surface 9 · Scientific Widgets');
     expect(text).toContain('Generative Scientific UI Studio');
     expect(text).toContain('Molecular Active Space');
@@ -107,32 +92,20 @@ describe('GenerativeUIStudio (Surface 9)', () => {
   });
 
   it('filters to individual widget when tab is selected', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<GenerativeUIStudio campaign={mockCampaign} />);
-    });
+    const screen = await render(<GenerativeUIStudio campaign={mockCampaign} />);
 
-    // Find tab button for "3D Active Space"
-    const buttons = tree!.root.findAllByType('button');
-    const molTab = buttons.find((b) => textOf(b.props.children).includes('3D Active Space'));
-    expect(molTab).toBeDefined();
+    await screen.getByRole('button', { name: '3D Active Space' }).click();
 
-    await act(async () => {
-      molTab!.props.onClick();
-    });
-
-    const text = textOf(tree!.toJSON());
-    expect(text).toContain('Molecular Active Space');
-    expect(text).not.toContain('Classical Shadow Tomography');
+    await expect.poll(() => screen.container.textContent).toContain('Molecular Active Space');
+    expect(screen.container.textContent).not.toContain('Classical Shadow Tomography');
+    // The other widget panels are unmounted, not merely hidden.
+    expect(screen.container.querySelectorAll('h3')).toHaveLength(1);
   });
 
   it('renders synthetic demo notice when campaign is null', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<GenerativeUIStudio campaign={null} />);
-    });
+    const screen = await render(<GenerativeUIStudio campaign={null} />);
 
-    const text = textOf(tree!.toJSON());
+    const text = screen.container.textContent ?? '';
     expect(text).toContain('No measured campaign data for the widget gallery.');
     expect(text).not.toContain('synthetic demo');
   });

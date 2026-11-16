@@ -24,11 +24,21 @@ export default defineConfig({
     include: ['src/**/*.component.test.tsx'],
     setupFiles: ['./src/test-setup.ts'],
     // One prebundled React (and the icon set that consumes it) prevents the
-    // duplicate-context failure a cold optimizer run can produce.
+    // duplicate-context failure a cold optimizer run can produce. elkjs is
+    // CJS and is imported directly by the proof-DAG layout tests, so it must
+    // be prebundled too — an on-demand optimize mid-run reloads the page and
+    // aborts every suite in that run.
     deps: {
       optimizer: {
         client: {
-          include: ['react', 'react-dom', 'react/jsx-runtime', 'lucide-react', 'vitest-browser-react'],
+          include: [
+            'react',
+            'react-dom',
+            'react/jsx-runtime',
+            'lucide-react',
+            'vitest-browser-react',
+            'elkjs/lib/elk.bundled.js',
+          ],
         },
       },
     },
