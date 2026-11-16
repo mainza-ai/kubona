@@ -499,10 +499,13 @@ jobs:
         working-directory: .
         run: node scripts/console-token-lint.mjs
       - name: Console raw-button ratchet
+        working-directory: .
         run: node scripts/console-button-ratchet.mjs
       - name: Console coupling ratchet
+        working-directory: .
         run: node scripts/console-coupling-ratchet.mjs
       - name: Console form ratchet
+        working-directory: .
         run: node scripts/console-form-ratchet.mjs
       # D8: react-test-renderer cannot test focus/keyboard/CSS. New files must
       # be *.component.test.tsx browser tests; the baseline may only shrink.

@@ -19,13 +19,14 @@ def test_codes_match_contract():
     # spend_limit_exceeded (402) + task_not_entitled (404); the request-body
     # cap added request_too_large (413); workflow approvals added
     # approval_required (400). The 2026-11-14 Rails program added the
-    # proposal lifecycle and steering codes below. The count pins the
-    # contract size so silent catalog drift fails loudly; the named set pins
-    # *which* codes the console/agent rails depend on.
-    assert len(rows) == 35, f"catalog grew/shrank: {len(rows)} rows"
+    # proposal lifecycle and steering codes below. `anchor_missing` carries
+    # the typed need for accepting a verified claim without evidence. The
+    # count pins the contract size so silent catalog drift fails loudly; the
+    # named set pins *which* codes the console/agent rails depend on.
+    assert len(rows) == 36, f"catalog grew/shrank: {len(rows)} rows"
     assert {
         "credits_unavailable", "spend_limit_exceeded", "task_not_entitled",
-        "revision_conflict", "precondition_required", "proposal_stale",
+        "anchor_missing", "revision_conflict", "precondition_required", "proposal_stale",
         "proposal_not_offered", "proposal_digest_mismatch",
         "proposal_unmintable", "loop_not_running", "delete_blocked",
     } <= {r["code"] for r in rows}

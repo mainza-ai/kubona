@@ -6813,3 +6813,10 @@ skipped is the exact failure this incident is about:
   intercepted the pointer and the action retried to timeout. The test now
   selects a card whose center hit-tests to itself, with a bounded poll.
 - `workbench-a11y.spec.ts` passes 5/5 against the live compose stack.
+
+## 2026-11-16 | verification | CI gate fixes
+
+- Pin the error catalog at 36 rows and name `anchor_missing`, the typed need
+  added for accepting a verified claim without evidence.
+- Run the console raw-button, coupling, and form ratchets from the repo root;
+  they previously ran from `platform/console` and could not find the scripts.
