@@ -29,6 +29,7 @@ record on the owning pages.
 > table cells and math source values are scanned by the checker. OB-15's
 > proposal history surface has landed; the priced-proposal rule remains.
 > OB-17's plan-draft persistence has landed; unresolved refs as typed needs
+> remain. OB-18's 1 h ageing escalation has landed; obligation push events
 > remain. See
 > [[feedback-loops-and-notifications]].
 

@@ -6433,3 +6433,9 @@ skipped is the exact failure this incident is about:
 - Added a regression test proving numeric values inside `$...$` math source
   are checked and verified like prose/table numbers. The earlier "rendered
   values" note was stale.
+
+## [2026-11-15] verification | needs-you ageing escalation
+
+- Rows with a readable server clock older than one hour now render an
+  `escalated` marker in the Needs-you tray. Unknown clocks never escalate.
+- Obligation push events remain open.

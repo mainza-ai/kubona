@@ -5,6 +5,7 @@ import {
   classifySubject,
   unseenNeedsYou,
   waitingLabel,
+  needsEscalation,
 } from './needs-you';
 import type { ObligationRow } from './api';
 
@@ -125,5 +126,14 @@ describe('waitingLabel', () => {
   it('never invents a time when the row has none', () => {
     expect(waitingLabel({ waitingSince: null }, now)).toBe('waiting unknown');
     expect(waitingLabel({ waitingSince: 'garbage' }, now)).toBe('waiting unknown');
+  });
+});
+
+describe('needsEscalation', () => {
+  const now = Date.parse('2026-11-14T12:00:00Z');
+  it('escalates only rows with a readable clock at least one hour old', () => {
+    expect(needsEscalation({ waitingSince: '2026-11-14T11:01:00Z' }, now)).toBe(false);
+    expect(needsEscalation({ waitingSince: '2026-11-14T11:00:00Z' }, now)).toBe(true);
+    expect(needsEscalation({ waitingSince: null }, now)).toBe(false);
   });
 });

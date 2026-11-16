@@ -140,8 +140,8 @@ Landed in later slices:
   decidable/blocked state from the server's close rules, and a real waiting
   age; `Review` routes to the owning surface. Obligation rows now expose
   `created_at`/`updated_at`/`unknowns_detail`. Remaining: ledger
-  `obligation_*` events for push invalidation, and the ageing escalation
-  after 1 h described in [[runtime-honesty-and-commit-policy]].
+  `obligation_*` events for push invalidation; the 1 h ageing escalation is
+  rendered from the server-recorded waiting clock.
 - **Role-named scales (D1, 2026-11-14):** tokens are now exposed through
   Tailwind `@theme inline` (runtime aliases avoid custom-property cycles), and
   the default radius/text scales are reset, so a size-named radius or text

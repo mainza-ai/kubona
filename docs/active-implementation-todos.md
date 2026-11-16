@@ -23,7 +23,8 @@ Baseline: `37103aad` on `develop`.
 - [ ] Hardware parent allowance rails.
 - [ ] Hardware-in-the-loop VQE/QAOA, or narrow the claim.
 - [x] Plan draft persistence.
-- [ ] Obligation push events + 1 h ageing escalation.
+- [x] Obligation 1 h ageing escalation.
+- [ ] Obligation push events.
 - [ ] Chart-series and campaign-level fact refs.
 - [ ] Run parts from literature/prover/tool rails.
 - [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.

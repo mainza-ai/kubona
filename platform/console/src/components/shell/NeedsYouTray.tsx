@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { Inbox, X } from 'lucide-react';
-import { waitingLabel, type NeedItem } from '@/lib/needs-you';
+import { needsEscalation, waitingLabel, type NeedItem } from '@/lib/needs-you';
 
 /**
  * Shell-level "Needs you" tray (report §3.1). Anything that asks the human
@@ -136,8 +136,9 @@ export function NeedsYouTray({
                     ) : null}
                   </p>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-code text-[11px] text-faint">
+                    <span className={`font-code text-[11px] ${needsEscalation(item, nowMs) ? 'text-warning-ink' : 'text-faint'}`}>
                       {waitingLabel(item, nowMs)}
+                      {needsEscalation(item, nowMs) ? ' · escalated' : ''}
                     </span>
                     <button
                       type="button"

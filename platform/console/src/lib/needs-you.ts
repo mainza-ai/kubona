@@ -128,6 +128,12 @@ export function unseenNeedsYou(items: readonly NeedItem[], seen: ReadonlySet<str
   return items.filter((item) => !seen.has(item.signature));
 }
 
+/** True once a row has waited at least one hour. Unknown clocks never escalate. */
+export function needsEscalation(item: Pick<NeedItem, 'waitingSince'>, nowMs = Date.now()): boolean {
+  const since = parseTime(item.waitingSince);
+  return since !== null && nowMs - since >= 3_600_000;
+}
+
 /** Short waiting label; refuses to invent a time when the row has none. */
 export function waitingLabel(item: Pick<NeedItem, 'waitingSince'>, nowMs = Date.now()): string {
   const since = parseTime(item.waitingSince);
