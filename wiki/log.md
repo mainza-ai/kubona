@@ -6738,3 +6738,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated SessionPortability, ProofDagView, and GenerativeUIStudio to
   real-browser tests; renderer ratchet fell 41 → 38.
+
+## 2026-11-15 | cleanup | palette/attention/tray renderer batch
+
+- Migrated CommandPalette, CheckInStrip, and NeedsYouTray to real-browser
+  tests; renderer ratchet fell 38 → 35.
