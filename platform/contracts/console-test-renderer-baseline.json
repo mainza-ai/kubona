@@ -1,11 +1,5 @@
 {
   "version": 1,
   "note": "D8 ratchet: files allowed to import react-test-renderer. Delete entries as files migrate to *.component.test.tsx browser tests. Do not add entries.",
-  "files": [
-    "src/components/CopilotDrawer.sessionguard.test.tsx",
-    "src/components/CopilotDrawer.tribunal.test.tsx",
-    "src/components/surfaces/LLMSettings.test.tsx",
-    "src/components/workbench/Workbench.test.tsx",
-    "src/components/workbench/workbench-perf.test.ts"
-  ]
+  "files": []
 }

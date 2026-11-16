@@ -1,26 +1,23 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import React from 'react';
-import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'vitest-browser-react';
+import React from 'react';
 import type { CampaignState, Job, Loop } from '@/types';
 import type { ObligationRow } from '@/lib/api';
 import { Workbench } from './Workbench';
 import { buildWorkbench, totalOverlapArea, workbenchDocument } from './workbench-model';
+import globalsCss from '../../app/globals.css?raw';
+import axesCss from '../../styles/axes.css?raw';
 
-vi.mock('@/lib/api', () => ({
-  fetchCanvasLayout: vi.fn(async () => ({})),
-  fetchWorkbenchLayout: vi.fn(async () => null),
-  fetchWorkbenchView: vi.fn(async () => null),
-  fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
-  hasOperatorBearer: vi.fn(() => false),
-  saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
-  saveWorkbenchView: vi.fn(async () => ({ ok: true, view_revision: 1 })),
-}));
+// The workbench ceiling in a real browser: the projection/serialization budget
+// is measured on the real engine, idle behaviour is observed after a real
+// mount into a laid-out page, and the motion rules are the shipped CSS source.
+// No @/lib/api mock — the mount reads are answered at the fetch boundary.
 
 afterEach(() => {
-  vi.useRealTimers();
+  // Unstub before the clock: the RAF stub sits on top of the fake timer's RAF,
+  // and unstubbing after useRealTimers would restore the fake one.
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -72,7 +69,7 @@ const obligations: ObligationRow[] = Array.from({ length: 32 }, (_, index) => ({
   close_ready: false, close_reasons: [],
 }));
 
-describe('workbench projection ceiling', () => {
+describe('workbench projection ceiling in a real browser', () => {
   it('projects and serializes 300+ objects within the transition budget', () => {
     const samples: number[] = [];
     let count = 0;
@@ -99,47 +96,30 @@ describe('workbench projection ceiling', () => {
     const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');
 
-    let tree: TestRenderer.ReactTestRenderer | null = null;
-    try {
-      await act(async () => {
-        tree = TestRenderer.create(
-          React.createElement(Workbench, {
-            campaign: campaign(),
-            loops: [],
-            jobs: [],
-            obligations: [],
-          }),
-        );
-      });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000);
-      });
+    const screen = await render(
+      <Workbench campaign={campaign()} loops={[]} jobs={[]} obligations={[]} />,
+    );
+    await vi.advanceTimersByTimeAsync(1000);
 
-      timeoutSpy.mockClear();
-      intervalSpy.mockClear();
-      rafSpy.mockClear();
+    // The canvas is live (cards projected into a laid-out host), so "idle"
+    // below is a settled canvas, not a surface that never rendered.
+    expect(screen.container.querySelectorAll('.k-workbench-card').length).toBeGreaterThan(0);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(30_000);
-      });
+    timeoutSpy.mockClear();
+    intervalSpy.mockClear();
+    rafSpy.mockClear();
 
-      expect(timeoutSpy).not.toHaveBeenCalled();
-      expect(intervalSpy).not.toHaveBeenCalled();
-      expect(rafSpy).not.toHaveBeenCalled();
-      expect(vi.getTimerCount()).toBe(0);
-    } finally {
-      if (tree) {
-        await act(async () => {
-          tree!.unmount();
-        });
-      }
-    }
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(timeoutSpy).not.toHaveBeenCalled();
+    expect(intervalSpy).not.toHaveBeenCalled();
+    expect(rafSpy).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+
+    await screen.unmount();
   });
 
   it('WorkPresenceCpu: restricts workbench motion to compositor properties and gates unseen/reduced motion', () => {
-    const globalsCss = readFileSync(fileURLToPath(new URL('../../app/globals.css', import.meta.url)), 'utf8');
-    const axesCss = readFileSync(fileURLToPath(new URL('../../styles/axes.css', import.meta.url)), 'utf8');
-
     const flowMatch = globalsCss.match(/@keyframes\s+k-flow-pulse\s*\{([\s\S]*?)\n\}/);
     expect(flowMatch).not.toBeNull();
     const flowBody = flowMatch![1];

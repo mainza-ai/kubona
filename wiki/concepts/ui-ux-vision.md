@@ -69,11 +69,11 @@ status: adopted
 > suite pins the `SegmentedControl` radio contract (one checked radio, roving
 > `tabindex`, Arrow/Home/End focus movement) and `IconButton`'s non-submitting
 > `type="button"` inside a form — assertions `react-test-renderer` cannot make.
-> A 95-file baseline ratchet (`console-test-renderer-ratchet.mjs`) freezes new
-> deprecated-renderer use and fails on stale entries; the list may only shrink.
-> The browser lane runs in Console E2E, where the browser is already installed,
-> so it adds no new download to the push gate. Remaining: migrate the
-> grandfathered files and add a token-sheet CSS assertion.
+> The renderer migration is complete: the deprecated renderer dependency is
+> removed, the ratchet reports 0 files, and every former renderer test now
+> runs as a node logic test or a real-browser component test. The browser lane
+> runs in Console E2E, where the browser is already installed, so it adds no
+> new download to the push gate.
 >
 > **Role-named scales (D1, 2026-11-14).** The token layer is now the only
 > scale Tailwind knows. `@theme inline` maps semantic colors, radii and type
@@ -417,7 +417,7 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   and overlay-inspector collisions.
 - **Contracts & Verification:** Inventory stands at **171 modeled / 14
   client-only / 0 unmodeled** contracts (`149` schemas, `151` OpenAPI paths)
-  with **814** Console test cases across **153** test files (`docs/repo-counts.md`),
+  with **821** Console test cases across **155** test files (`docs/repo-counts.md`),
   including real-Chromium `*.component.test.tsx` coverage, plus
   `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,
   `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual VoiceOver/NVDA
