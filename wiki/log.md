@@ -6775,3 +6775,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated DataChart, MeasuredOutputs, and CognitiveMesh to real-browser
   tests; renderer ratchet fell 20 → 17.
+
+## 2026-11-15 | cleanup | spatial/labs/experiment renderer batch
+
+- Migrated SpatialCanvas3D, LabsView, and ExperimentPanel to real-browser
+  tests; renderer ratchet fell 17 → 14.
