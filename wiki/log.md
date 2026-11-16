@@ -6547,3 +6547,9 @@ skipped is the exact failure this incident is about:
   multi-size scaling plans and gave it a 120s budget. The full live console
   E2E suite now passes 16/16 against the running compose stack.
 - Removed the final raw-palette token occurrence; baseline is 0/0.
+
+## [2026-11-15] cleanup | single toast slot
+
+- The Hugging Face surface no longer owns a local toast; its messages dispatch
+  to the page's single toast slot. This removes the last duplicate per-surface
+  toast implementation.

@@ -55,8 +55,6 @@ export function HuggingFaceModelHub() {
   const [searched, setSearched] = useState(false);
   const [searchFailed, setSearchFailed] = useState<string | null>(null);
   const [downloads, setDownloads] = useState<HFDownloadTask[]>([]);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastTone, setToastTone] = useState<'info' | 'error'>('info');
   // T-11: one click never starts a multi-GB fetch. Known sizes at or
   // above threshold route through an explicit confirm dialog; the server
   // enforces the same bound (confirmed:true) so the dialog is not
@@ -68,9 +66,9 @@ export function HuggingFaceModelHub() {
   const [cancelling, setCancelling] = useState<string | null>(null);
 
   const showToast = (msg: string, tone: 'info' | 'error' = 'info') => {
-    setToastMessage(msg);
-    setToastTone(tone);
-    setTimeout(() => setToastMessage(null), 5000);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('kubona:surface-toast', { detail: { text: msg, tone } }));
+    }
   };
 
   const performSearch = useCallback(async (q = query, lib = library) => {
@@ -256,17 +254,6 @@ export function HuggingFaceModelHub() {
       {deferredAuth && (
         <div className="p-3 rounded-row border border-warning-edge bg-warning-wash text-label text-warning-ink">
           Sign in to search HuggingFace models or stream weights in multi-lab mode.
-        </div>
-      )}
-      {toastMessage && (
-        <div className={`p-3 rounded-row border text-label flex items-center justify-between animate-fade-in shadow-md ${toastTone === 'error' ? 'bg-danger-wash border-danger-edge text-danger-ink' : 'bg-info-wash border-info-edge text-info-ink'}`}>
-          <div className="flex items-center space-x-2">
-            <Download className="w-4 h-4 text-info-ink animate-bounce" />
-            <span>{toastMessage}</span>
-          </div>
-          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" title="Dismiss notification" className="text-info-ink hover:text-text">
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 

@@ -141,6 +141,19 @@ export default function Home() {
   const [runAnnouncement, setRunAnnouncement] = useState<string | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onSurfaceToast = (event: Event) => {
+      const detail = (event as CustomEvent<{ text?: unknown; tone?: unknown }>).detail;
+      if (!detail || typeof detail.text !== 'string' || !detail.text.trim()) return;
+      setToast({ key: Date.now(), text: detail.text.slice(0, 240) });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), detail.tone === 'error' ? 6000 : 4000);
+    };
+    window.addEventListener('kubona:surface-toast', onSurfaceToast);
+    return () => window.removeEventListener('kubona:surface-toast', onSurfaceToast);
+  }, []);
   const loopsAuthHaltedRef = useRef(false);
 
   const localFailure = useCallback((result: { ok: false; failure: { kind: string }; error: string }) => {

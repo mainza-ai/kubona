@@ -14,7 +14,7 @@ Baseline: `37103aad` on `develop`.
 - [x] Rendered math-source citation scanning.
 - [x] Attention Director wiring for notification severities.
 - [x] Live-run toast duplication removed (single polite region).
-- [ ] Remaining per-surface toast/chip dedupe.
+- [x] Remaining per-surface toast/chip dedupe.
 - [x] Proposal-dismiss reasons consumed by proposal generation (prompt signal).
 - [x] Skill authoring/installer UI.
 - [x] Live `eval-llm` model invocation (explicit provider/model).
