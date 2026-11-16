@@ -26,7 +26,6 @@
     "src/components/common/JobProgress.test.tsx",
     "src/components/common/JobProgressLive.test.tsx",
     "src/components/common/LabOpsPanel.test.tsx",
-    "src/components/common/LedgerVerifyPanel.test.tsx",
     "src/components/common/LoopControlList.test.tsx",
     "src/components/common/MathText.test.tsx",
     "src/components/common/MetasearchPanel.test.tsx",

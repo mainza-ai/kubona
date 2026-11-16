@@ -6599,3 +6599,8 @@ skipped is the exact failure this incident is about:
 
 - Migrated BackendStatusBar to a real-browser component test; renderer
   ratchet fell 91 → 90.
+
+## 2026-11-15 | cleanup | sixth renderer migration
+
+- Migrated LedgerVerifyPanel to a real-browser component test; renderer
+  ratchet fell 90 → 89.
