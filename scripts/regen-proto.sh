@@ -6,10 +6,10 @@
 #   protoc            v7.35.1  (system, `protoc --version`)
 #   protoc-gen-go     v1.36.12 (GOBIN install: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12)
 #   protoc-gen-go-grpc v1.6.2  (GOBIN install: go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2)
-#   grpcio-tools      1.71.x   (scratch venv only — NEVER the hermetic platform/.venv;
-#                               1.71 stamps "Protobuf Python Version: 5.29.0" matching the
-#                               runtime. Newer grpcio-tools emits 7.x gencode that the
-#                               5.29.6 runtime refuses to import.)
+#   grpcio-tools      1.85.x   (scratch venv only — NEVER the hermetic platform/.venv;
+#                               1.85 stamps "Protobuf Python Version: 7.35.1", matching
+#                               the protobuf 7.36.2 runtime. Older 1.71.x stamps 5.29
+#                               gencode; keep the generator and runtime aligned.)
 #
 # Usage: ./scripts/regen-proto.sh   (repo root; writes all four bindings in place)
 # After running: `git diff --stat` must show ONLY the intended message change.

@@ -72,6 +72,26 @@ def _req(**kw):
     return SimpleNamespace(**kw)
 
 
+def test_python_bindings_match_current_proto_enum_and_wire():
+    """The checked-in gencode must carry the current JobStatus enum.
+
+    A stale 5.29 gencode silently missed INTERRUPTED/OUTCOME_UNKNOWN even
+    though the .proto and Go bindings had them. Pin the enum values and a
+    wire round-trip so regeneration drift fails here, not at a live status
+    read.
+    """
+    from proto import kubona_pb2
+
+    assert kubona_pb2.JobStatus.Value("JOB_STATUS_INTERRUPTED") == 7
+    assert kubona_pb2.JobStatus.Value("JOB_STATUS_OUTCOME_UNKNOWN") == 8
+    req = kubona_pb2.CircuitExecutionRequest(
+        job_id="gencode-probe", qasm="OPENQASM 2.0;", shots=7,
+    )
+    assert kubona_pb2.CircuitExecutionRequest.FromString(
+        req.SerializeToString()
+    ) == req
+
+
 def test_submit_requires_idempotency_key(isolated_rail):
     svc = bridge_server.QuantumBridgeServicer()
     resp = svc.QuantumSubmit(_req(qasm=BELL_QASM, provider="local-simulator",
