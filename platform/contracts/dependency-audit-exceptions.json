@@ -1,3 +1,11 @@
 {
-  "exceptions": []
+  "exceptions": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "ecosystem": "npm",
+      "owner": "Mainza Kangombe",
+      "expires": "2027-03-17",
+      "reason": "picomatch <=4.0.7 has no published patched release; it is reached only through dev-time ESLint/Vitest tooling, not the shipped console runtime. Remove this waiver when a fixed release ships."
+    }
+  ]
 }

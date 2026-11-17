@@ -6890,3 +6890,12 @@ skipped is the exact failure this incident is about:
 - Release preconditions name `uv lock --check` and the bridge image lock.
 - Historical protobuf 5.29.6 / grpcio-tools 1.71.x notes carry correction
   blocks pointing at the landed 7.36.2 / 7.35.1 gencode / 1.85.x toolchain.
+
+## [2026-11-17] decision | dev-only picomatch ReDoS waived
+
+- GHSA-fc5q-39xc-vjpf affects picomatch <=4.0.7 with no published patched
+  release. It is reached only through dev-time ESLint/Vitest tooling, not the
+  shipped console runtime.
+- Added an owner+reason+expiry exception in
+  `platform/contracts/dependency-audit-exceptions.json`, expiring 2027-03-17.
+  The audit gate still fails on any other advisory or on an expired waiver.
