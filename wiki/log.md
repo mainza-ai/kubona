@@ -6852,3 +6852,12 @@ skipped is the exact failure this incident is about:
   GHSA-mfr8-8qww-v76h (information disclosure across root params).
 - Verified: npm audit clean, console node suite 304 passed, real-browser
   suite 517 passed, and the production build completes.
+
+## [2026-11-16] decision | Dependabot follows the develop → main flow
+
+- Version-update PRs now target `develop` for npm, gomod, uv, and cargo;
+  `main` remains fast-forward-only.
+- The Python ecosystem changed from `pip` to `uv`, so Dependabot updates
+  `pyproject.toml` and `uv.lock` together instead of failing the lock gate.
+- Security updates may still target the default branch; apply them on
+  develop and fast-forward main.

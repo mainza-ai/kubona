@@ -3,10 +3,16 @@
 # in repository settings; this file keeps versioned, reviewable update
 # cadence in the tree. Grouped minor/patch to keep CI load sane; major
 # bumps stay individual so a breaking change never hides in a group.
+#
+# Version PRs target `develop`: `main` is advanced only by fast-forwarding
+# develop onto it, so a PR merged directly into main would diverge the two.
+# Security updates may still target the default branch; apply those on
+# develop and fast-forward main instead of merging them into main.
 version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/platform/console"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -17,6 +23,7 @@ updates:
     # pnpm: Dependabot reads pnpm-lock.yaml in the same directory.
   - package-ecosystem: "gomod"
     directory: "/platform/core"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -24,8 +31,11 @@ updates:
       minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-  - package-ecosystem: "pip"
+  # uv owns pyproject.toml + uv.lock; pip cannot regenerate the lock and
+  # would always fail the uv-lock gate.
+  - package-ecosystem: "uv"
     directory: "/platform"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -35,11 +45,13 @@ updates:
         update-types: ["minor", "patch"]
   - package-ecosystem: "cargo"
     directory: "/platform/crates/qir-core"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
   - package-ecosystem: "cargo"
     directory: "/platform/crates/ifc-core"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
