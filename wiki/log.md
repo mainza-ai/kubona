@@ -6861,3 +6861,13 @@ skipped is the exact failure this incident is about:
   `pyproject.toml` and `uv.lock` together instead of failing the lock gate.
 - Security updates may still target the default branch; apply them on
   develop and fast-forward main.
+
+## [2026-11-16] cleanup | RDKit pin unlocks #24; protobuf 7 held
+
+- Landed #24 after bumping `RDKIT_PINNED_VERSION` to 2026.09.2. The ADMET
+  fixtures are byte-for-byte equivalent under 2026.03.6 and 2026.09.2;
+  the full bridge suite passed (92 passed, 1 skipped).
+- Closed #25: protobuf 5.29.6 → 7.36.2 cannot land as a lock-only bump.
+  The checked-in bindings are 5.29.0 gencode and the regen toolchain is
+  pinned to grpcio-tools 1.71.x. A dedicated migration must re-pin the
+  toolchain, regenerate the Python stubs, and verify wire round-trips.
