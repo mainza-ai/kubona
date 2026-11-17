@@ -20,7 +20,7 @@ dependencies = [
     "starlette==1.7.0",
     "uvicorn==0.54.0",
     "grpcio==1.84.0",
-    "protobuf==5.29.6",
+    "protobuf==7.36.2",
     # W2.4: scipy + pennylane were imported but undeclared (krylov needs
     # scipy.linalg; cutting/diff-stack need pennylane) — CI resolved them
     # transitively or not at all. scipy splits by interpreter like numpy
