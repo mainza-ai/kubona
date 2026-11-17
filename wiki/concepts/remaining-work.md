@@ -637,10 +637,6 @@ hardening. None blocks the supported local-private deployment.
 
 ## B · Queued programs (unblocked, beyond a single slice)
 
-- Protobuf 7 migration (protobuf 5.29.6 → 7.36.2): a runtime-only bump is
-  insufficient. Re-pin the scratch `grpcio-tools` toolchain, regenerate both
-  Python bindings, verify the runtime-version stamp, add a Go↔Python wire
-  round-trip, then run the bridge/Docker/E2E gates.
 - UI/Docker production program (report 2026-10-17: U0 → D1 → U1 → U2 → U3 → D2).
   > ✅ U0 LANDED: console tests + lint in CI (19 lint errors fixed:
   > 6 render-phase key-change resets — no stale-session bleed — + 13

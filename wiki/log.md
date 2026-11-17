@@ -6871,3 +6871,14 @@ skipped is the exact failure this incident is about:
   The checked-in bindings are 5.29.0 gencode and the regen toolchain is
   pinned to grpcio-tools 1.71.x. A dedicated migration must re-pin the
   toolchain, regenerate the Python stubs, and verify wire round-trips.
+
+## [2026-11-16] decision | protobuf 7 migration landed
+
+- protobuf 5.29.6 → 7.36.2 with grpcio 1.85.1 and grpcio-tools 1.85.1.
+- Regenerated both Python bindings: gencode now stamps 7.35.1 and the
+  runtime guard matches. The regeneration also picked up the
+  `JOB_STATUS_INTERRUPTED` and `JOB_STATUS_OUTCOME_UNKNOWN` enum values
+  that the `.proto` and Go bindings already had.
+- Added a binding/wire round-trip test; the bridge suite is 93 passed /
+  1 skipped, the fast Python suite is 1002 passed / 39 skipped, and the
+  bridge image imports protobuf 7.36.2 and round-trips a request.
