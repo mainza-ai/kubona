@@ -2,7 +2,7 @@
 type: concept
 name: REA adoption plan
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-17
 tags: [plan, rea, prior-art, receipts, contracts, tribunal, production]
 sources: [source-frontier-repo-audit-2026]
 status: candidate
@@ -136,6 +136,9 @@ notes, never silent edits; rollback stated.
 > rule. Operator action: re-pin the scratch venv to grpcio-tools 1.71.x
 > and re-run `./scripts/regen-proto.sh` (Go stubs already carry the
 > message; envelope sealing needs no stubs).
+> ⚑ Correction (2026-11-17): the protobuf 7.36.2 migration landed.
+> Python gencode is 7.35.1 and `scripts/regen-proto.sh` now pins
+> `grpcio-tools` 1.85.x; the 5.29.6/1.71.x note above is historical.
 
 - **Threat:** two receipt formats for one "sealed ledger" story — an
   auditor cannot verify what has two canonical forms.

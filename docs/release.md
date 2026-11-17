@@ -5,6 +5,8 @@
 - The release commit is on `main` and its full `ci.yml` run is green,
   including the Console browser/scale/colour/theme/bundle gates and the
   wiki/repo-counts checks.
+- `platform/uv.lock` is current (`uv lock --check`); the bridge image is
+  built from that lock.
 - A signed tag exists (for example `v0.3.0`).
 - GHCR package creation is allowed for the repository's `GITHUB_TOKEN`.
 - The release workflow has `contents: write`, `packages: write`,

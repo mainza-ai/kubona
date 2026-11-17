@@ -6882,3 +6882,11 @@ skipped is the exact failure this incident is about:
 - Added a binding/wire round-trip test; the bridge suite is 93 passed /
   1 skipped, the fast Python suite is 1002 passed / 39 skipped, and the
   bridge image imports protobuf 7.36.2 and round-trips a request.
+
+## [2026-11-17] cleanup | docs reflect protobuf 7 and current counts
+
+- README badge/table and platform status now use the generated 160-page /
+  155-console-file / 821-case counts.
+- Release preconditions name `uv lock --check` and the bridge image lock.
+- Historical protobuf 5.29.6 / grpcio-tools 1.71.x notes carry correction
+  blocks pointing at the landed 7.36.2 / 7.35.1 gencode / 1.85.x toolchain.

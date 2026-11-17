@@ -2,7 +2,7 @@
 type: concept
 name: Deep Line-by-Line Implementation Audit 2026-10-12
 date: 2026-10-12
-updated: 2026-10-12
+updated: 2026-11-17
 tags: [audit, implementation, gaps, verification, production]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus, source-cloudflare-economy]
 status: tracked
@@ -214,6 +214,9 @@ implemented (needs revision). Every item has file:line or a live probe.
     bridge copy; `scripts/regen-proto.sh` records the pinned
     toolchain (grpcio-tools 1.71.x — newer emits 7.x gencode the
     5.29.6 runtime refuses; protoc-gen-go v1.36.12 exact).
+    > ⚑ Correction (2026-11-17): protobuf 7.36.2 landed; Python
+    > gencode is 7.35.1 and the regen toolchain is grpcio-tools 1.85.x.
+    > The 5.29.6/1.71.x note is historical.
     Regen diff verified additive-only on both sides. Live: LiH →
     analytical/0.85-skipped, H2 → numerical/real-MW. Go full +
     402 python green; bridge + daemon restarted current.

@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-14
+updated: 2026-11-17
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -616,6 +616,9 @@ hardening. None blocks the supported local-private deployment.
   venv `/tmp/protogen` re-pinned to 1.71.0, regen reproduced byte-identical
   output (1-line stamp delta only), `EvidenceEnvelope` imports cleanly
   under the pinned 5.29.6 runtime; deterministic regen proven.
+- ⚑ Correction (2026-11-17): the protobuf 7.36.2 migration landed. Python
+  gencode is 7.35.1 and the regen toolchain is `grpcio-tools` 1.85.x; the
+  5.29.6/1.71.x pin above is historical.
 - R-series defaults CONFIRMED 2026-10-29 (operator decision, no code change —
   all four were already implemented as recorded): R1 extend (+tenant
   mandatory, +mandate_ref optional; envelope.go both rails + byte-identical
