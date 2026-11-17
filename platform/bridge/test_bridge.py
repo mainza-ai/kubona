@@ -23,7 +23,7 @@ from executor import execute_qasm, calculate_meyer_wallach
 from fidelity import build_noise_model, predict_fidelity, probe_clifford_fidelity
 from cutting import cut_and_reconstruct_expectation
 
-RDKIT_PINNED_VERSION = "2026.03.6"
+RDKIT_PINNED_VERSION = "2026.09.2"
 
 BELL_QASM = """OPENQASM 2.0;
 include "qelib1.inc";
