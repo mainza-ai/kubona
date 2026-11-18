@@ -98,6 +98,8 @@ var KnownEventTypes = map[string]bool{
 	"manuscript_annotated":              true,
 	"manuscript_annotation_resolved":    true,
 	"manuscript_built":                  true,
+	"manuscript_deleted":                true,
+	"manuscript_updated":                true,
 	"manuscript_deposit_staged":         true,
 	"manuscript_drafted":                true,
 	"manuscript_reviewed":               true,

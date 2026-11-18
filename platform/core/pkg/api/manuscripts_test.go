@@ -671,3 +671,156 @@ func TestManuscriptCreateIsIdempotentByRequestID(t *testing.T) {
 		t.Fatalf("idempotent create persisted duplicates: %s", list.Body.String())
 	}
 }
+
+func TestManuscriptDraftEditResetsReview(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "Before"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			ID          string `json:"id"`
+			ContentHash string `json:"content_hash"`
+			Review      any    `json:"review"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+	mid := detail.Manuscript.ID
+
+	w = doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", map[string]any{
+		"title": "After", "abstract": "Edited before review.",
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("edit = %d: %s", w.Code, w.Body.String())
+	}
+	var edited struct {
+		Manuscript struct {
+			Title       string `json:"title"`
+			ContentHash string `json:"content_hash"`
+			Review      any    `json:"review"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &edited)
+	if edited.Manuscript.Title != "After" || edited.Manuscript.ContentHash == detail.Manuscript.ContentHash {
+		t.Fatalf("edit did not apply: %+v", edited.Manuscript)
+	}
+	if review, _ := edited.Manuscript.Review.(map[string]any); len(review) != 0 {
+		t.Fatalf("edit left a stale review: %+v", review)
+	}
+
+	// After a review the draft is immutable.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/reviews", "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("review = %d: %s", w.Code, w.Body.String())
+	}
+	w = doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", map[string]any{"title": "Nope"})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "manuscript_immutable") {
+		t.Fatalf("edit after review = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestManuscriptDeleteRequiresOperatorForEvidence(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"build": true})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+
+	w = doJSON(t, srv, http.MethodDelete, "/api/sessions/"+sid+"/manuscripts/"+detail.Manuscript.ID, "", nil)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("anonymous delete of built = %d", w.Code)
+	}
+	w = doJSON(t, srv, http.MethodDelete, "/api/sessions/"+sid+"/manuscripts/"+detail.Manuscript.ID, "op-token", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("operator delete = %d: %s", w.Code, w.Body.String())
+	}
+	list := doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts", "", nil)
+	if strings.Contains(list.Body.String(), detail.Manuscript.ID) {
+		t.Fatalf("deleted manuscript still listed: %s", list.Body.String())
+	}
+}
+
+func TestManuscriptListPagination(t *testing.T) {
+	t.Setenv("KUBONA_RATE_MANUSCRIPT", "100,100")
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	for i := 0; i < 3; i++ {
+		w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "draft"})
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create %d = %d: %s", i, w.Code, w.Body.String())
+		}
+	}
+	w := doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts?limit=2&offset=0", "", nil)
+	var page struct {
+		Manuscripts []map[string]any `json:"manuscripts"`
+		HasMore     bool             `json:"has_more"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &page)
+	if len(page.Manuscripts) != 2 || !page.HasMore {
+		t.Fatalf("page 1 = %d items has_more=%v", len(page.Manuscripts), page.HasMore)
+	}
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts?limit=2&offset=2", "", nil)
+	json.Unmarshal(w.Body.Bytes(), &page)
+	if len(page.Manuscripts) != 1 || page.HasMore {
+		t.Fatalf("page 2 = %d items has_more=%v", len(page.Manuscripts), page.HasMore)
+	}
+}
+
+func TestManuscriptArtifactCeilingRefusesOversizedSession(t *testing.T) {
+	t.Setenv("KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES", "10")
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"build": true})
+	if w.Code != http.StatusRequestEntityTooLarge || !strings.Contains(w.Body.String(), "artifact_ceiling_exceeded") {
+		t.Fatalf("ceiling = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestManuscriptCitationClaimMustExist(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{
+		"citations": []map[string]any{{"key": "10.1/x", "title": "T", "claim_id": "clm-missing"}},
+	})
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "clm-missing") {
+		t.Fatalf("unknown claim = %d %s", w.Code, w.Body.String())
+	}
+
+	claim, err := srv.Ledger().MintClaimRecord(sid, "measurement", "Measured H2", 0.9, 0.05, 0.05, "supported", "{}")
+	if err != nil {
+		t.Fatalf("mint claim: %v", err)
+	}
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{
+		"citations": []map[string]any{{"key": "10.1/x", "title": "T", "claim_id": claim.ID}},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("valid claim = %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"verified":true`) {
+		t.Fatalf("claim-bound citation not marked verified: %s", w.Body.String())
+	}
+}

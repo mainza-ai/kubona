@@ -914,6 +914,26 @@
         "signer_pubkey_hex"
       ]
     },
+    "manuscript_updated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Draft title/abstract edited before the first review; content hash and review reset.",
+      "required": [
+        "manuscript_id",
+        "content_hash"
+      ]
+    },
+    "manuscript_deleted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Manuscript and artifacts deleted, sealed with the last content/build hashes.",
+      "required": [
+        "manuscript_id",
+        "content_hash"
+      ]
+    },
     "manuscript_annotated": {
       "emitters": [
         "go"

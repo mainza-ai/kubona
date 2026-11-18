@@ -86,6 +86,8 @@ var errorRegistry = map[string]errorSpec{
 	"build_failed":              {"upstream", 502, false, "read the build log in the response and fix the LaTeX source or figure; the build is deterministic and will not fix itself"},
 	"reviewer_key_unconfigured": {"internal", 503, false, "commission KUBONA_REVIEWER_PRIVKEY_HEX on the deployment host before signing manuscripts"},
 	"annotations_open":          {"state", 409, false, "resolve or dismiss every open manuscript annotation before signing off"},
+	"manuscript_immutable":      {"state", 409, false, "only a draft can be edited; create a new draft for changed content"},
+	"artifact_ceiling_exceeded": {"resource", 413, false, "delete old drafts or raise KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES; the session artifact ceiling was reached"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

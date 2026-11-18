@@ -99,6 +99,9 @@ function installFetch(overrides: {
       annotations = annotations.map((a) => (a.id === id ? { ...a, status: body?.status } : a));
       return json(detailWithNotes());
     }
+    if (method === 'GET' && path.includes('/artifacts/')) {
+      return { ok: true, status: 200, json: async () => ({}), blob: async () => new Blob(['%PDF-1.4']) };
+    }
     if (method === 'POST' && /^\/api\/sessions\/[^/]+\/manuscripts$/.test(path)) {
       return overrides.create ? overrides.create() : json(detail(), 201);
     }
@@ -148,8 +151,10 @@ describe('PublicationPanel', () => {
 
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Built the PDF from the stored source.'));
     await vi.waitFor(() => expect(screen.container.textContent).toContain('main.pdf'));
-    const link = screen.container.querySelector('a[download="main.pdf"]') as HTMLAnchorElement | null;
-    expect(link?.getAttribute('href')).toContain('/api/sessions/s1/manuscripts/ms_1/artifacts/main.pdf');
+    // Artifact bytes go through the authenticated blob download, not a bare
+    // anchor (which would drop the bearer header in a bearer-only console).
+    const download = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('download'));
+    expect(download).toBeTruthy();
   });
 
   it('surfaces the operator-only signoff refusal verbatim', async () => {
@@ -211,5 +216,37 @@ describe('PublicationPanel review notes', () => {
     await vi.waitFor(() => expect(screen.container.textContent).toContain('0 open'));
     const sign = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Sign off')) as HTMLButtonElement | undefined;
     expect(sign?.disabled).toBe(false);
+  });
+});
+
+
+describe('PublicationPanel artifacts and review', () => {
+  it('downloads an artifact through the authenticated transport', async () => {
+    const calls = installFetch({
+      list: [SUMMARY],
+      detail: detail({
+        artifacts: [{ name: 'sections/results.tex', sha256: 'f'.repeat(64), size: 10, created_at: '2026-11-18T00:00:00Z' }],
+      }),
+    });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('sections/results.tex'));
+    const download = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('download'));
+    download!.click();
+
+    await vi.waitFor(() => expect(calls.some((c) => c.method === 'GET' && c.path.endsWith('/artifacts/sections/results.tex'))).toBe(true));
+  });
+
+  it('shows the review dimensions, including unmeasured values', async () => {
+    installFetch({ list: [SUMMARY], detail: detail() });
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
+    const summary = Array.from(screen.container.querySelectorAll('summary')).find((s) => s.textContent?.includes('Review dimensions'));
+    summary!.click();
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('6.90'));
+    expect(screen.container.textContent).toContain('unmeasured');
   });
 });

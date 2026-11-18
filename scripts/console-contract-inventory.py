@@ -37,6 +37,7 @@ CLIENT_ONLY = {
     "downloadFile": "browser file helper",
     "lensImageProxyUrl": "same-origin URL helper",
     "manuscriptArtifactUrl": "browser download URL helper",
+    "downloadManuscriptArtifact": "browser blob download helper",
     "versionedApiPath": "versioned route alias helper",
     "reportError": "console error reporter",
     "resetDedupForTests": "test reset helper",

@@ -8,9 +8,9 @@ import {
   buildManuscript,
   createManuscript,
   createManuscriptAnnotation,
+  downloadManuscriptArtifact,
   fetchManuscript,
   fetchManuscripts,
-  manuscriptArtifactUrl,
   reviewManuscript,
   setManuscriptAnnotationStatus,
   signoffManuscript,
@@ -155,6 +155,15 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
       setNotice('Review note added.');
       await reloadSelected(selected.manuscript.id);
     }
+    setBusy(null);
+  };
+
+  const downloadArtifact = async (name: string) => {
+    if (!sessionId || !selected) return;
+    setBusy(`download-${name}`);
+    setError(null);
+    const result = await downloadManuscriptArtifact(sessionId, selected.manuscript.id, name);
+    if (!result.ok) setError(result.error);
     setBusy(null);
   };
 
@@ -404,6 +413,37 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             </form>
           </div>
 
+          <details className="border-t border-border pt-3">
+            <summary className="text-label cursor-pointer">Review dimensions</summary>
+            <div className="mt-2 space-y-2 text-label">
+              <p>{String((selected.manuscript.review as { summary?: unknown }).summary ?? 'No review summary.')}</p>
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  ['Rigor', 'rigor'],
+                  ['Novelty', 'novelty'],
+                  ['Grounding', 'grounding'],
+                  ['Hygiene', 'hygiene'],
+                  ['Reproducibility', 'reproducibility'],
+                  ['Mean', 'mean_score'],
+                ].map(([label, key]) => (
+                  <div key={key}>
+                    <dt className="text-muted">{label}</dt>
+                    <dd>{typeof (selected.manuscript.review as Record<string, unknown>)[key] === 'number'
+                      ? ((selected.manuscript.review as Record<string, number>)[key]).toFixed(2)
+                      : 'unmeasured'}</dd>
+                  </div>
+                ))}
+              </dl>
+              {Array.isArray((selected.manuscript.review as { critiques?: unknown }).critiques) && (
+                <ul className="list-disc pl-5">
+                  {((selected.manuscript.review as { critiques: string[] }).critiques).map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+
           {selected.manuscript.artifacts.length > 0 && (
             <div>
               <h5 className="text-label font-semibold mb-1">Artifacts</h5>
@@ -411,13 +451,14 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 {selected.manuscript.artifacts.map((a) => (
                   <li key={a.name} className="flex items-center justify-between gap-2">
                     <span className="font-mono break-all">{a.name}</span>
-                    <a
-                      className="underline text-accent"
-                      href={manuscriptArtifactUrl(sessionId, selected.manuscript.id, a.name)}
-                      download={a.name}
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      pending={busy === `download-${a.name}`}
+                      onClick={() => void downloadArtifact(a.name)}
                     >
                       download
-                    </a>
+                    </Button>
                   </li>
                 ))}
               </ul>

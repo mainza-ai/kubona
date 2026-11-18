@@ -26,7 +26,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,23 +88,26 @@ type manuscriptRequest struct {
 }
 
 type manuscriptCreateBody struct {
-	RequestID    string               `json:"request_id"`
-	Title        string               `json:"title"`
-	Authors      []string             `json:"authors"`
-	Abstract     string               `json:"abstract"`
-	EvidenceRefs []string             `json:"evidence_refs"`
-	ProofHash    string               `json:"proof_hash"`
-	Citations    []manuscriptCiteIn   `json:"citations"`
-	Figures      []manuscriptFigureIn `json:"figures"`
-	Build        bool                 `json:"build"`
+	RequestID        string               `json:"request_id"`
+	Title            string               `json:"title"`
+	Authors          []string             `json:"authors"`
+	Abstract         string               `json:"abstract"`
+	EvidenceRefs     []string             `json:"evidence_refs"`
+	ProofHash        string               `json:"proof_hash"`
+	CitationDistance *float64             `json:"citation_distance"`
+	Citations        []manuscriptCiteIn   `json:"citations"`
+	Figures          []manuscriptFigureIn `json:"figures"`
+	Build            bool                 `json:"build"`
 }
 
 type manuscriptCiteIn struct {
-	Key     string `json:"key"`
-	Title   string `json:"title"`
-	Authors string `json:"authors"`
-	Year    string `json:"year"`
-	DOI     string `json:"doi"`
+	Key      string `json:"key"`
+	Title    string `json:"title"`
+	Authors  string `json:"authors"`
+	Year     string `json:"year"`
+	DOI      string `json:"doi"`
+	ClaimID  string `json:"claim_id"`
+	SourceID string `json:"source_id"`
 }
 
 type manuscriptFigureIn struct {
@@ -166,11 +171,16 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 		WriteAPIError(w, "not_found", "unknown manuscript route", nil)
 		return
 	}
-	if r.Method != http.MethodGet {
-		WriteAPIError(w, "method_not_allowed", "manuscript detail is GET-only; drafts are immutable", nil)
-		return
+	switch r.Method {
+	case http.MethodGet:
+		s.writeManuscriptDetail(w, sessionID, rest, http.StatusOK)
+	case http.MethodPut:
+		s.handleManuscriptUpdate(w, r, sessionID, rest)
+	case http.MethodDelete:
+		s.handleManuscriptDelete(w, r, sessionID, rest)
+	default:
+		WriteAPIError(w, "method_not_allowed", "manuscript detail supports GET, PUT (draft), DELETE", nil)
 	}
-	s.writeManuscriptDetail(w, sessionID, rest, http.StatusOK)
 }
 
 type artifactPath struct {
@@ -219,12 +229,25 @@ func manuscriptSubpath(id string) (sessionID, rest string, ok bool) {
 }
 
 func (s *Server) handleManuscriptList(w http.ResponseWriter, r *http.Request, sessionID string) {
-	items, err := s.ledger.ListManuscripts(sessionID)
+	limit, offset := 50, 0
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			offset = n
+		}
+	}
+	items, hasMore, err := s.ledger.ListManuscriptsPage(sessionID, limit, offset)
 	if err != nil {
 		WriteAPIError(w, "internal", "manuscript list failed", nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"manuscripts": items})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"manuscripts": items, "limit": limit, "offset": offset, "has_more": hasMore,
+	})
 }
 
 // manuscriptWorkAllowed paces the CPU-bound manuscript operations (compose,
@@ -278,6 +301,26 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 	resolved, unresolved := s.resolveManuscriptReceipts(&campaign, body.EvidenceRefs)
 	proofHash, proofOK := s.resolveManuscriptProof(sessionID, strings.TrimSpace(body.ProofHash))
 	evidence := manuscriptEvidencePayload(resolved, unresolved, proofHash, proofOK)
+	if body.CitationDistance != nil {
+		if *body.CitationDistance < 0 || *body.CitationDistance > 100 {
+			WriteAPIError(w, "bad_request", "citation_distance must be between 0 and 100", nil)
+			return
+		}
+		evidence["citation_distance"] = *body.CitationDistance
+	}
+	verifiedClaims := map[string]bool{}
+	for _, c := range body.Citations {
+		if c.ClaimID == "" {
+			continue
+		}
+		claim, _, _, cerr := s.ledger.ClaimProvenance(sessionID, c.ClaimID)
+		if cerr != nil || claim == nil {
+			WriteAPIError(w, "bad_request",
+				fmt.Sprintf("citation claim %q was not found in this session", c.ClaimID), nil)
+			return
+		}
+		verifiedClaims[c.ClaimID] = true
+	}
 	citations := citePayload(body.Citations)
 	figures, ok := figurePayload(w, body.Figures)
 	if !ok {
@@ -335,6 +378,9 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		citationInput = resp.Citations
 	}
 	storedCitations := manuscriptCitations(citationInput)
+	for i := range storedCitations {
+		storedCitations[i].Verified = storedCitations[i].ClaimID != "" && verifiedClaims[storedCitations[i].ClaimID]
+	}
 	hash := manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, storedCitations, figures, resp.FigureSHA)
 	authorsJSON, _ := json.Marshal(authors)
 	figuresJSON, _ := json.Marshal(figures)
@@ -433,6 +479,7 @@ func manuscriptJSON(ms *ledger.Manuscript) map[string]any {
 	for _, c := range ms.Citations {
 		citations = append(citations, map[string]any{
 			"key": c.Key, "title": c.Title, "authors": c.Authors, "year": c.Year, "doi": c.DOI,
+			"claim_id": c.ClaimID, "source_id": c.SourceID, "verified": c.Verified,
 		})
 	}
 	out := map[string]any{
@@ -543,6 +590,9 @@ func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscrip
 	}
 	if resp.Build == nil {
 		return &manuscriptRefusal{code: "build_failed", message: "bridge returned no build metadata"}
+	}
+	if err := s.checkArtifactCeiling(ms, artifacts); err != nil {
+		return err
 	}
 	if err := s.ledger.ReplaceManuscriptArtifacts(ms.SessionID, ms.ID, resp.Build.BuildHash, artifacts); err != nil {
 		return err
@@ -756,6 +806,10 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	artifacts["zenodo_deposit.json"] = raw
+	if err := s.checkArtifactCeiling(ms, artifacts); err != nil {
+		s.writeManuscriptError(w, err)
+		return
+	}
 	if err := s.ledger.ReplaceManuscriptArtifacts(sessionID, id, ms.BuildHash, artifacts); err != nil {
 		WriteAPIError(w, "internal", "deposit artifact persistence failed: "+err.Error(), nil)
 		return
@@ -817,6 +871,7 @@ func (s *Server) storedManuscriptRequest(ms *ledger.Manuscript, build bool) (man
 	for _, c := range ms.Citations {
 		citations = append(citations, map[string]any{
 			"key": c.Key, "title": c.Title, "authors": c.Authors, "year": c.Year, "doi": c.DOI,
+			"claim_id": c.ClaimID, "source_id": c.SourceID, "verified": c.Verified,
 		})
 	}
 	return manuscriptRequest{
@@ -922,6 +977,7 @@ func manuscriptCitations(in []manuscriptCiteIn) []ledger.ManuscriptCitation {
 	for _, c := range in {
 		out = append(out, ledger.ManuscriptCitation{
 			Key: c.Key, Title: c.Title, Authors: c.Authors, Year: c.Year, DOI: c.DOI,
+			ClaimID: c.ClaimID, SourceID: c.SourceID,
 		})
 	}
 	return out
@@ -1298,4 +1354,147 @@ func (s *Server) observeManuscriptBuild(err error, elapsed time.Duration) {
 	s.manuscriptBuilds[result]++
 	s.manuscriptBuildSeconds += elapsed.Seconds()
 	s.manuscriptBuildCount++
+}
+
+// handleManuscriptUpdate edits a draft's title/abstract before the first
+// review. The content hash is recomputed over the stored sections/citations
+// and the review is cleared, so an edited draft cannot carry a stale review.
+func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, sessionID, id string) {
+	var body struct {
+		Title    string `json:"title"`
+		Abstract string `json:"abstract"`
+	}
+	if err := decodeStrict(r, &body); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid update: %v", err), nil)
+		return
+	}
+	ms, err := s.ledger.GetManuscript(sessionID, id)
+	if errors.Is(err, ledger.ErrManuscriptNotFound) {
+		WriteAPIError(w, "not_found", "unknown manuscript", nil)
+		return
+	}
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript read failed", nil)
+		return
+	}
+	if ms.State != ledger.ManuscriptStateDraft {
+		WriteAPIError(w, "manuscript_immutable",
+			"only a draft can be edited; create a new draft for changed content", nil)
+		return
+	}
+	if title := strings.TrimSpace(body.Title); title != "" {
+		ms.Title = title
+	}
+	if abstract := strings.TrimSpace(body.Abstract); abstract != "" {
+		ms.Abstract = abstract
+	}
+	sections := make([]manuscriptBridgeSection, 0, len(ms.Sections))
+	for _, sec := range ms.Sections {
+		sections = append(sections, manuscriptBridgeSection{Slug: sec.Slug, Title: sec.Title, Latex: sec.LaTeX})
+	}
+	var figures []map[string]any
+	if ms.FiguresJSON != "" {
+		if err := json.Unmarshal([]byte(ms.FiguresJSON), &figures); err != nil {
+			WriteAPIError(w, "internal", "stored figures are unreadable", nil)
+			return
+		}
+	}
+	sha := map[string]string{}
+	if ms.FigureSHAJSON != "" {
+		if err := json.Unmarshal([]byte(ms.FigureSHAJSON), &sha); err != nil {
+			WriteAPIError(w, "internal", "stored figure hashes are unreadable", nil)
+			return
+		}
+	}
+	ms.ContentHash = manuscriptContentHash(ms.Title, ms.Abstract, sections, ms.Citations, figures, sha)
+	ms.ReviewJSON = "{}"
+	if err := s.ledger.UpdateManuscriptDraft(ms); err != nil {
+		WriteAPIError(w, "internal", "manuscript update failed: "+err.Error(), nil)
+		return
+	}
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_updated", map[string]any{
+		"manuscript_id": id, "content_hash": ms.ContentHash,
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
+	s.writeManuscriptDetail(w, sessionID, id, http.StatusOK)
+}
+
+// handleManuscriptDelete removes a manuscript and its artifacts. A draft can
+// be deleted by a session caller; a signed/built/deposit_ready record is
+// evidence and requires the operator bearer. The deletion itself is sealed
+// with the hashes before the rows are removed.
+func (s *Server) handleManuscriptDelete(w http.ResponseWriter, r *http.Request, sessionID, id string) {
+	ms, err := s.ledger.GetManuscript(sessionID, id)
+	if errors.Is(err, ledger.ErrManuscriptNotFound) {
+		WriteAPIError(w, "not_found", "unknown manuscript", nil)
+		return
+	}
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript read failed", nil)
+		return
+	}
+	evidence := ms.Signoff != nil || ms.State == ledger.ManuscriptStateSigned ||
+		ms.State == ledger.ManuscriptStateBuilt || ms.State == ledger.ManuscriptStateDepositReady
+	if evidence {
+		tenant, _, code := s.checkAuth(r)
+		if code != http.StatusOK || tenant != "" {
+			WriteAPIError(w, "forbidden", "deleting a signed or built manuscript requires the operator bearer", nil)
+			return
+		}
+	}
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_deleted", map[string]any{
+		"manuscript_id": id, "content_hash": ms.ContentHash, "build_hash": ms.BuildHash,
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
+	if err := s.ledger.DeleteManuscript(sessionID, id); err != nil {
+		WriteAPIError(w, "internal", "manuscript delete failed: "+err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": id})
+}
+
+const defaultManuscriptArtifactCeiling = 256 << 20 // 256 MiB per session
+
+func manuscriptArtifactCeiling() int64 {
+	if raw := strings.TrimSpace(os.Getenv("KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES")); raw != "" {
+		if n, err := strconv.ParseInt(raw, 10, 64); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultManuscriptArtifactCeiling
+}
+
+func artifactSetBytes(artifacts map[string][]byte) int64 {
+	var total int64
+	for _, raw := range artifacts {
+		total += int64(len(raw))
+	}
+	return total
+}
+
+// checkArtifactCeiling bounds one session's stored artifact bytes. Replacing
+// this manuscript's set counts its own previous bytes once.
+func (s *Server) checkArtifactCeiling(ms *ledger.Manuscript, artifacts map[string][]byte) error {
+	current, err := s.ledger.ManuscriptArtifactBytesForSession(ms.SessionID)
+	if err != nil {
+		return err
+	}
+	own, err := s.ledger.ManuscriptArtifactBytesForManuscript(ms.ID)
+	if err != nil {
+		return err
+	}
+	next := current - own + artifactSetBytes(artifacts)
+	ceiling := manuscriptArtifactCeiling()
+	if next > ceiling {
+		return &manuscriptRefusal{
+			code: "artifact_ceiling_exceeded",
+			message: fmt.Sprintf("artifact set would use %d bytes, above the %d-byte session ceiling; delete old drafts or raise KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES",
+				next, ceiling),
+		}
+	}
+	return nil
 }

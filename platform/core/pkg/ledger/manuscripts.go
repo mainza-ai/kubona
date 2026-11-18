@@ -102,6 +102,9 @@ CREATE TABLE IF NOT EXISTS manuscript_citations (
 	authors TEXT NOT NULL DEFAULT '',
 	year TEXT NOT NULL DEFAULT '',
 	doi TEXT NOT NULL DEFAULT '',
+	claim_id TEXT NOT NULL DEFAULT '',
+	source_id TEXT NOT NULL DEFAULT '',
+	verified INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (manuscript_id, cite_key)
 );
 
@@ -145,11 +148,16 @@ type ManuscriptSection struct {
 }
 
 type ManuscriptCitation struct {
-	Key     string
-	Title   string
-	Authors string
-	Year    string
-	DOI     string
+	Key      string
+	Title    string
+	Authors  string
+	Year     string
+	DOI      string
+	ClaimID  string
+	SourceID string
+	// Verified means the claim this citation is bound to exists in the
+	// ledger; an unbound citation is caller-supplied reference text.
+	Verified bool
 }
 
 type ManuscriptArtifact struct {
@@ -250,8 +258,9 @@ func (l *Ledger) CreateManuscript(m *Manuscript) error {
 	}
 	for _, c := range m.Citations {
 		if _, err := tx.Exec(`INSERT INTO manuscript_citations
-			(manuscript_id, cite_key, title, authors, year, doi) VALUES (?, ?, ?, ?, ?, ?)`,
-			m.ID, c.Key, c.Title, c.Authors, c.Year, c.DOI); err != nil {
+			(manuscript_id, cite_key, title, authors, year, doi, claim_id, source_id, verified)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			m.ID, c.Key, c.Title, c.Authors, c.Year, c.DOI, c.ClaimID, c.SourceID, boolInt(c.Verified)); err != nil {
 			return fmt.Errorf("insert citation: %w", err)
 		}
 	}
@@ -335,8 +344,8 @@ func (l *Ledger) manuscriptSections(id string) ([]ManuscriptSection, error) {
 }
 
 func (l *Ledger) manuscriptCitations(id string) ([]ManuscriptCitation, error) {
-	rows, err := l.DB().Query(`SELECT cite_key, title, authors, year, doi FROM manuscript_citations
-		WHERE manuscript_id = ? ORDER BY cite_key`, id)
+	rows, err := l.DB().Query(`SELECT cite_key, title, authors, year, doi, claim_id, source_id, verified
+		FROM manuscript_citations WHERE manuscript_id = ? ORDER BY cite_key`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -344,9 +353,12 @@ func (l *Ledger) manuscriptCitations(id string) ([]ManuscriptCitation, error) {
 	out := []ManuscriptCitation{}
 	for rows.Next() {
 		var c ManuscriptCitation
-		if err := rows.Scan(&c.Key, &c.Title, &c.Authors, &c.Year, &c.DOI); err != nil {
+		var verified int
+		if err := rows.Scan(&c.Key, &c.Title, &c.Authors, &c.Year, &c.DOI,
+			&c.ClaimID, &c.SourceID, &verified); err != nil {
 			return nil, err
 		}
+		c.Verified = verified != 0
 		out = append(out, c)
 	}
 	return out, rows.Err()
@@ -401,8 +413,9 @@ func (l *Ledger) UpdateManuscriptDraft(m *Manuscript) error {
 	}
 	for _, c := range m.Citations {
 		if _, err := tx.Exec(`INSERT INTO manuscript_citations
-			(manuscript_id, cite_key, title, authors, year, doi) VALUES (?, ?, ?, ?, ?, ?)`,
-			m.ID, c.Key, c.Title, c.Authors, c.Year, c.DOI); err != nil {
+			(manuscript_id, cite_key, title, authors, year, doi, claim_id, source_id, verified)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			m.ID, c.Key, c.Title, c.Authors, c.Year, c.DOI, c.ClaimID, c.SourceID, boolInt(c.Verified)); err != nil {
 			return err
 		}
 	}
@@ -799,4 +812,87 @@ func (l *Ledger) SetManuscriptState(sessionID, id, state string) error {
 		return ErrManuscriptNotFound
 	}
 	return nil
+}
+
+// ListManuscriptsPage returns a bounded page and whether more rows exist.
+func (l *Ledger) ListManuscriptsPage(sessionID string, limit, offset int) ([]ManuscriptSummary, bool, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := l.DB().Query(`SELECT id, title, state, content_hash, build_hash, created_at, updated_at
+		FROM manuscripts WHERE session_id = ? ORDER BY created_at DESC, id LIMIT ? OFFSET ?`,
+		sessionID, limit+1, offset)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	out := []ManuscriptSummary{}
+	for rows.Next() {
+		var s ManuscriptSummary
+		if err := rows.Scan(&s.ID, &s.Title, &s.State, &s.ContentHash, &s.BuildHash,
+			&s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, false, err
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	hasMore := len(out) > limit
+	if hasMore {
+		out = out[:limit]
+	}
+	return out, hasMore, nil
+}
+
+// DeleteManuscript removes one manuscript and every child row. The caller
+// records the deletion event and hashes before calling; this method is the
+// storage destruction only.
+func (l *Ledger) DeleteManuscript(sessionID, id string) error {
+	tx, err := l.DB().Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`DELETE FROM manuscripts WHERE session_id = ? AND id = ?`, sessionID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrManuscriptNotFound
+	}
+	for _, stmt := range []string{
+		`DELETE FROM manuscript_sections WHERE manuscript_id = ?`,
+		`DELETE FROM manuscript_reviews WHERE manuscript_id = ?`,
+		`DELETE FROM manuscript_artifacts WHERE manuscript_id = ?`,
+		`DELETE FROM manuscript_signoffs WHERE manuscript_id = ?`,
+		`DELETE FROM manuscript_citations WHERE manuscript_id = ?`,
+		`DELETE FROM manuscript_annotations WHERE manuscript_id = ?`,
+	} {
+		if _, err := tx.Exec(stmt, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (l *Ledger) ManuscriptArtifactBytesForSession(sessionID string) (int64, error) {
+	var n int64
+	err := l.DB().QueryRow(`SELECT COALESCE(SUM(LENGTH(content)), 0)
+		FROM manuscript_artifacts a JOIN manuscripts m ON m.id = a.manuscript_id
+		WHERE m.session_id = ?`, sessionID).Scan(&n)
+	return n, err
+}
+
+func (l *Ledger) ManuscriptArtifactBytesForManuscript(manuscriptID string) (int64, error) {
+	var n int64
+	err := l.DB().QueryRow(`SELECT COALESCE(SUM(LENGTH(content)), 0)
+		FROM manuscript_artifacts WHERE manuscript_id = ?`, manuscriptID).Scan(&n)
+	return n, err
 }

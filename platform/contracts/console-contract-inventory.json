@@ -1434,6 +1434,10 @@
       "reason": "browser file helper"
     },
     {
+      "function": "downloadManuscriptArtifact",
+      "reason": "browser blob download helper"
+    },
+    {
       "function": "fetchBackendStatus",
       "reason": "client-constructed health status"
     },

@@ -4344,3 +4344,41 @@ export async function setManuscriptAnnotationStatus(
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
   }
 }
+
+
+/**
+ * Download an artifact through the authenticated transport. A plain anchor
+ * works with the session cookie but not a bearer-only console, so the bytes
+ * are fetched with the same headers every other call uses.
+ */
+export async function downloadManuscriptArtifact(
+  sessionId: string,
+  id: string,
+  name: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(manuscriptArtifactUrl(sessionId, id, name), {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      const message = typeof payload.message === 'string'
+        ? payload.message
+        : `artifact download failed (${res.status})`;
+      return { ok: false, error: message.slice(0, 280) };
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = name.split('/').pop() || 'artifact';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}

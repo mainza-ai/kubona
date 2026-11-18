@@ -8138,6 +8138,7 @@
     "apiFetch",
     "configureApiBase",
     "downloadFile",
+    "downloadManuscriptArtifact",
     "fetchBackendStatus",
     "fetchCampaignState",
     "fetchJobs",
