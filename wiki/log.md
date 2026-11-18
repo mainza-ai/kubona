@@ -7198,3 +7198,19 @@ skipped is the exact failure this incident is about:
 - Runtime: a signed H2 manuscript exported 5 entities / 4 activities / 5
   agents with zero dangling references; the crate carried the verification and
   signoff nodes and both new files in `hasPart`.
+
+## [2026-11-18] implementation | AG-7 stage autonomy and risk screening
+
+- `pkg/autonomy` adds per-session stage modes (hypothesize/plan/execute/
+  collapse × suggest/approve/act) on top of tenant L0–L3, plus a v1 risk
+  classifier: hardware/vendor backend, dual-use terms, or over the act budget
+  are high; large chains/full-space work/large optimizer budgets are medium.
+- Plan execution is the enforced boundary: suggest refuses even approved plans
+  (`autonomy_suggest_only`), high risk requires explicit approval in every mode
+  (`risk_approval_required`), approve preserves `plan_not_approved`, and act
+  auto-approves only low/medium risk inside `max_act_budget_usd` (recorded as
+  `auto_approved`). Plans persist registration risk (schema 10).
+- `GET/PUT /autonomy` and `POST /autonomy/halt` (operator bearer); halt sets
+  every stage to suggest and cancels live jobs.
+- Runtime: act auto-approved a low-risk plan; a hardware plan was refused until
+  approved; suggest refused an approved plan; halt zeroed every stage.

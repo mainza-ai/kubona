@@ -127,6 +127,25 @@
         "detail"
       ]
     },
+    "autonomy_halted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session autonomy halted: every stage set to suggest and live jobs cancelled.",
+      "required": [
+        "cancelled_jobs"
+      ]
+    },
+    "autonomy_policy_updated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session stage autonomy policy set by the operator.",
+      "required": [
+        "stages",
+        "max_act_budget_usd"
+      ]
+    },
     "autoresearch_loop_drain": {
       "emitters": [
         "go"

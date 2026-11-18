@@ -117,8 +117,10 @@ capability, not a demo.
       content hash, signoff).
 - [x] AG-6b: `pkg/prov` W3C PROV-JSON + CRediT attribution; the export writes
       `prov.json`/`credit.json` and folds PROV-O nodes into the RO-Crate.
-- [ ] AG-7: stage-level autonomy modes (suggest/approve/act), dual-use/risk
-      screening, and human signoff for flagged directions.
+- [x] AG-7: `pkg/autonomy` stage modes (suggest/approve/act), v1 risk
+      classifier (hardware/dual-use/budget + large-simulation), enforced at
+      plan execution, persisted policy, and an operator halt that cancels live
+      jobs. Schema 10.
 - [x] AG-8a: `kubona_hypotheses{status}` + `kubona_experiment_plans{status}`
       gauges.
 - [ ] AG-8b: stage/failure taxonomy, cost per accepted claim, human minutes,

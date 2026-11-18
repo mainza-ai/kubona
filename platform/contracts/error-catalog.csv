@@ -57,3 +57,5 @@ hypothesis_not_shortlisted,state,409,false,shortlist the hypothesis before plann
 spec_unavailable,validation,400,false,provide an explicit spec: the campaign lacks the facts this method needs
 evidence_verification_failed,state,409,false,"replace or remove the unsupported number/citation, or record the evidence it cites"
 verification_unavailable,state,409,false,"retry when the literature bridge is reachable, or sign with acknowledge_unverified"
+autonomy_suggest_only,state,403,false,"the session execute stage is suggest: a human must execute through the manual experiment rail or set the stage to approve/act"
+risk_approval_required,state,409,false,"approve the plan explicitly: high risk or over the act budget requires human approval in every mode"

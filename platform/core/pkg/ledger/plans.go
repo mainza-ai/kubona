@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS experiment_plans (
 	executor TEXT NOT NULL DEFAULT 'bridge',
 	spec_json TEXT NOT NULL DEFAULT '{}',
 	spec_basis_json TEXT NOT NULL DEFAULT '[]',
+	risk TEXT NOT NULL DEFAULT '',
+	risk_reasons_json TEXT NOT NULL DEFAULT '[]',
 	status TEXT NOT NULL DEFAULT 'proposed',
 	job_id TEXT NOT NULL DEFAULT '',
 	result_json TEXT NOT NULL DEFAULT '{}',
@@ -60,6 +62,8 @@ type ExperimentPlan struct {
 	Executor         string   `json:"executor"`
 	SpecJSON         string   `json:"spec"`
 	SpecBasis        []string `json:"spec_basis,omitempty"`
+	Risk             string   `json:"risk,omitempty"`
+	RiskReasons      []string `json:"risk_reasons,omitempty"`
 	Status           string   `json:"status"`
 	JobID            string   `json:"job_id,omitempty"`
 	ResultJSON       string   `json:"result,omitempty"`
@@ -106,15 +110,20 @@ func (l *Ledger) CreatePlan(sessionID, tenantID string, p *ExperimentPlan) error
 	if err != nil {
 		return err
 	}
+	riskReasons, err := jsonStrings(p.RiskReasons)
+	if err != nil {
+		return err
+	}
 	now := nowUTC()
 	_, err = l.DB().Exec(`INSERT INTO experiment_plans
 		(id, session_id, tenant_id, hypothesis_id, statement, method, observable,
 		 acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		 spec_basis_json, status, job_id, result_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 spec_basis_json, risk, risk_reasons_json, status, job_id, result_json,
+		 created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, sessionID, tenantID, p.HypothesisID, p.Statement, p.Method, p.Observable,
 		p.AcceptanceMetric, p.Tolerance, p.StopRule, p.BudgetUSD, p.Executor, p.SpecJSON,
-		basis, p.Status, p.JobID, p.ResultJSON, now, now)
+		basis, p.Risk, riskReasons, p.Status, p.JobID, p.ResultJSON, now, now)
 	if err != nil {
 		return fmt.Errorf("insert experiment plan: %w", err)
 	}
@@ -128,7 +137,8 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	}
 	rows, err := l.DB().Query(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		spec_basis_json, status, job_id, result_json, created_at, updated_at
+		spec_basis_json, risk, risk_reasons_json, status, job_id, result_json,
+		created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`, sessionID, limit)
 	if err != nil {
 		return nil, err
@@ -137,14 +147,15 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	out := []ExperimentPlan{}
 	for rows.Next() {
 		var p ExperimentPlan
-		var basis string
+		var basis, riskReasons string
 		if err := rows.Scan(&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method,
 			&p.Observable, &p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD,
-			&p.Executor, &p.SpecJSON, &basis, &p.Status, &p.JobID, &p.ResultJSON,
-			&p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Executor, &p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.Status, &p.JobID,
+			&p.ResultJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
+		_ = jsonUnmarshalStrings(riskReasons, &p.RiskReasons)
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -152,14 +163,16 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 
 func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 	var p ExperimentPlan
-	var basis string
+	var basis, riskReasons string
 	err := l.DB().QueryRow(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		spec_basis_json, status, job_id, result_json, created_at, updated_at
+		spec_basis_json, risk, risk_reasons_json, status, job_id, result_json,
+		created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method, &p.Observable,
 		&p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD, &p.Executor,
-		&p.SpecJSON, &basis, &p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt, &p.UpdatedAt)
+		&p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.Status, &p.JobID, &p.ResultJSON,
+		&p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrPlanNotFound
 	}
@@ -167,6 +180,7 @@ func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 		return nil, err
 	}
 	_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
+	_ = jsonUnmarshalStrings(riskReasons, &p.RiskReasons)
 	return &p, nil
 }
 

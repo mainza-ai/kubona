@@ -2376,6 +2376,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handlePlanRoute(w, r, sid, rest)
 		return
 	}
+	if sid, rest, ok := autonomySubpath(id); ok {
+		s.handleAutonomyRoute(w, r, sid, rest)
+		return
+	}
 	if sid, ok := researchGraphSubpath(id); ok {
 		s.handleResearchGraph(w, r, sid)
 		return

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/plans"
 )
@@ -160,6 +161,11 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		return
 	}
 
+	var campaign agents.CampaignState
+	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &campaign)
+	}
+
 	// AG-3b: a hypothesis can be planned without a caller-supplied spec. The
 	// synthesizer grounds every value in the campaign and the hypothesis's
 	// declared patch; a kind it cannot ground refuses instead of guessing.
@@ -178,10 +184,6 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 				"plan needs a concrete experiment spec, or a hypothesis_id to synthesize from", nil)
 			return
 		}
-		var campaign agents.CampaignState
-		if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
-			_ = json.Unmarshal(raw, &campaign)
-		}
 		facts := planFactsFromCampaign(&campaign)
 		synthesized, basis, err := plans.Synthesize(plans.Request{
 			Method: method, Hint: hypothesis.ExperimentHint, Patch: hypothesis.SpecPatch,
@@ -194,6 +196,15 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 	}
 	spec["kind"] = method
 	rawSpec, _ := json.Marshal(spec)
+	// AG-7: classify at registration so the risk is visible before anyone
+	// approves or executes. The execution path reclassifies with the policy in
+	// force at that moment.
+	policy, _ := s.loadAutonomyPolicy(sessionID)
+	risk := autonomy.Classify(autonomy.RiskInput{
+		Method: method, Spec: spec, BudgetUSD: body.BudgetUSD,
+		Statement: body.Statement, Target: campaign.TargetSystem,
+		MaxActBudgetUSD: policy.MaxActBudgetUSD,
+	})
 	plan := &ledger.ExperimentPlan{
 		ID:               fmt.Sprintf("plan_%s", newManuscriptID()[3:11]),
 		HypothesisID:     body.HypothesisID,
@@ -207,6 +218,8 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		Executor:         strings.TrimSpace(body.Executor),
 		SpecJSON:         string(rawSpec),
 		SpecBasis:        specBasis,
+		Risk:             risk.Level,
+		RiskReasons:      risk.Reasons,
 		Status:           ledger.PlanProposed,
 	}
 	if err := s.ledger.CreatePlan(sessionID, tenantID, plan); err != nil {
@@ -236,21 +249,40 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		WriteAPIError(w, "internal", "plan read failed", nil)
 		return
 	}
-	if plan.Status != ledger.PlanApproved {
-		WriteAPIError(w, "plan_not_approved", "a plan must be approved before execution", nil)
-		return
-	}
 	var spec map[string]any
 	if err := json.Unmarshal([]byte(plan.SpecJSON), &spec); err != nil || spec == nil {
 		WriteAPIError(w, "bad_request", "stored plan spec is unreadable", nil)
 		return
 	}
-	spec["kind"] = plan.Method
-	spec["max_cost_usd"] = plan.BudgetUSD
 	if err := s.requireDispatchAutonomy(sessionID); err != nil {
 		WriteAPIError(w, "forbidden", err.Error(), nil)
 		return
 	}
+	// AG-7: the session policy and the plan's risk decide whether the agent may
+	// execute. "suggest" always refuses; high risk always needs approval.
+	var campaign agents.CampaignState
+	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &campaign)
+	}
+	policy, _ := s.loadAutonomyPolicy(sessionID)
+	decision := autonomy.DecideExecute(policy, plan.Status, autonomy.RiskInput{
+		Method: plan.Method, Spec: spec, BudgetUSD: plan.BudgetUSD,
+		Statement: plan.Statement, Target: campaign.TargetSystem,
+		MaxActBudgetUSD: policy.MaxActBudgetUSD,
+	})
+	if !decision.Allowed {
+		code := decision.Code
+		if code == "" {
+			code = "risk_approval_required"
+		}
+		WriteAPIError(w, code, decision.Reason, map[string]any{
+			"risk": decision.Risk, "execute_mode": policy.ModeFor(autonomy.StageExecute),
+			"max_act_budget_usd": policy.MaxActBudgetUSD,
+		})
+		return
+	}
+	spec["kind"] = plan.Method
+	spec["max_cost_usd"] = plan.BudgetUSD
 	jobType, ok := experimentJobType(plan.Method)
 	if !ok {
 		WriteAPIError(w, "bad_request", "unknown plan method: "+plan.Method, nil)
@@ -265,6 +297,7 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	_ = s.ledger.SetPlanStatus(sessionID, id, ledger.PlanRunning)
 	_ = s.recordManuscriptEvent(sessionID, "plan_started", map[string]any{
 		"plan_id": id, "job_id": job.ID, "method": plan.Method,
+		"auto_approved": decision.AutoApprove, "risk": decision.Risk.Level,
 	})
 	final, err := s.waitForJob(sessionID, job.ID, 10*time.Minute)
 	if err != nil {
@@ -288,6 +321,7 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		"observable": plan.Observable, "measured": measured,
 		"acceptance_metric": plan.AcceptanceMetric, "target": target,
 		"tolerance": plan.Tolerance, "accepted": accepted, "result": result,
+		"auto_approved": decision.AutoApprove, "risk": decision.Risk.Level,
 	})
 	if err := s.ledger.SetPlanResult(sessionID, id, status, job.ID, string(payload)); err != nil {
 		WriteAPIError(w, "internal", "plan result failed: "+err.Error(), nil)
@@ -297,7 +331,10 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		"plan_id": id, "job_id": job.ID, "accepted": accepted, "status": status,
 	})
 	updated, _ := s.ledger.GetPlan(sessionID, id)
-	writeJSON(w, http.StatusOK, map[string]any{"plan": updated, "accepted": accepted, "result": result})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"plan": updated, "accepted": accepted, "result": result,
+		"auto_approved": decision.AutoApprove, "risk": decision.Risk,
+	})
 }
 
 // numberAt reads a dotted numeric path from a job result.

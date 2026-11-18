@@ -91,9 +91,12 @@ prove autonomy on a benchmark.
 - **AG-6b closed:** W3C PROV-JSON (`prov.json`) and CRediT attribution
   (`credit.json`) per manuscript, plus PROV-O nodes in the RO-Crate; agents are
   attributed only when the ledger records them.
+- **AG-7 closed:** session stage modes (suggest/approve/act), a v1 risk
+  classifier enforced at plan execution, and an operator halt that cancels live
+  jobs (schema 10).
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-7 autonomy/safety; AG-8b dashboards; AG-9 registry.
-- Schema 9.
+- **Open:** AG-8b dashboards; AG-9 registry.
+- Schema 10.
 
 ## Cross-references
 

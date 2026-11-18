@@ -439,6 +439,36 @@ assert the crate and its artifact entries.
   crate contained the verification and signoff nodes and listed `prov.json` /
   `credit.json` in `hasPart`.
 
+### AG-7 — stage autonomy and risk screening
+
+- `pkg/autonomy` adds the session rail on top of tenant autonomy (L0–L3):
+  - stages `hypothesize`, `plan`, `execute`, `collapse`;
+  - modes `suggest` (human executes), `approve` (plan approval required —
+    the platform default for execute), `act` (bounded autonomous);
+  - a v1 risk classifier: high for hardware/vendor backends, dual-use terms,
+    or a budget above the act cap; medium for large chains/full-space work or
+    a large optimizer budget; low otherwise.
+- The execution path is the enforced boundary: `suggest` refuses even an
+  approved plan (`autonomy_suggest_only`), high risk refuses without explicit
+  approval in every mode (`risk_approval_required`), and `approve` preserves
+  the existing `plan_not_approved` gate. `act` auto-approves only low/medium
+  risk inside `max_act_budget_usd`, and records `auto_approved` + risk on the
+  plan-started event and result.
+- `GET/PUT /api/sessions/{sid}/autonomy` reads/sets the policy (mutations need
+  the operator bearer); `POST …/autonomy/halt` sets every stage to suggest and
+  cancels live jobs (`autonomy_halted`).
+- Plans persist their registration risk and reasons (schema 10
+  `experiment_plans.risk` / `risk_reasons_json`) and reclassify at execution
+  with the policy in force then.
+- Tests: policy normalization/validation, every risk branch, the full decision
+  matrix, and the API paths (default, act auto-approval, high-risk refusal,
+  over-budget refusal, suggest refusal, invalid policy, halt persistence).
+- Runtime (schema 10): default execute=approve; `act` executed a low-risk plan
+  with `auto_approved:true`; a hardware plan returned 409
+  `risk_approval_required` and ran only after approval; `suggest` returned 403
+  `autonomy_suggest_only` even for an approved plan; halt set all four stages
+  to suggest.
+
 ### AG-8a — telemetry
 
 `/metrics` adds `kubona_hypotheses{status}` and
@@ -446,8 +476,7 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-7 (stage autonomy + safety screening), AG-8b (dashboards/human-minute
-metrics), AG-9 (cumulative lab knowledge).
+AG-8b (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations
 

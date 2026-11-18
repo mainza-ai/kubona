@@ -31,6 +31,8 @@ const SettlementSkippedUnknownUsageEvent = "settlement_skipped_unknown_usage"
 var KnownEventTypes = map[string]bool{
 	"auth_login":                        true,
 	"auth_login_refused":                true,
+	"autonomy_halted":                   true,
+	"autonomy_policy_updated":           true,
 	"auth_logout":                       true,
 	"auth_session_revoked":              true,
 	"a2a_harness_eval":                  true,
