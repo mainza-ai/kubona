@@ -125,6 +125,16 @@ export is the export-before-delete path, and `preflight --strict` gates
 plaintext backups. Schema 4. Remaining: build the Lean sandbox image and
 configure the comparator key; operator encryption/reset.
 
+### Sixth pass (2026-11-18): backup encryption + operator tooling
+
+Backups are now `age`-encrypted with the private key host-side at
+`~/.kubona/backup-age.key`; the encrypted artifact restored clean and the
+pre-encryption plaintext artifacts were removed. `KUBONA_COMPARATOR_PUBKEY_HEX`
+is configured (key at `~/.kubona/comparator.key`), and scripts now cover key
+generation, the Lean sandbox, comparator runs, and an archive-first compose
+reset. Remaining: build/warm the Lean image, copy the backup key off-host, and
+execute the reset when ready.
+
 ### Follow-up pass (2026-11-18, second)
 
 `docs/publication-followup-audit-2026-11-18.md` re-audited the shipped

@@ -118,9 +118,14 @@ Still open (A-series in `docs/active-implementation-todos.md`):
   comparator attestation boundary (CLI + key-verified ingestion) with a full
   ACCEPT→build→signoff→deposit path; A4b read-only manuscript export;
   `preflight --strict` plaintext-backup gate.
-- **Operator:** build the pinned Lean image, set `KUBONA_COMPARATOR_PUBKEY_HEX`
-  (private key host-side), and run a real challenge. Encryption/ack and the
-  fresh-volume reset remain operator decisions.
+- **Landed (sixth pass):** encrypted `age` backups with a host-side key and a
+  verified encrypted restore; the comparator keypair generated and the public
+  key configured; one-command scripts for the Lean sandbox, comparator run,
+  and an archive-first compose reset.
+- **Operator:** build/warm the Lean image and run a real challenge; copy
+  `~/.kubona/backup-age.key` off-host; execute
+  `scripts/reset-compose-state.sh --yes` when ready for a fresh single-lab
+  ledger.
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
   the fresh-volume reset for the polluted host ledger.
 

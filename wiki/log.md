@@ -7057,3 +7057,16 @@ skipped is the exact failure this incident is about:
   export produced all 17 files.
 - Posture: `preflight --strict` refuses an unacknowledged plaintext backup;
   `KUBONA_BACKUP_PLAINTEXT_ACK=1` is the explicit waiver.
+
+## [2026-11-18] implementation | Encrypted backups, comparator key, operator scripts
+
+- Backups switched to `age` (`KUBONA_BACKUP_REQUIRE_ENCRYPTION=1`), key at
+  `~/.kubona/backup-age.key` (0600, host-side). The first encrypted backup was
+  restored and chain-verified; the pre-encryption plaintext artifacts were
+  removed. `preflight --strict` now passes with encryption required.
+- Comparator keypair generated (`~/.kubona/comparator.key`) and
+  `KUBONA_COMPARATOR_PUBKEY_HEX` configured; the endpoint no longer fails
+  unconfigured. The Lean sandbox image is still unbuilt.
+- Added `scripts/comparator-keygen.sh`, `comparator-verify.sh`,
+  `build-lean-sandbox.sh`, and `reset-compose-state.sh` (archive-first,
+  dry-run by default). The reset dry run identified the state volume and plan.

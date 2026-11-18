@@ -34,6 +34,37 @@ using it for restore. FK quarantine can still proceed because it is
 transactional and preserves every row in `_fk_orphans`, but state the caveat
 in the operator log.
 
+## Encrypted backups (current posture)
+
+The local stack generates backups with `age` and requires encryption:
+`KUBONA_BACKUP_AGE_RECIPIENT` and `KUBONA_BACKUP_REQUIRE_ENCRYPTION=1` are set
+in `.env`. The matching private key lives **outside the repository and outside
+the backup volume**:
+
+```
+~/.kubona/backup-age.key   (0600)
+```
+
+Copy that file off-host now. Without it, encrypted backups cannot be
+restored; the daemon never needs it (only the public recipient is configured
+for writing). The pre-encryption plaintext artifacts were verified against the
+live ledger, then removed after the first encrypted backup restored clean.
+
+Restore from the newest encrypted artifact:
+
+```bash
+docker run --rm \
+  -v kubona-prod_kubona-backups:/backups:ro \
+  -v "$HOME/.kubona/backup-age.key:/key:ro" \
+  -v "$PWD/scripts:/scripts:ro" --entrypoint bash kubona/kubonad:prod \
+  -c 'KUBONAD_BIN=/usr/local/bin/kubonad KUBONA_AGE_IDENTITY=/key \
+      bash /scripts/backup-restore-check.sh /backups'
+```
+
+`kubonad backup-status` reports `age-encrypted`; `preflight` and the backup
+healthcheck fail if the newest artifact is plaintext while encryption is
+required.
+
 ## Prove the scheduled file restores
 
 `kubonad restore-drill` snapshots the live ledger and proves that round-trip;

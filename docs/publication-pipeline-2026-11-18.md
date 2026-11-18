@@ -165,16 +165,31 @@ test unless noted:
 
 ## Comparator attestations (A3 boundary)
 
-The Lean comparator runs on the operator host in the pinned Docker sandbox:
+Provision the key once (private key stays host-side; only the public line goes
+in `.env`):
 
 ```bash
-KUBONA_COMPARATOR_PRIVKEY_HEX=... \
-  python -m kubona.eval.comparator_cli \
-  --challenge Heisenberg --session <sid> --out /tmp/attestation.json
+scripts/comparator-keygen.sh        # writes ~/.kubona/comparator.key (0600)
+```
+
+Build and warm the pinned sandbox (network required for the warm step; large):
+
+```bash
+scripts/build-lean-sandbox.sh --warm
+```
+
+Run a challenge and submit the signed attestation:
+
+```bash
+scripts/comparator-verify.sh --challenge Heisenberg --session <sid> \
+  --out /tmp/attestation.json
 curl -X POST .../api/sessions/<sid>/formal-verifications \
   -H "Authorization: Bearer $KUBONA_API_TOKEN" \
   -H 'Content-Type: application/json' --data @/tmp/attestation.json
 ```
+
+The comparator key is already configured on the local daemon; the Lean image
+is not built here, so no attestation can be produced until `--warm` completes.
 
 The CLI refuses if the kernel did not run (`live_kernel_proven` required), if
 any axiom is outside `{propext, Quot.sound, Classical.choice}`, or if the

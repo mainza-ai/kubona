@@ -148,6 +148,22 @@ the backup in place. Restart `kubonad` to create a clean ledger.
 
 ### Reset a compose ledger
 
+The supported one-command path is:
+
+```bash
+scripts/reset-compose-state.sh                 # dry run: prints the plan
+scripts/reset-compose-state.sh --yes           # archive + reset
+```
+
+It takes a verified SQLite backup, copies the whole state volume to a new
+archive volume, then removes only `kubona.db{,-wal,-shm}` and restarts. It
+preserves the backup volume, `pqc_recipient_key.bin`, contracts, models, and
+evals. **The DB holds sessions, labs, sealed provider keys, claims, and
+campaigns**; export the publication evidence first
+(`kubonad manuscript-export`) and re-enter sealed keys after the reset.
+
+The manual equivalent follows.
+
 `local-reset.py` is a host-path tool: it cannot reach a ledger inside the
 `kubona-state` Docker volume and it cannot take the lock while the compose
 daemon holds it. For the compose topology, back up first, stop only

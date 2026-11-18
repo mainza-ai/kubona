@@ -110,8 +110,15 @@ verification, receipt cap) are landed with tests.
       precondition for deleting a lab/session. (G-06)
 - [x] Operator gate: `kubonad preflight --strict` refuses an unacknowledged
       plaintext backup (`KUBONA_BACKUP_PLAINTEXT_ACK=1` explicitly accepts).
-- [ ] Operator: set the comparator key (`KUBONA_COMPARATOR_PUBKEY_HEX` + host
-      private key), build the pinned Lean image, and run a real challenge.
+- [x] Operator: comparator key generated (`~/.kubona/comparator.key`) and the
+      public key configured on the daemon (`KUBONA_COMPARATOR_PUBKEY_HEX`).
+- [ ] Operator: build/warm the pinned Lean image
+      (`scripts/build-lean-sandbox.sh --warm`) and run a real challenge.
+- [x] Operator: encrypted backups enabled (age recipient + REQUIRE=1), key at
+      `~/.kubona/backup-age.key`; the encrypted artifact restored clean and the
+      pre-encryption plaintext artifacts were removed.
+- [ ] Operator: copy `~/.kubona/backup-age.key` off-host and execute the
+      reset script (`scripts/reset-compose-state.sh --yes`) when ready.
 - [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
       scrubbed `build.log` artifact; build success/failure + duration +
       artifact-bytes metrics. (closes G-07, G-08)
