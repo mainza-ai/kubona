@@ -115,7 +115,8 @@ capability, not a demo.
       maintainer labels. Schema 9.
 - [x] AG-6a: RO-Crate 1.1 metadata in `manuscript-export` (files, hashes,
       content hash, signoff).
-- [ ] AG-6b: PROV/PROV-AGENT export and CRediT-style attribution.
+- [x] AG-6b: `pkg/prov` W3C PROV-JSON + CRediT attribution; the export writes
+      `prov.json`/`credit.json` and folds PROV-O nodes into the RO-Crate.
 - [ ] AG-7: stage-level autonomy modes (suggest/approve/act), dual-use/risk
       screening, and human signoff for flagged directions.
 - [x] AG-8a: `kubona_hypotheses{status}` + `kubona_experiment_plans{status}`

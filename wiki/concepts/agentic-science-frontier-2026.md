@@ -88,8 +88,11 @@ prove autonomy on a benchmark.
   the resolver-unavailable acknowledgment is explicit and sealed; calibration
   reports 12/12 against maintainer labels (schema 9).
 - **AG-6a closed:** RO-Crate 1.1 metadata in `manuscript-export`.
+- **AG-6b closed:** W3C PROV-JSON (`prov.json`) and CRediT attribution
+  (`credit.json`) per manuscript, plus PROV-O nodes in the RO-Crate; agents are
+  attributed only when the ledger records them.
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-6b PROV; AG-7 autonomy/safety; AG-8b dashboards; AG-9 registry.
+- **Open:** AG-7 autonomy/safety; AG-8b dashboards; AG-9 registry.
 - Schema 9.
 
 ## Cross-references

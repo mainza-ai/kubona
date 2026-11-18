@@ -409,6 +409,36 @@ view (no second store). Tests assert the assembled counts.
 with the dataset, per-file SHA-256, content hash, and signoff entity. Tests
 assert the crate and its artifact entries.
 
+### AG-6b — PROV export and CRediT attribution
+
+- `kubonad manuscript-export` now writes two additional artifacts per
+  manuscript:
+  - `prov.json` — W3C PROV-JSON with the manuscript, campaign snapshot, jobs,
+    claims, hypotheses, plans, and verification report as entities; runs,
+    composition, verification, and signoff as activities; Kubona Core, the
+    bridge, declared authors, the operator key, and (only when an
+    `source:"llm"` hypothesis exists) the configured LLM as agents; and the
+    generated/used/attributed/derived relations between them.
+  - `credit.json` — CRediT-style contributors: declared authors
+    (Conceptualization, Writing – original draft, with an explicit note that
+    personhood is not asserted), Kubona Core (Software, Methodology, Data
+    Curation), the bridge (Investigation, Data Curation), the operator key
+    (Supervision, Writing – review & editing), and the LLM only when the
+    ledger records an LLM-sourced hypothesis.
+- `ro-crate-metadata.json` gains the PROV-O nodes (manuscript, campaign,
+  composition, verification, signoff, agents) and lists `prov.json` /
+  `credit.json` as files with SHA-256 hashes.
+- The exporter reads only durable ledger rows; claim→job links come from the
+  claim evidence, not from position.
+- Tests: contributor attribution (including the no-LLM case), PROV-JSON
+  referential consistency across every relation, deterministic PROV-O nodes,
+  and the export/RO-Crate integration.
+- Runtime (schema 9): a signed H2 manuscript exported to 5 entities, 4
+  activities, 5 agents, 4/4/5/2/3 relations, zero dangling references; the
+  CRediT file carried both declared authors, Core, bridge, and operator; the
+  crate contained the verification and signoff nodes and listed `prov.json` /
+  `credit.json` in `hasPart`.
+
 ### AG-8a — telemetry
 
 `/metrics` adds `kubona_hypotheses{status}` and
@@ -416,9 +446,8 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-6b (PROV/PROV-AGENT export and CRediT attribution), AG-7 (stage autonomy +
-safety screening), AG-8b (dashboards/human-minute metrics), AG-9 (cumulative
-lab knowledge).
+AG-7 (stage autonomy + safety screening), AG-8b (dashboards/human-minute
+metrics), AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations
 

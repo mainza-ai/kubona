@@ -7184,3 +7184,17 @@ skipped is the exact failure this incident is about:
 - Runtime: composed H2 manuscript 6/6 matched and signed; fabricated −1.9000 Ha
   blocked signoff even with the acknowledgment. The live run caught a bare
   table decimal losing its minus; fixed with a regression test.
+
+## [2026-11-18] implementation | AG-6b PROV export and CRediT attribution
+
+- `kubonad manuscript-export` now writes W3C PROV-JSON (`prov.json`) covering
+  the manuscript, campaign, jobs, claims, hypotheses, plans, verification, and
+  signoff, with generated/used/attributed/derived relations and agents for
+  Kubona Core, the bridge, declared authors, the operator key, and (only when
+  the ledger records one) the configured LLM.
+- `credit.json` adds CRediT-style roles; declared authors carry an explicit
+  no-personhood-assertion note. The RO-Crate gains the PROV-O nodes and lists
+  both files with SHA-256 hashes.
+- Runtime: a signed H2 manuscript exported 5 entities / 4 activities / 5
+  agents with zero dangling references; the crate carried the verification and
+  signoff nodes and both new files in `hasPart`.

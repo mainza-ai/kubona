@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/prov"
+	"github.com/mainza-ai/kubona/core/pkg/verify"
 )
 
 func runManuscriptExport(args []string) int {
@@ -143,6 +145,22 @@ func exportManuscript(l *ledger.Ledger, sessionID, id, outDir string) error {
 		return err
 	}
 
+	// AG-6b: PROV-JSON and CRediT attribution. Both are derived from the
+	// ledger; the exporter never infers a contributor the ledger does not
+	// record.
+	bundle, err := exportProvenanceBundle(l, sessionID, ms)
+	if err != nil {
+		return err
+	}
+	if err := writeJSONFile(filepath.Join(dir, "prov.json"), prov.BuildPROVJSON(bundle)); err != nil {
+		return err
+	}
+	if err := writeJSONFile(filepath.Join(dir, "credit.json"), map[string]any{
+		"version": "credit-v1", "contributors": prov.Contributors(bundle),
+	}); err != nil {
+		return err
+	}
+
 	written := map[string]string{} // crate-relative path -> sha256
 	for _, a := range ms.Artifacts {
 		if a.Name == "" || strings.HasPrefix(a.Name, "/") || strings.Contains(a.Name, "..") {
@@ -168,7 +186,7 @@ func exportManuscript(l *ledger.Ledger, sessionID, id, outDir string) error {
 	// AG-6a: ship an RO-Crate 1.1 metadata document next to the artefacts so
 	// an external consumer can reconstruct the research object and hashes.
 	for _, rel := range []string{"metadata.json", "sections.json", "citations.json",
-		"reviews.json", "annotations.json"} {
+		"reviews.json", "annotations.json", "prov.json", "credit.json"} {
 		raw, err := os.ReadFile(filepath.Join(dir, rel))
 		if err != nil {
 			return err
@@ -176,13 +194,83 @@ func exportManuscript(l *ledger.Ledger, sessionID, id, outDir string) error {
 		sum := sha256.Sum256(raw)
 		written[rel] = hex.EncodeToString(sum[:])
 	}
-	return writeROCrate(dir, ms, written)
+	return writeROCrate(dir, ms, written, prov.ProvOGraph(bundle))
+}
+
+// exportProvenanceBundle assembles the ledger facts the PROV/CRediT export
+// states. Claim→job links come from the claim evidence, not from position.
+func exportProvenanceBundle(l *ledger.Ledger, sessionID string, ms *ledger.Manuscript) (prov.Bundle, error) {
+	b := prov.Bundle{
+		SessionID: sessionID, ManuscriptID: ms.ID, Title: ms.Title,
+		ContentHash: ms.ContentHash, CreatedAt: ms.CreatedAt,
+	}
+	if strings.TrimSpace(ms.AuthorsJSON) != "" {
+		_ = json.Unmarshal([]byte(ms.AuthorsJSON), &b.Authors)
+	}
+	claims, err := l.ListClaimRecords(sessionID, 200)
+	if err != nil {
+		return b, err
+	}
+	for _, c := range claims {
+		var ref struct {
+			JobID string `json:"job_id"`
+		}
+		_ = json.Unmarshal([]byte(c.Evidence), &ref)
+		b.Claims = append(b.Claims, prov.Claim{
+			ID: c.ID, Statement: c.Statement, Verdict: c.Verdict,
+			CreatedAt: c.CreatedAt, JobID: ref.JobID,
+		})
+	}
+	jobs, err := l.ListJobRecords(sessionID, 200)
+	if err != nil {
+		return b, err
+	}
+	for _, j := range jobs {
+		b.Jobs = append(b.Jobs, prov.Job{
+			ID: j.ID, Type: j.JobType, Status: j.Status,
+			CreatedAt: j.CreatedAt, CompletedAt: j.CompletedAt,
+		})
+	}
+	hypotheses, err := l.ListHypotheses(sessionID, 200)
+	if err != nil {
+		return b, err
+	}
+	for _, h := range hypotheses {
+		b.Hypotheses = append(b.Hypotheses, prov.Hypothesis{
+			ID: h.ID, Statement: h.Statement, Status: h.Status,
+			Source: h.Source, ClaimID: h.ClaimID,
+		})
+	}
+	plans, err := l.ListPlans(sessionID, 200)
+	if err != nil {
+		return b, err
+	}
+	for _, p := range plans {
+		b.Plans = append(b.Plans, prov.Plan{
+			ID: p.ID, HypothesisID: p.HypothesisID, Status: p.Status, JobID: p.JobID,
+		})
+	}
+	if strings.TrimSpace(ms.VerificationJSON) != "" {
+		var report verify.Report
+		if json.Unmarshal([]byte(ms.VerificationJSON), &report) == nil {
+			b.Verification = &prov.Verification{
+				Status: report.Summary.Status, CheckedAt: report.CheckedAt,
+			}
+		}
+	}
+	if ms.Signoff != nil {
+		b.Signoff = &prov.Signoff{
+			Signer: ms.Signoff.SignerPubKey, SignedAt: ms.Signoff.SignedAt,
+			ContentHash: ms.Signoff.ContentHash,
+		}
+	}
+	return b, nil
 }
 
 // writeROCrate writes a minimal RO-Crate 1.1 metadata graph: the dataset, its
 // files with sha256, the signoff/review as entities, and the content hash that
 // binds them. It is intentionally small and stable rather than a full profile.
-func writeROCrate(dir string, ms *ledger.Manuscript, files map[string]string) error {
+func writeROCrate(dir string, ms *ledger.Manuscript, files map[string]string, provNodes []map[string]any) error {
 	graph := []map[string]any{{
 		"@id":        "ro-crate-metadata.json",
 		"@type":      "CreativeWork",
@@ -222,9 +310,13 @@ func writeROCrate(dir string, ms *ledger.Manuscript, files map[string]string) er
 		hasPart = append(hasPart, map[string]any{"@id": "#signoff"})
 	}
 	graph[1]["hasPart"] = hasPart
+	graph = append(graph, provNodes...)
 	doc := map[string]any{
-		"@context": "https://w3id.org/ro/crate/1.1/context",
-		"@graph":   graph,
+		"@context": []any{
+			"https://w3id.org/ro/crate/1.1/context",
+			map[string]any{"prov": "http://www.w3.org/ns/prov#", "kubona": "https://kubona.ai/ns#"},
+		},
+		"@graph": graph,
 	}
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
