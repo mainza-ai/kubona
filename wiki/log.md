@@ -7023,3 +7023,20 @@ skipped is the exact failure this incident is about:
   operations (182), and count bridge tests separately.
 - Schema version 3 (annotation table + idempotency column).
 - Remaining A2/A3/A4/A6b/A7 and the two operator policy items are unchanged.
+
+## [2026-11-18] implementation | Lifecycle, citation binding, retention edge
+
+- A2a: citations carry `claim_id`/`source_id`/`verified`; a claim id is checked
+  against the ledger (unknown → 400); `citation_distance` is validated and
+  passed to the review. Literature auto-feed remains.
+- A4a: per-session artifact ceiling (`KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES`,
+  256 MiB default) enforced on build/deposit; `DELETE` removes rows, artifacts,
+  annotations, signoff, and seals `manuscript_deleted` with the last hashes.
+- A6b: draft title/abstract edit before review (hash recomputed, review reset),
+  delete (operator for signed/built), list `limit/offset` + `has_more`.
+- A7: authenticated blob artifact download; review-dimension panel showing
+  measured/unmeasured values.
+- Schema 4. Runtime drill: campaign put → draft → edit (hash changes) →
+  pagination → annotation → delete (rows gone) → unknown claim 400.
+- Remaining: literature auto-feed, comparator producer, session-delete policy,
+  operator encryption/reset.

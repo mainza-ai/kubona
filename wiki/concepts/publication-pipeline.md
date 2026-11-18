@@ -92,6 +92,24 @@ The register and plan that remain:
   stored artifact bytes.
 - Schema version 3 covers the annotation table and the idempotency column.
 
+## Fourth pass: lifecycle and citation binding
+
+- Draft lifecycle: `PUT` edits title/abstract **before** the first review
+  (content hash recomputed, review cleared); after review the draft is
+  immutable. `DELETE` removes rows/artifacts/annotations and seals
+  `manuscript_deleted`; signed/built records require the operator bearer.
+- List pagination: `limit`/`offset` with `has_more`.
+- Citation binding: `claim_id`/`source_id`/`verified` persist; a claim id must
+  exist in the session (unknown → 400) and only then is the citation marked
+  verified. `citation_distance` is validated and passed to the review, so
+  novelty is measured or explicitly unmeasured.
+- Artifact ceiling: per-session `KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES`
+  (256 MiB default) enforced on build/deposit; `artifact_ceiling_exceeded`
+  names the remedy. `/metrics` reports stored artifact bytes.
+- Console: authenticated blob download (bearer + cookie) and a review-dimension
+  panel showing measured vs unmeasured values.
+- Schema 4.
+
 ## Known limits
 
 - No production comparator producer ⇒ no ACCEPT path today (gate tested with a

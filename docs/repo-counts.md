@@ -9,11 +9,11 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | OpenAPI paths | 159 | generated `platform/contracts/console-openapi.json` |
 | OpenAPI operations | 182 | method+path operations in the generated document |
 | Go packages | 41 | directories under `platform/core` containing `.go` files |
-| Go test functions | 1051 | top-level `func Test...` in `*_test.go` |
+| Go test functions | 1056 | top-level `func Test...` in `*_test.go` |
 | Python test files (tests/) | 185 | `test_*.py` under `platform/tests` |
 | Bridge test files | 6 | `test_*.py` under `platform/bridge` |
 | Console test files | 156 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
-| Console test cases | 830 | `it(` / `test(` declarations in console test files |
+| Console test cases | 832 | `it(` / `test(` declarations in console test files |
 | Rust tests | 32 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |

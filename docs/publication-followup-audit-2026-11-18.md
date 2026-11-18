@@ -221,11 +221,21 @@ open.
 | A5 durability/telemetry | **done** | Manuscript events use `AppendEventWithSpool` and refuse if neither ledger nor spool accepts; the build ships a scrubbed `build.log`; `/metrics` adds builds-by-outcome, build seconds, and artifact bytes. |
 | A6a idempotency/state | **done** | `request_id` is unique per session (replay returns the same draft; a race resolves to the winner); deposit staging sets `deposit_ready`. |
 | A8 counts | **done** | `repo-counts` now separates route patterns (154), OpenAPI paths (159), and operations (182), and counts bridge tests separately. |
-| A2 citations | open | literature feed + `claim_id`/`source_id` + measured novelty. |
+| A2 citations | **partial** | `claim_id`/`source_id`/`verified` persisted; a bound claim is checked against the ledger (unknown → 400); `citation_distance` validated and passed to the review. Literature auto-feed UI remains. |
 | A3 comparator | open | no kernel-proof producer; ACCEPT remains unreachable. |
-| A4 retention | open | no build/byte ceiling; session-delete evidence semantics. |
-| A6b ergonomics | open | edit/delete/pagination. |
-| A7 console polish | open | authenticated blob download; review-detail panel. |
+| A4 retention | **partial** | per-session artifact ceiling (256 MiB default) enforced on build/deposit; delete removes rows+artifacts+annotations and seals `manuscript_deleted`; bytes gauge. Session-delete policy remains. |
+| A6b ergonomics | **done** | draft edit before review (review reset), delete (operator for signed/built), `limit/offset` pagination. |
+| A7 console polish | **done** | authenticated blob download; review-detail panel with measured/unmeasured dimensions. |
 
-Schema version is now **3** (annotation table + idempotent-create column), so an
-existing ledger takes a verified pre-migration snapshot on upgrade.
+Schema version is now **4** (annotation table, idempotent-create column,
+citation claim/source columns), so an existing ledger takes a verified
+pre-migration snapshot on upgrade.
+
+
+## 9. Fourth pass (2026-11-18): A2a, A4a, A6b, A7
+
+Landed: citation claim/source binding with ledger verification and novelty
+plumbing; per-session artifact ceiling + manuscript delete with sealed hashes;
+draft edit, pagination; authenticated blob download and review dimensions.
+Schema 4. Remaining: A2b (literature auto-feed UI), A3 (comparator producer),
+A4b (session-delete/retention policy), and the two operator policy items.

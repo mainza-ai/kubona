@@ -109,6 +109,14 @@ metrics, idempotent create, and `deposit_ready`. Schema version 3. Remaining:
 citations/novelty, comparator producer, retention, draft edit/delete/pagination,
 and authenticated blob download.
 
+### Fourth pass (2026-11-18): lifecycle + citation binding
+
+A2a/A4a/A6b/A7 landed: draft edit/delete/pagination, citation claim/source
+binding with ledger verification and novelty plumbing, a per-session artifact
+ceiling, authenticated blob download, and a review-dimension panel. Schema 4.
+Remaining: literature auto-feed, comparator producer, session-delete/retention
+policy, and the operator encryption/reset items.
+
 ### Follow-up pass (2026-11-18, second)
 
 `docs/publication-followup-audit-2026-11-18.md` re-audited the shipped

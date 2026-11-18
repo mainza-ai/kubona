@@ -110,14 +110,14 @@ Still open (A-series in `docs/active-implementation-todos.md`):
 - **Landed (third pass):** A1 annotations (table/routes/panel + signoff gate),
   A5 spooled events + build log + build metrics, A6a create idempotency +
   `deposit_ready`, A8 counts honesty (patterns vs paths/operations).
-- **A2 citations:** literature selection + `claim_id`/`source_id` + measured
-  novelty distance.
+- **Landed (fourth pass):** A2a citation claim/source binding + ledger
+  verification + novelty plumbing; A4a per-session artifact ceiling + delete
+  with sealed hashes; A6b draft edit/delete/pagination; A7 authenticated blob
+  download + review dimensions.
+- **A2b:** literature selection UI auto-feeds citations.
 - **A3 comparator producer:** no production event emits a kernel-proof verdict,
   so ACCEPT is wired but unreachable.
-- **A4 retention:** keep N builds / per-tenant byte ceiling; session-delete
-  evidence semantics.
-- **A6b/A7 ergonomics:** draft edit/delete, pagination, authenticated blob
-  download, review-detail panel.
+- **A4b:** session-delete evidence semantics and a retention/export policy.
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
   the fresh-volume reset for the polluted host ledger.
 

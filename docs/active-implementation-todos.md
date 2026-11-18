@@ -89,23 +89,31 @@ verification, receipt cap) are landed with tests.
 - [x] A1: `manuscript_annotations` table + routes; annotations survive reload;
       signoff refuses while any annotation is open; panel add/resolve UI and
       browser tests. (closes G-03)
-- [ ] A2: citations gain `claim_id`/`source_id`/`verified`; literature
-      selection feeds the draft; `citation_distance` measured or explicit.
-      (closes G-05, G-13)
+- [x] A2a: citations gain `claim_id`/`source_id`/`verified`; a bound claim is
+      verified against the ledger (unknown claim → 400); `citation_distance`
+      is accepted, validated, and passed to the review (measured or unmeasured).
+      (part of G-05, G-13)
+- [ ] A2b: literature selection UI auto-feeds citations from `/api/literature`;
+      link citations to the selected records' source ids. (rest of G-05)
 - [ ] A3: comparator producer (Lean job/bridge RPC) emits
       `formal_verification`; an ACCEPT + signoff + deposit path is exercised
       end to end. (closes G-04)
-- [ ] A4: artifact retention (keep N builds, per-tenant byte ceiling),
-      session-delete semantics, artifact-bytes gauge. (closes G-06)
+- [x] A4a: per-session artifact byte ceiling
+      (`KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES`, default 256 MiB) enforced on
+      build/deposit; delete removes rows + artifacts + events; artifact-bytes
+      gauge. (part of G-06)
+- [ ] A4b: session-delete evidence semantics and a retention/export policy
+      (builds replace today, so "keep N builds" is a policy for versions, not
+      this storage). (rest of G-06)
 - [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
       scrubbed `build.log` artifact; build success/failure + duration +
       artifact-bytes metrics. (closes G-07, G-08)
 - [x] A6a: create idempotency (`request_id`, unique per session) and
       `deposit_ready` state after staging. (part of G-09/G-10)
-- [ ] A6b: draft edit before review, delete/archive, list pagination.
-      (rest of G-09)
-- [ ] A7: authenticated blob artifact download; review-detail panel with
-      measured/unmeasured novelty. (closes G-12, G-13)
+- [x] A6b: draft title/abstract edit before review (review reset), delete
+      (operator for signed/built), list pagination (`limit/offset`). (G-09)
+- [x] A7: authenticated blob artifact download; review-detail panel with
+      measured/unmeasured dimensions. (closes G-12, G-13 UI)
 - [x] A8: report route patterns vs OpenAPI paths/operations separately; count
       bridge tests explicitly. (closes G-11, G-15)
 - [ ] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` (or a
