@@ -81,10 +81,12 @@ prove autonomy on a benchmark.
   hypothesis's relative `spec_patch`, with persisted provenance; ungrounded
   methods/targets refuse with `spec_unavailable` (schema 8).
 - **AG-4a closed:** `/research-graph` ledger projection.
+- **AG-4b closed:** priority-ordered, byte-budgeted summary with a truncation
+  report, plus a `since_seq` resume cursor over the ledger chain.
 - **AG-6a closed:** RO-Crate 1.1 metadata in `manuscript-export`.
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-4b compaction/resume; AG-5 verification; AG-6b PROV; AG-7
-  autonomy/safety; AG-8b dashboards; AG-9 registry.
+- **Open:** AG-5 verification; AG-6b PROV; AG-7 autonomy/safety; AG-8b
+  dashboards; AG-9 registry.
 - Schema 8.
 
 ## Cross-references

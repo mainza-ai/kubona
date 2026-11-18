@@ -7149,3 +7149,17 @@ skipped is the exact failure this incident is about:
 - Runtime: the expressivity probe synthesized layers 3 (measured 2 + patch 1),
   executed accepted (-1.13271 vs -1.13727 Ha), and collapsed to a verified
   claim; an unknown-target campaign refused with `spec_unavailable`.
+
+## [2026-11-18] implementation | AG-4b research-graph summary and resume
+
+- `pkg/researchgraph.Summarize` renders objective → open hypotheses → plans →
+  recent runs → claims → negatives → manuscripts inside a byte budget, cutting
+  a non-fitting section at a line boundary and reporting it. Every line is a
+  ledger row.
+- `/research-graph` returns `summary` + `summary_report` and, with
+  `since_seq`/`event_limit`, a `resume` cursor (`events`, `next_seq`,
+  `has_more`) over the existing event chain, so a restarted agent rebuilds the
+  projection and catches up instead of replaying the session.
+- Runtime: 1223-byte summary in a 4096 budget; 597 bytes at a 600 budget with
+  `truncated:true`; resume pages advanced without overlap; an invalid budget
+  returned 400.

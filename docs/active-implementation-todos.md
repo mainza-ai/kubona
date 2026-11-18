@@ -105,7 +105,9 @@ capability, not a demo.
       methods/targets refuse with `spec_unavailable`. Schema 8.
 - [x] AG-4a: `GET /research-graph` projects campaign, hypotheses, plans, jobs,
       claims, and manuscripts from the ledger.
-- [ ] AG-4b: context-budgeted summaries and restart resume for the graph.
+- [x] AG-4b: `pkg/researchgraph` priority summary inside a byte budget with a
+      truncation report; `Budget_bytes` validation; `since_seq`/`event_limit`
+      resume cursor over the ledger chain.
 - [ ] AG-5: numeric/citation claim verification against results/logs and
       DOI/OpenAlex; block signoff on unsupported claims; calibrate the
       reviewer against a human-labeled set.

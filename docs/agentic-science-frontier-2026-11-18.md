@@ -342,6 +342,28 @@ transition returns 200.
 plans, jobs/results, claims, and manuscripts from the ledger in one read-only
 view (no second store). Tests assert the assembled counts.
 
+### AG-4b — context-budgeted summary and restart resume
+
+- `pkg/researchgraph.Summarize` renders the graph in priority order (objective →
+  open hypotheses → plans → recent runs → claims → negatives → manuscripts)
+  within a byte budget. Sections that do not fit are cut at a line boundary and
+  reported; a section that cannot start is reported as omitted. Every line comes
+  from a ledger row; nothing is synthesized.
+- `GET /research-graph` now returns `summary` + `summary_report`
+  (`budget_bytes`, default 4096, clamped [512, 65536] in the renderer and
+  validated [256, 262144] at the edge).
+- Restart resume: `?since_seq=N&event_limit=M` returns `resume.events` after the
+  cursor, `next_seq`, and `has_more`, backed by the existing ledger event chain.
+  The graph is a projection, so a fresh process resumes by rebuilding + catching
+  up rather than replaying the session.
+- Tests: budget adherence, priority/omission reporting, determinism, negatives
+  and newest-first runs, empty graph, API budget validation, and non-overlapping
+  resume pages.
+- Runtime (schema 8): the H2 bench session produced a 1223-byte summary inside
+  the 4096 budget (objective/hypotheses/runs/claims); `budget_bytes=600` returned
+  597 bytes with `truncated:true`; resume pages advanced the cursor without
+  overlap (`next_seq` 3 → ids 4,5); `budget_bytes=nope` returned 400.
+
 ### AG-6a — RO-Crate export
 
 `kubonad manuscript-export` now writes `ro-crate-metadata.json` (RO-Crate 1.1)
@@ -355,8 +377,7 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-4b (context-budgeted compaction and restart resume of the graph), AG-5
-(claim/citation verification), AG-6b (PROV/PROV-AGENT export and CRediT
+AG-5 (claim/citation verification), AG-6b (PROV/PROV-AGENT export and CRediT
 attribution), AG-7 (stage autonomy + safety screening), AG-8b
 (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
 
