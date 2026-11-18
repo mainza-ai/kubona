@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -97,5 +98,62 @@ func TestNotificationPreferencesFilterMutedKindsAndPersistQuiet(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].Kind != "job" || unread != 1 {
 		t.Fatalf("muted run must be omitted: rows=%+v unread=%d", rows, unread)
+	}
+}
+
+func TestNotifyModeExecutionsReachTheNotificationInbox(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/notifications-digest.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	const sid = "sess-digest-notify"
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, 'n', 'default', ?, ?, 'active', 0, 0)`,
+		sid, time.Now().UTC(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	// A human-approved execution is not asynchronous work: no inbox item.
+	if err := l.AppendEvent(sid, "plan_executed", map[string]any{
+		"plan_id": "plan_human", "accepted": true, "notify": false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{ledger: l}
+	rows, unread, err := s.notificationList(sid, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 || unread != 0 {
+		t.Fatalf("human execution leaked into the inbox: %+v", rows)
+	}
+	// A notify-mode execution does reach it, with its outcome in the copy.
+	if err := l.AppendEvent(sid, "plan_executed", map[string]any{
+		"plan_id": "plan_auto", "accepted": true, "notify": true, "risk": "low",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, unread, err = s.notificationList(sid, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || unread != 1 {
+		t.Fatalf("notify execution missing: %+v", rows)
+	}
+	if rows[0].Kind != "run" || rows[0].Action != "plan:plan_auto" ||
+		rows[0].Severity != "info" || !strings.Contains(rows[0].Message, "executed (accepted)") {
+		t.Fatalf("notify projection = %+v", rows[0])
+	}
+	// Re-executing the same plan coalesces to the newest outcome.
+	if err := l.AppendEvent(sid, "plan_executed", map[string]any{
+		"plan_id": "plan_auto", "accepted": false, "notify": true, "risk": "medium",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, _, err = s.notificationList(sid, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Severity != "warning" || !strings.Contains(rows[0].Message, "executed (rejected)") {
+		t.Fatalf("coalescing = %+v", rows)
 	}
 }

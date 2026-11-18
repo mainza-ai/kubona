@@ -271,7 +271,7 @@ Go suite / ESLint                      → green
 | Undo | Jobs/claims immutable; no reversal receipt | Higher-stakes actions lack recovery | **AG-23 done** for mode/plan/defer; jobs/claims stay immutable |
 | Org default | No tenant-level default switch or policy revision/rollback | New sessions inherit a hardcoded default | **AG-24 done**: operator-owned tenant default + history/rollback |
 | Strict policy read | Unreadable policy normalizes to enabled | Availability bias | **AG-24 done**: strict enforcement refuses |
-| Risk classifier | v1 lexical list; no protocol/domain taxonomy | High-risk direction may be missed | **AG-24 done** (expanded v1 list; protocol taxonomy remains) |
+| Risk classifier | v1 lexical list; no protocol/domain taxonomy | High-risk direction may be missed | **AG-24 done**: v2 taxonomy persists domain + protocol categories on the plan |
 
 ### Accuracy/frontend follow-ups (from the previous investigation)
 
@@ -363,6 +363,14 @@ Go suite / ESLint                      → green
   or an expired grant cannot pass; retrying the same call reuses the pending
   request instead of flooding the queue.
 
+**AG-24b (done): persisted risk taxonomy and digest delivery**
+- `autonomy.Classify` returns `categories` alongside level/reasons; plan rows
+  persist them and the inbox shows `high · bio · chem`.
+- A notify-mode `plan_executed` event becomes a `run` notification with the
+  accepted/rejected outcome; human-approved executions stay silent because a
+  human was already in the loop. Re-executing the same plan coalesces to the
+  newest outcome.
+
 **AG-22 (done): approval-fatigue telemetry**
 - `/api/ops/science` and Prometheus expose pending/deferred queue depth, p50/p90
   approval latency, and the plan rejection rate.
@@ -375,8 +383,13 @@ Go suite / ESLint                      → green
 **AG-24 (done): org defaults and strict policy**
 - Operator-owned `PUT /api/tenants/agentic-default` (session policies override);
   `/autonomy/history` + `/autonomy/rollback` restore a sealed policy; unreadable
-  policies refuse; the dual-use list is expanded. The tenant default is deliberately
-  operator-owned rather than an admin-signed tenant action; protocol taxonomy remains.
+  policies refuse. The tenant default is deliberately operator-owned rather than an
+  admin-signed tenant action. The risk classifier is a persisted v2 taxonomy:
+  domain axes (bio, chem, radiological, cyber) and protocol axes (human-subjects,
+  animal, environmental) plus hardware and budget. Each hit forces high risk,
+  tags the sealed reason with its axis, and stores `risk_categories` on the plan
+  (schema 15); a reviewer edit reclassifies and undo restores the prior
+  categories.
 
 **AG-11…AG-16** remain as previously planned, now with the research input above.
 

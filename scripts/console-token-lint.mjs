@@ -5,7 +5,8 @@
 //
 // D4: `transition: all` is banned outright (zero tolerance, no baseline): it
 // animates layout and paint the author never intended, and it defeats the
-// explicit motion vocabulary in styles/tokens.css.
+// explicit motion vocabulary in styles/tokens.css. Arbitrary motion values
+// (`duration-[…]`, `ease-[…]`, `animate-[…]`) are banned for the same reason.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,8 +43,9 @@ function measure() {
 const CSS_ROOTS = ['app', 'styles'].map((dir) => path.join(SRC, dir));
 const CSS_MOTION_PATTERN = /(?:transition|animation)\s*:\s*all\b/g;
 // Tailwind's `transition-all` compiles to transition-property: all — the same
-// layout/paint surprise the CSS rule bans. Scan source classes too.
-const SOURCE_MOTION_PATTERN = /(?<![\w-])transition-all(?![\w-])/g;
+// layout/paint surprise the CSS rule bans. Arbitrary motion values bypass the
+// token vocabulary entirely. Both are scanned in source classes too.
+const SOURCE_MOTION_PATTERN = /(?<![\w-])transition-all(?![\w-])|(?<![\w-])(?:duration|ease|animate)-\[/g;
 
 function cssFiles() {
   const out = [];
@@ -91,7 +93,7 @@ if (!fs.existsSync(BASELINE)) {
 }
 const cssMotion = measureCssMotion();
 if (cssMotion.total > 0) {
-  console.error(`console-token-lint: transition/animation "all" is banned (${cssMotion.total} occurrence(s))`);
+  console.error(`console-token-lint: transition/animation "all" and arbitrary motion values are banned (${cssMotion.total} occurrence(s))`);
   for (const [file, count] of Object.entries(cssMotion.files)) console.error(`  ${file}: ${count}`);
   process.exit(1);
 }

@@ -7355,3 +7355,23 @@ skipped is the exact failure this incident is about:
   client-only / 0 unmodeled across 166 paths / 165 schemas.
 - Housekeeping: the stale "proposal pricing rule" TODO is confirmed closed by
   `TestProposalMintRefusesUnpriceablePlans`.
+
+## [2026-11-18] implementation | remaining follow-ups: taxonomy, delivery, console batches
+
+- Risk taxonomy v2: domain (bio/chem/radiological/cyber) and protocol
+  (human-subjects/animal/environmental) axes plus hardware and budget. Hits
+  force high risk, tag reasons with the axis, and persist `risk_categories` on
+  the plan; reviewer edits reclassify and undo restores the prior categories.
+  Schema 15.
+- Digest delivery: notify-mode `plan_executed` events project to `run`
+  notifications with the accepted/rejected outcome; human-approved executions
+  stay out of the inbox; re-executions coalesce.
+- Console batches: memory/jobs/session transport behind domain facades
+  (coupling 54/55 → 50/51); Autoresearch/Memory forms on Field/Select with a
+  compact `hideLabel` (forms 46/202 → 44/195); arbitrary motion values are now
+  banned by `console-token-lint` (0 present) alongside `transition-all`.
+- Audit closures verified in code: R4 annotations are durable manuscript
+  review notes (A1); R7 citations carry claim/source binding and OpenAlex
+  search feeds references (A2a/A2b); R6 backup encryption + required-backup
+  preflight env set. WidgetStage/Recorder/Manifold is recorded as a product
+  decision (parity-gated), not an unfinished migration.

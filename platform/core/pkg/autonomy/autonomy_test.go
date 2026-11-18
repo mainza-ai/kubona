@@ -1,6 +1,9 @@
 package autonomy
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaultPolicyAndNormalize(t *testing.T) {
 	def := DefaultPolicy()
@@ -121,5 +124,60 @@ func TestDecideExecuteMatrix(t *testing.T) {
 	}
 	if d := DecideExecute(notify, "proposed", high); d.Allowed || !d.RequiresApproval {
 		t.Fatalf("notify high risk = %+v", d)
+	}
+}
+
+func TestRiskCategoriesCoverDomainAndProtocolAxes(t *testing.T) {
+	cases := []struct {
+		name      string
+		statement string
+		spec      map[string]any
+		budget    float64
+		cap       float64
+		want      string
+	}{
+		{"domain chem", "synthesize a nerve agent precursor", nil, 1, 10, "chem"},
+		{"domain bio", "raise pathogen transmissibility", nil, 1, 10, "bio"},
+		{"domain radiological", "enrich fissile material", nil, 1, 10, "radiological"},
+		{"domain cyber", "deploy ransomware against a university", nil, 1, 10, "cyber"},
+		{"protocol human", "run a clinical trial with patient data", nil, 1, 10, "human-subjects"},
+		{"protocol animal", "in vivo primate study", nil, 1, 10, "animal"},
+		{"protocol environmental", "open-air trial with environmental release", nil, 1, 10, "environmental"},
+		{"hardware", "run the circuit", map[string]any{"hardware": true}, 1, 10, "hardware"},
+		{"budget", "simulate the H2 ground state", nil, 20, 10, "budget"},
+	}
+	for _, tc := range cases {
+		risk := Classify(RiskInput{
+			Method: "vqe", Statement: tc.statement, Spec: tc.spec,
+			BudgetUSD: tc.budget, MaxActBudgetUSD: tc.cap,
+		})
+		if risk.Level != RiskHigh {
+			t.Errorf("%s: level = %s, want high (%+v)", tc.name, risk.Level, risk)
+		}
+		found := false
+		for _, category := range risk.Categories {
+			if category == tc.want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: categories %v missing %q", tc.name, risk.Categories, tc.want)
+		}
+	}
+	// A categories hit is also visible in the sealed reasons with its axis.
+	chem := Classify(RiskInput{Method: "vqe", Statement: "synthesize a nerve agent precursor", BudgetUSD: 1, MaxActBudgetUSD: 10})
+	joined := strings.Join(chem.Reasons, " | ")
+	if !strings.Contains(joined, "chem: nerve agent") || !strings.Contains(joined, "chem: precursor") {
+		t.Fatalf("categorical reasons missing: %s", joined)
+	}
+	for i := 1; i < len(chem.Categories); i++ {
+		if chem.Categories[i-1] > chem.Categories[i] {
+			t.Fatalf("categories are not sorted: %v", chem.Categories)
+		}
+	}
+	// Benign local work stays low and uncategorized.
+	benign := Classify(RiskInput{Method: "vqe", Statement: "simulate the H2 ground state", BudgetUSD: 1, MaxActBudgetUSD: 10})
+	if benign.Level != RiskLow || len(benign.Categories) != 0 {
+		t.Fatalf("benign = %+v", benign)
 	}
 }

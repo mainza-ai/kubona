@@ -18,7 +18,7 @@ import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
 import { needSentence, remedyFor } from '@/lib/need';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
-import { Toggle } from '@/components/ui/Forms';
+import { Field, Select, Toggle } from '@/components/ui/Forms';
 
 export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [harnesses, setHarnesses] = useState<AutoresearchHarness[]>([]);
@@ -142,11 +142,26 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
         <p className="text-[12px] text-muted">Sandbox ready: {String(runner.image || 'runner')} (read-only, cap-drop, no network).</p>
       )}
       <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-        <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono">
-          {harnesses.length === 0 && <option value="">no harnesses</option>}
-          {harnesses.map((h) => <option key={h.id} value={h.id}>{h.id}</option>)}
-        </select>
-        <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono" />
+        <Select
+          label="Autoresearch harness"
+          hideLabel
+          aria-label="Autoresearch harness"
+          value={harnessId}
+          onChange={(e) => setHarnessId(e.target.value)}
+          className="font-mono"
+          options={harnesses.length === 0
+            ? [{ value: '', label: 'no harnesses' }]
+            : harnesses.map((h) => ({ value: h.id, label: h.id }))}
+        />
+        <Field
+          label="Max iterations"
+          hideLabel
+          aria-label="Max iterations"
+          value={maxIterations}
+          onChange={(e) => setMaxIterations(e.target.value)}
+          inputMode="numeric"
+          className="w-16 font-mono"
+        />
         <button type="button" disabled={busy !== null || !harnessId || !sessionId || !agentic?.enabled || agentic.locked} title={!agentic?.enabled ? 'Turn auto agent on to start loops' : agentic?.locked ? 'Locked by an operator halt' : 'Start loop'} onClick={() => {
           const n = Number(maxIterations);
           if (!Number.isInteger(n) || n < 1 || n > 1000) { setNotice('max iterations must be an integer 1..1000.'); return; }
@@ -185,13 +200,15 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
           )}
           {loop.status === 'running' && (
             <div className="flex items-center gap-1.5 pt-1">
-              <input
+              <Field
+                label="Steer instruction"
+                hideLabel
                 aria-label={`Steer autoresearch loop ${loop.id.slice(0, 8)}`}
                 value={steerDrafts[loop.id] ?? ''}
                 maxLength={500}
                 placeholder="Instruction for the next model turn…"
                 onChange={(event) => setSteerDrafts((prev) => ({ ...prev, [loop.id]: event.target.value }))}
-                className="flex-1 min-w-0 bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono"
+                className="flex-1 min-w-0 font-mono"
               />
               <button
                 type="button"

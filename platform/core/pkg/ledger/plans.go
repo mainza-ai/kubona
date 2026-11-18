@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS experiment_plans (
 	spec_basis_json TEXT NOT NULL DEFAULT '[]',
 	risk TEXT NOT NULL DEFAULT '',
 	risk_reasons_json TEXT NOT NULL DEFAULT '[]',
+	risk_categories_json TEXT NOT NULL DEFAULT '[]',
 	deferred_until TEXT NOT NULL DEFAULT '',
 	defer_reason TEXT NOT NULL DEFAULT '',
 	review_feedback TEXT NOT NULL DEFAULT '',
@@ -68,6 +69,7 @@ type ExperimentPlan struct {
 	SpecBasis        []string `json:"spec_basis,omitempty"`
 	Risk             string   `json:"risk,omitempty"`
 	RiskReasons      []string `json:"risk_reasons,omitempty"`
+	RiskCategories   []string `json:"risk_categories,omitempty"`
 	DeferredUntil    string   `json:"deferred_until,omitempty"`
 	DeferReason      string   `json:"defer_reason,omitempty"`
 	ReviewFeedback   string   `json:"review_feedback,omitempty"`
@@ -126,17 +128,22 @@ func (l *Ledger) CreatePlan(sessionID, tenantID string, p *ExperimentPlan) error
 	if err != nil {
 		return err
 	}
+	riskCategories, err := jsonStrings(p.RiskCategories)
+	if err != nil {
+		return err
+	}
 	now := nowUTC()
 	_, err = l.DB().Exec(`INSERT INTO experiment_plans
 		(id, session_id, tenant_id, hypothesis_id, statement, method, observable,
 		 acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		 spec_basis_json, risk, risk_reasons_json, deferred_until, defer_reason,
-		 status, job_id, result_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 spec_basis_json, risk, risk_reasons_json, risk_categories_json,
+		 deferred_until, defer_reason, status, job_id, result_json, created_at,
+		 updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, sessionID, tenantID, p.HypothesisID, p.Statement, p.Method, p.Observable,
 		p.AcceptanceMetric, p.Tolerance, p.StopRule, p.BudgetUSD, p.Executor, p.SpecJSON,
-		basis, p.Risk, riskReasons, p.DeferredUntil, p.DeferReason, p.Status, p.JobID,
-		p.ResultJSON, now, now)
+		basis, p.Risk, riskReasons, riskCategories, p.DeferredUntil, p.DeferReason,
+		p.Status, p.JobID, p.ResultJSON, now, now)
 	if err != nil {
 		return fmt.Errorf("insert experiment plan: %w", err)
 	}
@@ -150,9 +157,9 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	}
 	rows, err := l.DB().Query(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		spec_basis_json, risk, risk_reasons_json, deferred_until, defer_reason,
-		review_feedback, reviewed_at, status, job_id, result_json, created_at,
-		updated_at
+		spec_basis_json, risk, risk_reasons_json, risk_categories_json,
+		deferred_until, defer_reason, review_feedback, reviewed_at, status,
+		job_id, result_json, created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`, sessionID, limit)
 	if err != nil {
 		return nil, err
@@ -161,16 +168,17 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	out := []ExperimentPlan{}
 	for rows.Next() {
 		var p ExperimentPlan
-		var basis, riskReasons string
+		var basis, riskReasons, riskCategories string
 		if err := rows.Scan(&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method,
 			&p.Observable, &p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD,
-			&p.Executor, &p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.DeferredUntil,
-			&p.DeferReason, &p.ReviewFeedback, &p.ReviewedAt, &p.Status, &p.JobID,
-			&p.ResultJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			&p.Executor, &p.SpecJSON, &basis, &p.Risk, &riskReasons, &riskCategories,
+			&p.DeferredUntil, &p.DeferReason, &p.ReviewFeedback, &p.ReviewedAt,
+			&p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
 		_ = jsonUnmarshalStrings(riskReasons, &p.RiskReasons)
+		_ = jsonUnmarshalStrings(riskCategories, &p.RiskCategories)
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -178,18 +186,18 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 
 func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 	var p ExperimentPlan
-	var basis, riskReasons string
+	var basis, riskReasons, riskCategories string
 	err := l.DB().QueryRow(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		spec_basis_json, risk, risk_reasons_json, deferred_until, defer_reason,
-		review_feedback, reviewed_at, status, job_id, result_json, created_at,
-		updated_at
+		spec_basis_json, risk, risk_reasons_json, risk_categories_json,
+		deferred_until, defer_reason, review_feedback, reviewed_at, status, job_id,
+		result_json, created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method, &p.Observable,
 		&p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD, &p.Executor,
-		&p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.DeferredUntil, &p.DeferReason,
-		&p.ReviewFeedback, &p.ReviewedAt, &p.Status, &p.JobID, &p.ResultJSON,
-		&p.CreatedAt, &p.UpdatedAt)
+		&p.SpecJSON, &basis, &p.Risk, &riskReasons, &riskCategories, &p.DeferredUntil,
+		&p.DeferReason, &p.ReviewFeedback, &p.ReviewedAt, &p.Status, &p.JobID,
+		&p.ResultJSON, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrPlanNotFound
 	}
@@ -198,6 +206,7 @@ func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 	}
 	_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
 	_ = jsonUnmarshalStrings(riskReasons, &p.RiskReasons)
+	_ = jsonUnmarshalStrings(riskCategories, &p.RiskCategories)
 	return &p, nil
 }
 
@@ -253,13 +262,17 @@ func (l *Ledger) UpdatePlanReview(sessionID string, p *ExperimentPlan) error {
 	if err != nil {
 		return err
 	}
+	riskCategories, err := jsonStrings(p.RiskCategories)
+	if err != nil {
+		return err
+	}
 	res, err := l.DB().Exec(`UPDATE experiment_plans SET statement = ?, method = ?,
 		observable = ?, acceptance_metric = ?, tolerance = ?, stop_rule = ?,
 		budget_usd = ?, spec_json = ?, risk = ?, risk_reasons_json = ?,
-		review_feedback = ?, reviewed_at = ?, updated_at = ?
+		risk_categories_json = ?, review_feedback = ?, reviewed_at = ?, updated_at = ?
 		WHERE session_id = ? AND id = ? AND status = 'proposed'`,
 		p.Statement, p.Method, p.Observable, p.AcceptanceMetric, p.Tolerance,
-		p.StopRule, p.BudgetUSD, p.SpecJSON, p.Risk, riskReasons,
+		p.StopRule, p.BudgetUSD, p.SpecJSON, p.Risk, riskReasons, riskCategories,
 		p.ReviewFeedback, p.ReviewedAt, nowUTC(), sessionID, p.ID)
 	if err != nil {
 		return err

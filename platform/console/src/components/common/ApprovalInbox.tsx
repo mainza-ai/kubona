@@ -204,8 +204,12 @@ export function ApprovalInbox({ sessionId }: { sessionId: string }) {
               {plan.created_at ? ` · ${plan.created_at.slice(0, 19)}Z` : ''}
             </div>
           </div>
-          <span className={`shrink-0 rounded-chip border border-border px-1.5 py-0.5 text-[11px] font-semibold ${riskTone(plan.risk)}`}>
+          <span
+            className={`shrink-0 rounded-chip border border-border px-1.5 py-0.5 text-[11px] font-semibold ${riskTone(plan.risk)}`}
+            title={plan.risk_categories?.length ? `risk categories: ${plan.risk_categories.join(', ')}` : undefined}
+          >
             {plan.risk || 'unclassified'}
+            {plan.risk_categories && plan.risk_categories.length > 0 ? ` · ${plan.risk_categories.join(' · ')}` : ''}
           </span>
         </div>
         {isDeferred && (

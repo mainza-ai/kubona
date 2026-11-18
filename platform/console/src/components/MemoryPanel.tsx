@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { fetchMemoryRecall, retainMemory, type MemorySnippet } from '@/lib/api';
+import { fetchMemoryRecall, retainMemory, type MemorySnippet } from '@/domain/memory';
+import { Field, Select } from '@/components/ui/Forms';
 import { Tip } from './common/Tip';
 
 const BANKS = ['experiences', 'world-facts', 'mental-models'] as const;
@@ -128,7 +129,9 @@ export function MemoryPanel({
       {open && (
         <div className="px-5 pb-4 space-y-2.5">
           <div className="flex items-center gap-1.5">
-            <input
+            <Field
+              label="Memory recall query"
+              hideLabel
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -140,18 +143,16 @@ export function MemoryPanel({
               }}
               placeholder="Recall query (empty lists newest)"
               aria-label="Memory recall query"
-              className="flex-1 bg-field border border-border rounded-control-compact px-2.5 py-1.5 text-label text-text placeholder:text-faint focus:outline-none focus:border-accent-edge"
+              className="flex-1"
             />
-            <select
+            <Select
+              label="Memory bank"
+              hideLabel
               value={bank}
               onChange={(e) => setBank(e.target.value)}
               aria-label="Memory bank"
-              className="bg-field border border-border rounded-control-compact px-1.5 py-1.5 text-label text-label-secondary focus:outline-none"
-            >
-              {BANKS.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
+              options={BANKS.map((b) => ({ value: b, label: b }))}
+            />
             <Tip label="Recall memory" sub="Similarity-ranked, tenant-scoped" position="top">
               <button
                 onClick={() => void runRecall()}
@@ -188,25 +189,29 @@ export function MemoryPanel({
           )}
 
           <div className="flex items-center gap-1.5 pt-1">
-            <input
+            <Field
+              label="Operator note to retain"
+              hideLabel
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Retain an operator note…"
               aria-label="Operator note to retain"
               maxLength={4000}
-              className="flex-1 bg-field border border-border rounded-control-compact px-2.5 py-1.5 text-label text-text placeholder:text-faint focus:outline-none focus:border-accent-edge"
+              className="flex-1"
             />
-            <select
+            <Select
+              label="Note importance weight"
+              hideLabel
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
               aria-label="Note importance weight"
               title="Retention weight: low 0.3 · normal 0.5 · high 0.8"
-              className="bg-field border border-border rounded-control-compact px-1.5 py-1.5 text-label text-label-secondary focus:outline-none"
-            >
-              <option value="0.3">low</option>
-              <option value="0.5">normal</option>
-              <option value="0.8">high</option>
-            </select>
+              options={[
+                { value: '0.3', label: 'low' },
+                { value: '0.5', label: 'normal' },
+                { value: '0.8', label: 'high' },
+              ]}
+            />
             <Tip label="Retain note" sub="Stored tenant-scoped, recallable" position="top">
               <button
                 onClick={() => void runRetain()}

@@ -1384,6 +1384,7 @@ export type ApprovalPlan = {
   id: string;
   statement: string;
   risk?: string;
+  risk_categories?: string[];
   method?: string;
   observable?: string;
   acceptance_metric?: string;

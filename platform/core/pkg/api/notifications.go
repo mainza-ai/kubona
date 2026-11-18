@@ -94,6 +94,25 @@ func notificationForEvent(e ledger.EventRecord) (Notification, bool) {
 	case "memory_retracted":
 		n.Kind, n.Severity = "memory", "info"
 		n.Message = "A memory was retracted"
+	case "plan_executed":
+		// Notify mode is the asynchronous rung: the plan ran without a
+		// synchronous human, so the user must be told. Manual/approve
+		// executions already had a human in the loop and stay out of the
+		// inbox (the digest still records them for audit).
+		if v, ok := p["notify"].(bool); !ok || !v {
+			return Notification{}, false
+		}
+		accepted, _ := p["accepted"].(bool)
+		n.Kind, n.Severity = "run", "info"
+		if !accepted {
+			n.Severity = "warning"
+		}
+		outcome := "accepted"
+		if !accepted {
+			outcome = "rejected"
+		}
+		n.Message = "Auto-approved plan " + short(str("plan_id")) + " executed (" + outcome + ")"
+		n.Action = "plan:" + str("plan_id")
 	case "run_allowance_suspended", "run_allowance_revoked":
 		n.Kind, n.Severity = "allowance", "warning"
 		n.Message = strings.ReplaceAll(e.EventType, "_", " ")

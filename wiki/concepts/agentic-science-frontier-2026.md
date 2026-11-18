@@ -129,8 +129,10 @@ prove autonomy on a benchmark.
   (15-minute TTL, spent once); queue/fatigue metrics; `/receipts` undo for mode
   flips, unrun plan decisions, and deferrals; and an operator-owned tenant
   default with policy history/rollback and strict unreadable-policy refusal.
-  Ledger schema is 14. The remaining refinement is the protocol-level risk
-  taxonomy; see `docs/agentic-mode-toggle-2026-11-18.md`.
+  The risk classifier is a persisted v2 taxonomy (domain: bio, chem,
+  radiological, cyber; protocol: human-subjects, animal, environmental; plus
+  hardware and budget) and notify-mode executions reach the notification inbox.
+  Ledger schema is 15. See `docs/agentic-mode-toggle-2026-11-18.md`.
 
 ## Known accuracy gaps (2026-11-18 investigation)
 

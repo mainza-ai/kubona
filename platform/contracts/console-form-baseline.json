@@ -1,13 +1,11 @@
 {
-  "files": 46,
-  "controls": 202,
+  "files": 44,
+  "controls": 195,
   "entries": {
     "platform/console/src/components/CommandPalette.tsx": 1,
     "platform/console/src/components/CopilotDrawer.tsx": 6,
-    "platform/console/src/components/MemoryPanel.tsx": 4,
     "platform/console/src/components/common/ApprovalPacketCard.tsx": 1,
     "platform/console/src/components/common/AuthPanel.tsx": 3,
-    "platform/console/src/components/common/AutoresearchPanel.tsx": 3,
     "platform/console/src/components/common/ClaimHistory.tsx": 1,
     "platform/console/src/components/common/ConfirmDialog.tsx": 1,
     "platform/console/src/components/common/CreateLabPanel.tsx": 3,

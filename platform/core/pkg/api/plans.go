@@ -244,6 +244,7 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		SpecBasis:        specBasis,
 		Risk:             risk.Level,
 		RiskReasons:      risk.Reasons,
+		RiskCategories:   risk.Categories,
 		Status:           ledger.PlanProposed,
 	}
 	if err := s.ledger.CreatePlan(sessionID, tenantID, plan); err != nil {

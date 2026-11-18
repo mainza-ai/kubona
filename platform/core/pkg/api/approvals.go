@@ -285,14 +285,18 @@ func (s *Server) applyPlanEdits(sessionID string, plan *ledger.ExperimentPlan, e
 	}
 	var spec map[string]any
 	_ = json.Unmarshal([]byte(plan.SpecJSON), &spec)
+	policy, _ := s.loadAutonomyPolicy(sessionID)
 	risk := autonomy.Classify(autonomy.RiskInput{
 		Method: plan.Method, Spec: spec, BudgetUSD: plan.BudgetUSD,
 		Statement: plan.Statement, Target: campaign.TargetSystem,
+		MaxActBudgetUSD: policy.MaxActBudgetUSD,
 	})
 	touch("risk", plan.Risk)
 	touch("risk_reasons", plan.RiskReasons)
+	touch("risk_categories", plan.RiskCategories)
 	plan.Risk = risk.Level
 	plan.RiskReasons = risk.Reasons
+	plan.RiskCategories = risk.Categories
 	return edited, previous, nil
 }
 
@@ -346,6 +350,15 @@ func (s *Server) restorePlanReview(sessionID, planID string, previous json.RawMe
 			}
 		}
 		plan.RiskReasons = reasons
+	}
+	if raw, ok := prev["risk_categories"].([]any); ok {
+		categories := make([]string, 0, len(raw))
+		for _, item := range raw {
+			if text, ok := item.(string); ok {
+				categories = append(categories, text)
+			}
+		}
+		plan.RiskCategories = categories
 	}
 	if v, ok := prev["review_feedback"].(string); ok {
 		plan.ReviewFeedback = v

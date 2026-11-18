@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchSessionContext, type SessionContext } from '@/lib/api';
+import { fetchSessionContext, type SessionContext } from '@/domain/session';
 
 // S8a: composer context readout — measured transcript pressure against the
 // server's real BudgetHistory caps (turns/40, chars/48K), plus summed

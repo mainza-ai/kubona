@@ -96,10 +96,10 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // 6 = experiment plans; 7 = measured-novelty method; 8 = hypothesis spec
 // patches and plan spec provenance; 12 = plan deferrals; 13 = tenant agentic
 // defaults; 14 = plan review feedback/edits and the one-time tool approval
-// queue. Each bump
+// queue; 15 = plan risk-category taxonomy. Each bump
 // makes an existing ledger take a verified pre-migration snapshot before the
 // additive DDL, which is the production upgrade invariant.
-const CurrentSchemaVersion = 14
+const CurrentSchemaVersion = 15
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -785,6 +785,7 @@ func migrateLegacySchema(db *sql.DB) error {
 		`ALTER TABLE experiment_plans ADD COLUMN defer_reason TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE experiment_plans ADD COLUMN review_feedback TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE experiment_plans ADD COLUMN reviewed_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE experiment_plans ADD COLUMN risk_categories_json TEXT NOT NULL DEFAULT '[]'`,
 	}
 	for _, stmt := range addColumns {
 		if err := execMigration(db, stmt, "duplicate column name"); err != nil {

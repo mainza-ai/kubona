@@ -6,14 +6,16 @@ type FieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'id'> & {
   label: string;
   hint?: string;
   error?: string;
+  /** Keep the label for assistive tech but hide it in compact toolbars. */
+  hideLabel?: boolean;
 };
 
-export function Field({ label, hint, error, className = '', ...props }: FieldProps) {
+export function Field({ label, hint, error, hideLabel = false, className = '', ...props }: FieldProps) {
   const id = useId();
   const description = error || hint;
   return (
     <div className={`k-field ${className}`.trim()}>
-      <label className="k-field-label" htmlFor={id}>{label}</label>
+      <label className={`k-field-label${hideLabel ? ' sr-only' : ''}`} htmlFor={id}>{label}</label>
       <input
         {...props}
         id={id}
@@ -34,14 +36,15 @@ type TextAreaProps = Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'id
   label: string;
   hint?: string;
   error?: string;
+  hideLabel?: boolean;
 };
 
-export function TextArea({ label, hint, error, className = '', ...props }: TextAreaProps) {
+export function TextArea({ label, hint, error, hideLabel = false, className = '', ...props }: TextAreaProps) {
   const id = useId();
   const description = error || hint;
   return (
     <div className={`k-field ${className}`.trim()}>
-      <label className="k-field-label" htmlFor={id}>{label}</label>
+      <label className={`k-field-label${hideLabel ? ' sr-only' : ''}`} htmlFor={id}>{label}</label>
       <textarea
         {...props}
         id={id}
@@ -66,15 +69,16 @@ type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'id'> & {
   label: string;
   hint?: string;
   error?: string;
+  hideLabel?: boolean;
   options: { value: string; label: string; disabled?: boolean }[];
 };
 
-export function Select({ label, hint, error, options, className = '', ...props }: SelectProps) {
+export function Select({ label, hint, error, hideLabel = false, options, className = '', ...props }: SelectProps) {
   const id = useId();
   const description = error || hint;
   return (
     <div className={`k-field ${className}`.trim()}>
-      <label className="k-field-label" htmlFor={id}>{label}</label>
+      <label className={`k-field-label${hideLabel ? ' sr-only' : ''}`} htmlFor={id}>{label}</label>
       <select
         {...props}
         id={id}

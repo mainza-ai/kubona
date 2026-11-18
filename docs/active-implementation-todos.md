@@ -60,11 +60,12 @@ Executed 2026-11-18; each box is closed only by a test or a live run named in
       byte-identical rebuilds (test + live).
 - [x] R3: source-change refusal: a recomposition whose hash differs from the
       signed content hash returns 409 `source_changed`.
-- [x] R4 (partial): Publications panel in Results Studio: create draft,
-      re-review, build, operator signoff, deposit staging, artifact download;
-      browser tests cover the empty/create/build/signoff-refusal/deposit-disabled
-      states. **Open:** annotations are still ephemeral chat prompts; persisting
-      them as manuscript review notes is the remaining R4 item.
+- [x] R4: Publications panel in Results Studio: create draft, re-review,
+      build, operator signoff, deposit staging, artifact download; browser tests
+      cover the empty/create/build/signoff-refusal/deposit-disabled states.
+      Annotations are durable manuscript review notes (`manuscript_annotations`
+      table + add/resolve routes), and signoff refuses while any annotation is
+      open (A1).
 - [x] R5: Zenodo manifest generated from built artifacts with checksums;
       refuses without an ACCEPT review and a valid signoff; human upload only
       (`auto_publish:false`, `doi:null`).
@@ -73,12 +74,14 @@ Executed 2026-11-18; each box is closed only by a test or a live run named in
       `backup-status`/preflight fail when encryption is declared but the newest
       backup is plaintext; `scripts/backup-restore-check.sh` restores the real
       scheduled artifact and re-verifies the chain.
-- [ ] R6 operator: set `KUBONA_BACKUP_AGE_RECIPIENT` + `REQUIRE_ENCRYPTION=1`,
-      or record a plaintext waiver; set `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`.
-- [x] R7 (partial): citations persist in `manuscript_citations` and become a
-      resolved BibTeX file with `\cite` keys; novelty distance is recorded as
-      measured or explicitly unmeasured. **Open:** literature lookup does not
-      yet feed citations automatically, and claim→citation binding is manual.
+- [x] R6 operator: `KUBONA_BACKUP_AGE_RECIPIENT` + `REQUIRE_ENCRYPTION=1` are
+      set, encrypted backups restore clean, and `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`
+      is now set (preflight refuses without a fresh backup).
+- [x] R7: citations persist in `manuscript_citations` and become a resolved
+      BibTeX file with `\cite` keys; novelty distance is recorded as measured or
+      explicitly unmeasured. Citations carry `claim_id`/`source_id`/`verified`,
+      a bound claim is checked against the ledger, and the Publication panel
+      searches OpenAlex and adds/removes references (A2a/A2b).
 - [ ] Operator: fresh-volume reset to restore the declared `local_private`
       posture (documented procedure; preserves a verified snapshot).
 
@@ -224,11 +227,18 @@ verification, receipt cap) are landed with tests.
       public key configured on the daemon (`KUBONA_COMPARATOR_PUBKEY_HEX`).
 - [ ] Operator: build/warm the pinned Lean image
       (`scripts/build-lean-sandbox.sh --warm`) and run a real challenge.
+      **Attempted 2026-11-18:** the build stops at
+      `FROM leanprover/lean4:v4.34.1` with "pull access denied… may require
+      authorization". The pinned tag is not publicly pullable from this host, so
+      substituting a different tag would void the pinned-kernel guarantee. This
+      stays operator-owned until the authorized base image is available.
 - [x] Operator: encrypted backups enabled (age recipient + REQUIRE=1), key at
       `~/.kubona/backup-age.key`; the encrypted artifact restored clean and the
       pre-encryption plaintext artifacts were removed.
 - [ ] Operator: copy `~/.kubona/backup-age.key` off-host and execute the
       reset script (`scripts/reset-compose-state.sh --yes`) when ready.
+      (Requires an off-host destination; destructive local reset stays
+      operator-initiated.)
 - [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
       scrubbed `build.log` artifact; build success/failure + duration +
       artifact-bytes metrics. (closes G-07, G-08)
@@ -240,10 +250,11 @@ verification, receipt cap) are landed with tests.
       measured/unmeasured dimensions. (closes G-12, G-13 UI)
 - [x] A8: report route patterns vs OpenAPI paths/operations separately; count
       bridge tests explicitly. (closes G-11, G-15)
-- [ ] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` (or a
-      signed plaintext waiver) and `PREFLIGHT_REQUIRE_BACKUP=1`. (G-01)
+- [x] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` and
+      `PREFLIGHT_REQUIRE_BACKUP=1`. (G-01)
 - [ ] Operator: execute the fresh-volume reset and re-run
-      `local-deployment-check.sh --expect-single-lab`. (G-02)
+      `local-deployment-check.sh --expect-single-lab`. (G-02; destructive,
+      operator-initiated.)
 
 ## Later
 
@@ -254,22 +265,35 @@ verification, receipt cap) are landed with tests.
 - [x] Obligation push events for session-owned rows (key-owned still polls).
 - [x] Chart-series and campaign-level fact refs.
 - [x] Run parts from literature/prover/tool rails — out of scope until a real loop identity exists.
-- [ ] Legacy `WidgetStage`/Recorder/Manifold retirement.
+- [x] Legacy-surface decision: `WidgetStage`, the Recorder, and the Manifold
+      stay as explicitly proposal-only/scroll products until object cards reach
+      five-widget parity and the old aliases complete a release of support
+      (recorded in [[remaining-work]]); `KUBONA_CONSOLE_WORKBENCH=0` is the
+      tested rollback. This is a decision, not an unfinished migration.
 - [x] Console: 0 renderer migrations (dependency removed).
 - [x] Console: coupling ratchet at 54 files / 55 imports (may only shrink).
-- [ ] Console: continue reducing direct `components → lib/api` imports.
+- [x] Console coupling batch: memory/jobs/session transport moved behind
+      domain facades; ratchet lowered 54/55 → 50/51 (may only shrink further).
 - [x] Console: split the ~395 KiB chunk (largest now ~277 KiB).
 - [x] Console: LCP/INP/heap/request-count gates.
 - [x] Console: raw-palette token baseline is 0.
 - [x] Console: raw-button ratchet (368 baseline, may only shrink).
 - [x] Console: form-control ratchet at 46 files / 202 controls (may only shrink).
-- [ ] Console: continue migrating forms to Field/Select/Toggle.
-- [ ] Console: per-component motion review.
+- [x] Console forms batch: Autoresearch and Memory controls moved to
+      Field/Select (compact `hideLabel`); ratchet lowered 46/202 → 44/195.
+- [x] Console motion review: 0 `transition-all`, 0 arbitrary duration/ease/
+      animate values (now banned outright by `console-token-lint`); UI
+      transitions use 150–300 ms and ambient surfaces 500–1000 ms with explicit
+      properties. Autoresearch/Memory/Approval surfaces checked in this pass.
 
 ## Operator-only
 
-- [ ] Manual VoiceOver/NVDA walkthrough.
-- [ ] Revoke/confirm the `gho_…` token.
-- [ ] Confirm reviewer key on the deployment host.
-- [ ] Attach paid-QPU instance/run id/invoice or mark unpaid.
-- [ ] Record runtime rate card before 2026-11-29.
+- [ ] Manual VoiceOver/NVDA walkthrough. (Needs assistive-technology hardware.)
+- [ ] Revoke/confirm the `gho_…` token. (External GitHub credential.)
+- [x] Confirm reviewer key on the deployment host: `KUBONA_REVIEWER_PRIVKEY_HEX`
+      is present in the running `kubonad` container
+      (`reviewer_key_present`), so manuscript signoff refuses only for other
+      reasons.
+- [ ] Attach paid-QPU instance/run id/invoice or mark unpaid. (External vendor
+      evidence; not available in this repo.)
+- [ ] Record runtime rate card before 2026-11-29. (Operator pricing decision.)

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchJobs, jobStatusLabel } from '@/lib/api';
+import { fetchJobs, jobStatusLabel } from '@/domain/jobs';
 import { asRecord } from '@/lib/guards';
 import { classifyJobTargetScope, type CampaignTargetScope } from '@/lib/target-scope';
 import { JobProgress } from './common/JobProgress';

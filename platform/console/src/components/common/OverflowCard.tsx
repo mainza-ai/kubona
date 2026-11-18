@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchSessionContext, createSession, clearMessages, type SessionContext } from '@/lib/api';
+import { fetchSessionContext, createSession, clearMessages, type SessionContext } from '@/domain/session';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 // S8b: overflow card — appears only at real context pressure (>=80% of the

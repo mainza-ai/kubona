@@ -140,8 +140,11 @@ development — re-verify the gate on the exact commit before citing
 > follow-ups are implemented (global mode chip, approval inbox with reviewer
 > edits and durable rejection feedback, notify digest with a console panel,
 > one-time per-tool approvals bound to the argument digest, fatigue metrics,
-> receipts/undo, tenant default/history/rollback). Ledger schema is **14**.
-> Re-verify the full gate on the exact pushed commit before citing "green".
+> receipts/undo, tenant default/history/rollback). The risk classifier is a
+> persisted v2 taxonomy (bio/chem/radiological/cyber, human-subjects/animal/
+> environmental, hardware, budget) and notify-mode executions reach the
+> notification inbox. Ledger schema is **15**. Re-verify the full gate on the
+> exact pushed commit before citing "green".
 
 ## Three layers
 

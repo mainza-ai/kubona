@@ -275,3 +275,85 @@ func TestApprovalRejectionCarriesDurableFeedback(t *testing.T) {
 		t.Fatalf("oversize feedback on a decided plan = %d", w.Code)
 	}
 }
+
+func TestPlanRiskCategoriesPersistAndReviewReclassifies(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedMeasuredH2(t, srv, sid)
+
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/plans", "", map[string]any{
+		"statement": "study pathogen transmissibility", "method": "vqe", "observable": "energy",
+		"acceptance_metric": "energy_exact", "tolerance": 0.05, "stop_rule": "one run",
+		"spec": map[string]any{"kind": "vqe", "molecule": "H2", "bond_distance": 0.7414, "layers": 1},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("plan create = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Plan struct {
+			ID             string   `json:"id"`
+			Risk           string   `json:"risk"`
+			RiskReasons    []string `json:"risk_reasons"`
+			RiskCategories []string `json:"risk_categories"`
+		} `json:"plan"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	if created.Plan.Risk != "high" || len(created.Plan.RiskCategories) != 1 || created.Plan.RiskCategories[0] != "bio" {
+		t.Fatalf("created risk = %+v", created.Plan)
+	}
+	if !strings.Contains(strings.Join(created.Plan.RiskReasons, " | "), "bio: pathogen") {
+		t.Fatalf("categorical reason missing: %v", created.Plan.RiskReasons)
+	}
+	pid := created.Plan.ID
+
+	// A reviewer edit that removes the hazard must clear the category too.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+		map[string]any{"decision": "approve", "edits": map[string]any{"statement": "simulate the H2 ground state"}})
+	if w.Code != http.StatusOK {
+		t.Fatalf("edited approve = %d: %s", w.Code, w.Body.String())
+	}
+	plan, _ := srv.Ledger().GetPlan(sid, pid)
+	if plan.Risk != "low" || len(plan.RiskCategories) != 0 {
+		t.Fatalf("edit did not reclassify: %+v", plan)
+	}
+	events, _ := srv.Ledger().GetRecentEvents(sid, 100)
+	var previous map[string]any
+	for _, e := range events {
+		if e.EventType != "plan_approval_decided" {
+			continue
+		}
+		var body map[string]any
+		_ = json.Unmarshal(e.Payload, &body)
+		if body["plan_id"] == pid {
+			previous, _ = body["previous"].(map[string]any)
+		}
+	}
+	if previous == nil {
+		t.Fatal("approval event missing previous snapshot")
+	}
+	cats, _ := previous["risk_categories"].([]any)
+	if len(cats) != 1 || cats[0] != "bio" {
+		t.Fatalf("previous categories not sealed: %+v", previous["risk_categories"])
+	}
+
+	// Undo restores the classified plan, not just its status.
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/receipts", "", nil)
+	var receipts receiptList
+	json.Unmarshal(w.Body.Bytes(), &receipts)
+	var rid int64
+	for _, r := range receipts.Receipts {
+		if r.EventType == "plan_approval_decided" && r.Undoable {
+			rid = r.ID
+		}
+	}
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/receipts/"+strconv.FormatInt(rid, 10)+"/undo", "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("undo = %d: %s", w.Code, w.Body.String())
+	}
+	plan, _ = srv.Ledger().GetPlan(sid, pid)
+	if plan.Risk != "high" || len(plan.RiskCategories) != 1 || plan.RiskCategories[0] != "bio" {
+		t.Fatalf("undo did not restore categories: %+v", plan)
+	}
+}

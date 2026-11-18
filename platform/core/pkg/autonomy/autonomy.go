@@ -181,6 +181,10 @@ const (
 type Risk struct {
 	Level   string   `json:"level"`
 	Reasons []string `json:"reasons,omitempty"`
+	// Categories is the protocol/domain taxonomy behind a high-risk verdict:
+	// bio, chem, radiological, cyber, human-subjects, animal, environmental,
+	// hardware, budget. Empty for low/medium work.
+	Categories []string `json:"categories,omitempty"`
 }
 
 // RiskInput is the concrete plan being classified. Spec values come from the
@@ -194,14 +198,42 @@ type RiskInput struct {
 	MaxActBudgetUSD float64
 }
 
-// dualUseTerms is a v1 screening list. It is deliberately over-inclusive: a
-// false positive costs an approval, a false negative costs the safety rail.
-var dualUseTerms = []string{
-	"pathogen", "toxin", "nerve agent", "chemical weapon", "bioweapon",
-	"biological weapon", "weaponize", "weaponise", "explosive", "fissile",
-	"nuclear weapon", "radiological", "gain-of-function", "select agent",
-	"aerosolize", "aerosolise", "casualty", "precursor", "synthesis route",
-	"virulent", "transmissibility", "detonator", "cultivation", "dispersal",
+// riskCategories is the v2 screening taxonomy. Terms are deliberately
+// over-inclusive: a false positive costs an approval, a false negative costs the
+// safety rail. Domain categories are about what the work could produce;
+// protocol categories are about who/what it runs on. A hit always forces high
+// risk and is sealed with the reason so the reviewer sees which axis fired.
+type riskCategory struct {
+	ID    string
+	Terms []string
+}
+
+var riskCategories = []riskCategory{
+	{ID: "bio", Terms: []string{
+		"pathogen", "toxin", "bioweapon", "biological weapon", "virulent",
+		"transmissibility", "gain-of-function", "select agent", "aerosolize",
+		"aerosolise", "cultivation", "dispersal", "casualty",
+	}},
+	{ID: "chem", Terms: []string{
+		"nerve agent", "chemical weapon", "precursor", "synthesis route",
+		"explosive", "detonator",
+	}},
+	{ID: "radiological", Terms: []string{
+		"fissile", "nuclear weapon", "radiological", "enrichment",
+	}},
+	{ID: "cyber", Terms: []string{
+		"malware", "ransomware", "botnet", "exploit kit", "phishing",
+		"credential theft",
+	}},
+	{ID: "human-subjects", Terms: []string{
+		"human subject", "clinical trial", "informed consent", "patient data",
+	}},
+	{ID: "animal", Terms: []string{
+		"animal subject", "animal testing", "in vivo", "primate",
+	}},
+	{ID: "environmental", Terms: []string{
+		"environmental release", "open-air trial", "release into the environment",
+	}},
 }
 
 // Classify returns low/medium/high with the reasons that produced the level.
@@ -215,23 +247,30 @@ func Classify(in RiskInput) Risk {
 		}
 	}
 	text := strings.ToLower(strings.Join([]string{in.Statement, in.Target, fmt.Sprint(in.Spec)}, " "))
-	for _, term := range dualUseTerms {
-		if strings.Contains(text, term) {
-			raise(RiskHigh)
-			reasons = append(reasons, "dual-use term: "+term)
+	categories := map[string]bool{}
+	for _, category := range riskCategories {
+		for _, term := range category.Terms {
+			if strings.Contains(text, term) {
+				raise(RiskHigh)
+				categories[category.ID] = true
+				reasons = append(reasons, category.ID+": "+term)
+			}
 		}
 	}
 	if truthy(in.Spec["hardware"]) || truthy(in.Spec["qpu"]) ||
 		strings.Contains(strings.ToLower(in.Method), "hardware") {
 		raise(RiskHigh)
+		categories["hardware"] = true
 		reasons = append(reasons, "hardware/QPU execution")
 	}
 	if backend, ok := in.Spec["backend"].(string); ok && strings.TrimSpace(backend) != "" {
 		raise(RiskHigh)
+		categories["hardware"] = true
 		reasons = append(reasons, "vendor backend requested: "+backend)
 	}
 	if in.MaxActBudgetUSD >= 0 && in.BudgetUSD > in.MaxActBudgetUSD {
 		raise(RiskHigh)
+		categories["budget"] = true
 		reasons = append(reasons, fmt.Sprintf("budget $%.2f exceeds the act cap $%.2f", in.BudgetUSD, in.MaxActBudgetUSD))
 	}
 	if n, ok := number(in.Spec["n_sites"]); ok && n >= 12 {
@@ -250,7 +289,12 @@ func Classify(in RiskInput) Risk {
 		reasons = append(reasons, "local simulator work inside the act cap")
 	}
 	sort.Strings(reasons)
-	return Risk{Level: level, Reasons: reasons}
+	labels := make([]string, 0, len(categories))
+	for id := range categories {
+		labels = append(labels, id)
+	}
+	sort.Strings(labels)
+	return Risk{Level: level, Reasons: reasons, Categories: labels}
 }
 
 // Decision is what the execution path may do.

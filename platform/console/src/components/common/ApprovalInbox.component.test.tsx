@@ -126,6 +126,18 @@ describe('ApprovalInbox in a real browser', () => {
     await expect.poll(() => screen.container.textContent).toContain('Rejected with feedback.');
   });
 
+  it('shows the risk taxonomy behind a high-risk plan', async () => {
+    stubInbox({ plans: [{
+      ...plan,
+      id: 'p_risk',
+      statement: 'Hazard review probe',
+      risk: 'high',
+      risk_categories: ['bio', 'chem'],
+    }] });
+    const screen = await render(<ApprovalInbox sessionId="s1" />);
+    await expect.poll(() => screen.container.textContent).toContain('high · bio · chem');
+  });
+
   it('approves a held tool call once', async () => {
     const posts: Post[] = [];
     stubInbox({
