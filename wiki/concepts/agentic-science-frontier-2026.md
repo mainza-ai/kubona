@@ -77,13 +77,15 @@ prove autonomy on a benchmark.
   to a claim, shortlist-before-plan gate.
 - **AG-3a closed:** typed plans (schema 6), approval, execution through the
   job rail, observable-vs-acceptance scoring.
+- **AG-3b closed:** automatic spec synthesis from campaign facts + the
+  hypothesis's relative `spec_patch`, with persisted provenance; ungrounded
+  methods/targets refuse with `spec_unavailable` (schema 8).
 - **AG-4a closed:** `/research-graph` ledger projection.
 - **AG-6a closed:** RO-Crate 1.1 metadata in `manuscript-export`.
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-3b automatic spec synthesis; AG-4b compaction/resume; AG-5
-  verification; AG-6b PROV; AG-7 autonomy/safety; AG-8b dashboards; AG-9
-  registry.
-- Schema 7.
+- **Open:** AG-4b compaction/resume; AG-5 verification; AG-6b PROV; AG-7
+  autonomy/safety; AG-8b dashboards; AG-9 registry.
+- Schema 8.
 
 ## Cross-references
 

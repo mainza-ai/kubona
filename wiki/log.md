@@ -7134,3 +7134,18 @@ skipped is the exact failure this incident is about:
   the shortlisted top probe executed a real VQE plan (`accepted:true`) and
   collapsed into a verified claim; unknown claim → 404, execute-before-approve
   → 409.
+
+## [2026-11-18] implementation | AG-3b automatic experiment-spec synthesis
+
+- `pkg/plans` synthesizes a concrete job spec from recorded campaign facts
+  (molecule, geometry, measured layers/shots/seed, last spin-chain size) plus
+  the hypothesis's relative `spec_patch` (`layers_delta`, `shots_multiplier`,
+  `iterations_multiplier`, `repeats`).
+- Every value carries a `spec_basis` provenance line, persisted with the plan;
+  hypotheses persist `spec_patch` (schema 8). Grounded methods: vqe,
+  vqe_repeats, geometry_optimization, spin_chain, qaoa. Other methods or an
+  unresolvable target refuse with `spec_unavailable`; an explicit spec still
+  wins.
+- Runtime: the expressivity probe synthesized layers 3 (measured 2 + patch 1),
+  executed accepted (-1.13271 vs -1.13727 Ha), and collapsed to a verified
+  claim; an unknown-target campaign refused with `spec_unavailable`.

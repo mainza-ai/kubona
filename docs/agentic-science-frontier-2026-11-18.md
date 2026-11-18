@@ -311,6 +311,31 @@ transition returns 200.
   and scored `accepted:true` (`completed`); the research graph then reported
   `{plans:1, jobs:1, hypotheses:10, claims:1}`.
 
+### AG-3b — automatic spec synthesis
+
+- `pkg/plans`: `Synthesize` turns a hypothesis into the job spec the bridge
+  already understands. It merges two recorded inputs: campaign facts (molecule,
+  geometry, measured layers/shots/seed, last spin-chain size) and the
+  hypothesis's declared `spec_patch` (relative `layers_delta`,
+  `shots_multiplier`, `iterations_multiplier`, `repeats`).
+- Every value has a provenance line in `spec_basis`, persisted with the plan
+  (schema 8 `spec_basis_json`). Hypotheses persist their `spec_patch`
+  (`spec_patch_json`).
+- Grounded methods: `vqe`, `vqe_repeats`, `geometry_optimization`,
+  `spin_chain`, `qaoa`. Anything else — or a campaign with no resolvable
+  target molecule/geometry — refuses with `spec_unavailable` instead of
+  receiving a plausible-looking spec. A caller-supplied spec still wins.
+- Tests: baseline carry-over, patch application and bounds, unsupported method,
+  provenance, and the API path (synthesize → approve → execute → accepted;
+  unresolvable target → 400; explicit spec fallback → 201).
+- Runtime (schema 8): the expressivity probe synthesized
+  `{molecule:H2, bond_distance:0.7414, layers:3, shots:4096, seed:7,
+  max_iterations:120}` with six basis lines (layers 2 measured + 1 patched),
+  executed a real VQE job (`accepted:true`, measured -1.13271 vs target
+  -1.13727), and collapsed into a verified claim. A campaign forced to an
+  unknown target refused with `spec_unavailable` ("the campaign has no target
+  molecule"), while the explicit-spec fallback still returned 201.
+
 ### AG-4a — research graph
 
 `GET /api/sessions/{sid}/research-graph` projects the campaign, hypotheses,
@@ -330,10 +355,9 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-3b (automatic spec synthesis from a hypothesis; execution is implemented but
-the spec is caller-supplied), AG-4b (context-budgeted compaction and restart
-resume of the graph), AG-5 (claim/citation verification), AG-6b (PROV/PROV-AGENT
-export and CRediT attribution), AG-7 (stage autonomy + safety screening), AG-8b
+AG-4b (context-budgeted compaction and restart resume of the graph), AG-5
+(claim/citation verification), AG-6b (PROV/PROV-AGENT export and CRediT
+attribution), AG-7 (stage autonomy + safety screening), AG-8b
 (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS hypotheses (
 	experiment_kind TEXT NOT NULL DEFAULT '',
 	experiment_hint TEXT NOT NULL DEFAULT '',
 	literature_json TEXT NOT NULL DEFAULT '[]',
+	spec_patch_json TEXT NOT NULL DEFAULT '{}',
 	novelty_status TEXT NOT NULL DEFAULT 'unmeasured',
 	novelty_method TEXT NOT NULL DEFAULT '',
 	novelty_distance REAL,
@@ -45,23 +46,24 @@ const (
 )
 
 type Hypothesis struct {
-	ID              string   `json:"id"`
-	SessionID       string   `json:"session_id"`
-	Statement       string   `json:"statement"`
-	Rationale       string   `json:"rationale"`
-	Falsifier       string   `json:"falsifier"`
-	ExperimentKind  string   `json:"experiment_kind"`
-	ExperimentHint  string   `json:"experiment_hint"`
-	Literature      []string `json:"literature_refs"`
-	NoveltyStatus   string   `json:"novelty_status"`
-	NoveltyMethod   string   `json:"novelty_method,omitempty"`
-	NoveltyDistance *float64 `json:"novelty_distance,omitempty"`
-	Score           float64  `json:"score"`
-	Status          string   `json:"status"`
-	Source          string   `json:"source"`
-	ClaimID         string   `json:"claim_id,omitempty"`
-	CreatedAt       string   `json:"created_at"`
-	UpdatedAt       string   `json:"updated_at"`
+	ID              string         `json:"id"`
+	SessionID       string         `json:"session_id"`
+	Statement       string         `json:"statement"`
+	Rationale       string         `json:"rationale"`
+	Falsifier       string         `json:"falsifier"`
+	ExperimentKind  string         `json:"experiment_kind"`
+	ExperimentHint  string         `json:"experiment_hint"`
+	Literature      []string       `json:"literature_refs"`
+	SpecPatch       map[string]any `json:"spec_patch,omitempty"`
+	NoveltyStatus   string         `json:"novelty_status"`
+	NoveltyMethod   string         `json:"novelty_method,omitempty"`
+	NoveltyDistance *float64       `json:"novelty_distance,omitempty"`
+	Score           float64        `json:"score"`
+	Status          string         `json:"status"`
+	Source          string         `json:"source"`
+	ClaimID         string         `json:"claim_id,omitempty"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
 }
 
 var ErrHypothesisNotFound = errors.New("hypothesis not found")
@@ -94,15 +96,19 @@ func (l *Ledger) CreateHypothesis(sessionID, tenantID string, h *Hypothesis) err
 	if err != nil {
 		return err
 	}
+	patch, err := jsonObject(h.SpecPatch)
+	if err != nil {
+		return err
+	}
 	now := nowUTC()
 	_, err = l.DB().Exec(`INSERT INTO hypotheses
 		(id, session_id, tenant_id, statement, rationale, falsifier, experiment_kind,
-		 experiment_hint, literature_json, novelty_status, novelty_method, novelty_distance,
-		 score, status, source, claim_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 experiment_hint, literature_json, spec_patch_json, novelty_status, novelty_method,
+		 novelty_distance, score, status, source, claim_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		h.ID, sessionID, tenantID, h.Statement, h.Rationale, h.Falsifier, h.ExperimentKind,
-		h.ExperimentHint, lit, h.NoveltyStatus, h.NoveltyMethod, h.NoveltyDistance, h.Score,
-		h.Status, h.Source, h.ClaimID, now, now)
+		h.ExperimentHint, lit, patch, h.NoveltyStatus, h.NoveltyMethod, h.NoveltyDistance,
+		h.Score, h.Status, h.Source, h.ClaimID, now, now)
 	if err != nil {
 		return fmt.Errorf("insert hypothesis: %w", err)
 	}
@@ -115,8 +121,8 @@ func (l *Ledger) ListHypotheses(sessionID string, limit int) ([]Hypothesis, erro
 		limit = 50
 	}
 	rows, err := l.DB().Query(`SELECT id, session_id, statement, rationale, falsifier,
-		experiment_kind, experiment_hint, literature_json, novelty_status, novelty_method,
-		novelty_distance, score, status, source, claim_id, created_at, updated_at
+		experiment_kind, experiment_hint, literature_json, spec_patch_json, novelty_status,
+		novelty_method, novelty_distance, score, status, source, claim_id, created_at, updated_at
 		FROM hypotheses WHERE session_id = ? ORDER BY score DESC, created_at ASC LIMIT ?`,
 		sessionID, limit)
 	if err != nil {
@@ -126,15 +132,16 @@ func (l *Ledger) ListHypotheses(sessionID string, limit int) ([]Hypothesis, erro
 	out := []Hypothesis{}
 	for rows.Next() {
 		var h Hypothesis
-		var lit string
+		var lit, patch string
 		var distance sql.NullFloat64
 		if err := rows.Scan(&h.ID, &h.SessionID, &h.Statement, &h.Rationale, &h.Falsifier,
-			&h.ExperimentKind, &h.ExperimentHint, &lit, &h.NoveltyStatus, &h.NoveltyMethod,
-			&distance, &h.Score, &h.Status, &h.Source, &h.ClaimID, &h.CreatedAt,
-			&h.UpdatedAt); err != nil {
+			&h.ExperimentKind, &h.ExperimentHint, &lit, &patch, &h.NoveltyStatus,
+			&h.NoveltyMethod, &distance, &h.Score, &h.Status, &h.Source, &h.ClaimID,
+			&h.CreatedAt, &h.UpdatedAt); err != nil {
 			return nil, err
 		}
 		_ = jsonUnmarshalStrings(lit, &h.Literature)
+		_ = jsonUnmarshalObject(patch, &h.SpecPatch)
 		if distance.Valid {
 			v := distance.Float64
 			h.NoveltyDistance = &v
@@ -236,6 +243,21 @@ func jsonStrings(v []string) (string, error) {
 
 func jsonUnmarshalStrings(raw string, out *[]string) error {
 	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(raw), out)
+}
+
+func jsonObject(v map[string]any) (string, error) {
+	if len(v) == 0 {
+		return "{}", nil
+	}
+	b, err := json.Marshal(v)
+	return string(b), err
+}
+
+func jsonUnmarshalObject(raw string, out *map[string]any) error {
+	if strings.TrimSpace(raw) == "" || strings.TrimSpace(raw) == "{}" {
 		return nil
 	}
 	return json.Unmarshal([]byte(raw), out)

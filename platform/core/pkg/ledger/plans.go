@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS experiment_plans (
 	budget_usd REAL NOT NULL DEFAULT 1.0,
 	executor TEXT NOT NULL DEFAULT 'bridge',
 	spec_json TEXT NOT NULL DEFAULT '{}',
+	spec_basis_json TEXT NOT NULL DEFAULT '[]',
 	status TEXT NOT NULL DEFAULT 'proposed',
 	job_id TEXT NOT NULL DEFAULT '',
 	result_json TEXT NOT NULL DEFAULT '{}',
@@ -46,23 +47,24 @@ const (
 )
 
 type ExperimentPlan struct {
-	ID               string  `json:"id"`
-	SessionID        string  `json:"session_id"`
-	HypothesisID     string  `json:"hypothesis_id,omitempty"`
-	Statement        string  `json:"statement"`
-	Method           string  `json:"method"`
-	Observable       string  `json:"observable"`
-	AcceptanceMetric string  `json:"acceptance_metric"`
-	Tolerance        float64 `json:"tolerance"`
-	StopRule         string  `json:"stop_rule"`
-	BudgetUSD        float64 `json:"budget_usd"`
-	Executor         string  `json:"executor"`
-	SpecJSON         string  `json:"spec"`
-	Status           string  `json:"status"`
-	JobID            string  `json:"job_id,omitempty"`
-	ResultJSON       string  `json:"result,omitempty"`
-	CreatedAt        string  `json:"created_at"`
-	UpdatedAt        string  `json:"updated_at"`
+	ID               string   `json:"id"`
+	SessionID        string   `json:"session_id"`
+	HypothesisID     string   `json:"hypothesis_id,omitempty"`
+	Statement        string   `json:"statement"`
+	Method           string   `json:"method"`
+	Observable       string   `json:"observable"`
+	AcceptanceMetric string   `json:"acceptance_metric"`
+	Tolerance        float64  `json:"tolerance"`
+	StopRule         string   `json:"stop_rule"`
+	BudgetUSD        float64  `json:"budget_usd"`
+	Executor         string   `json:"executor"`
+	SpecJSON         string   `json:"spec"`
+	SpecBasis        []string `json:"spec_basis,omitempty"`
+	Status           string   `json:"status"`
+	JobID            string   `json:"job_id,omitempty"`
+	ResultJSON       string   `json:"result,omitempty"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
 }
 
 var ErrPlanNotFound = errors.New("experiment plan not found")
@@ -100,15 +102,19 @@ func (l *Ledger) CreatePlan(sessionID, tenantID string, p *ExperimentPlan) error
 	if strings.TrimSpace(p.ResultJSON) == "" {
 		p.ResultJSON = "{}"
 	}
+	basis, err := jsonStrings(p.SpecBasis)
+	if err != nil {
+		return err
+	}
 	now := nowUTC()
-	_, err := l.DB().Exec(`INSERT INTO experiment_plans
+	_, err = l.DB().Exec(`INSERT INTO experiment_plans
 		(id, session_id, tenant_id, hypothesis_id, statement, method, observable,
 		 acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
-		 status, job_id, result_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 spec_basis_json, status, job_id, result_json, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.ID, sessionID, tenantID, p.HypothesisID, p.Statement, p.Method, p.Observable,
 		p.AcceptanceMetric, p.Tolerance, p.StopRule, p.BudgetUSD, p.Executor, p.SpecJSON,
-		p.Status, p.JobID, p.ResultJSON, now, now)
+		basis, p.Status, p.JobID, p.ResultJSON, now, now)
 	if err != nil {
 		return fmt.Errorf("insert experiment plan: %w", err)
 	}
@@ -121,8 +127,8 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 		limit = 50
 	}
 	rows, err := l.DB().Query(`SELECT id, session_id, hypothesis_id, statement, method, observable,
-		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json, status,
-		job_id, result_json, created_at, updated_at
+		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
+		spec_basis_json, status, job_id, result_json, created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`, sessionID, limit)
 	if err != nil {
 		return nil, err
@@ -131,12 +137,14 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	out := []ExperimentPlan{}
 	for rows.Next() {
 		var p ExperimentPlan
+		var basis string
 		if err := rows.Scan(&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method,
 			&p.Observable, &p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD,
-			&p.Executor, &p.SpecJSON, &p.Status, &p.JobID, &p.ResultJSON,
+			&p.Executor, &p.SpecJSON, &basis, &p.Status, &p.JobID, &p.ResultJSON,
 			&p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
+		_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -144,19 +152,21 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 
 func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 	var p ExperimentPlan
+	var basis string
 	err := l.DB().QueryRow(`SELECT id, session_id, hypothesis_id, statement, method, observable,
-		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json, status,
-		job_id, result_json, created_at, updated_at
+		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
+		spec_basis_json, status, job_id, result_json, created_at, updated_at
 		FROM experiment_plans WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method, &p.Observable,
 		&p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD, &p.Executor,
-		&p.SpecJSON, &p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt, &p.UpdatedAt)
+		&p.SpecJSON, &basis, &p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrPlanNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
 	return &p, nil
 }
 
@@ -196,15 +206,15 @@ func (l *Ledger) SetPlanResult(sessionID, id, status, jobID, resultJSON string) 
 
 func (l *Ledger) GetHypothesis(sessionID, id string) (*Hypothesis, error) {
 	var h Hypothesis
-	var lit string
+	var lit, patch string
 	var distance sql.NullFloat64
 	err := l.DB().QueryRow(`SELECT id, session_id, statement, rationale, falsifier,
-		experiment_kind, experiment_hint, literature_json, novelty_status, novelty_method,
-		novelty_distance, score, status, source, claim_id, created_at, updated_at
+		experiment_kind, experiment_hint, literature_json, spec_patch_json, novelty_status,
+		novelty_method, novelty_distance, score, status, source, claim_id, created_at, updated_at
 		FROM hypotheses WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&h.ID, &h.SessionID, &h.Statement, &h.Rationale, &h.Falsifier, &h.ExperimentKind,
-		&h.ExperimentHint, &lit, &h.NoveltyStatus, &h.NoveltyMethod, &distance, &h.Score,
-		&h.Status, &h.Source, &h.ClaimID, &h.CreatedAt, &h.UpdatedAt)
+		&h.ExperimentHint, &lit, &patch, &h.NoveltyStatus, &h.NoveltyMethod, &distance,
+		&h.Score, &h.Status, &h.Source, &h.ClaimID, &h.CreatedAt, &h.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrHypothesisNotFound
 	}
@@ -212,6 +222,7 @@ func (l *Ledger) GetHypothesis(sessionID, id string) (*Hypothesis, error) {
 		return nil, err
 	}
 	_ = jsonUnmarshalStrings(lit, &h.Literature)
+	_ = jsonUnmarshalObject(patch, &h.SpecPatch)
 	if distance.Valid {
 		v := distance.Float64
 		h.NoveltyDistance = &v

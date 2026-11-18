@@ -189,6 +189,7 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 			ExperimentKind:  c.ExperimentKind,
 			ExperimentHint:  c.ExperimentHint,
 			Literature:      c.Literature,
+			SpecPatch:       c.SpecPatch,
 			NoveltyStatus:   c.NoveltyStatus,
 			NoveltyMethod:   c.NoveltyMethod,
 			NoveltyDistance: c.NoveltyDistance,

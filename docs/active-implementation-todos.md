@@ -100,8 +100,9 @@ capability, not a demo.
 - [x] AG-3a: `experiment_plans` table/API; plan requires acceptance metric +
       stop rule + spec; approval gate; execute through the job rail and score
       the observable against the acceptance target.
-- [ ] AG-3b: synthesize the spec from the hypothesis/method automatically
-      (execution is implemented; the spec is caller-supplied today).
+- [x] AG-3b: `pkg/plans.Synthesize` merges campaign facts + the hypothesis's
+      relative `spec_patch`; provenance is persisted (`spec_basis`); ungrounded
+      methods/targets refuse with `spec_unavailable`. Schema 8.
 - [x] AG-4a: `GET /research-graph` projects campaign, hypotheses, plans, jobs,
       claims, and manuscripts from the ledger.
 - [ ] AG-4b: context-budgeted summaries and restart resume for the graph.

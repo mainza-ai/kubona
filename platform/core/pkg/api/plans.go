@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/plans"
 )
 
 func planSubpath(id string) (sessionID, rest string, ok bool) {
@@ -121,17 +123,14 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		WriteAPIError(w, "bad_request", "tolerance must be >= 0", nil)
 		return
 	}
-	var spec map[string]any
-	if len(body.Spec) == 0 || string(body.Spec) == "null" || json.Unmarshal(body.Spec, &spec) != nil || spec == nil {
-		WriteAPIError(w, "bad_request", "plan needs a concrete experiment spec", nil)
-		return
-	}
+	var hypothesis *ledger.Hypothesis
 	if body.HypothesisID != "" {
 		h, err := s.ledger.GetHypothesis(sessionID, body.HypothesisID)
 		if err != nil {
 			WriteAPIError(w, "not_found", "unknown hypothesis", nil)
 			return
 		}
+		hypothesis = h
 		switch h.Status {
 		case ledger.HypothesisRejected:
 			WriteAPIError(w, "bad_request", "a rejected hypothesis cannot be planned", nil)
@@ -160,6 +159,39 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		WriteAPIError(w, "bad_request", "unknown plan method: "+body.Method, nil)
 		return
 	}
+
+	// AG-3b: a hypothesis can be planned without a caller-supplied spec. The
+	// synthesizer grounds every value in the campaign and the hypothesis's
+	// declared patch; a kind it cannot ground refuses instead of guessing.
+	var spec map[string]any
+	var specBasis []string
+	explicit := len(body.Spec) > 0 && string(body.Spec) != "null"
+	if explicit {
+		if err := json.Unmarshal(body.Spec, &spec); err != nil || spec == nil {
+			WriteAPIError(w, "bad_request", "plan spec is not a JSON object", nil)
+			return
+		}
+		specBasis = []string{"spec supplied by the caller"}
+	} else {
+		if hypothesis == nil {
+			WriteAPIError(w, "bad_request",
+				"plan needs a concrete experiment spec, or a hypothesis_id to synthesize from", nil)
+			return
+		}
+		var campaign agents.CampaignState
+		if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
+			_ = json.Unmarshal(raw, &campaign)
+		}
+		facts := planFactsFromCampaign(&campaign)
+		synthesized, basis, err := plans.Synthesize(plans.Request{
+			Method: method, Hint: hypothesis.ExperimentHint, Patch: hypothesis.SpecPatch,
+		}, facts)
+		if err != nil {
+			WriteAPIError(w, "spec_unavailable", err.Error(), nil)
+			return
+		}
+		spec, specBasis = synthesized, basis
+	}
 	spec["kind"] = method
 	rawSpec, _ := json.Marshal(spec)
 	plan := &ledger.ExperimentPlan{
@@ -174,6 +206,7 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		BudgetUSD:        body.BudgetUSD,
 		Executor:         strings.TrimSpace(body.Executor),
 		SpecJSON:         string(rawSpec),
+		SpecBasis:        specBasis,
 		Status:           ledger.PlanProposed,
 	}
 	if err := s.ledger.CreatePlan(sessionID, tenantID, plan); err != nil {

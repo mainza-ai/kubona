@@ -342,7 +342,7 @@ func seedMeasuredH2(t *testing.T, srv *api.Server, sessionID string) {
 		},
 		Measurement: &agents.MeasurementSummary{
 			Measured: true, Energy: -1.12, EnergyExact: -1.137, DeltaMHa: 15.2,
-			Backend: "aer",
+			Backend: "aer", Ansatz: "hardware-efficient layers=2", Shots: 4096, Seed: 11,
 		},
 	}
 	raw, _ := json.Marshal(state)

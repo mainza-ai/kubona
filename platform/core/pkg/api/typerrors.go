@@ -93,6 +93,7 @@ var errorRegistry = map[string]errorSpec{
 	"plan_not_approved":            {"state", 409, false, "approve the experiment plan before executing it"},
 	"hypothesis_not_evidenced":     {"state", 409, false, "collapse needs a completed accepted plan or an existing verified claim"},
 	"hypothesis_not_shortlisted":   {"state", 409, false, "shortlist the hypothesis before planning an experiment from it"},
+	"spec_unavailable":             {"validation", 400, false, "provide an explicit spec: the campaign lacks the facts this method needs"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

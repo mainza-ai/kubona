@@ -1,6 +1,7 @@
 package hypotheses
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
@@ -62,6 +63,32 @@ func TestGenerateHardwareAndNoMeasurementBranches(t *testing.T) {
 	}
 	if empty[0].ExperimentKind != "vqe" {
 		t.Fatalf("first empty-state probe = %+v", empty[0])
+	}
+}
+
+func TestGenerateDeclaresTheInterventionForEachProbe(t *testing.T) {
+	out := Generate(campaign(15.2, false, true), nil, 20)
+	want := map[string]string{
+		"under-expressive": "layers_delta",
+		"optimizer":        "iterations_multiplier",
+		"Shot noise":       "shots_multiplier",
+		"stable under":     "repeats",
+	}
+	found := map[string]bool{}
+	for _, c := range out {
+		for phrase, key := range want {
+			if strings.Contains(c.Statement, phrase) {
+				if c.SpecPatch[key] == nil {
+					t.Fatalf("%q has no %s patch: %+v", phrase, key, c.SpecPatch)
+				}
+				found[key] = true
+			}
+		}
+	}
+	for _, key := range want {
+		if !found[key] && key != "repeats" {
+			t.Fatalf("no candidate declared the %s intervention", key)
+		}
 	}
 }
 

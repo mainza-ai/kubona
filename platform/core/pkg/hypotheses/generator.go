@@ -27,6 +27,10 @@ type Candidate struct {
 	Literature     []string
 	Score          float64
 	Source         string
+	// SpecPatch is the intervention that would test the probe, relative to the
+	// measured campaign (see pkg/plans for the applied semantics). Empty means
+	// the probe is a baseline/replication, not a change.
+	SpecPatch map[string]any
 	// Novelty is filled by the caller that has a prior-art corpus. The
 	// generator and proposer leave it empty: they have no corpus, so novelty
 	// is "unmeasured" rather than guessed.
@@ -54,14 +58,18 @@ func Generate(campaign *agents.CampaignState, literature []string, max int) []Ca
 	_, hardware, claimable, delta, hasPoint := point(campaign)
 	out := []Candidate{}
 
-	add := func(statement, rationale, falsifier, kind, hint string, score float64, refs []string) {
+	add := func(statement, rationale, falsifier, kind, hint string, score float64, refs []string, patch ...map[string]any) {
 		if refs == nil {
 			refs = []string{}
+		}
+		var sp map[string]any
+		if len(patch) > 0 {
+			sp = patch[0]
 		}
 		out = append(out, Candidate{
 			Statement: statement, Rationale: rationale, Falsifier: falsifier,
 			ExperimentKind: kind, ExperimentHint: hint, Score: clamp(score),
-			Source: "diagnostic", Literature: refs,
+			Source: "diagnostic", Literature: refs, SpecPatch: sp,
 		})
 	}
 
@@ -83,15 +91,18 @@ func Generate(campaign *agents.CampaignState, literature []string, max int) []Ca
 		add(fmt.Sprintf("The %s ansatz is under-expressive at the measured point.", target),
 			fmt.Sprintf("The measured point misses the anchor by %.3f mHa; expressivity is the first candidate mechanism.", delta),
 			fmt.Sprintf("Increasing expressivity leaves the discrepancy above %.1f mHa.", chemicalAccuracyMHa),
-			"vqe", "increase layers by 1 and re-run with the same optimizer budget", 0.70+0.2*gapScore, nil)
+			"vqe", "increase layers by 1 and re-run with the same optimizer budget", 0.70+0.2*gapScore, nil,
+			map[string]any{"layers_delta": 1})
 		add(fmt.Sprintf("The optimizer is trapped in a local minimum for %s.", target),
 			"The measured point may reflect optimization, not model capacity.",
 			"Multi-start or a stronger optimizer leaves the energy unchanged.",
-			"vqe", "run 3 seeded restarts and compare the best energy", 0.68+0.2*gapScore, nil)
+			"vqe", "double the optimizer budget and compare the best energy", 0.68+0.2*gapScore, nil,
+			map[string]any{"iterations_multiplier": 2})
 		add(fmt.Sprintf("Shot noise explains the %s discrepancy.", target),
 			"A finite-shot estimate can be below the exact anchor by chance.",
 			"Quadrupling shots does not shrink the discrepancy/uncertainty.",
-			"vqe", "re-run with 4x shots and compare CI95", 0.60+0.2*gapScore, nil)
+			"vqe", "re-run with 4x shots and compare CI95", 0.60+0.2*gapScore, nil,
+			map[string]any{"shots_multiplier": 4})
 		add(fmt.Sprintf("The active space or basis is the limiting approximation for %s.", target),
 			"The model may be under-specified rather than under-optimized.",
 			"Enlarging the active space/basis does not move the anchor-relative error.",
@@ -130,7 +141,8 @@ func Generate(campaign *agents.CampaignState, literature []string, max int) []Ca
 		add(fmt.Sprintf("The result for %s is stable under a different seed/backend.", target),
 			"A single run cannot separate signal from run-to-run variance.",
 			"The conclusion changes across seeds/backends.",
-			"vqe_repeats", "repeat with 3 seeds and report the interval", 0.55, nil)
+			"vqe_repeats", "repeat with 3 seeds and report the interval", 0.55, nil,
+			map[string]any{"repeats": 3})
 	}
 
 	out = dedupe(out)
