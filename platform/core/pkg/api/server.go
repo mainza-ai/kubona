@@ -2364,6 +2364,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleManuscriptRoute(w, r, sid, rest)
 		return
 	}
+	if sid, rest, ok := hypothesisSubpath(id); ok {
+		s.handleHypothesisRoute(w, r, sid, rest)
+		return
+	}
 	if strings.HasSuffix(id, "/formal-verifications") {
 		s.handleFormalVerification(w, r, strings.TrimSuffix(id, "/formal-verifications"))
 		return

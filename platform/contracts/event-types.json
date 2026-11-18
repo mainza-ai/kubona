@@ -949,6 +949,25 @@
         "comparator_signature_hex"
       ]
     },
+    "hypotheses_generated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Falsifiable research probes generated from the measured campaign state.",
+      "required": [
+        "count"
+      ]
+    },
+    "hypothesis_status_changed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Hypothesis shortlisted, rejected, or collapsed.",
+      "required": [
+        "hypothesis_id",
+        "status"
+      ]
+    },
     "manuscript_annotated": {
       "emitters": [
         "go"

@@ -63,6 +63,15 @@ prove autonomy on a benchmark.
 8. **AG-8** stage/cost/failure telemetry.
 9. **AG-9** cross-lab cumulative knowledge registry.
 
+## Implementation status (2026-11-18)
+
+- **AG-1a closed:** `platform/bench_agentic` runner/tasks/tests; disposable
+  stack baseline 2/3 pass@1 (H2 VQE 4.5 mHa; anchor exact; TFIM 1.227 Ha off).
+- **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
+  falsifiable hypotheses from the H2 campaign, literature refs, shortlist.
+- **Open:** AG-1b nightly job; AG-2b LLM/tournament/evolution; AG-3…AG-9.
+- Schema 5.
+
 ## Cross-references
 
 - [[five-ring-research-loop]] — where these capabilities sit in the ring model.

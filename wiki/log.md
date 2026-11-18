@@ -7085,3 +7085,16 @@ skipped is the exact failure this incident is about:
   verification, stage autonomy modes, safety screening, and provenance export.
 - Filed `docs/agentic-science-frontier-2026-11-18.md`,
   [[agentic-science-frontier-2026]], and the AG-1…AG-9 plan.
+
+## [2026-11-18] implementation | AG-1 benchmark and AG-2 hypothesis engine
+
+- AG-1a: `platform/bench_agentic` drives the real API over H2 VQE, the H2
+  classical anchor, and TFIM spin-chain self-consistency; scores pass@k, cost,
+  wall time, and failure labels. Disposable-stack baseline: 2/3 pass@1 (H2
+  4.5 mHa, anchor exact, TFIM 1.227 Ha off exact — a real accuracy gap).
+- AG-2a: `pkg/hypotheses` derives falsifiable probes from measured campaign
+  state, dedupes and ranks them, and persists them (schema 5) behind
+  `POST/GET /api/sessions/{sid}/hypotheses` + `PATCH` shortlist. Runtime: 10
+  ranked hypotheses on the H2 campaign, literature refs attached when the
+  bridge answers, novelty explicitly unmeasured.
+- Open: AG-1b nightly job, AG-2b tournament/LLM/measured novelty, AG-3…AG-9.

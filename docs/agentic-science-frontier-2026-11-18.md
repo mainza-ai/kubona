@@ -213,6 +213,55 @@ not repeat it; access is tenant-scoped.
   and signed evidence remain authoritative.
 - No cross-domain parity claim with biomedical agents.
 
+## 8. Implementation (2026-11-18)
+
+### AG-1a — benchmark harness and baseline
+
+- `platform/bench_agentic/runner.py`: drives the real HTTP API, creates a
+  session per task, submits the experiment, polls the job, scores the measured
+  field against a hidden target, and reports pass@k, cost, wall time, and
+  failure labels.
+- `platform/bench_agentic/tasks.json`: H2 VQE, H2 classical-anchor
+  verification, and TFIM spin-chain self-consistency.
+- Unit tests: `platform/tests/test_agentic_bench.py` (scoring, target
+  resolution, dedupe/contract checks; no network).
+
+Baseline on a disposable stack (schema 5, 2026-11-18):
+
+| Task | Result | Measured | Target | Delta | Failure |
+|---|---|---|---|---|---|
+| `h2_vqe_ground_state` | pass | -1.132769 Ha | -1.137270 Ha | 4.50 mHa | — (chemical accuracy not met) |
+| `h2_classical_anchor` | pass | -1.137270 Ha | -1.137270 Ha | 0.0 | — |
+| `tfim_spin_chain_exact` | **fail** | -9.024414 Ha | -10.251662 Ha | 1.227 Ha | tolerance |
+
+**Baseline: 2/3 pass@1, $0.00, 16.7 s total.** The TFIM failure is a real
+accuracy gap (shot-based 2-layer VQE vs the exact anchor), not a harness bug —
+exactly the class of failure ResearchClawBench reports. AG-1b (nightly CI job
+with a published baseline artifact) remains open.
+
+### AG-2a — hypothesis engine
+
+- `pkg/hypotheses`: deterministic, evidence-grounded generation from the
+  campaign state (discrepancy, hardware, claimability, missing baseline,
+  prior art, negative controls), with de-duplication and score ranking.
+- Ledger `hypotheses` table (schema 5), session-scoped API:
+  `POST/GET /api/sessions/{sid}/hypotheses`, `PATCH …/{id}` for
+  shortlist/reject/collapse; literature refs attach from the bridge when
+  available; novelty is explicitly `unmeasured`.
+- Tests: generator rules/dedupe/ranking; API generation, shortlist,
+  cross-session isolation.
+
+Runtime on the H2 benchmark campaign: **10 hypotheses**, direct experiments
+ranked above prior-art checks, every candidate has a falsifier, shortlist
+transition returns 200. AG-2b (LLM proposer, tournament evolution, meta-review,
+measured novelty) remains open; the API and storage are the substrate for it.
+
+### Still open
+
+AG-1b, AG-2b, AG-3 (protocol planner), AG-4 (structured research state),
+AG-5 (claim/citation verification), AG-6 (RO-Crate/PROV export), AG-7
+(autonomy/safety), AG-8 (telemetry), AG-9 (cumulative lab knowledge).
+
 ## 7. Source notes and limitations
 
 - Benchmark numbers are not directly comparable across suites; they measure

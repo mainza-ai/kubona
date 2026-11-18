@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "description": "Kubona-domain re-discovery tasks. Each task is a fixed experimental request scored against a target; the target is hidden from the executing agent.",
+  "tasks": [
+    {
+      "id": "h2_vqe_ground_state",
+      "description": "Reproduce the H2/STO-3G ground-state energy at 0.7414 A with a 2-layer hardware-efficient VQE.",
+      "kind": "vqe",
+      "spec": {
+        "kind": "vqe",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 2,
+        "shots": 4096,
+        "seed": 7,
+        "max_iterations": 40
+      },
+      "extract": "energy",
+      "target": -1.1372701746609035,
+      "tolerance": 0.02,
+      "chemical_accuracy": 0.0016,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "h2_classical_anchor",
+      "description": "Verify the exact FCI anchor used to judge the H2 task (the anchor must be a real computed value, not a template).",
+      "kind": "vqe",
+      "spec": {
+        "kind": "vqe",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 1,
+        "shots": 512,
+        "seed": 3,
+        "max_iterations": 5
+      },
+      "extract": "fci_exact_energy",
+      "target": -1.1372701746609035,
+      "tolerance": 0.0001,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "tfim_spin_chain_exact",
+      "description": "Run the exact TFIM spin-chain experiment and require the measured energy to reproduce its own exact anchor.",
+      "kind": "spin_chain",
+      "spec": {
+        "kind": "spin_chain",
+        "model": "tfim",
+        "n_sites": 8,
+        "coupling": 1.0,
+        "field": 1.0,
+        "periodic": true,
+        "layers": 2,
+        "target_error": 0.005,
+        "shots": 2048,
+        "seed": 7
+      },
+      "extract": "energy",
+      "target_from": "energy_exact",
+      "tolerance": 0.05,
+      "budget_usd": 1.0
+    }
+  ]
+}

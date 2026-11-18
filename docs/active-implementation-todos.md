@@ -85,12 +85,15 @@ Research: `docs/agentic-science-frontier-2026-11-18.md`; wiki
 [[agentic-science-frontier-2026]]. Ordered so each slice produces a measured
 capability, not a demo.
 
-- [ ] AG-1: end-to-end Kubona-domain re-discovery benchmark (10–20 tasks;
-      hidden target + rubric; pass@k, cost, wall time, human interventions,
-      failure label). Baseline published with the exact commit.
-- [ ] AG-2: hypothesis engine (generate → dedupe → reflect → rank → evolve →
-      meta-review) with literature refs, falsifier, novelty measured or
-      explicitly unmeasured; hypotheses stored as claims.
+- [x] AG-1a: benchmark runner + tasks + unit tests; disposable-stack baseline
+      published (2/3 pass@1; TFIM 1.227 Ha off exact). See the frontier report
+      §8.
+- [ ] AG-1b: wire AG-1 into a nightly CI job with a retained baseline artifact.
+- [x] AG-2a: persisted hypothesis engine (evidence-grounded generation,
+      dedupe, ranking, falsifier, literature refs, explicit novelty status,
+      shortlist API + tests). 10 hypotheses on the H2 campaign.
+- [ ] AG-2b: LLM proposer, tournament evolution/meta-review, measured novelty;
+      collapse a hypothesis into a claim.
 - [ ] AG-3: typed experiment protocol planner (hypothesis id, method,
       observable, acceptance metric, budget, stop rule, falsifier, executor);
       no plan → no execution.

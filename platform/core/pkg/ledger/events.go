@@ -96,6 +96,8 @@ var KnownEventTypes = map[string]bool{
 	"mandate_verified_client":           true,
 	"mandate_verified_pqc_mlkem768":     true,
 	"formal_verification":               true,
+	"hypotheses_generated":              true,
+	"hypothesis_status_changed":         true,
 	"manuscript_annotated":              true,
 	"manuscript_annotation_resolved":    true,
 	"manuscript_built":                  true,
