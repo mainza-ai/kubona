@@ -221,9 +221,9 @@ open.
 | A5 durability/telemetry | **done** | Manuscript events use `AppendEventWithSpool` and refuse if neither ledger nor spool accepts; the build ships a scrubbed `build.log`; `/metrics` adds builds-by-outcome, build seconds, and artifact bytes. |
 | A6a idempotency/state | **done** | `request_id` is unique per session (replay returns the same draft; a race resolves to the winner); deposit staging sets `deposit_ready`. |
 | A8 counts | **done** | `repo-counts` now separates route patterns (154), OpenAPI paths (159), and operations (182), and counts bridge tests separately. |
-| A2 citations | **partial** | `claim_id`/`source_id`/`verified` persisted; a bound claim is checked against the ledger (unknown → 400); `citation_distance` validated and passed to the review. Literature auto-feed UI remains. |
-| A3 comparator | open | no kernel-proof producer; ACCEPT remains unreachable. |
-| A4 retention | **partial** | per-session artifact ceiling (256 MiB default) enforced on build/deposit; delete removes rows+artifacts+annotations and seals `manuscript_deleted`; bytes gauge. Session-delete policy remains. |
+| A2 citations | **done** | claim/source/verified persisted; claims checked against the ledger; literature search in the panel adds/removes references and `PUT /citations` recomposes the draft. |
+| A3 comparator | **boundary done** | operator-run `comparator_cli` refuses static/fallback results, signs a canonical attestation; the daemon verifies the configured key and records `formal_verification`; ACCEPT→signoff→deposit exercised with a signed attestation. The live Lean run still needs the pinned sandbox image. |
+| A4 retention | **done** | per-session byte ceiling, delete with sealed hashes, and `manuscript-export` (read-only ledger → metadata + hash-checked artifacts) as the export-before-delete path. |
 | A6b ergonomics | **done** | draft edit before review (review reset), delete (operator for signed/built), `limit/offset` pagination. |
 | A7 console polish | **done** | authenticated blob download; review-detail panel with measured/unmeasured dimensions. |
 
@@ -239,3 +239,22 @@ plumbing; per-session artifact ceiling + manuscript delete with sealed hashes;
 draft edit, pagination; authenticated blob download and review dimensions.
 Schema 4. Remaining: A2b (literature auto-feed UI), A3 (comparator producer),
 A4b (session-delete/retention policy), and the two operator policy items.
+
+
+## 10. Fifth pass (2026-11-18): A2b, A3 boundary, A4b, strict posture
+
+- **A2b:** Publication panel searches OpenAlex, adds/removes references;
+  `PUT /citations` recomposes the draft; `source_id` persists.
+- **A3:** `kubona.eval.comparator_cli` runs the sandboxed comparator, refuses
+  anything weaker than `live_kernel_proven`, and signs the canonical payload.
+  `POST /api/sessions/{sid}/formal-verifications` verifies the configured
+  comparator public key, validates the axiom whitelist, and appends a signed
+  `formal_verification` event. With a signed attestation the full path now
+  reaches ACCEPT → build → signoff → deposit (`deposit_ready`).
+  Limitation: the pinned Lean image is not built on this host; the CLI refuses
+  until it is, and the main deployment has no comparator key (endpoint 503).
+- **A4b:** `kubonad manuscript-export` writes metadata, sections, citations,
+  reviews, annotations, signoff, and hash-verified artifacts from a read-only
+  ledger — the export-before-delete evidence path.
+- **Posture:** `preflight --strict` refuses an unacknowledged plaintext backup;
+  `KUBONA_BACKUP_PLAINTEXT_ACK=1` is the explicit waiver.

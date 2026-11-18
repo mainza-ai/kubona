@@ -110,6 +110,22 @@ The register and plan that remain:
   panel showing measured vs unmeasured values.
 - Schema 4.
 
+## Fifth pass: literature, comparator attestation, export
+
+- **References** can be searched (OpenAlex) and added/removed in the panel;
+  `PUT /citations` recomposes a draft and persists `source_id`.
+- **Comparator attestation** is a real trust boundary: the operator-run
+  `comparator_cli` refuses static/fallback results, signs the canonical
+  payload, and the daemon verifies `KUBONA_COMPARATOR_PUBKEY_HEX` before
+  recording `formal_verification`. No key → 503; forged signature → 401.
+  With a verified attestation the pipeline reaches ACCEPT → build → signoff →
+  deposit. The live Lean run still needs the pinned sandbox image.
+- **Export before delete:** `kubonad manuscript-export` writes metadata,
+  sections, citations, reviews, annotations, signoff, and hash-checked
+  artifacts from a read-only ledger.
+- **Strict posture:** `preflight --strict` refuses an unacknowledged plaintext
+  backup; `KUBONA_BACKUP_PLAINTEXT_ACK=1` is the explicit waiver.
+
 ## Known limits
 
 - No production comparator producer ⇒ no ACCEPT path today (gate tested with a

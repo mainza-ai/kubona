@@ -7040,3 +7040,20 @@ skipped is the exact failure this incident is about:
   pagination → annotation → delete (rows gone) → unknown claim 400.
 - Remaining: literature auto-feed, comparator producer, session-delete policy,
   operator encryption/reset.
+
+## [2026-11-18] implementation | Literature refs, comparator attestation, export
+
+- A2b: Publication panel searches OpenAlex, adds/removes references, and
+  `PUT /citations` recomposes the draft; `source_id` persists.
+- A3 boundary: `kubona.eval.comparator_cli` refuses non-kernel results, signs
+  the canonical attestation; `POST /sessions/{id}/formal-verifications`
+  verifies the configured comparator key, checks the axiom whitelist, and
+  records a signed `formal_verification`. End-to-end ACCEPT → build → signoff
+  → deposit exercised with a signed attestation (88 KB PDF, deposit_ready).
+  Fail-closed: no key → 503; tampered signature → 401. The pinned Lean image
+  is still operator-built.
+- A4b: `kubonad manuscript-export` exports metadata/sections/citations/
+  reviews/annotations/signoff and hash-checked artifacts read-only; runtime
+  export produced all 17 files.
+- Posture: `preflight --strict` refuses an unacknowledged plaintext backup;
+  `KUBONA_BACKUP_PLAINTEXT_ACK=1` is the explicit waiver.

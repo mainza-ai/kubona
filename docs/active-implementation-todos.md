@@ -93,18 +93,25 @@ verification, receipt cap) are landed with tests.
       verified against the ledger (unknown claim → 400); `citation_distance`
       is accepted, validated, and passed to the review (measured or unmeasured).
       (part of G-05, G-13)
-- [ ] A2b: literature selection UI auto-feeds citations from `/api/literature`;
-      link citations to the selected records' source ids. (rest of G-05)
-- [ ] A3: comparator producer (Lean job/bridge RPC) emits
-      `formal_verification`; an ACCEPT + signoff + deposit path is exercised
-      end to end. (closes G-04)
+- [x] A2b: the Publication panel searches OpenAlex and adds/removes references;
+      `PUT /citations` recomposes the draft; source ids persist. (G-05)
+- [x] A3 (boundary): operator-run `kubona.eval.comparator_cli` refuses any
+      non-kernel result, signs a canonical attestation; the daemon verifies the
+      configured comparator key and records `formal_verification`; ACCEPT +
+      signoff + deposit exercised end to end with a signed attestation.
+      (G-04 boundary; the live Lean run needs the pinned sandbox image)
 - [x] A4a: per-session artifact byte ceiling
       (`KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES`, default 256 MiB) enforced on
       build/deposit; delete removes rows + artifacts + events; artifact-bytes
       gauge. (part of G-06)
-- [ ] A4b: session-delete evidence semantics and a retention/export policy
-      (builds replace today, so "keep N builds" is a policy for versions, not
-      this storage). (rest of G-06)
+- [x] A4b: `kubonad manuscript-export --session --out` exports metadata,
+      sections, citations, reviews, annotations, signoff, and artifacts
+      (hash-checked) from a read-only ledger. Exported evidence is the
+      precondition for deleting a lab/session. (G-06)
+- [x] Operator gate: `kubonad preflight --strict` refuses an unacknowledged
+      plaintext backup (`KUBONA_BACKUP_PLAINTEXT_ACK=1` explicitly accepts).
+- [ ] Operator: set the comparator key (`KUBONA_COMPARATOR_PUBKEY_HEX` + host
+      private key), build the pinned Lean image, and run a real challenge.
 - [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
       scrubbed `build.log` artifact; build success/failure + duration +
       artifact-bytes metrics. (closes G-07, G-08)

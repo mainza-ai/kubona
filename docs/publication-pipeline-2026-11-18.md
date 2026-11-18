@@ -38,6 +38,8 @@ session refuses before any body is read.
 | `GET` | `/api/sessions/{sid}/manuscripts/{mid}/annotations` | review notes |
 | `POST` | `/api/sessions/{sid}/manuscripts/{mid}/annotations` | add a note (`{anchor, body}`) |
 | `PATCH` | `/api/sessions/{sid}/manuscripts/{mid}/annotations/{aid}` | set `open`, `addressed`, or `dismissed` |
+| `PUT` | `/api/sessions/{sid}/manuscripts/{mid}/citations` | replace references (draft only; recomposes) |
+| `POST` | `/api/sessions/{sid}/formal-verifications` | signed comparator attestation (key-verified) |
 
 ## States and invariants
 
@@ -160,6 +162,36 @@ test unless noted:
 10. **Figure hashes were trusted from the bridge.** The API recomputes each
     submitted figure's SHA-256 and refuses a mismatch, so the content hash
     never depends on an unverified compute-plane assertion.
+
+## Comparator attestations (A3 boundary)
+
+The Lean comparator runs on the operator host in the pinned Docker sandbox:
+
+```bash
+KUBONA_COMPARATOR_PRIVKEY_HEX=... \
+  python -m kubona.eval.comparator_cli \
+  --challenge Heisenberg --session <sid> --out /tmp/attestation.json
+curl -X POST .../api/sessions/<sid>/formal-verifications \
+  -H "Authorization: Bearer $KUBONA_API_TOKEN" \
+  -H 'Content-Type: application/json' --data @/tmp/attestation.json
+```
+
+The CLI refuses if the kernel did not run (`live_kernel_proven` required), if
+any axiom is outside `{propext, Quot.sound, Classical.choice}`, or if the
+sandbox image is absent. The daemon verifies the configured
+`KUBONA_COMPARATOR_PUBKEY_HEX`, validates the payload, and records a signed
+`formal_verification` event. Without the key the endpoint returns
+`503 comparator_unconfigured`; a caller cannot forge a proof.
+
+## Export before deleting a lab
+
+```bash
+kubonad manuscript-export --db /abs/kubona.db --session <sid> --out /abs/export
+```
+
+Read-only: writes metadata/sections/citations/reviews/annotations/signoff and
+every artifact (re-verified against its recorded SHA-256). Use it before
+session deletion or retention pruning.
 
 ## Known limits (intentional)
 

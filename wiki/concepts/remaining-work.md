@@ -114,10 +114,13 @@ Still open (A-series in `docs/active-implementation-todos.md`):
   verification + novelty plumbing; A4a per-session artifact ceiling + delete
   with sealed hashes; A6b draft edit/delete/pagination; A7 authenticated blob
   download + review dimensions.
-- **A2b:** literature selection UI auto-feeds citations.
-- **A3 comparator producer:** no production event emits a kernel-proof verdict,
-  so ACCEPT is wired but unreachable.
-- **A4b:** session-delete evidence semantics and a retention/export policy.
+- **Landed (fifth pass):** A2b literature search → citations; A3 signed
+  comparator attestation boundary (CLI + key-verified ingestion) with a full
+  ACCEPT→build→signoff→deposit path; A4b read-only manuscript export;
+  `preflight --strict` plaintext-backup gate.
+- **Operator:** build the pinned Lean image, set `KUBONA_COMPARATOR_PUBKEY_HEX`
+  (private key host-side), and run a real challenge. Encryption/ack and the
+  fresh-volume reset remain operator decisions.
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
   the fresh-volume reset for the polluted host ledger.
 

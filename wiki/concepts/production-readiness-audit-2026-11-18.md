@@ -117,6 +117,14 @@ ceiling, authenticated blob download, and a review-dimension panel. Schema 4.
 Remaining: literature auto-feed, comparator producer, session-delete/retention
 policy, and the operator encryption/reset items.
 
+### Fifth pass (2026-11-18): literature, comparator, export
+
+A2b/A3-boundary/A4b landed: OpenAlex references feed drafts, a key-verified
+signed comparator attestation unlocks ACCEPT→signoff→deposit, manuscript
+export is the export-before-delete path, and `preflight --strict` gates
+plaintext backups. Schema 4. Remaining: build the Lean sandbox image and
+configure the comparator key; operator encryption/reset.
+
 ### Follow-up pass (2026-11-18, second)
 
 `docs/publication-followup-audit-2026-11-18.md` re-audited the shipped
