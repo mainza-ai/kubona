@@ -7274,3 +7274,27 @@ skipped is the exact failure this incident is about:
   Ha; QAOA 0.788 vs 0.90). A reaction task initially read the wrong exact field
   (`reaction_energy_exact_full` vs `reaction_energy_exact`), caught and fixed
   before recording the baseline.
+
+## [2026-11-18] verification | accuracy-gap investigation and frontend audit
+
+- TFIM: the exact-state control measures −10.249 ± 0.022 Ha vs exact −10.2517
+  at 20k shots — readout is correct. The VQE gap is single-start optimization
+  (2 layers 1.202 → 0.244 Ha with four restarts) plus depth (4 layers 0.062,
+  6 layers 0.030 Ha at n=8); at 20k shots the 2-layer miss is 54σ, so shots are
+  not the cause.
+- QAOA: confirmed a shot bit-order bug (`int(bitstring[::-1], 2)` permutes
+  qubits). Direct order matches the statevector (8.90706 vs 8.90710 at 200k
+  shots); the fix raises p=2 from 0.788 to 0.891 and p=3 to 0.932. The p=2
+  ceiling is ~0.899 with ten restarts, so the benchmark now uses 0.85 at p=2
+  and 0.90 at p=3.
+- H2: the statevector optimizer reaches FCI (4 layers/600 iters); the 4.5 mHa
+  flag at 4096 shots was shot noise. At 20k shots the measured error is
+  0.256 mHa and chemical accuracy is true.
+- Benchmark: 11 tasks, baseline 8/11; the three TFIM failures are the only
+  remaining failures and are algorithmic (11–54σ).
+- Frontend: the Inspector header overlapped the “Narrow” preset with the active
+  Copilot tab at 360 px because presets were viewport-gated inside a resizable
+  panel and the header did not wrap. Fixed; a real-browser test loads the app
+  CSS, pins 1280×720 and a 360 px panel, and fails on the old layout.
+- Report: `docs/accuracy-gap-investigation-2026-11-18.md`; plan slices
+  AG-10…AG-16.

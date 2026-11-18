@@ -221,12 +221,14 @@ not repeat it; access is tenant-scoped.
   session per task, submits the experiment, polls the job, scores the measured
   field against a hidden target, and reports pass@k, cost, wall time, and
   failure labels.
-- `platform/bench_agentic/tasks.json`: **10 tasks** spanning the platform's own
+- `platform/bench_agentic/tasks.json`: **11 tasks** spanning the platform's own
   domains — H2 VQE (2- and 3-layer), the H2 classical anchor, repeated-seed
   consistency, the excited-state gap, the dissociation reaction energy, TFIM
-  chains at 4/6/8 sites, and QAOA MaxCut. Constant targets are independent
-  reference values; `target_from` fields assert an internal measured-vs-anchor
-  invariant. `load_tasks` enforces the 10–20 task contract.
+  chains at 4/6/8 sites, and QAOA MaxCut at 2 and 3 layers. Constant targets are
+  independent reference values; `target_from` fields assert an internal
+  measured-vs-anchor invariant. `load_tasks` enforces the 10–20 task contract.
+  The runner records the experiment's `uncertainty` and `z` so a tolerance can
+  be read against measurement noise.
 - Unit tests: `platform/tests/test_agentic_bench.py` (scoring, target
   resolution, dedupe/contract checks; no network).
 
@@ -234,24 +236,32 @@ Baseline on a disposable stack (schema 11, 2026-11-18), one attempt per task:
 
 | Task | Result | Measured | Target | Delta |
 |---|---|---|---|---|
-| `h2_vqe_ground_state` | pass | -1.132769 Ha | -1.137270 Ha | 4.50 mHa |
+| `h2_vqe_ground_state` | pass | -1.137526 Ha | -1.137270 Ha | 0.256 mHa |
 | `h2_classical_anchor` | pass | -1.137270 Ha | -1.137270 Ha | 0.0 |
-| `h2_vqe_layers3` | pass | -1.133519 Ha | -1.137270 Ha | 3.75 mHa |
+| `h2_vqe_layers3` | pass | -1.138110 Ha | -1.137270 Ha | 0.840 mHa |
 | `h2_vqe_repeats_consistency` | pass | -1.133717 Ha | -1.137270 Ha | 3.55 mHa |
 | `h2_excited_state_gap` | pass | 0.610631 Ha | 0.604791 Ha | 5.84 mHa |
 | `h2_reaction_energy` | pass | 0.199694 Ha | 0.204106 Ha | 4.41 mHa |
-| `tfim_spin_chain_exact` | **fail** | -9.024414 Ha | -10.251662 Ha | 1.227 Ha |
-| `tfim_spin_chain_6` | **fail** | -7.257813 Ha | -7.727407 Ha | 0.470 Ha |
-| `tfim_spin_chain_4` | **fail** | -5.054688 Ha | -5.226252 Ha | 0.172 Ha |
-| `qaoa_maxcut_ratio` | **fail** | 0.788 | 0.900 | 0.112 |
+| `tfim_spin_chain_exact` | **fail** | -9.049900 Ha | -10.251662 Ha | 1.202 Ha |
+| `tfim_spin_chain_6` | **fail** | -7.358100 Ha | -7.727407 Ha | 0.369 Ha |
+| `tfim_spin_chain_4` | **fail** | -5.055500 Ha | -5.226252 Ha | 0.171 Ha |
+| `qaoa_maxcut_ratio` | pass | 0.891 | 0.850 | 0.041 |
+| `qaoa_maxcut_ratio_p3` | pass | 0.932 | 0.900 | 0.032 |
 
-**Baseline: 6/10 pass@1, $0.00, ~33.7 s total.** The four failures are real
-accuracy gaps, not harness bugs: the shot-based 2-layer VQE misses every TFIM
-exact anchor (and the error grows with chain size), and 2-layer QAOA reaches a
-0.788 MaxCut approximation ratio against a 0.90 bar. The earlier 3-task
-baseline (2/3) is superseded by this catalog. The H2 tasks pass at a 20 mHa
-tolerance but do not reach chemical accuracy (the runner reports that flag
-separately).
+**Baseline: 8/11 pass@1, $0.00, ~36 s total.** The three failures are the TFIM
+VQE tasks, now measured at 11–54σ from their exact anchors — algorithmic, not
+shot noise. The earlier 10-task baseline (6/10) is superseded. The 20 000-shot
+H2 ground-state task now reaches chemical accuracy (0.256 mHa); see the
+accuracy-gap investigation for the controls and root causes.
+
+**Accuracy-gap investigation (2026-11-18):** `docs/accuracy-gap-investigation-2026-11-18.md`
+found and fixed a QAOA shot bit-order bug (2 layers 0.788 → 0.891), showed the
+TFIM readout is correct via an exact-state control, and separated the TFIM gap
+into a single-start optimizer failure (2 layers 1.202 → 0.244 Ha with restarts)
+and a depth ceiling (4 layers 0.062, 6 layers 0.030 Ha). H2's 4.5 mHa flag was
+shot noise; at 20 000 shots it is 0.256 mHa. The same pass fixed an Inspector
+header overlap and added a real-browser layout regression test. Follow-up
+slices AG-10…AG-16 are listed in the report.
 
 **AG-1b (nightly):** `.github/workflows/agentic-bench.yml` runs nightly and on
 dispatch: it builds the stack on a fresh volume, waits for `/api/ready`, runs
@@ -558,6 +568,20 @@ assert the crate and its artifact entries.
   incremented `confirmations` to 2 without duplicating; lookup returned
   `avoid:true` at similarity 1; sharing to another tenant succeeded and
   sharing with the owner was refused.
+
+### Accuracy-gap follow-ups (AG-10…AG-16)
+
+- **AG-10 (done):** QAOA bit order + tests; benchmark shot/target fairness;
+  Inspector header wrap + browser test.
+- **AG-11:** TFIM multi-start optimizer (3–4 restarts), gap-based
+  `converged`/`optimizer_status`.
+- **AG-12:** noise-aware benchmark scoring (`uncertainty`, z, perfect-state
+  control).
+- **AG-13:** H2 chemical-accuracy task at 1.6 mHa; HVA/UCCSD evaluation.
+- **AG-14:** QAOA multi-start and depth tasks; document the p=2 ceiling.
+- **AG-15:** console container-query/width-aware panel controls; layout audit.
+- **AG-16:** telemetry semantics (`optimizer_status`, `execution_time_ms`,
+  QAOA `energy` naming).
 
 ### Residual work (not AG slices)
 

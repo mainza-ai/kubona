@@ -159,8 +159,8 @@ export const Inspector = React.memo(function Inspector({
         >
           <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover:bg-accent/70" />
         </div>
-        <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 min-w-0">
-          <div role="tablist" aria-label="Inspector sections" className="flex flex-wrap sm:flex-nowrap min-w-0 gap-1">
+        <header className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 min-w-0">
+          <div role="tablist" aria-label="Inspector sections" className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -175,7 +175,7 @@ export const Inspector = React.memo(function Inspector({
             ))}
           </div>
           {tab === 'copilot' && (
-            <div role="group" aria-label="Copilot width presets" className="hidden xl:flex items-center gap-1">
+            <div role="group" aria-label="Copilot width presets" className="hidden shrink-0 items-center gap-1 xl:flex">
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(420)} title="Narrow Copilot">Narrow</Button>
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(640)} title="Wide Copilot">Wide</Button>
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(defaultWidth)} title="Reset Copilot width">Reset</Button>

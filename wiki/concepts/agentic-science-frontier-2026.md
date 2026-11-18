@@ -65,9 +65,9 @@ prove autonomy on a benchmark.
 
 ## Implementation status (2026-11-18)
 
-- **AG-1a closed:** `platform/bench_agentic` runner + 10-task catalog/tests;
-  disposable-stack baseline 6/10 pass@1 (H2 VQE/anchor/repeats/excited/
-  reaction pass; TFIM 4/6/8 and QAOA miss their targets).
+- **AG-1a closed:** `platform/bench_agentic` runner + 11-task catalog/tests;
+  disposable-stack baseline 8/11 pass@1 (H2 and QAOA pass; TFIM 4/6/8 remain
+  algorithmic failures at 11–54σ).
 - **AG-1b closed:** nightly/dispatch benchmark workflow with `--allow-failures`
   and a retained JSON artifact.
 - **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
@@ -108,6 +108,24 @@ prove autonomy on a benchmark.
 - **Open:** none of the AG slices; residual items are operator chores and
   re-verification on the pushed commit.
 - Schema 11.
+
+## Known accuracy gaps (2026-11-18 investigation)
+
+- **TFIM VQE:** readout is correct (exact-state control measures −10.249 ±
+  0.022 vs −10.2517 at 20k shots). The gap is single-start optimization
+  (2 layers 1.202 → 0.244 Ha with restarts) plus depth/expressivity (4 layers
+  0.062, 6 layers 0.030 Ha at n=8). Shot noise is second-order.
+- **QAOA:** a simulator shot bit-order bug under-reported the 2-layer ratio
+  (0.788 → 0.891 after the fix); p=3 reaches 0.932. The p=2 ceiling is ~0.90,
+  so the benchmark now uses 0.85 at p=2 and 0.90 at p=3.
+- **H2 chemical accuracy:** the statevector optimizer reaches FCI; the 4.5 mHa
+  flag at 4096 shots was shot noise. At 20k shots the measured error is
+  0.256 mHa.
+- **Frontend:** the Inspector header overlapped the “Narrow” preset with the
+  active Copilot tab at 360 px; fixed with a wrapping header and a real-browser
+  non-overlap test (old layout fails, fix passes).
+- Follow-up slices AG-11…AG-16 cover the optimizer, noise-aware scoring, H2
+  depth/ansatz, QAOA depth, console layout, and telemetry.
 
 ## Cross-references
 

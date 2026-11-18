@@ -11,7 +11,7 @@
         "molecule": "H2",
         "bond_distance": 0.7414,
         "layers": 2,
-        "shots": 4096,
+        "shots": 20000,
         "seed": 7,
         "max_iterations": 40
       },
@@ -48,7 +48,7 @@
         "molecule": "H2",
         "bond_distance": 0.7414,
         "layers": 3,
-        "shots": 4096,
+        "shots": 20000,
         "seed": 7,
         "max_iterations": 60
       },
@@ -128,7 +128,7 @@
         "periodic": true,
         "layers": 2,
         "target_error": 0.005,
-        "shots": 2048,
+        "shots": 20000,
         "seed": 7
       },
       "extract": "energy",
@@ -149,7 +149,7 @@
         "periodic": true,
         "layers": 2,
         "target_error": 0.005,
-        "shots": 2048,
+        "shots": 20000,
         "seed": 7
       },
       "extract": "energy",
@@ -170,7 +170,7 @@
         "periodic": true,
         "layers": 2,
         "target_error": 0.005,
-        "shots": 2048,
+        "shots": 20000,
         "seed": 7
       },
       "extract": "energy",
@@ -180,19 +180,36 @@
     },
     {
       "id": "qaoa_maxcut_ratio",
-      "description": "Run QAOA on the seeded MaxCut instance and require an approximation ratio of at least 0.9.",
+      "description": "Run 2-layer QAOA on the seeded MaxCut instance and require an approximation ratio of at least 0.85 (the measured p=2 ceiling is ~0.90).",
       "kind": "qaoa",
       "spec": {
         "kind": "qaoa",
         "layers": 2,
-        "shots": 4096,
+        "shots": 20000,
         "seed": 7,
-        "max_iterations": 80,
+        "max_iterations": 300,
+        "graph_seed": 3
+      },
+      "extract": "approximation_ratio",
+      "target": 0.85,
+      "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "qaoa_maxcut_ratio_p3",
+      "description": "Run 3-layer QAOA on the same MaxCut instance and require an approximation ratio of at least 0.90.",
+      "kind": "qaoa",
+      "spec": {
+        "kind": "qaoa",
+        "layers": 3,
+        "shots": 20000,
+        "seed": 7,
+        "max_iterations": 300,
         "graph_seed": 3
       },
       "extract": "approximation_ratio",
       "target": 0.9,
-      "tolerance": 0.1,
+      "tolerance": 0.05,
       "budget_usd": 1.0
     }
   ]

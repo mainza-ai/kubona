@@ -506,3 +506,26 @@ def test_hardware_pes_batches_all_points_once(monkeypatch):
     assert len(calls) == 1
     assert len(calls[0][0]) == 4
     assert res["hardware_job_id"] == "hw-pes-1"
+
+
+def test_qaoa_counts_cut_uses_qiskit_bit_order():
+    from experiments import _counts_cut
+
+    # "110" = qubit 0 rightmost: q0=0, q1=1, q2=1.
+    # Star (0,1),(0,2) cuts both edges -> 2.
+    assert _counts_cut({"110": 1}, [(0, 1), (0, 2)]) == 2.0
+    # "010": q1=1 only -> one cut; mean of 2 and 1 -> 1.5.
+    assert _counts_cut({"110": 1, "010": 1}, [(0, 1), (0, 2)]) == 1.5
+    # Reversing the string would have produced 1.0 for the first case.
+    assert _counts_cut({}, [(0, 1)]) == 0.0
+
+
+def test_qaoa_shot_cut_matches_the_statevector_expectation():
+    from experiments import run_qaoa
+
+    res = run_qaoa(layers=2, shots=20000, seed=7, max_iterations=120, graph_seed=3)
+    assert res["success"] is True
+    # With enough shots the measured cut must match the statevector cut, not a
+    # qubit-permuted value ~1.0 lower.
+    assert abs(res["energy"] - res["energy_exact"]) < 0.05
+    assert res["approximation_ratio"] == pytest.approx(res["energy"] / res["optimal_cut"])

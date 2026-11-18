@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
+import '@/app/globals.css';
 import React from 'react';
 import { Inspector } from './Inspector';
 import type { CampaignState } from '@/types';
@@ -66,6 +67,9 @@ describe('Inspector in a real browser', () => {
   });
 
   it('offers a visible Copilot splitter with keyboard resize and persistence', async () => {
+    // The splitter is lg:block; pin the viewport so the CSS-loaded test runs the
+    // same layout as the app instead of a hidden mobile separator.
+    await page.viewport(1280, 720);
     window.localStorage.clear();
     const screen = await render(
       <Inspector open tab="copilot" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={null} jobs={[]} copilot={<div>copilot</div>} />,
@@ -78,6 +82,26 @@ describe('Inspector in a real browser', () => {
     await userEvent.keyboard('{ArrowLeft}');
     await expect.poll(() => Number(separator.element().getAttribute('aria-valuenow'))).toBeGreaterThan(360);
     expect(Number(window.localStorage.getItem('kubona.copilot.width'))).toBeGreaterThan(360);
+  });
+
+  it('does not overlap the Copilot tab with the width presets', async () => {
+    // The presets are xl-only, so pin the viewport to the breakpoint and assert
+    // they are actually visible; otherwise this test would pass vacuously.
+    await page.viewport(1280, 720);
+    // The overlap appears at the Copilot minimum width, where four tabs plus
+    // the presets and Close exceed the 360 px panel.
+    window.localStorage.setItem('kubona.copilot.width', '360');
+    const screen = await render(
+      <Inspector open tab="copilot" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={null} jobs={[]} copilot={<div>copilot</div>} />,
+    );
+    const presetsEl = screen.getByRole('group', { name: 'Copilot width presets' }).element();
+    expect(getComputedStyle(presetsEl).display).not.toBe('none');
+    const tab = screen.getByRole('tab', { name: 'Copilot' }).element().getBoundingClientRect();
+    const presets = presetsEl.getBoundingClientRect();
+    const horizontal = Math.min(tab.right, presets.right) - Math.max(tab.left, presets.left);
+    const vertical = Math.min(tab.bottom, presets.bottom) - Math.max(tab.top, presets.top);
+    // The presets may wrap below the tabs, but they must never paint over them.
+    expect(horizontal > 0 && vertical > 0).toBe(false);
   });
 
   it('makes Jobs tab rows clickable and invokes onFocusJob', async () => {

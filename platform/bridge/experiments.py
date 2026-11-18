@@ -1987,6 +1987,24 @@ def run_geometry_optimization(
     }
 
 
+def _counts_cut(counts: dict[str, int], edges: list[tuple[int, int]]) -> float:
+    """Mean MaxCut value of a Qiskit counts distribution.
+
+    Qiskit bitstrings put qubit 0 at the rightmost character, which is the
+    integer LSB — the same convention as a Statevector amplitude index. Do not
+    reverse the string: that permutes qubits and silently changes the cut.
+    """
+    total = sum(int(v) for v in counts.values())
+    if total <= 0:
+        return 0.0
+    acc = 0
+    for bs, count in counts.items():
+        mask = int(str(bs).replace(" ", ""), 2)
+        acc += int(count) * sum(
+            1 for a, b in edges if ((mask >> a) & 1) != ((mask >> b) & 1))
+    return float(acc) / float(total)
+
+
 def run_qaoa(
     layers: int = 2,
     shots: int = 4096,
@@ -1995,6 +2013,7 @@ def run_qaoa(
     graph_seed: int = 3,
 ) -> dict[str, Any]:
     """Run QAOA MaxCut on a fixed 8-node 3-regular graph."""
+    t0 = time.perf_counter()
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing QAOA"}
     import itertools
@@ -2052,9 +2071,7 @@ def run_qaoa(
         qaoa_qasm = qasm2.dumps(qc)
     except Exception:
         qaoa_qasm = ""
-    total = sum(counts.values())
-    shot_cut = sum(count * sum(1 for a, b in edges if ((int(bs.replace(" ", "")[::-1], 2) >> a) & 1) != ((int(bs.replace(" ", "")[::-1], 2) >> b) & 1))
-                  for bs, count in counts.items()) / max(1, total)
+    shot_cut = _counts_cut(counts, edges)
     return {
         "success": True, "kind": "qaoa", "result_version": "experiment-result-v1", "molecule": "MaxCut",
         "graph": {"nodes": n, "edges": edges, "regular_degree": 3},
@@ -2072,9 +2089,10 @@ def run_qaoa(
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
         "optimizer": {"name": "COBYLA", "success": bool(opt.success),
-                      "evaluations": int(opt.nfev), "message": str(opt.message)},
+                      "evaluations": int(opt.nfev), "message": str(opt.message),
+                      "max_iterations": int(max_iterations)},
         "converged": bool(opt.success),
-        "execution_time_ms": 0.0,
+        "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }
 

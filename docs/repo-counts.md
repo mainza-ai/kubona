@@ -13,7 +13,7 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | Python test files (tests/) | 187 | `test_*.py` under `platform/tests` |
 | Bridge test files | 6 | `test_*.py` under `platform/bridge` |
 | Console test files | 156 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
-| Console test cases | 833 | `it(` / `test(` declarations in console test files |
+| Console test cases | 834 | `it(` / `test(` declarations in console test files |
 | Rust tests | 32 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |

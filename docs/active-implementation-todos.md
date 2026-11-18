@@ -85,9 +85,11 @@ Research: `docs/agentic-science-frontier-2026-11-18.md`; wiki
 [[agentic-science-frontier-2026]]. Ordered so each slice produces a measured
 capability, not a demo.
 
-- [x] AG-1a: benchmark runner + **10-task** catalog + unit tests; disposable
-      stack baseline published (6/10 pass@1; TFIM 4/6/8 and QAOA miss their
-      targets). See the frontier report §8.
+- [x] AG-1a: benchmark runner + **11-task** catalog + unit tests; disposable
+      stack baseline published (8/11 pass@1; TFIM 4/6/8 miss their exact
+      anchors at 11–54σ; QAOA 2/3 layers pass after the bit-order fix; H2
+      ground state reaches chemical accuracy at 20k shots). See the frontier
+      report §8 and `docs/accuracy-gap-investigation-2026-11-18.md`.
 - [x] AG-1b: `.github/workflows/agentic-bench.yml` nightly/dispatch run with
       `--allow-failures`, a retained JSON artifact, and failure-only stack logs.
 - [x] AG-2a: persisted hypothesis engine (evidence-grounded generation,
@@ -130,6 +132,29 @@ capability, not a demo.
 - [x] AG-9: tenant-scoped `lab_knowledge` registry (negative results, claims,
       reports) with fingerprint dedupe, provenance, a prior-negative gate on
       plan creation, and owner-granted sharing. Schema 11.
+
+## Accuracy-gap follow-ups (2026-11-18)
+
+Root-cause report: `docs/accuracy-gap-investigation-2026-11-18.md`.
+
+- [x] AG-10: QAOA simulator shot scoring uses Qiskit bit order (shared
+      `_counts_cut`, unit + 20k-shot tests); benchmark 11 tasks with
+      depth-appropriate QAOA targets and 20k-shot accuracy tasks; runner records
+      `uncertainty`/`z`; Inspector header wraps with a real-browser non-overlap
+      test.
+- [ ] AG-11: TFIM multi-start optimizer (3–4 restarts; keep best) and
+      gap-based `converged`/`optimizer_status`. Acceptance: n=8 4 layers ≤0.10 Ha
+      and 6 layers ≤0.05 Ha statevector gap; small-n exactness preserved.
+- [ ] AG-12: noise-aware benchmark scoring (`uncertainty`, z, perfect-state
+      control). Acceptance: exact-state TFIM control passes at task shots;
+      fabricated results still fail.
+- [ ] AG-13: H2 chemical-accuracy task at 1.6 mHa; evaluate HVA/UCCSD and
+      optimizer restarts.
+- [ ] AG-14: QAOA multi-start and depth tasks; document the p=2 ceiling.
+- [ ] AG-15: console container-query/width-aware panel controls; layout audit
+      for every multi-group panel header.
+- [ ] AG-16: telemetry semantics (`optimizer_status`, `execution_time_ms`,
+      QAOA `energy` naming).
 
 ## Follow-up audit slices (2026-11-18, second pass)
 

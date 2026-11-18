@@ -108,8 +108,8 @@ development — re-verify the gate on the exact commit before citing
 
 > ⚑ State update (2026-11-18, `develop`): the agentic-science program landed
 > AG-1…AG-9 in local commits `8defdb3f`…`7f0bb04e`. The platform now has: a
-> real end-to-end benchmark (`platform/bench_agentic`, 10 Kubona-domain tasks,
-> 6/10 disposable-stack baseline) with a nightly workflow;
+> real end-to-end benchmark (`platform/bench_agentic`, 11 Kubona-domain tasks,
+> 8/11 disposable-stack baseline) with a nightly workflow;
 > a persisted hypothesis engine with a strict-JSON LLM proposer, Elo tournament,
 > measured lexical novelty, and evidence-gated collapse; typed pre-registered
 > plans with automatic spec synthesis from campaign facts + a relative
@@ -128,8 +128,12 @@ development — re-verify the gate on the exact commit before citing
 > failures always fall back to diagnostics with `llm.error`; the verification calibration labels are maintainer-authored, not
 > an independent human study; human minutes are not recorded and stay `null`;
 > and the pinned Lean image remains operator-built, so no live kernel proof has
-> run here. Re-verify the full gate on the exact pushed commit before citing
-> "green".
+> run here. The 2026-11-18 accuracy investigation
+> (`docs/accuracy-gap-investigation-2026-11-18.md`) fixed a QAOA simulator
+> bit-order bug (p=2 0.788 → 0.891) and an Inspector header overlap, and
+> separated the TFIM gap into optimizer and depth causes; AG-11…AG-16 carry the
+> remaining work. Re-verify the full gate on the exact pushed commit before
+> citing "green".
 
 ## Three layers
 

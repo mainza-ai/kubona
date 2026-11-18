@@ -81,6 +81,14 @@ def score_attempt(task: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any
     chemical = task.get("chemical_accuracy")
     if chemical is not None:
         out["chemical_accuracy"] = delta <= float(chemical)
+    # Record the experiment's own shot uncertainty when the result carries it,
+    # so a tolerance can be read against the measurement noise rather than in
+    # isolation. The z-score is |measured-target| / uncertainty.
+    unc = result.get("uncertainty")
+    if isinstance(unc, (int, float)) and float(unc) >= 0:
+        out["uncertainty"] = float(unc)
+        if float(unc) > 0:
+            out["z"] = delta / float(unc)
     return out
 
 

@@ -29,6 +29,7 @@ def test_task_catalog_is_well_formed():
         "tfim_spin_chain_6",
         "tfim_spin_chain_4",
         "qaoa_maxcut_ratio",
+        "qaoa_maxcut_ratio_p3",
     ):
         assert wanted in ids, wanted
     # Every task carries a hidden target or an explicit internal anchor.
@@ -49,8 +50,9 @@ def test_extract_path_and_target_resolution():
 def test_score_pass_fail_missing_and_chemical_accuracy():
     task = {"id": "t", "extract": "energy", "target": -1.137, "tolerance": 0.02,
             "chemical_accuracy": 0.0016}
-    ok = score_attempt(task, {"energy": -1.1369})
+    ok = score_attempt(task, {"energy": -1.1369, "uncertainty": 0.0002})
     assert ok["pass"] and ok["failure"] is None and ok["chemical_accuracy"]
+    assert ok["uncertainty"] == 0.0002 and ok["z"] > 0
     loose = score_attempt(task, {"energy": -1.12})
     assert loose["pass"] and not loose["chemical_accuracy"]
     fail = score_attempt(task, {"energy": -1.0})
