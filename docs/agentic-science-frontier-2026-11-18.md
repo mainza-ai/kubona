@@ -626,8 +626,11 @@ design. The session master switch is implemented; the rest is planned.
 ### Residual work (not AG slices)
 
 - Lean comparator: the attestation boundary is implemented, but the pinned
-  `kubona-lean:4.34.1` image is operator-built (mathlib-scale), so no live
-  kernel proof has run here.
+  `kubona-lean:4.34.1` image now builds from the checksummed v4.34.1 release
+  tarball (upstream publishes no official image) and was verified on arm64
+  (Lean 4.34.1 / Lake 5.0.0-src, including the hardened run profile), but the
+  mathlib-scale warm and a live kernel proof remain operator-run, so none has
+  run here.
 - Operator-owned chores remain: copy `~/.kubona/backup-age.key` off-host,
   execute a fresh-volume reset if desired, and set
   `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1` if the deployment should require a fresh

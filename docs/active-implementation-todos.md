@@ -225,13 +225,24 @@ verification, receipt cap) are landed with tests.
       plaintext backup (`KUBONA_BACKUP_PLAINTEXT_ACK=1` explicitly accepts).
 - [x] Operator: comparator key generated (`~/.kubona/comparator.key`) and the
       public key configured on the daemon (`KUBONA_COMPARATOR_PUBKEY_HEX`).
-- [ ] Operator: build/warm the pinned Lean image
-      (`scripts/build-lean-sandbox.sh --warm`) and run a real challenge.
-      **Attempted 2026-11-18:** the build stops at
-      `FROM leanprover/lean4:v4.34.1` with "pull access denied… may require
-      authorization". The pinned tag is not publicly pullable from this host, so
-      substituting a different tag would void the pinned-kernel guarantee. This
-      stays operator-owned until the authorized base image is available.
+- [ ] Operator: warm the Lake cache and run a real challenge
+      (`scripts/build-lean-sandbox.sh --warm`). **Investigated 2026-11-18:**
+      upstream publishes no `leanprover/lean4` Docker image (the Hub repository
+      API returns 404; the community image is a stale 2024 snapshot), and the
+      official manual install is elan. `Dockerfile.lean` now builds on
+      `debian:bookworm-slim` from the checksummed
+      `lean-4.34.1-linux{,_aarch64}.tar.zst` release asset (SHA-256 pinned per
+      architecture; `TARGETARCH` selects it — Apple Silicon exposed the
+      mismatch on the first attempt);
+      `scripts/build-lean-sandbox.sh` reads the vendored `lean-toolchain`,
+      refuses a mismatch, and verifies `lean`/`lake` in the image;
+      `platform/tests/test_lean_sandbox_pin.py` guards the pin. **Built
+      2026-11-18 on arm64:** `Lean (version 4.34.1,
+      aarch64-unknown-linux-gnu, commit 5045d005…)` and `Lake version
+      5.0.0-src+5045d00`; the hardened run (`--network none --read-only
+      --cap-drop ALL`, 4g/2cpu/256pids) returned the same Lean version; image
+      manifest `sha256:e5effcbc…a06`. Remaining: the mathlib-scale warm
+      (network) and a live challenge, which stay operator-run.
 - [x] Operator: encrypted backups enabled (age recipient + REQUIRE=1), key at
       `~/.kubona/backup-age.key`; the encrypted artifact restored clean and the
       pre-encryption plaintext artifacts were removed.

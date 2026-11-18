@@ -3,7 +3,7 @@ name: Lean 4
 type: entity
 tags: [entity, tool, formal-verification, theorem-prover, programming-language]
 date: 2026-10-08
-updated: 2026-10-10
+updated: 2026-11-18
 status: adopted
 sources: [source-openai-math-corpus]
 ---
@@ -44,15 +44,32 @@ Within Kubona's [[epistemic-curvature]] and [[science-discovery]] stack:
 
 See also [[comparator]], [[openai-math]], [[formal-proof-verification-lean-comparator]], [[claim-credibility-wavefunctions]].
 
+> ⚑ Correction (2026-11-18): the earlier recipe used
+> `FROM leanprover/lean4:v4.34.1`. Upstream does **not** publish an official
+> `leanprover/lean4` Docker image — the Docker Hub repository returns 404, and
+> the only community image (`leanprovercommunity/lean4`) is a stale 2024
+> snapshot — so that base could never resolve. The image now installs the
+> checksummed `lean-4.34.1-linux{,_aarch64}.tar.zst` release asset (SHA-256
+> pinned per architecture; BuildKit `TARGETARCH` selects it, after the first
+> build attempt caught an x86_64 binary on this Apple Silicon host).
+> `scripts/build-lean-sandbox.sh` reads the vendored `lean-toolchain`, refuses a
+> Dockerfile/version mismatch, and verifies `lean --version` and `lake --version`
+> in the built image. See
+> https://github.com/leanprover/lean4/releases/tag/v4.34.1 and
+> https://lean-lang.org/install/manual/ (the official path is elan; no official
+> container is documented).
+
 ## Resource containment (Q-31, closed 2026-10-10)
 
 Sandbox execution above is now a mechanism, not an aspiration
 (`platform/kubona/eval/comparator_eval.py`, `platform/docker/Dockerfile.lean`):
 
-- **Image:** `kubona-lean:4.34.1` from `leanprover/lean4:v4.34.1`, unprivileged user,
-  `MALLOC_ARENA_MAX=2`; source stays vendored and is mounted at runtime (image
-  carries the toolchain only). Build cache must be warmed at image-build time —
-  runtime runs `--network none`, so an unwarned first build would fail offline.
+- **Image:** `kubona-lean:4.34.1` built on `debian:bookworm-slim` from the
+  checksummed `lean-4.34.1-linux.tar.zst` GitHub release asset, unprivileged
+  user, `MALLOC_ARENA_MAX=2`; source stays vendored and is mounted at runtime
+  (image carries the toolchain only). Build cache must be warmed at
+  image-build time — runtime runs `--network none`, so an unwarmed first build
+  would fail offline.
 - **Caps on every run** (`LeanSandboxConfig`, unit-tested flag-for-flag):
   `--read-only`, `--network none`, `--cap-drop ALL`, `--memory/--memory-swap 4g`,
   `--cpus 2.0`, `--pids-limit 256`, `--tmpfs /tmp`, 600s timeout.
@@ -63,3 +80,10 @@ Sandbox execution above is now a mechanism, not an aspiration
 - **Host prerequisites (operator):** raise `vm.max_map_count` on Linux hosts
   (containers cannot raise it themselves); image build + one warm run before
   any production verification.
+- **Build evidence (2026-11-18):** `kubona-lean:4.34.1` built on arm64 from the
+  `linux_aarch64` release asset — `Lean (version 4.34.1,
+  aarch64-unknown-linux-gnu, commit 5045d005…)`, `Lake version
+  5.0.0-src+5045d00`; the hardened `--network none --read-only --cap-drop ALL`
+  run reports the same Lean version. Manifest
+  `sha256:e5effcbce273f8fc835b7608831b8f43f8fc32ce541bc72cab3b953e2a5e3a06`.
+  The mathlib-scale warm and a live challenge have not run.

@@ -34,8 +34,9 @@ STANDARD_PERMITTED_AXIOMS: Set[str] = {
 class LeanSandboxConfig:
     """Q-31: resource caps for containerized Lean verification.
 
-    The sandbox image carries the pinned toolchain (platform/docker/
-    Dockerfile.lean, leanprover/lean4:v4.34.1); these caps apply at every
+    The sandbox image installs the pinned toolchain from the checksummed
+    v4.34.1 Linux release tarball (platform/docker/Dockerfile.lean); upstream
+    publishes no official `leanprover/lean4` image. These caps apply at every
     `docker run` so one proof cannot exhaust the host (RAM mappings, CPU,
     PIDs). Network is always none at runtime; the build cache must be warmed
     at image-build time (see Dockerfile).

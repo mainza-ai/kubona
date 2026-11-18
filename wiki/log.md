@@ -7375,3 +7375,31 @@ skipped is the exact failure this incident is about:
   search feeds references (A2a/A2b); R6 backup encryption + required-backup
   preflight env set. WidgetStage/Recorder/Manifold is recorded as a product
   decision (parity-gated), not an unfinished migration.
+
+## [2026-11-18] verification | Lean sandbox base image investigated
+
+- Upstream `leanprover/lean4` is **not** published on Docker Hub: the repository
+  API returns 404; only the stale (2024-08) community image
+  `leanprovercommunity/lean4` exists. The official manual install is elan, and
+  every release publishes checksummed Linux tarballs.
+- `platform/docker/Dockerfile.lean` now builds `kubona-lean:4.34.1` on
+  `debian:bookworm-slim` from `lean-4.34.1-linux.tar.zst`
+  (SHA-256 `47bf4bbd…`), so the pinned base no longer depends on a nonexistent
+  registry image.
+- `scripts/build-lean-sandbox.sh` reads the vendored `lean-toolchain`, refuses a
+  version mismatch, passes the pin as a build arg, and verifies `lean --version`
+  and `lake --version` in the built image.
+  `platform/tests/test_lean_sandbox_pin.py` keeps the toolchain, Dockerfile pin,
+  checksum, image tag, and script in sync.
+
+## [2026-11-18] verification | Lean sandbox image built from the pinned tarball
+
+- `kubona-lean:4.34.1` built successfully on arm64 from
+  `lean-4.34.1-linux_aarch64.tar.zst` (SHA-256 verified): Lean 4.34.1
+  (`aarch64-unknown-linux-gnu`, commit `5045d005…`) and Lake
+  `5.0.0-src+5045d00`.
+- The hardened run profile (`--network none --read-only --cap-drop ALL`,
+  4g/2cpu/256pids, tmpfs /tmp) reports the same Lean version, so the sandbox
+  flags and the image agree.
+- Manifest `sha256:e5effcbc…a06`. The mathlib-scale warm and a live comparator
+  challenge remain operator-run.

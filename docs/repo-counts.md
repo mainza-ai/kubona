@@ -10,7 +10,7 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | OpenAPI operations | 190 | method+path operations in the generated document |
 | Go packages | 48 | directories under `platform/core` containing `.go` files |
 | Go test functions | 1142 | top-level `func Test...` in `*_test.go` |
-| Python test files (tests/) | 187 | `test_*.py` under `platform/tests` |
+| Python test files (tests/) | 188 | `test_*.py` under `platform/tests` |
 | Bridge test files | 6 | `test_*.py` under `platform/bridge` |
 | Console test files | 159 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
 | Console test cases | 850 | `it(` / `test(` declarations in console test files |
