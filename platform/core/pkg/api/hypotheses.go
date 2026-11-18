@@ -146,15 +146,24 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 			llmInfo["error"] = "no LLM provider is configured"
 		} else {
 			// The handler is synchronous, so an unbounded provider hang would
-			// hold the request open indefinitely.
-			ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+			// hold the request open indefinitely. The default covers local
+			// reasoning models; KUBONA_HYPOTHESIS_LLM_TIMEOUT_SEC overrides it.
+			ctx, cancel := context.WithTimeout(r.Context(), s.hypothesisLLMTimeout())
+			// Model candidates are for diversity, not volume: a local
+			// reasoning model needs its completion budget for reasoning plus
+			// JSON, so asking for the full diagnostic count truncates the
+			// contract. Diagnostics still fill the requested count.
+			llmCount := body.Count
+			if llmCount <= 0 || llmCount > 4 {
+				llmCount = 4
+			}
 			proposed, err := hypotheses.Propose(ctx, s.hypothesisCompleter, hypotheses.ProposeOptions{
 				Goal: body.Goal, Target: campaign.TargetSystem,
 				Measured:   campaign.Measurement != nil && campaign.Measurement.Measured,
 				DeltaMHa:   campaignDeltaMHa(&campaign),
 				Hardware:   campaign.Measurement != nil && campaign.Measurement.Hardware,
 				Claimable:  campaign.Measurement != nil && campaign.Measurement.Claimable,
-				Literature: priorArt, Count: body.Count,
+				Literature: priorArt, Count: llmCount,
 			})
 			cancel()
 			if err != nil {

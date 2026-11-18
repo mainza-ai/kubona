@@ -16,11 +16,24 @@ from bench_agentic.runner import (
 
 def test_task_catalog_is_well_formed():
     tasks = load_tasks()
-    assert len(tasks) >= 3
+    assert 10 <= len(tasks) <= 20
     ids = {t["id"] for t in tasks}
-    assert "h2_vqe_ground_state" in ids
-    assert "h2_classical_anchor" in ids
-    assert "tfim_spin_chain_exact" in ids
+    for wanted in (
+        "h2_vqe_ground_state",
+        "h2_classical_anchor",
+        "h2_vqe_layers3",
+        "h2_vqe_repeats_consistency",
+        "h2_excited_state_gap",
+        "h2_reaction_energy",
+        "tfim_spin_chain_exact",
+        "tfim_spin_chain_6",
+        "tfim_spin_chain_4",
+        "qaoa_maxcut_ratio",
+    ):
+        assert wanted in ids, wanted
+    # Every task carries a hidden target or an explicit internal anchor.
+    for task in tasks:
+        assert ("target" in task) or ("target_from" in task), task["id"]
 
 
 def test_extract_path_and_target_resolution():

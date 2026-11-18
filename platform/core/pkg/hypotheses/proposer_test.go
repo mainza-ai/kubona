@@ -103,6 +103,31 @@ func TestProposeNormalizesKindAliasesAndCapsCount(t *testing.T) {
 	}
 }
 
+func TestMergeReservesSlotsForModelProposals(t *testing.T) {
+	primary := []Candidate{
+		{Statement: "Diagnostic one.", Falsifier: "f", Score: 0.9, Source: "diagnostic"},
+		{Statement: "Diagnostic two.", Falsifier: "f", Score: 0.8, Source: "diagnostic"},
+		{Statement: "Diagnostic three.", Falsifier: "f", Score: 0.7, Source: "diagnostic"},
+	}
+	secondary := []Candidate{
+		{Statement: "Model one.", Falsifier: "f", Score: 0.5, Source: "llm"},
+		{Statement: "Model two.", Falsifier: "f", Score: 0.5, Source: "llm"},
+	}
+	out := Merge(primary, secondary, 3)
+	if len(out) != 3 {
+		t.Fatalf("merged = %d", len(out))
+	}
+	llmRows := 0
+	for _, c := range out {
+		if c.Source == "llm" {
+			llmRows++
+		}
+	}
+	if llmRows < 1 {
+		t.Fatalf("no model proposal survived the cap: %+v", out)
+	}
+}
+
 func TestMergeDedupesAndKeepsHigherScoringVersion(t *testing.T) {
 	diagnostic := []Candidate{
 		{Statement: "The optimizer is trapped in a local minimum for H2.",

@@ -18,10 +18,12 @@ type fakeHypothesisLLM struct {
 	reply string
 	err   error
 	calls int
+	last  []llm.ChatMessage
 }
 
-func (f *fakeHypothesisLLM) Complete(_ context.Context, _ string, _ []llm.ChatMessage) (string, error) {
+func (f *fakeHypothesisLLM) Complete(_ context.Context, _ string, messages []llm.ChatMessage) (string, error) {
 	f.calls++
+	f.last = messages
 	return f.reply, f.err
 }
 
@@ -68,6 +70,10 @@ func TestHypothesesUseLLMProposalsAndMeasureNovelty(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &out)
 	if fake.calls != 1 || !out.LLM.Requested || !out.LLM.Used || out.LLM.Count != 2 {
 		t.Fatalf("LLM path not taken: calls=%d meta=%+v", fake.calls, out.LLM)
+	}
+	prompt := fake.last[len(fake.last)-1].Content
+	if !strings.Contains(prompt, "Return at most 4 hypotheses") {
+		t.Fatalf("LLM proposal count was not bounded to 4: %s", prompt)
 	}
 	if out.LLM.Error != "" {
 		t.Fatalf("unexpected LLM error: %s", out.LLM.Error)

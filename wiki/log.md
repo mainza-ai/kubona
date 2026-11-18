@@ -7249,3 +7249,22 @@ skipped is the exact failure this incident is about:
 - All AG slices from the 2026-11-18 plan are now implemented. Residual items
   are operator chores (Lean image build, backup key off-host, fresh-volume
   reset) and re-verifying the gate on the pushed commit.
+
+## [2026-11-18] verification | Strata LLM success path and 10-task benchmark
+
+- Strata is running locally (`unsloth-ud-iq4_xs-v31`, 127.0.0.1:47831); Kubona's
+  active provider/model already matched. `/api/llm/test` returned "Active.
+  Status: operational." in 2.6 s.
+- AG-2b live: the proposer timed out at 60 s, then truncated its JSON at 2048
+  and 4096 tokens. Fixes: proposer timeout 360 s
+  (`KUBONA_HYPOTHESIS_LLM_TIMEOUT_SEC`), completion cap 8192, LLM request
+  bounded to 4 candidates, and Merge reserves up to half the slots for model
+  proposals so a diagnostic set cannot silently drop them. Live result: 4 LLM
+  candidates, 3 merged alongside 3 diagnostics in ~94 s, all falsifiable with
+  concrete experiment kinds/hints.
+- AG-1 catalog expanded from 3 to 10 real tasks (H2 VQE 2/3 layers, anchor,
+  repeats, excited gap, reaction, TFIM 4/6/8, QAOA MaxCut). Disposable-stack
+  baseline 6/10: the four failures are real accuracy gaps (TFIM 0.17/0.47/1.23
+  Ha; QAOA 0.788 vs 0.90). A reaction task initially read the wrong exact field
+  (`reaction_energy_exact_full` vs `reaction_energy_exact`), caught and fixed
+  before recording the baseline.

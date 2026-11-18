@@ -85,9 +85,9 @@ Research: `docs/agentic-science-frontier-2026-11-18.md`; wiki
 [[agentic-science-frontier-2026]]. Ordered so each slice produces a measured
 capability, not a demo.
 
-- [x] AG-1a: benchmark runner + tasks + unit tests; disposable-stack baseline
-      published (2/3 pass@1; TFIM 1.227 Ha off exact). See the frontier report
-      §8.
+- [x] AG-1a: benchmark runner + **10-task** catalog + unit tests; disposable
+      stack baseline published (6/10 pass@1; TFIM 4/6/8 and QAOA miss their
+      targets). See the frontier report §8.
 - [x] AG-1b: `.github/workflows/agentic-bench.yml` nightly/dispatch run with
       `--allow-failures`, a retained JSON artifact, and failure-only stack logs.
 - [x] AG-2a: persisted hypothesis engine (evidence-grounded generation,

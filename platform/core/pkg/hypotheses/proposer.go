@@ -193,7 +193,7 @@ func parseProposals(reply string, want int) ([]Candidate, error) {
 	dec.DisallowUnknownFields()
 	var env proposalEnvelope
 	if err := dec.Decode(&env); err != nil {
-		return nil, fmt.Errorf("LLM proposal is not the contract JSON: %w", err)
+		return nil, fmt.Errorf("LLM proposal is not the contract JSON: %w (reply %d bytes)", err, len(body))
 	}
 	if len(env.Hypotheses) == 0 {
 		return nil, fmt.Errorf("LLM proposal returned no hypotheses")
@@ -264,10 +264,40 @@ func Merge(primary, secondary []Candidate, max int) []Candidate {
 	all = append(all, secondary...)
 	sortCandidates(all)
 	out := dedupe(all)
-	if max > 0 && len(out) > max {
-		out = out[:max]
+	if max <= 0 || len(out) <= max {
+		return out
 	}
-	return out
+	// Model proposals are for diversity, not only rank: reserve up to half the
+	// slots for the best secondary (LLM) candidates that survived dedupe, then
+	// fill the rest by score. Without this, a diagnostic set that fills `max`
+	// silently drops every model proposal.
+	reserved := max / 2
+	if reserved < 1 {
+		reserved = 1
+	}
+	chosen := make([]Candidate, 0, max)
+	chosenStatements := map[string]bool{}
+	for _, c := range out {
+		if len(chosen) >= reserved {
+			break
+		}
+		if c.Source == "llm" {
+			chosen = append(chosen, c)
+			chosenStatements[c.Statement] = true
+		}
+	}
+	for _, c := range out {
+		if len(chosen) >= max {
+			break
+		}
+		if chosenStatements[c.Statement] {
+			continue
+		}
+		chosen = append(chosen, c)
+		chosenStatements[c.Statement] = true
+	}
+	sortCandidates(chosen)
+	return chosen
 }
 
 func sortCandidates(c []Candidate) {

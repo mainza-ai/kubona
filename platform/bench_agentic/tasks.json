@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "description": "Kubona-domain re-discovery tasks. Each task is a fixed experimental request scored against a target; the target is hidden from the executing agent.",
+  "version": 2,
+  "description": "Kubona-domain re-discovery tasks. Each task is a fixed experimental request scored against a target; the target is hidden from the executing agent. Target-from fields assert an internal invariant (measured vs the experiment's own exact anchor); constant targets are independent reference values.",
   "tasks": [
     {
       "id": "h2_vqe_ground_state",
@@ -40,8 +40,84 @@
       "budget_usd": 1.0
     },
     {
+      "id": "h2_vqe_layers3",
+      "description": "Test whether one more ansatz layer closes the H2 gap: 3-layer hardware-efficient VQE at the same geometry.",
+      "kind": "vqe",
+      "spec": {
+        "kind": "vqe",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 3,
+        "shots": 4096,
+        "seed": 7,
+        "max_iterations": 60
+      },
+      "extract": "energy",
+      "target": -1.1372701746609035,
+      "tolerance": 0.02,
+      "chemical_accuracy": 0.0016,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "h2_vqe_repeats_consistency",
+      "description": "Check that the H2 result is stable across independent optimizer seeds (mean of 3 repeats vs the exact anchor).",
+      "kind": "vqe_repeats",
+      "spec": {
+        "kind": "vqe_repeats",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 2,
+        "shots": 2048,
+        "seed": 7,
+        "max_iterations": 40,
+        "repeats": 3
+      },
+      "extract": "energy",
+      "target_from": "fci_exact_energy",
+      "tolerance": 0.02,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "h2_excited_state_gap",
+      "description": "Reproduce the H2 ground-to-excited gap with deflation VQE and compare it with the exact spectrum.",
+      "kind": "excited_state",
+      "spec": {
+        "kind": "excited_state",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 2,
+        "shots": 4096,
+        "seed": 7,
+        "max_iterations": 40,
+        "penalty": 10.0
+      },
+      "extract": "gap",
+      "target_from": "gap_exact",
+      "tolerance": 0.02,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "h2_reaction_energy",
+      "description": "Measure the H2 dissociation reaction energy and compare it with the full-space exact reaction energy at the same settings.",
+      "kind": "reaction",
+      "spec": {
+        "kind": "reaction",
+        "molecule": "H2",
+        "reactant_distance": 0.7414,
+        "product_distance": 10.0,
+        "layers": 2,
+        "shots": 4096,
+        "seed": 7,
+        "max_iterations": 40
+      },
+      "extract": "reaction_energy",
+      "target_from": "reaction_energy_exact",
+      "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
       "id": "tfim_spin_chain_exact",
-      "description": "Run the exact TFIM spin-chain experiment and require the measured energy to reproduce its own exact anchor.",
+      "description": "Run the exact TFIM spin-chain experiment at 8 sites and require the measured energy to reproduce its own exact anchor.",
       "kind": "spin_chain",
       "spec": {
         "kind": "spin_chain",
@@ -58,6 +134,65 @@
       "extract": "energy",
       "target_from": "energy_exact",
       "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "tfim_spin_chain_6",
+      "description": "Repeat the TFIM self-consistency check at 6 sites (smaller chain, same coupling/field).",
+      "kind": "spin_chain",
+      "spec": {
+        "kind": "spin_chain",
+        "model": "tfim",
+        "n_sites": 6,
+        "coupling": 1.0,
+        "field": 1.0,
+        "periodic": true,
+        "layers": 2,
+        "target_error": 0.005,
+        "shots": 2048,
+        "seed": 7
+      },
+      "extract": "energy",
+      "target_from": "energy_exact",
+      "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "tfim_spin_chain_4",
+      "description": "Repeat the TFIM self-consistency check at 4 sites (the smallest chain).",
+      "kind": "spin_chain",
+      "spec": {
+        "kind": "spin_chain",
+        "model": "tfim",
+        "n_sites": 4,
+        "coupling": 1.0,
+        "field": 1.0,
+        "periodic": true,
+        "layers": 2,
+        "target_error": 0.005,
+        "shots": 2048,
+        "seed": 7
+      },
+      "extract": "energy",
+      "target_from": "energy_exact",
+      "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "qaoa_maxcut_ratio",
+      "description": "Run QAOA on the seeded MaxCut instance and require an approximation ratio of at least 0.9.",
+      "kind": "qaoa",
+      "spec": {
+        "kind": "qaoa",
+        "layers": 2,
+        "shots": 4096,
+        "seed": 7,
+        "max_iterations": 80,
+        "graph_seed": 3
+      },
+      "extract": "approximation_ratio",
+      "target": 0.9,
+      "tolerance": 0.1,
       "budget_usd": 1.0
     }
   ]

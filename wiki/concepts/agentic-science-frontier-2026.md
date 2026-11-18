@@ -65,8 +65,9 @@ prove autonomy on a benchmark.
 
 ## Implementation status (2026-11-18)
 
-- **AG-1a closed:** `platform/bench_agentic` runner/tasks/tests; disposable
-  stack baseline 2/3 pass@1 (H2 VQE 4.5 mHa; anchor exact; TFIM 1.227 Ha off).
+- **AG-1a closed:** `platform/bench_agentic` runner + 10-task catalog/tests;
+  disposable-stack baseline 6/10 pass@1 (H2 VQE/anchor/repeats/excited/
+  reaction pass; TFIM 4/6/8 and QAOA miss their targets).
 - **AG-1b closed:** nightly/dispatch benchmark workflow with `--allow-failures`
   and a retained JSON artifact.
 - **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
@@ -74,7 +75,10 @@ prove autonomy on a benchmark.
 - **AG-2b closed:** strict-JSON LLM proposer (diagnostics floor, honest
   fallback), deterministic Elo tournament + derived meta-review,
   `lexical_containment_v1` measured novelty (schema 7), evidence-gated collapse
-  to a claim, shortlist-before-plan gate.
+  to a claim, shortlist-before-plan gate. Live Strata success: 4 model
+  proposals, 3 merged with diagnostics, ~94 s; the proposer timeout is
+  `KUBONA_HYPOTHESIS_LLM_TIMEOUT_SEC` (default 360 s) and the completion is
+  bounded at 8192 tokens.
 - **AG-3a closed:** typed plans (schema 6), approval, execution through the
   job rail, observable-vs-acceptance scoring.
 - **AG-3b closed:** automatic spec synthesis from campaign facts + the

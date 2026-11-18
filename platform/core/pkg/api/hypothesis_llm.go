@@ -10,6 +10,10 @@ package api
 import (
 	"context"
 	"errors"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 )
@@ -25,12 +29,35 @@ type llmHypothesisCompleter struct {
 	client *llm.Client
 }
 
+// proposalMaxTokens bounds one proposal turn. Local reasoning models can
+// spend thousands of tokens before emitting the contract JSON; the cap keeps a
+// single request from running unbounded while leaving room for reasoning + a
+// multi-item reply.
+const proposalMaxTokens = 8192
+
 func (a llmHypothesisCompleter) Complete(ctx context.Context, role string, messages []llm.ChatMessage) (string, error) {
 	if a.client == nil {
 		return "", errNoLLMClient
 	}
-	out, _, _, err := a.client.Complete(ctx, role, messages)
+	out, _, _, err := a.client.CompleteCapped(ctx, role, messages, proposalMaxTokens)
 	return out, err
+}
+
+// defaultHypothesisLLMTimeout covers slow local reasoning models: prompt
+// processing plus a bounded generation can exceed a minute on CPU/consumer
+// hardware. Operators can override it for genuinely slower engines.
+const defaultHypothesisLLMTimeout = 360 * time.Second
+
+func (s *Server) hypothesisLLMTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("KUBONA_HYPOTHESIS_LLM_TIMEOUT_SEC"))
+	if raw == "" {
+		return defaultHypothesisLLMTimeout
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 30 || n > 900 {
+		return defaultHypothesisLLMTimeout
+	}
+	return time.Duration(n) * time.Second
 }
 
 // SetHypothesisCompleter replaces the proposer's completion seam. Passing nil
