@@ -65,9 +65,9 @@ prove autonomy on a benchmark.
 
 ## Implementation status (2026-11-18)
 
-- **AG-1a closed:** `platform/bench_agentic` runner + 11-task catalog/tests;
-  disposable-stack baseline 8/11 pass@1 (H2 and QAOA pass; TFIM 4/6/8 remain
-  algorithmic failures at 11–54σ).
+- **AG-1a closed:** `platform/bench_agentic` runner + 13-task catalog/tests;
+  disposable-stack baseline 11/13 pass@1 (HVA-6 and H2 chemical accuracy pass;
+  the 8/6-site hardware-efficient TFIM tasks remain algorithmic failures).
 - **AG-1b closed:** nightly/dispatch benchmark workflow with `--allow-failures`
   and a retained JSON artifact.
 - **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
@@ -120,11 +120,14 @@ prove autonomy on a benchmark.
   lock. Restart rehydration brings loops back paused when the switch is off.
 - The Autoresearch panel shows the switch, the current stage mode, and a clear
   Manual/Auto/Locked status; every change is an `agentic_mode_changed` event.
-- Research synthesis (framework-level autonomy ladders, visible permission
-  modes, durable approvals, tiered oversight, approval fatigue, HVA/multi-start
-  and QAOA p=2/p=3 bounds) and the remaining plan (AG-18…AG-24: global
-  indicator, durable approval inbox, notify rung, per-tool permissions,
-  fatigue telemetry, undo, tenant defaults) are in
+- Oversight slices AG-18…AG-24 are implemented: a composer Manual/Auto/Locked
+  chip; a durable approval inbox with approve/reject/defer and a browser-tested
+  console panel; a `notify` rung with `/agentic/digest` receipts; per-tool
+  `allow|ask|block` enforcement; queue/fatigue metrics; `/receipts` undo for
+  mode flips, unrun plan decisions, and deferrals; and an operator-owned tenant
+  default with policy history/rollback and strict unreadable-policy refusal.
+  Research and the remaining refinements (per-call “ask” queue, digest UI,
+  edit/feedback approvals, protocol taxonomy) are in
   `docs/agentic-mode-toggle-2026-11-18.md`.
 
 ## Known accuracy gaps (2026-11-18 investigation)

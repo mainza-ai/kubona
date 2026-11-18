@@ -127,6 +127,17 @@
         "detail"
       ]
     },
+    "action_undone": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A reversible oversight action was undone by a new sealed event.",
+      "required": [
+        "target_id",
+        "event_type",
+        "action"
+      ]
+    },
     "agentic_mode_changed": {
       "emitters": [
         "go"
@@ -136,6 +147,17 @@
         "enabled",
         "locked",
         "actor"
+      ]
+    },
+    "autonomy_policy_rolled_back": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Operator restored a policy captured by an earlier sealed event.",
+      "required": [
+        "source_event_id",
+        "agentic_enabled",
+        "agentic_locked"
       ]
     },
     "autonomy_halted": {
@@ -990,6 +1012,27 @@
         "comparator_signature_hex"
       ]
     },
+    "plan_approval_decided": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A proposed experiment plan approved or rejected from the inbox.",
+      "required": [
+        "plan_id",
+        "decision",
+        "status"
+      ]
+    },
+    "plan_deferred": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A proposed experiment plan parked until a future time.",
+      "required": [
+        "plan_id",
+        "deferred_until"
+      ]
+    },
     "plan_created": {
       "emitters": [
         "go"
@@ -1330,6 +1373,16 @@
         "tenant_id"
       ]
     },
+    "tenant_agentic_default_updated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Operator set the tenant default for the session agentic switch.",
+      "required": [
+        "tenant_id",
+        "enabled"
+      ]
+    },
     "tenant_autonomy_granted": {
       "emitters": [
         "go"
@@ -1432,6 +1485,16 @@
       "payload": "Tool loop breaker fired.",
       "required": [
         "session_id"
+      ]
+    },
+    "tool_permission_refused": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A copilot tool was refused by the session per-tool policy.",
+      "required": [
+        "tool",
+        "permission"
       ]
     },
     "tool_loop_capped": {

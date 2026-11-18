@@ -263,15 +263,15 @@ Go suite / ESLint                      → green
 
 | Area | Gap | Impact | Plan |
 |---|---|---|---|
-| Global visibility | Mode is visible only in the Autoresearch panel | Users can forget the mode | AG-18: status bar / command palette indicator |
-| Approvals | Plan status is the approval, no inbox with edit/reject-feedback/defer/remember | Approval fatigue; no durable queue | AG-19 |
-| Notify rung | No batched “do it and tell me later” | Long runs still require a person at the end | AG-20 |
-| Tool permissions | No per-tool allow/ask/block for agent tools | Future write tools would be coarse | AG-21 |
-| Fatigue metrics | Plan latency exists; no queue depth/rubber-stamp signal | Cannot detect oversight decay | AG-22 |
-| Undo | Jobs/claims immutable; no reversal receipt | Higher-stakes actions lack recovery | AG-23 |
-| Org default | No tenant-level default switch or policy revision/rollback | New sessions inherit a hardcoded default | AG-24 |
-| Strict policy read | Unreadable policy normalizes to enabled | Availability bias | AG-24 (strict mode) |
-| Risk classifier | v1 lexical list; no protocol/domain taxonomy | High-risk direction may be missed | AG-24 (extend) |
+| Global visibility | Mode is visible only in the Autoresearch panel | Users can forget the mode | **AG-18 done**: composer chip; panel remains the detailed control |
+| Approvals | Plan status is the approval, no inbox with edit/reject-feedback/defer/remember | Approval fatigue; no durable queue | **AG-19 done** for approve/reject/defer; edit-arguments/feedback remain |
+| Notify rung | No batched “do it and tell me later” | Long runs still require a person at the end | **AG-20 done** (mode + digest); console digest view remains |
+| Tool permissions | No per-tool allow/ask/block for agent tools | Future write tools would be coarse | **AG-21 done** (ask refuses with remedy; per-call queue remains) |
+| Fatigue metrics | Plan latency exists; no queue depth/rubber-stamp signal | Cannot detect oversight decay | **AG-22 done**: queue depth, p50/p90, rejection rate |
+| Undo | Jobs/claims immutable; no reversal receipt | Higher-stakes actions lack recovery | **AG-23 done** for mode/plan/defer; jobs/claims stay immutable |
+| Org default | No tenant-level default switch or policy revision/rollback | New sessions inherit a hardcoded default | **AG-24 done**: operator-owned tenant default + history/rollback |
+| Strict policy read | Unreadable policy normalizes to enabled | Availability bias | **AG-24 done**: strict enforcement refuses |
+| Risk classifier | v1 lexical list; no protocol/domain taxonomy | High-risk direction may be missed | **AG-24 done** (expanded v1 list; protocol taxonomy remains) |
 
 ### Accuracy/frontend follow-ups (from the previous investigation)
 
@@ -334,41 +334,41 @@ Go suite / ESLint                      → green
 - Session `PUT /agentic`, operator policy merge, lock, halt lock, loop/plan/rehydrate
   gates, console switch, tests, live verification.
 
-**AG-18 (P1): global mode visibility**
-- A persistent “Manual / Auto / Locked” chip in the CommandDock/status bar and the
-  command palette, with one-click switch; the Autoresearch panel remains the detailed
-  control. Acceptance: mode changes are visible without opening the panel; a browser
-  test covers the chip.
+**AG-18 (done): global mode visibility**
+- A persistent “Manual / Auto / Locked” chip in the composer with one-click switch;
+  the Autoresearch panel remains the detailed control. Browser tests cover on/off,
+  locked, and the no-session case.
 
-**AG-19 (P1): durable approval inbox**
-- Pending plan approvals as first-class rows with approve/edit-arguments/reject-with-
-  feedback/defer/remember; survives restart; resume from the exact payload. Acceptance:
-  a deferred approval survives a restart and cannot be double-executed.
+**AG-19 (done): durable approval inbox**
+- `/approvals` projects proposed plans; approve/reject/defer are sealed events;
+  deferrals persist and are excluded from pending until their time. The console
+  inbox is browser-tested. Edit-arguments and reject-with-feedback remain a
+  follow-up.
 
-**AG-20 (P2): notify rung**
-- A `notify` stage mode: execute low/medium-risk work, batch receipts into a digest
-  with an audit view; no silent high-risk actions. Acceptance: a nightly loop completes
-  and produces a digest without a synchronous review.
+**AG-20 (done): notify rung**
+- `notify` executes low/medium-risk work and seals `notify:true` receipts;
+  `/agentic/digest` batches them. High risk still requires approval. A console digest
+  view remains a follow-up.
 
-**AG-21 (P2): per-tool permissions**
-- Agent tools declare `allow`/`ask`/`block`; the execution path enforces it before the
-  tool body. Acceptance: a blocked tool never runs; an ask tool pauses and resumes.
+**AG-21 (done): per-tool permissions**
+- The session policy maps tool names to `allow|ask|block`; copilot dispatch refuses
+  before the tool body and seals `tool_permission_refused`. `ask` refuses with the
+  exact remedy; a per-call approval queue is a follow-up.
 
-**AG-22 (P2): approval-fatigue telemetry**
-- Queue depth, approval latency percentiles, rejection rate, and a “reviewed without
-  opening evidence” proxy in `/api/ops/science`. Acceptance: metrics appear with real
-  values and an explicit unmeasured status where unavailable.
+**AG-22 (done): approval-fatigue telemetry**
+- `/api/ops/science` and Prometheus expose pending/deferred queue depth, p50/p90
+  approval latency, and the plan rejection rate.
 
-**AG-23 (P2): undo/receipts**
-- For reversible side effects, record a before/after receipt and an undo action; jobs
-  and claims remain immutable. Acceptance: an undo restores the prior state and is
-  audited.
+**AG-23 (done): undo/receipts**
+- `/receipts` lists mode flips, unrun plan decisions, and deferrals; undo appends a
+  compensating sealed event and a second undo is refused. Jobs and claims remain
+  immutable evidence.
 
-**AG-24 (P2): org defaults and strict policy**
-- Tenant-level default `agentic_enabled`; policy revision/rollback; fail-closed on an
-  unreadable policy in strict deployments; extend the risk classifier with a protocol/
-  domain taxonomy. Acceptance: a new session inherits the tenant default; a corrupted
-  policy refuses rather than silently enabling.
+**AG-24 (done): org defaults and strict policy**
+- Operator-owned `PUT /api/tenants/agentic-default` (session policies override);
+  `/autonomy/history` + `/autonomy/rollback` restore a sealed policy; unreadable
+  policies refuse; the dual-use list is expanded. The tenant default is deliberately
+  operator-owned rather than an admin-signed tenant action; protocol taxonomy remains.
 
 **AG-11…AG-16** remain as previously planned, now with the research input above.
 

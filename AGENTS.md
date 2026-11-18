@@ -108,8 +108,8 @@ development — re-verify the gate on the exact commit before citing
 
 > ⚑ State update (2026-11-18, `develop`): the agentic-science program landed
 > AG-1…AG-9 in local commits `8defdb3f`…`7f0bb04e`. The platform now has: a
-> real end-to-end benchmark (`platform/bench_agentic`, 11 Kubona-domain tasks,
-> 8/11 disposable-stack baseline) with a nightly workflow;
+> real end-to-end benchmark (`platform/bench_agentic`, 13 Kubona-domain tasks,
+> 11/13 disposable-stack baseline) with a nightly workflow;
 > a persisted hypothesis engine with a strict-JSON LLM proposer, Elo tournament,
 > measured lexical novelty, and evidence-gated collapse; typed pre-registered
 > plans with automatic spec synthesis from campaign facts + a relative
@@ -136,8 +136,11 @@ development — re-verify the gate on the exact commit before citing
 > (`agentic_enabled`, with an operator `agentic_locked` halt): off pauses loops
 > and blocks agent execution while the manual experiment rail stays open.
 > Research and the oversight plan (AG-17…AG-24) are in
-> `docs/agentic-mode-toggle-2026-11-18.md`. Re-verify the full gate on the exact
-> pushed commit before citing "green".
+> `docs/agentic-mode-toggle-2026-11-18.md`; AG-18…AG-24 are implemented
+> (global mode chip, approval inbox, notify digest, per-tool permissions,
+> fatigue metrics, receipts/undo, tenant default/history/rollback). Ledger
+> schema is **13**. Re-verify the full gate on the exact pushed commit before
+> citing "green".
 
 ## Three layers
 

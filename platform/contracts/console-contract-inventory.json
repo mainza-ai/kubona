@@ -8,6 +8,8 @@
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
+    "approval.decision",
+    "approval.inbox",
     "auth.action",
     "auth.challenge",
     "auth.login",
@@ -170,6 +172,8 @@
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
+    "approval.decision",
+    "approval.inbox",
     "auth.action",
     "auth.challenge",
     "auth.login",
@@ -476,6 +480,12 @@
       "contract": "tasks.batch"
     },
     {
+      "function": "decideApproval",
+      "path": "/api/sessions/:sessionId/approvals/:planId",
+      "method": "POST",
+      "contract": "approval.decision"
+    },
+    {
       "function": "deleteCustomAgent",
       "path": "/api/agents/custom/:id",
       "method": "DELETE",
@@ -546,6 +556,12 @@
       "path": "/api/access",
       "method": "GET",
       "contract": "access"
+    },
+    {
+      "function": "fetchApprovals",
+      "path": "/api/sessions/:sessionId/approvals",
+      "method": "GET",
+      "contract": "approval.inbox"
     },
     {
       "function": "fetchAutoresearchHarnesses",

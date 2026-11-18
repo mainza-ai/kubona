@@ -43,6 +43,27 @@ def _ansatz(n_sites: int, layers: int, theta: np.ndarray) -> Any:
     return qc
 
 
+def _hva_ansatz(n_sites: int, layers: int, theta: np.ndarray,
+                bonds: list[tuple[int, int]]) -> Any:
+    """Hamiltonian variational ansatz for the Pauli TFIM.
+
+    |+>^n initial state, then per layer an RZZ coupling block over the bonds
+    and an RX field block over the sites. Two parameters per layer; the form is
+    model-specific and much easier to train than the hardware-efficient ring.
+    """
+    need = 2 * int(layers)
+    if len(theta) != need:
+        raise ValueError(f"HVA ansatz needs {need} parameters, got {len(theta)}")
+    qc = QuantumCircuit(int(n_sites))
+    qc.h(range(int(n_sites)))
+    for layer in range(int(layers)):
+        gamma, beta = float(theta[2 * layer]), float(theta[2 * layer + 1])
+        for i, j in bonds:
+            qc.rzz(2.0 * gamma, i, j)
+        qc.rx(2.0 * beta, range(int(n_sites)))
+    return qc
+
+
 def _measurement_circuit(qc: Any, label: str) -> Any:
     measured = qc.copy()
     for q, char in enumerate(label):
@@ -128,6 +149,8 @@ def run_spin_chain(
     max_iterations: int = 160,
     target_error: float = 1e-3,
     state_mode: str = "vqe",
+    ansatz: str = "hea",
+    restarts: int = 0,
 ) -> dict[str, Any]:
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing spin-chain experiment"}
@@ -142,6 +165,11 @@ def run_spin_chain(
         return {"success": False, "error": f"state_mode {state_mode!r} must be vqe|exact"}
     if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
         return {"success": False, "error": "target_error must be finite in (0,1]"}
+    ansatz_key = str(ansatz or "hea").strip().lower()
+    if ansatz_key not in ("hea", "hva"):
+        return {"success": False, "error": f"ansatz {ansatz!r} must be hea|hva"}
+    if int(restarts) < 0 or int(restarts) > 12:
+        return {"success": False, "error": f"restarts {restarts!r} outside [0,12]"}
     try:
         lattice = SpinChainModel(
             model=model, n_sites=int(n_sites), coupling=float(coupling),
@@ -155,6 +183,15 @@ def run_spin_chain(
     exact_energy, exact_vec, eigenvalues = lattice.ground_state()
     observables = lattice.observables(exact_vec)
     terms = lattice.pauli_terms()
+    bonds = [(i, i + 1) for i in range(lattice.n_sites - 1)]
+    if lattice.periodic:
+        bonds.append((lattice.n_sites - 1, 0))
+
+    def build_ansatz(x: np.ndarray) -> Any:
+        if ansatz_key == "hva":
+            return _hva_ansatz(lattice.n_sites, int(layers), np.asarray(x), bonds)
+        return _ansatz(lattice.n_sites, int(layers), np.asarray(x))
+
     if mode == "exact":
         # A circuit-level state-preparation benchmark: initialize the exact
         # finite-size ground state and measure it. This is not VQE and makes
@@ -164,40 +201,69 @@ def run_spin_chain(
         qc.initialize(exact_vec, list(range(lattice.n_sites)))
         theta = np.zeros(0, dtype=float)
         exact_opt = float(exact_energy)
-        opt = None
+        optimizer_name = "none"
+        optimizer_success = True
+        total_evals = 0
+        optimizer_status = "converged"
+        gap = 0.0
     else:
         rng = np.random.default_rng(int(seed))
-        n_params = 2 * lattice.n_sites * int(layers)
-        x0 = rng.uniform(-0.5, 0.5, size=n_params)
+        n_params = 2 * int(layers) if ansatz_key == "hva" else 2 * lattice.n_sites * int(layers)
+        x0 = (rng.uniform(-math.pi, math.pi, size=n_params) if ansatz_key == "hva"
+              else rng.uniform(-0.5, 0.5, size=n_params))
 
         def objective(x: np.ndarray) -> float:
-            state = Statevector.from_instruction(_ansatz(lattice.n_sites, int(layers), np.asarray(x))).data
+            state = Statevector.from_instruction(build_ansatz(np.asarray(x))).data
             return float(np.real(np.vdot(state, h.dot(state))))
 
         from scipy.optimize import minimize
-        opt = minimize(
+        primary = minimize(
             objective, x0, method="COBYLA",
-            options={"maxiter": int(max_iterations), "rhobeg": 0.25, "tol": 1e-8},
+            options={"maxiter": int(max_iterations),
+                     "rhobeg": 0.3 if ansatz_key == "hva" else 0.25,
+                     "tol": 1e-9 if ansatz_key == "hva" else 1e-8},
         )
-        best_x = np.asarray(opt.x if opt.x is not None else x0, dtype=float)
-        best_val = float(opt.fun) if opt.fun is not None else objective(best_x)
-        if abs(best_val - exact_energy) > float(target_error) and int(max_iterations) >= 40:
-            x_warm = rng.uniform(-math.pi / 2.0, math.pi / 2.0, size=n_params)
-            opt_lbfgs = minimize(
-                objective, x_warm, method="L-BFGS-B",
-                options={"maxiter": max(25, int(max_iterations) // 2), "ftol": 1e-9},
-            )
-            cand_x = np.asarray(opt_lbfgs.x if opt_lbfgs.x is not None else x_warm, dtype=float)
-            cand_val = float(opt_lbfgs.fun) if opt_lbfgs.fun is not None else objective(cand_x)
+        best_x = np.asarray(primary.x if primary.x is not None else x0, dtype=float)
+        best_val = float(primary.fun) if primary.fun is not None else objective(best_x)
+        best_success = bool(primary.success)
+        optimizer_name = "COBYLA"
+        total_evals = int(primary.nfev)
+        gap = abs(best_val - exact_energy)
+        # Multi-start: the live 2-layer failure was a single-start optimizer
+        # stall (1.20 Ha on n=8). Further starts are cheap for HVA (2 params
+        # per layer) and bounded for HEA; stop as soon as the anchor is met.
+        for _ in range(int(restarts)):
+            if gap <= float(target_error):
+                break
+            x0r = (rng.uniform(-math.pi, math.pi, size=n_params) if ansatz_key == "hva"
+                   else rng.uniform(-math.pi, math.pi, size=n_params))
+            if ansatz_key == "hva":
+                cand = minimize(objective, x0r, method="COBYLA",
+                                options={"maxiter": max(200, int(max_iterations)),
+                                         "rhobeg": 0.3, "tol": 1e-9})
+            else:
+                cand = minimize(objective, x0r, method="L-BFGS-B",
+                                options={"maxiter": max(100, int(max_iterations)),
+                                         "ftol": 1e-10})
+            total_evals += int(cand.nfev)
+            cand_val = float(cand.fun) if cand.fun is not None else objective(x0r)
             if cand_val < best_val:
-                opt = opt_lbfgs
-                best_x = cand_x
+                best_val = cand_val
+                best_x = np.asarray(cand.x if cand.x is not None else x0r, dtype=float)
+                best_success = bool(cand.success)
+                optimizer_name = "COBYLA" if ansatz_key == "hva" else "L-BFGS-B"
+                gap = abs(best_val - exact_energy)
         theta = best_x
-        qc = _ansatz(lattice.n_sites, int(layers), theta)
+        qc = build_ansatz(theta)
         exact_opt = float(np.real(np.vdot(
             Statevector.from_instruction(qc).data,
             h.dot(Statevector.from_instruction(qc).data),
         )))
+        optimizer_status = (
+            "converged" if gap <= float(target_error)
+            else ("max_iterations" if not best_success else "stalled")
+        )
+    converged = bool(gap <= float(target_error))
     measured = _measured_terms(qc, terms, int(shots), int(seed))
     measured_mag = _measured_magnetization(qc, lattice.n_sites, int(shots), int(seed) + 1)
     energy = float(measured["energy"])
@@ -226,10 +292,15 @@ def run_spin_chain(
         "seed": int(seed),
         "target_error": float(target_error),
         "method": ("exact finite-size state preparation + shot readout"
-                   if mode == "exact" else "VQE hardware-efficient ansatz"),
+                   if mode == "exact"
+                   else ("VQE Hamiltonian variational ansatz (RZZ + RX)"
+                         if ansatz_key == "hva" else "VQE hardware-efficient ansatz")),
         "state_mode": mode,
         "ansatz": ("exact ground-state preparation"
-                   if mode == "exact" else "hardware-efficient RY/RZ + ring CX"),
+                   if mode == "exact"
+                   else ("Hamiltonian variational RZZ + RX"
+                         if ansatz_key == "hva" else "hardware-efficient RY/RZ + ring CX")),
+        "ansatz_kind": ("exact" if mode == "exact" else ansatz_key),
         "theta": [float(v) for v in theta],
         "ansatz_qasm": qasm2.dumps(qc),
         "energy": energy,
@@ -244,7 +315,7 @@ def run_spin_chain(
         "claimable": claimable,
         "gap": observables.gap,
         "eigenvalues": eigenvalues,
-        "ground_state_reached": True if mode == "exact" else claimable,
+        "ground_state_reached": True if mode == "exact" else converged,
         "observable_state": (
             "exact ground state prepared on the circuit and shot-measured"
             if mode == "exact" else
@@ -262,12 +333,17 @@ def run_spin_chain(
         "optimizer": ({
             "name": "none", "success": True, "evaluations": 0,
             "message": "exact state preparation", "max_iterations": 0,
+            "restarts": 0, "best_gap": 0.0, "status": "converged",
         } if mode == "exact" else {
-            "name": "COBYLA", "success": bool(opt.success),
-            "evaluations": int(opt.nfev), "message": str(opt.message),
-            "max_iterations": int(max_iterations),
+            "name": optimizer_name, "success": bool(best_success),
+            "evaluations": int(total_evals), "message": optimizer_status,
+            "max_iterations": int(max_iterations), "restarts": int(restarts),
+            "best_gap": float(gap), "status": optimizer_status,
         }),
-        "converged": True if mode == "exact" else bool(opt.success),
+        "converged": bool(converged),
+        "optimizer_status": optimizer_status,
+        "optimization_gap": float(gap),
+        "optimization_restarts": int(restarts),
         "backend": "qiskit-aer-simulator",
         "provider": "qiskit-aer-simulator",
         "hardware": False,

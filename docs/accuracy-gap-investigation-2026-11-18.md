@@ -10,6 +10,29 @@ an updated implementation plan (AG-10…AG-16).
 
 ---
 
+## 0. Implementation update (AG-11…AG-14)
+
+The follow-ups in this report are implemented:
+
+- **TFIM multi-start + gap-based convergence.** `run_spin_chain` accepts
+  `ansatz` and `restarts`; `converged` is now `gap <= target_error`, with a
+  separate `optimizer_status` (`converged|max_iterations|stalled`), restart
+  count, evaluation count, and best gap. HEA 8-site 2 layers improved from
+  1.202 Ha to 0.246 Ha with three restarts.
+- **HVA.** A Hamiltonian variational ansatz (`RZZ` coupling + `RX` field, two
+  parameters per layer) reaches the exact 8-site TFIM ground state at 6 layers
+  and 8 restarts (gap 0.0027 Ha measured, 0.000000 statevector). HVA-4 is 0.125
+  Ha and HVA-2 is 0.30 Ha, matching the expressivity story.
+- **QAOA restarts and telemetry.** Multi-start (8) yields p=2 0.899 and p=3
+  0.948 on the benchmark graph; `cut_value`, `cut_value_exact`,
+  `optimizer_status`, and execution time are reported.
+- **Noise-aware scoring.** The runner accepts `uncertainty_k` and records
+  `uncertainty`/`z`; the task tolerances now account for shot noise explicitly.
+- **H2 chemical accuracy.** A 20k-shot, 1.6 mHa task passes at 0.640 mHa; HVA
+  was validated on TFIM. UCCSD is not shipped.
+- **Baseline.** 13 tasks, 11/13 pass: HVA-6 and H2 chemical pass; QAOA p2/p3
+  pass; the 8/6-site hardware-efficient TFIM tasks remain the only failures.
+
 ## 1. Executive summary
 
 | Finding | Verdict | Evidence |

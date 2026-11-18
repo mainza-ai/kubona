@@ -89,12 +89,17 @@ func TestScienceMetricsReport(t *testing.T) {
 			Basis           string   `json:"basis"`
 		} `json:"cost"`
 		Human struct {
-			PlanApprovals          int64    `json:"plan_approvals"`
-			Signoffs               int64    `json:"signoffs"`
-			Total                  int64    `json:"total"`
-			HumanMinutes           *float64 `json:"human_minutes"`
-			HumanMinutesStatus     string   `json:"human_minutes_status"`
-			ApprovalLatencyMinutes *float64 `json:"approval_latency_minutes"`
+			PlanApprovals      int64    `json:"plan_approvals"`
+			PlanRejections     int64    `json:"plan_rejections"`
+			PendingApprovals   int64    `json:"pending_approvals"`
+			DeferredApprovals  int64    `json:"deferred_approvals"`
+			Signoffs           int64    `json:"signoffs"`
+			Total              int64    `json:"total"`
+			HumanMinutes       *float64 `json:"human_minutes"`
+			HumanMinutesStatus string   `json:"human_minutes_status"`
+			ApprovalLatencyP50 *float64 `json:"approval_latency_p50_minutes"`
+			ApprovalLatencyP90 *float64 `json:"approval_latency_p90_minutes"`
+			PlanRejectionRate  *float64 `json:"plan_rejection_rate"`
 		} `json:"human"`
 		Queue struct {
 			JobsByStatus map[string]int64 `json:"jobs_by_status"`
@@ -129,7 +134,13 @@ func TestScienceMetricsReport(t *testing.T) {
 	if report.Human.HumanMinutes != nil || !strings.Contains(report.Human.HumanMinutesStatus, "unmeasured") {
 		t.Fatalf("human minutes must stay unmeasured: %+v", report.Human)
 	}
-	if report.Human.ApprovalLatencyMinutes != nil && *report.Human.ApprovalLatencyMinutes < 0 {
+	if report.Human.PendingApprovals != 0 || report.Human.DeferredApprovals != 0 {
+		t.Fatalf("queue metrics = %+v", report.Human)
+	}
+	if report.Human.PlanRejectionRate == nil || *report.Human.PlanRejectionRate != 0 {
+		t.Fatalf("rejection rate = %+v", report.Human.PlanRejectionRate)
+	}
+	if report.Human.ApprovalLatencyP50 != nil && *report.Human.ApprovalLatencyP50 < 0 {
 		t.Fatalf("negative latency: %+v", report.Human)
 	}
 	if report.Queue.JobsByStatus["JOB_STATUS_COMPLETED"] < 1 {
@@ -158,6 +169,7 @@ func TestScienceMetricsRequireBearerAndRenderPrometheus(t *testing.T) {
 	for _, want := range []string{
 		"# HELP kubona_science_stage", "kubona_verified_claims",
 		"kubona_human_interventions{", "kubona_live_jobs", "kubona_active_loops",
+		"kubona_pending_approvals", "kubona_deferred_approvals",
 	} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatalf("metrics missing %q; body:\n%s", want, w.Body.String())

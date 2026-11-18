@@ -19,6 +19,21 @@ export type Session = {
   "updated_at": string;
 };
 
+export type ApprovalInbox = {
+  "session_id": string;
+  "pending": unknown[];
+  "deferred": unknown[];
+  "counts": {
+  "pending": number;
+  "deferred": number;
+};
+};
+
+export type ApprovalDecision = {
+  "decision": string;
+  "plan": unknown;
+};
+
 export type SessionAgentic = {
   "session_id": string;
   "agentic_enabled": boolean;
@@ -1248,6 +1263,7 @@ export type ApiOperationResponse = {
   createSession: SessionCreate;
   createTask: Task;
   createTasksBatch: TasksBatch;
+  decideApproval: ApprovalDecision;
   deleteCustomAgent: AgentsCustomDelete;
   deleteSession: SessionDelete;
   discoverLocalLLMProviders: LlmDiscover;
@@ -1260,6 +1276,7 @@ export type ApiOperationResponse = {
   exportLedger: LedgerExportDocument;
   exportSession: SessionExport;
   fetchAccess: Access;
+  fetchApprovals: ApprovalInbox;
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
   fetchCalibration: VaultCalibration;
@@ -1437,6 +1454,7 @@ export const API_OPERATIONS = {
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
+  decideApproval: { method: "post", path: "/api/sessions/{sessionId}/approvals/{planId}", response: "approval.decision" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   discoverLocalLLMProviders: { method: "get", path: "/api/llm/discover", response: "llm.discover" },
@@ -1449,6 +1467,7 @@ export const API_OPERATIONS = {
   exportLedger: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   exportSession: { method: "post", path: "/api/sessions/export", response: "session.export" },
   fetchAccess: { method: "get", path: "/api/access", response: "access" },
+  fetchApprovals: { method: "get", path: "/api/sessions/{sessionId}/approvals", response: "approval.inbox" },
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },

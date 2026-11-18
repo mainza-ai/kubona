@@ -141,16 +141,24 @@ Research/design report: `docs/agentic-mode-toggle-2026-11-18.md`.
       (`agentic_locked`); session `PUT /agentic`; operator policy merge; halt
       lock; gates on loop start/resume/wake/step, plan execution, and restart
       rehydration; Autoresearch panel switch/status; Go and browser tests.
-- [ ] AG-18: global Manual/Auto/Locked indicator (status bar / command palette).
-- [ ] AG-19: durable approval inbox (edit/reject-feedback/defer/remember;
-      resume from the exact payload after restart).
-- [ ] AG-20: `notify` rung with batched receipts/digest.
-- [ ] AG-21: per-tool allow/ask/block permissions for agent tools.
-- [ ] AG-22: approval-fatigue telemetry (queue depth, latency percentiles,
+- [x] AG-18: global Manual/Auto/Locked indicator (status bar / command palette).
+- [x] AG-19: durable approval inbox (`/approvals`, approve/reject/defer,
+      restart-safe) with a console panel and browser tests. Edit-arguments and
+      reject-with-feedback remain follow-ups.
+- [x] AG-20: `notify` stage mode executes low/medium risk and seals
+      `notify:true` receipts; `/agentic/digest` batches them. A console digest
+      view remains a follow-up.
+- [x] AG-21: per-tool `allow|ask|block` policy enforced at copilot dispatch;
+      `ask` refuses with the exact remedy (no per-call approval queue yet).
+- [x] AG-22: approval-fatigue telemetry (queue depth, latency percentiles,
       rubber-stamp proxy).
-- [ ] AG-23: undo/receipts for reversible side effects.
-- [ ] AG-24: tenant default switch, policy revision/rollback, strict policy
-      read, extended risk taxonomy.
+- [x] AG-23: `/receipts` + `/receipts/{id}/undo` for mode flips, unrun plan
+      decisions, and deferrals; double-undo refused. Job/claim undo remains
+      intentionally unsupported (immutable evidence).
+- [x] AG-24: operator-owned tenant default (`/api/tenants/agentic-default`),
+      policy history + sealed rollback, strict unreadable-policy refusal, and an
+      expanded dual-use taxonomy. The default is operator-owned, not an
+      admin-signed tenant action; document that boundary.
 
 ## Accuracy-gap follow-ups (2026-11-18)
 
@@ -161,18 +169,18 @@ Root-cause report: `docs/accuracy-gap-investigation-2026-11-18.md`.
       depth-appropriate QAOA targets and 20k-shot accuracy tasks; runner records
       `uncertainty`/`z`; Inspector header wraps with a real-browser non-overlap
       test.
-- [ ] AG-11: TFIM multi-start optimizer (3–4 restarts; keep best) and
+- [x] AG-11: TFIM multi-start optimizer (3–4 restarts; keep best) and
       gap-based `converged`/`optimizer_status`. Acceptance: n=8 4 layers ≤0.10 Ha
       and 6 layers ≤0.05 Ha statevector gap; small-n exactness preserved.
-- [ ] AG-12: noise-aware benchmark scoring (`uncertainty`, z, perfect-state
+- [x] AG-12: noise-aware benchmark scoring (`uncertainty`, z, perfect-state
       control). Acceptance: exact-state TFIM control passes at task shots;
       fabricated results still fail.
-- [ ] AG-13: H2 chemical-accuracy task at 1.6 mHa; evaluate HVA/UCCSD and
+- [x] AG-13: H2 chemical-accuracy task at 1.6 mHa; evaluate HVA/UCCSD and
       optimizer restarts.
-- [ ] AG-14: QAOA multi-start and depth tasks; document the p=2 ceiling.
-- [ ] AG-15: console container-query/width-aware panel controls; layout audit
+- [x] AG-14: QAOA multi-start and depth tasks; document the p=2 ceiling.
+- [x] AG-15: console container-query/width-aware panel controls; layout audit
       for every multi-group panel header.
-- [ ] AG-16: telemetry semantics (`optimizer_status`, `execution_time_ms`,
+- [x] AG-16: telemetry semantics (`optimizer_status`, `execution_time_ms`,
       QAOA `energy` naming).
 
 ## Follow-up audit slices (2026-11-18, second pass)

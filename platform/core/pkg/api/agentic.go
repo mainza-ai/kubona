@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +34,87 @@ func agenticModeSubpath(id string) (sessionID string, ok bool) {
 	return sid, true
 }
 
+func agenticDigestSubpath(id string) (sessionID string, ok bool) {
+	if !strings.HasSuffix(id, "/agentic/digest") {
+		return "", false
+	}
+	sid := strings.TrimSuffix(id, "/agentic/digest")
+	if sid == "" || strings.Contains(sid, "/") {
+		return "", false
+	}
+	return sid, true
+}
+
+// handleAgenticDigest returns the batched receipts of notify-mode execution
+// (AG-20). It is a projection of sealed plan_executed events, not a second log.
+func (s *Server) handleAgenticDigest(w http.ResponseWriter, r *http.Request, sessionID string) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "agentic digest is GET-only", nil)
+		return
+	}
+	sess, ok := s.authorizeKnownSession(w, r, sessionID)
+	if !ok {
+		return
+	}
+	if sess == nil {
+		WriteAPIError(w, "not_found", "unknown session", nil)
+		return
+	}
+	hours := 24
+	if raw := r.URL.Query().Get("hours"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 168 {
+			WriteAPIError(w, "bad_request", "hours must be an integer in [1,168]", nil)
+			return
+		}
+		hours = n
+	}
+	events, err := s.ledger.GetRecentEvents(sessionID, 500)
+	if err != nil {
+		WriteAPIError(w, "internal", "digest read failed", nil)
+		return
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(hours) * time.Hour)
+	entries := make([]map[string]any, 0)
+	counts := map[string]int{"total": 0, "accepted": 0, "notify": 0}
+	for _, e := range events {
+		if e.EventType != "plan_executed" {
+			continue
+		}
+		at, ok := parseLedgerTime(e.Timestamp)
+		if !ok || at.Before(cutoff) {
+			continue
+		}
+		var body struct {
+			PlanID       string `json:"plan_id"`
+			JobID        string `json:"job_id"`
+			Accepted     bool   `json:"accepted"`
+			Status       string `json:"status"`
+			AutoApproved bool   `json:"auto_approved"`
+			Notify       bool   `json:"notify"`
+			Risk         string `json:"risk"`
+		}
+		if json.Unmarshal(e.Payload, &body) != nil {
+			continue
+		}
+		entries = append(entries, map[string]any{
+			"plan_id": body.PlanID, "job_id": body.JobID, "accepted": body.Accepted,
+			"status": body.Status, "auto_approved": body.AutoApproved,
+			"notify": body.Notify, "risk": body.Risk, "at": e.Timestamp,
+		})
+		counts["total"]++
+		if body.Accepted {
+			counts["accepted"]++
+		}
+		if body.Notify {
+			counts["notify"]++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session_id": sessionID, "hours": hours, "entries": entries, "counts": counts,
+	})
+}
+
 func (s *Server) handleAgenticModeRoute(w http.ResponseWriter, r *http.Request, sessionID string) {
 	sess, ok := s.authorizeKnownSession(w, r, sessionID)
 	if !ok {
@@ -42,7 +124,11 @@ func (s *Server) handleAgenticModeRoute(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "not_found", "unknown session", nil)
 		return
 	}
-	policy, source := s.loadAutonomyPolicy(sessionID)
+	policy, source, err := s.loadAutonomyPolicyStrict(sessionID)
+	if err != nil {
+		WriteAPIError(w, "autonomy_policy_unreadable", err.Error(), nil)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -96,7 +182,11 @@ func (s *Server) handleAgenticModeRoute(w http.ResponseWriter, r *http.Request, 
 
 // requireAgentic refuses when the master switch is off or operator-locked.
 func (s *Server) requireAgentic(w http.ResponseWriter, sessionID string) bool {
-	policy, _ := s.loadAutonomyPolicy(sessionID)
+	policy, _, err := s.loadAutonomyPolicyStrict(sessionID)
+	if err != nil {
+		WriteAPIError(w, "autonomy_policy_unreadable", err.Error(), nil)
+		return false
+	}
 	if policy.AgenticLocked {
 		WriteAPIError(w, "agentic_locked",
 			"an operator halted agentic work; only an operator can clear the lock", nil)

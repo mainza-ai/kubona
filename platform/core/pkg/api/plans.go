@@ -328,7 +328,8 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	_ = s.ledger.SetPlanStatus(sessionID, id, ledger.PlanRunning)
 	_ = s.recordManuscriptEvent(sessionID, "plan_started", map[string]any{
 		"plan_id": id, "job_id": job.ID, "method": plan.Method,
-		"auto_approved": decision.AutoApprove, "risk": decision.Risk.Level,
+		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
+		"risk": decision.Risk.Level,
 	})
 	final, err := s.waitForJob(sessionID, job.ID, 10*time.Minute)
 	if err != nil {
@@ -352,7 +353,8 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		"observable": plan.Observable, "measured": measured,
 		"acceptance_metric": plan.AcceptanceMetric, "target": target,
 		"tolerance": plan.Tolerance, "accepted": accepted, "result": result,
-		"auto_approved": decision.AutoApprove, "risk": decision.Risk.Level,
+		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
+		"risk": decision.Risk.Level,
 	})
 	if err := s.ledger.SetPlanResult(sessionID, id, status, job.ID, string(payload)); err != nil {
 		WriteAPIError(w, "internal", "plan result failed: "+err.Error(), nil)
@@ -360,6 +362,8 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	}
 	_ = s.recordManuscriptEvent(sessionID, "plan_executed", map[string]any{
 		"plan_id": id, "job_id": job.ID, "accepted": accepted, "status": status,
+		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
+		"risk": decision.Risk.Level,
 	})
 	if status == ledger.PlanRejected || status == ledger.PlanFailed {
 		s.publishPlanNegative(sessionID, plan, status, string(payload))
@@ -367,7 +371,8 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	updated, _ := s.ledger.GetPlan(sessionID, id)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"plan": updated, "accepted": accepted, "result": result,
-		"auto_approved": decision.AutoApprove, "risk": decision.Risk,
+		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
+		"risk": decision.Risk,
 	})
 }
 

@@ -1380,6 +1380,70 @@ export async function steerAutoresearchLoop(
   }
 }
 
+export type ApprovalPlan = {
+  id: string;
+  statement: string;
+  risk?: string;
+  method?: string;
+  observable?: string;
+  acceptance_metric?: string;
+  created_at?: string;
+  deferred_until?: string;
+  defer_reason?: string;
+};
+
+export async function fetchApprovals(sessionId: string): Promise<{ pending: ApprovalPlan[]; deferred: ApprovalPlan[] } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/approvals`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const body = contract('approval.inbox', (await res.json()) as Record<string, unknown>) as unknown as {
+      pending: ApprovalPlan[];
+      deferred: ApprovalPlan[];
+    };
+    return { pending: body.pending || [], deferred: body.deferred || [] };
+  } catch {
+    return null;
+  }
+}
+
+export async function decideApproval(
+  sessionId: string,
+  planId: string,
+  decision: 'approve' | 'reject' | 'defer',
+  options: { reason?: string; deferredUntil?: string } = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const body: Record<string, unknown> = { decision };
+    if (options.reason) body.reason = options.reason;
+    if (options.deferredUntil) body.deferred_until = options.deferredUntil;
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(planId)}`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const raw = await res.text();
+    if (!res.ok) {
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string; error?: string };
+        detail = parsed.message || parsed.error || raw;
+      } catch { /* raw */ }
+      return { ok: false, error: String(detail || `approval refused (${res.status})`).slice(0, 280) };
+    }
+    contract('approval.decision', raw ? (JSON.parse(raw) as Record<string, unknown>) : {});
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
 export type SessionAgenticState = {
   session_id: string;
   agentic_enabled: boolean;

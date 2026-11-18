@@ -174,8 +174,8 @@ export const Inspector = React.memo(function Inspector({
               </button>
             ))}
           </div>
-          {tab === 'copilot' && (
-            <div role="group" aria-label="Copilot width presets" className="hidden shrink-0 items-center gap-1 xl:flex">
+          {tab === 'copilot' && effectiveWidth >= 420 && (
+            <div role="group" aria-label="Copilot width presets" className="flex shrink-0 items-center gap-1">
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(420)} title="Narrow Copilot">Narrow</Button>
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(640)} title="Wide Copilot">Wide</Button>
               <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(defaultWidth)} title="Reset Copilot width">Reset</Button>

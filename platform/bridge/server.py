@@ -1031,6 +1031,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     seed=int(spec.get("seed", 7)),
                     max_iterations=int(spec.get("max_iterations", 80)),
                     graph_seed=int(spec.get("graph_seed", 3)),
+                    restarts=int(spec.get("restarts", 0)),
                 )
             elif kind == "excited_state":
                 from experiments import run_excited_state
@@ -1069,6 +1070,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 160)),
                     target_error=float(spec.get("target_error", 1e-3)),
                     state_mode=str(spec.get("state_mode") or "vqe"),
+                    ansatz=str(spec.get("ansatz") or "hea"),
+                    restarts=int(spec.get("restarts", 0)),
                 )
             elif kind == "thermodynamic_limit":
                 from lattice_experiment import run_thermodynamic_limit

@@ -290,3 +290,39 @@ def test_bridge_run_experiment_dispatches_thermodynamic_limit():
     result = json.loads(resp.result_json)
     assert result["kind"] == "thermodynamic_limit"
     assert result["thermodynamic_limit"]["available"] is True
+
+
+def test_hva_ansatz_reaches_the_tfim_ground_state_with_restarts():
+    res = run_spin_chain(
+        model="tfim", n_sites=4, coupling=1.0, field=1.0, periodic=True,
+        layers=4, shots=2048, seed=7, max_iterations=400,
+        target_error=0.01, ansatz="hva", restarts=4,
+    )
+    assert res["success"] is True, res
+    assert res["ansatz_kind"] == "hva"
+    assert res["converged"] is True, res
+    assert res["optimizer_status"] == "converged"
+    assert res["optimization_gap"] <= 0.01
+    assert res["optimizer"]["restarts"] == 4
+    assert res["optimizer"]["evaluations"] > 0
+
+
+def test_convergence_is_gap_based_and_status_is_explicit():
+    res = run_spin_chain(
+        model="tfim", n_sites=4, coupling=1.0, field=1.0, periodic=True,
+        layers=1, shots=512, seed=7, max_iterations=3,
+        target_error=1e-6, ansatz="hea", restarts=0,
+    )
+    assert res["success"] is True, res
+    assert res["converged"] is False
+    assert res["optimizer_status"] in ("max_iterations", "stalled")
+    assert res["optimization_gap"] > 1e-6
+
+
+def test_spin_chain_refuses_unknown_ansatz_and_bad_restarts():
+    res = run_spin_chain(ansatz="uccsd")
+    assert res["success"] is False
+    assert "ansatz" in res["error"]
+    res = run_spin_chain(restarts=99)
+    assert res["success"] is False
+    assert "restarts" in res["error"]

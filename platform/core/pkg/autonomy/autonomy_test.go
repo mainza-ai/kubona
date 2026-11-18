@@ -70,6 +70,10 @@ func TestClassifyRisk(t *testing.T) {
 	if dual.Level != RiskHigh {
 		t.Fatalf("dual use = %+v", dual)
 	}
+	route := Classify(RiskInput{Method: "vqe", Statement: "map a synthesis route for a precursor"})
+	if route.Level != RiskHigh {
+		t.Fatalf("synthesis route = %+v", route)
+	}
 	over := Classify(RiskInput{Method: "vqe", Spec: map[string]any{}, BudgetUSD: 5, MaxActBudgetUSD: 1})
 	if over.Level != RiskHigh {
 		t.Fatalf("over budget = %+v", over)
@@ -109,5 +113,13 @@ func TestDecideExecuteMatrix(t *testing.T) {
 	}
 	if d := DecideExecute(act, "approved", high); !d.Allowed {
 		t.Fatalf("approved high risk refused = %+v", d)
+	}
+	notify := DefaultPolicy()
+	notify.Stages[StageExecute] = ModeNotify
+	if d := DecideExecute(notify, "proposed", low); !d.Allowed || !d.Notify || !d.AutoApprove {
+		t.Fatalf("notify low risk = %+v", d)
+	}
+	if d := DecideExecute(notify, "proposed", high); d.Allowed || !d.RequiresApproval {
+		t.Fatalf("notify high risk = %+v", d)
 	}
 }

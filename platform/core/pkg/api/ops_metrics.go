@@ -58,6 +58,27 @@ func (s *Server) renderOpsMetrics(w io.Writer) {
 			fmt.Fprintln(w, "# TYPE kubona_plan_approval_latency_minutes gauge")
 			fmt.Fprintf(w, "kubona_plan_approval_latency_minutes %f\n", *human.ApprovalLatencyMinutes)
 		}
+		fmt.Fprintln(w, "# HELP kubona_pending_approvals Proposed plans waiting for a decision.")
+		fmt.Fprintln(w, "# TYPE kubona_pending_approvals gauge")
+		fmt.Fprintf(w, "kubona_pending_approvals %d\n", human.PendingApprovals)
+		fmt.Fprintln(w, "# HELP kubona_deferred_approvals Proposed plans parked until a future time.")
+		fmt.Fprintln(w, "# TYPE kubona_deferred_approvals gauge")
+		fmt.Fprintf(w, "kubona_deferred_approvals %d\n", human.DeferredApprovals)
+		if human.PlanRejectionRate != nil {
+			fmt.Fprintln(w, "# HELP kubona_plan_rejection_rate Rejected plans divided by decided plans.")
+			fmt.Fprintln(w, "# TYPE kubona_plan_rejection_rate gauge")
+			fmt.Fprintf(w, "kubona_plan_rejection_rate %f\n", *human.PlanRejectionRate)
+		}
+		if human.ApprovalLatencyP50 != nil {
+			fmt.Fprintln(w, "# HELP kubona_plan_approval_latency_p50_minutes Nearest-rank p50 approval latency.")
+			fmt.Fprintln(w, "# TYPE kubona_plan_approval_latency_p50_minutes gauge")
+			fmt.Fprintf(w, "kubona_plan_approval_latency_p50_minutes %f\n", *human.ApprovalLatencyP50)
+		}
+		if human.ApprovalLatencyP90 != nil {
+			fmt.Fprintln(w, "# HELP kubona_plan_approval_latency_p90_minutes Nearest-rank p90 approval latency.")
+			fmt.Fprintln(w, "# TYPE kubona_plan_approval_latency_p90_minutes gauge")
+			fmt.Fprintf(w, "kubona_plan_approval_latency_p90_minutes %f\n", *human.ApprovalLatencyP90)
+		}
 	}
 	if queue, err := s.scienceQueueHealth(); err == nil {
 		fmt.Fprintln(w, "# HELP kubona_live_jobs Jobs in queued/running state.")

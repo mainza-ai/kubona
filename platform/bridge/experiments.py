@@ -2011,6 +2011,7 @@ def run_qaoa(
     seed: int = 7,
     max_iterations: int = 80,
     graph_seed: int = 3,
+    restarts: int = 0,
 ) -> dict[str, Any]:
     """Run QAOA MaxCut on a fixed 8-node 3-regular graph."""
     t0 = time.perf_counter()
@@ -2024,6 +2025,8 @@ def run_qaoa(
 
     if layers < 1 or layers > 8:
         return {"success": False, "error": f"layers {layers!r} outside [1,8]"}
+    if int(restarts) < 0 or int(restarts) > 20:
+        return {"success": False, "error": f"restarts {restarts!r} outside [0,20]"}
     g = nx.random_regular_graph(3, 8, seed=int(graph_seed))
     edges = sorted(tuple(sorted(e)) for e in g.edges())
     n = g.number_of_nodes()
@@ -2061,8 +2064,24 @@ def run_qaoa(
     x0 = rng.uniform(0.0, np.pi, size=2 * int(layers))
     opt = minimize(lambda x: -cut_value(x), x0, method="COBYLA",
                    options={"maxiter": int(max_iterations), "rhobeg": 0.2, "tol": 1e-8})
-    theta = np.asarray(opt.x, dtype=float)
-    value = cut_value(theta)
+    best_x = np.asarray(opt.x, dtype=float)
+    best_value = cut_value(best_x)
+    best_success = bool(opt.success)
+    total_evals = int(opt.nfev)
+    # Multi-start: p=2 sits near its ~0.90 ceiling; independent starts recover
+    # a few tenths of a percent and expose optimizer variance honestly.
+    for _ in range(int(restarts)):
+        x0r = rng.uniform(0.0, np.pi, size=2 * int(layers))
+        cand = minimize(lambda x: -cut_value(x), x0r, method="COBYLA",
+                        options={"maxiter": int(max_iterations), "rhobeg": 0.2, "tol": 1e-8})
+        total_evals += int(cand.nfev)
+        cand_value = cut_value(np.asarray(cand.x, dtype=float))
+        if cand_value > best_value:
+            best_value = cand_value
+            best_x = np.asarray(cand.x, dtype=float)
+            best_success = bool(cand.success)
+    theta = best_x
+    value = best_value
     qc = qaoa(theta)
     qc.measure_all()
     counts = AerSimulator().run(qc, shots=int(shots), seed_simulator=int(seed)).result().get_counts()
@@ -2080,6 +2099,7 @@ def run_qaoa(
         "theta": [float(v) for v in theta],
         "energy": float(shot_cut), "energy_exact": float(value),
         "energy_measured": float(shot_cut),
+        "cut_value": float(shot_cut), "cut_value_exact": float(value),
         "optimal_cut": int(best), "optimal_assignment": int(mask_best),
         "approximation_ratio": float(shot_cut / best) if best > 0 else None,
         "uncertainty": None, "measured": True,
@@ -2088,10 +2108,12 @@ def run_qaoa(
         "hardware": False,
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
-        "optimizer": {"name": "COBYLA", "success": bool(opt.success),
-                      "evaluations": int(opt.nfev), "message": str(opt.message),
-                      "max_iterations": int(max_iterations)},
-        "converged": bool(opt.success),
+        "optimizer": {"name": "COBYLA", "success": bool(best_success),
+                      "evaluations": int(total_evals), "message": str(opt.message),
+                      "max_iterations": int(max_iterations), "restarts": int(restarts),
+                      "status": "converged" if best_success else "max_iterations"},
+        "converged": bool(best_success),
+        "optimizer_status": "converged" if best_success else "max_iterations",
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }

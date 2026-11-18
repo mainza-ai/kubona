@@ -36,6 +36,9 @@ type costPerAcceptedClaim struct {
 
 type humanInterventions struct {
 	PlanApprovals          int64    `json:"plan_approvals"`
+	PlanRejections         int64    `json:"plan_rejections"`
+	PendingApprovals       int64    `json:"pending_approvals"`
+	DeferredApprovals      int64    `json:"deferred_approvals"`
 	Signoffs               int64    `json:"signoffs"`
 	AutonomyUpdates        int64    `json:"autonomy_updates"`
 	Halts                  int64    `json:"halts"`
@@ -44,6 +47,9 @@ type humanInterventions struct {
 	HumanMinutes           *float64 `json:"human_minutes"`
 	HumanMinutesStatus     string   `json:"human_minutes_status"`
 	ApprovalLatencyMinutes *float64 `json:"approval_latency_minutes,omitempty"`
+	ApprovalLatencyP50     *float64 `json:"approval_latency_p50_minutes,omitempty"`
+	ApprovalLatencyP90     *float64 `json:"approval_latency_p90_minutes,omitempty"`
+	PlanRejectionRate      *float64 `json:"plan_rejection_rate,omitempty"`
 }
 
 type queueHealth struct {
@@ -56,12 +62,12 @@ type queueHealth struct {
 }
 
 type scienceMetricsReport struct {
-	Stages       []stageOutcome        `json:"stages"`
-	Cost         costPerAcceptedClaim  `json:"cost"`
-	Human        humanInterventions    `json:"human"`
-	Queue        queueHealth           `json:"queue"`
-	GeneratedAt  string                `json:"generated_at"`
-	Disclosure   string                `json:"disclosure"`
+	Stages      []stageOutcome       `json:"stages"`
+	Cost        costPerAcceptedClaim `json:"cost"`
+	Human       humanInterventions   `json:"human"`
+	Queue       queueHealth          `json:"queue"`
+	GeneratedAt string               `json:"generated_at"`
+	Disclosure  string               `json:"disclosure"`
 }
 
 func (s *Server) handleScienceMetrics(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +77,7 @@ func (s *Server) handleScienceMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	report := scienceMetricsReport{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		Disclosure: "Stage counts are ledger rows; cost uses settled actual_usd when present. Human minutes are not recorded and stay null; approval latency is a measured proxy, not effort.",
+		Disclosure:  "Stage counts are ledger rows; cost uses settled actual_usd when present. Human minutes are not recorded and stay null; approval latency is a measured proxy, not effort.",
 	}
 	var err error
 	if report.Stages, err = s.scienceStageOutcomes(); err != nil {
@@ -299,15 +305,40 @@ func (s *Server) scienceHumanInterventions() (humanInterventions, error) {
 	if out.ClaimReviews, err = count(`SELECT COUNT(*) FROM claim_reviews`); err != nil {
 		return out, err
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	countAt := func(query string, args ...any) (int64, error) {
+		var n int64
+		err := s.ledger.DB().QueryRow(query, args...).Scan(&n)
+		return n, err
+	}
+	if out.PendingApprovals, err = countAt(`SELECT COUNT(*) FROM experiment_plans
+		WHERE status = 'proposed' AND (deferred_until = '' OR deferred_until <= ?)`, now); err != nil {
+		return out, err
+	}
+	if out.DeferredApprovals, err = countAt(`SELECT COUNT(*) FROM experiment_plans
+		WHERE status = 'proposed' AND deferred_until <> '' AND deferred_until > ?`, now); err != nil {
+		return out, err
+	}
+	if out.PlanRejections, err = countAt(`SELECT COUNT(*) FROM experiment_plans
+		WHERE status IN ('rejected', 'failed')`); err != nil {
+		return out, err
+	}
 	approvals, latencies, err := s.planApprovalEvents()
 	if err != nil {
 		return out, err
 	}
 	out.PlanApprovals = approvals
 	out.Total = out.PlanApprovals + out.Signoffs + out.AutonomyUpdates + out.Halts + out.ClaimReviews
+	if decisions := out.PlanApprovals + out.PlanRejections; decisions > 0 {
+		rate := float64(out.PlanRejections) / float64(decisions)
+		out.PlanRejectionRate = &rate
+	}
 	if len(latencies) > 0 {
-		median := medianFloat(latencies)
-		out.ApprovalLatencyMinutes = &median
+		p50 := percentileFloat(latencies, 0.50)
+		p90 := percentileFloat(latencies, 0.90)
+		out.ApprovalLatencyMinutes = &p50
+		out.ApprovalLatencyP50 = &p50
+		out.ApprovalLatencyP90 = &p90
 	}
 	return out, nil
 }
@@ -472,10 +503,28 @@ func anyString(v any) string {
 }
 
 func medianFloat(values []float64) float64 {
-	sort.Float64s(values)
-	n := len(values)
-	if n%2 == 1 {
-		return values[n/2]
+	return percentileFloat(values, 0.5)
+}
+
+// percentileFloat returns the nearest-rank percentile after sorting a copy.
+func percentileFloat(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
 	}
-	return (values[n/2-1] + values[n/2]) / 2
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	if p <= 0 {
+		return sorted[0]
+	}
+	if p >= 1 {
+		return sorted[len(sorted)-1]
+	}
+	idx := int(math.Ceil(p*float64(len(sorted)))) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
 }

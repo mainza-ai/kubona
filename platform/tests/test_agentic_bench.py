@@ -30,6 +30,8 @@ def test_task_catalog_is_well_formed():
         "tfim_spin_chain_4",
         "qaoa_maxcut_ratio",
         "qaoa_maxcut_ratio_p3",
+        "tfim_hva_6",
+        "h2_chemical_accuracy",
     ):
         assert wanted in ids, wanted
     # Every task carries a hidden target or an explicit internal anchor.
@@ -62,6 +64,17 @@ def test_score_pass_fail_missing_and_chemical_accuracy():
     no_target = score_attempt({"id": "t", "extract": "energy", "tolerance": 1,
                                "target_from": "exact"}, {"energy": -1})
     assert no_target["failure"] == "missing_target"
+
+    # Noise-aware scoring widens the tolerance by k standard errors, but an
+    # algorithmic gap still fails.
+    noisy = score_attempt({"id": "t", "extract": "energy", "target": -1.0,
+                           "tolerance": 0.01, "uncertainty_k": 2},
+                          {"energy": -1.02, "uncertainty": 0.01})
+    assert noisy["pass"] and noisy["tolerance_effective"] == 0.03
+    gap = score_attempt({"id": "t", "extract": "energy", "target": -1.0,
+                         "tolerance": 0.01, "uncertainty_k": 2},
+                        {"energy": -1.2, "uncertainty": 0.01})
+    assert not gap["pass"] and gap["failure"] == "tolerance"
 
 
 def test_summarize_pass_at_k_and_labels():

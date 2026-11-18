@@ -888,6 +888,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
 	s.route("/api/tenants/refund", s.requireBearer(s.handleTenantRefund))
 	s.route("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
+	s.route("/api/tenants/agentic-default", s.requireBearer(s.handleTenantAgenticDefault))
 	s.route("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
 	s.route("/api/tenants/status", s.requireBearer(s.handleTenantStatus))
 }
@@ -2377,8 +2378,20 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handlePlanRoute(w, r, sid, rest)
 		return
 	}
+	if sid, planID, ok := approvalSubpath(id); ok {
+		s.handleApprovalsRoute(w, r, sid, planID)
+		return
+	}
 	if sid, rest, ok := autonomySubpath(id); ok {
 		s.handleAutonomyRoute(w, r, sid, rest)
+		return
+	}
+	if sid, rest, ok := receiptSubpath(id); ok {
+		s.handleReceiptsRoute(w, r, sid, rest)
+		return
+	}
+	if sid, ok := agenticDigestSubpath(id); ok {
+		s.handleAgenticDigest(w, r, sid)
 		return
 	}
 	if sid, ok := agenticModeSubpath(id); ok {

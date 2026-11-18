@@ -101,6 +101,9 @@ var errorRegistry = map[string]errorSpec{
 	"prior_negative_exists":        {"state", 409, false, "acknowledge the prior negative result or change the plan: the registry already records this experiment failing"},
 	"agentic_disabled":             {"state", 403, false, "turn auto agent on for this session in the console, or run the experiment manually"},
 	"agentic_locked":               {"state", 409, false, "an operator halted agentic work; only an operator can clear the lock"},
+	"plan_not_pending":             {"state", 409, false, "only a proposed plan can be approved, rejected, or deferred; refresh the inbox"},
+	"autonomy_policy_unreadable":   {"internal", 500, false, "repair or roll back the session autonomy policy; enforcement never silently enables agentic work"},
+	"undo_not_reversible":          {"state", 409, false, "only an agentic mode flip, an unrun plan decision, or a deferral can be undone"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

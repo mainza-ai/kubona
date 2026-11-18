@@ -84,13 +84,21 @@ describe('Inspector in a real browser', () => {
     expect(Number(window.localStorage.getItem('kubona.copilot.width'))).toBeGreaterThan(360);
   });
 
-  it('does not overlap the Copilot tab with the width presets', async () => {
-    // The presets are xl-only, so pin the viewport to the breakpoint and assert
-    // they are actually visible; otherwise this test would pass vacuously.
+  it('hides the width presets when the panel is narrow', async () => {
     await page.viewport(1280, 720);
-    // The overlap appears at the Copilot minimum width, where four tabs plus
-    // the presets and Close exceed the 360 px panel.
     window.localStorage.setItem('kubona.copilot.width', '360');
+    const screen = await render(
+      <Inspector open tab="copilot" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={null} jobs={[]} copilot={<div>copilot</div>} />,
+    );
+    // Presets are panel-width aware: a 360 px Inspector must not render them,
+    // regardless of the 1280 px viewport (the old viewport-breakpoint bug).
+    expect(screen.container.textContent).not.toContain('Narrow');
+    expect(screen.getByRole('tab', { name: 'Copilot' }).element().getBoundingClientRect().width).toBeGreaterThan(0);
+  });
+
+  it('shows the presets without overlap when the panel is wide enough', async () => {
+    await page.viewport(1280, 720);
+    window.localStorage.setItem('kubona.copilot.width', '720');
     const screen = await render(
       <Inspector open tab="copilot" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={null} jobs={[]} copilot={<div>copilot</div>} />,
     );
@@ -100,7 +108,6 @@ describe('Inspector in a real browser', () => {
     const presets = presetsEl.getBoundingClientRect();
     const horizontal = Math.min(tab.right, presets.right) - Math.max(tab.left, presets.left);
     const vertical = Math.min(tab.bottom, presets.bottom) - Math.max(tab.top, presets.top);
-    // The presets may wrap below the tabs, but they must never paint over them.
     expect(horizontal > 0 && vertical > 0).toBe(false);
   });
 

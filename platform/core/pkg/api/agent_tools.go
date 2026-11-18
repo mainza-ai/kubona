@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
@@ -516,6 +517,20 @@ func jobBackend(j *jobs.Job) string {
 	return "—"
 }
 
+// toolPermissionRefusal maps the session's per-tool policy to a dispatch
+// refusal. "ask" has no per-call approval queue yet, so it refuses with the
+// exact remedy (set the tool to allow); that is explicit, not a silent allow.
+func toolPermissionRefusal(policy autonomy.Policy, name string) error {
+	switch policy.ToolPermission(name) {
+	case "allow":
+		return nil
+	case "ask":
+		return fmt.Errorf("tool %q requires approval by the session policy; set tool_permissions.%s=allow to run it", name, name)
+	default:
+		return fmt.Errorf("tool %q is blocked by the session policy", name)
+	}
+}
+
 // resolveWithTools runs the plan→tool→observe loop over a base history and
 // returns the augmented history for the final answer call. Tool rounds use
 // non-streamed completions; the visible answer still streams afterwards.
@@ -542,6 +557,9 @@ func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []
 	// B6: every tool observation is untrusted data. Taint flips on the first
 	// observation and gates effectful dispatch for the rest of the turn.
 	tainted := false
+	// AG-21: per-tool allow/ask/block policy. An unreadable policy refuses
+	// tools rather than silently allowing them.
+	policy, _, policyErr := s.loadAutonomyPolicyStrict(sessionID)
 loop:
 	for round := 0; round < cfg.MaxToolRounds; round++ {
 		text, calls, chatResp, _, err := s.llmClient.CompleteWithTools(ctx, CopilotRole, hist, toolsForLLM)
@@ -591,6 +609,17 @@ loop:
 				if def, ok := s.toolRegistry.Definition(c.Name); ok && !def.ReadOnly && !def.AllowAfterUntrusted {
 					derr = fmt.Errorf("tool %q is effectful and this turn has already consumed untrusted output: refusing without explicit approval", c.Name)
 					_ = s.ledger.AppendEvent(sessionID, "tool_taint_refused", map[string]any{"tool": c.Name})
+				}
+			}
+			// AG-21: tool-level permission gate (allow/ask/block).
+			if derr == nil {
+				if policyErr != nil {
+					derr = fmt.Errorf("session autonomy policy is unreadable: refusing tool %q", c.Name)
+				} else if perr := toolPermissionRefusal(policy, c.Name); perr != nil {
+					derr = perr
+					_ = s.ledger.AppendEvent(sessionID, "tool_permission_refused", map[string]any{
+						"tool": c.Name, "permission": policy.ToolPermission(c.Name),
+					})
 				}
 			}
 			// Per-turn write bound: at most one simulator dispatch per

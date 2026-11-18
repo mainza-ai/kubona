@@ -529,3 +529,23 @@ def test_qaoa_shot_cut_matches_the_statevector_expectation():
     # qubit-permuted value ~1.0 lower.
     assert abs(res["energy"] - res["energy_exact"]) < 0.05
     assert res["approximation_ratio"] == pytest.approx(res["energy"] / res["optimal_cut"])
+
+
+def test_qaoa_restarts_reach_the_depth_appropriate_ratio():
+    from experiments import run_qaoa
+
+    res = run_qaoa(layers=3, shots=20000, seed=7, max_iterations=300,
+                   graph_seed=3, restarts=6)
+    assert res["success"] is True
+    assert res["optimizer"]["restarts"] == 6
+    assert res["approximation_ratio"] >= 0.90, res["approximation_ratio"]
+    assert abs(res["cut_value"] - res["cut_value_exact"]) < 0.05
+    assert res["cut_value"] == res["energy"]
+
+
+def test_qaoa_refuses_bad_restart_count():
+    from experiments import run_qaoa
+
+    res = run_qaoa(restarts=99)
+    assert res["success"] is False
+    assert "restarts" in res["error"]

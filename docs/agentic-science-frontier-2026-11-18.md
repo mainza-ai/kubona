@@ -221,10 +221,11 @@ not repeat it; access is tenant-scoped.
   session per task, submits the experiment, polls the job, scores the measured
   field against a hidden target, and reports pass@k, cost, wall time, and
   failure labels.
-- `platform/bench_agentic/tasks.json`: **11 tasks** spanning the platform's own
+- `platform/bench_agentic/tasks.json`: **13 tasks** spanning the platform's own
   domains — H2 VQE (2- and 3-layer), the H2 classical anchor, repeated-seed
-  consistency, the excited-state gap, the dissociation reaction energy, TFIM
-  chains at 4/6/8 sites, and QAOA MaxCut at 2 and 3 layers. Constant targets are
+  consistency, the excited-state gap, the dissociation reaction energy, H2
+  chemical accuracy, TFIM chains at 4/6/8 sites (hardware-efficient) plus a
+  6-layer Hamiltonian-variational task, and QAOA MaxCut at 2 and 3 layers. Constant targets are
   independent reference values; `target_from` fields assert an internal
   measured-vs-anchor invariant. `load_tasks` enforces the 10–20 task contract.
   The runner records the experiment's `uncertainty` and `z` so a tolerance can
@@ -242,17 +243,20 @@ Baseline on a disposable stack (schema 11, 2026-11-18), one attempt per task:
 | `h2_vqe_repeats_consistency` | pass | -1.133717 Ha | -1.137270 Ha | 3.55 mHa |
 | `h2_excited_state_gap` | pass | 0.610631 Ha | 0.604791 Ha | 5.84 mHa |
 | `h2_reaction_energy` | pass | 0.199694 Ha | 0.204106 Ha | 4.41 mHa |
-| `tfim_spin_chain_exact` | **fail** | -9.049900 Ha | -10.251662 Ha | 1.202 Ha |
-| `tfim_spin_chain_6` | **fail** | -7.358100 Ha | -7.727407 Ha | 0.369 Ha |
-| `tfim_spin_chain_4` | **fail** | -5.055500 Ha | -5.226252 Ha | 0.171 Ha |
-| `qaoa_maxcut_ratio` | pass | 0.891 | 0.850 | 0.041 |
-| `qaoa_maxcut_ratio_p3` | pass | 0.932 | 0.900 | 0.032 |
+| `h2_chemical_accuracy` | pass | -1.137910 Ha | -1.137270 Ha | 0.640 mHa |
+| `tfim_spin_chain_exact` | **fail** | -10.005300 Ha | -10.251662 Ha | 0.246 Ha |
+| `tfim_spin_chain_6` | **fail** | -7.357800 Ha | -7.727407 Ha | 0.370 Ha |
+| `tfim_spin_chain_4` | pass | -5.156300 Ha | -5.226252 Ha | 0.070 Ha |
+| `tfim_hva_6` | pass | -10.249000 Ha | -10.251662 Ha | 0.0027 Ha |
+| `qaoa_maxcut_ratio` | pass | 0.89887 | 0.850 | 0.049 |
+| `qaoa_maxcut_ratio_p3` | pass | 0.9478 | 0.900 | 0.048 |
 
-**Baseline: 8/11 pass@1, $0.00, ~36 s total.** The three failures are the TFIM
-VQE tasks, now measured at 11–54σ from their exact anchors — algorithmic, not
-shot noise. The earlier 10-task baseline (6/10) is superseded. The 20 000-shot
-H2 ground-state task now reaches chemical accuracy (0.256 mHa); see the
-accuracy-gap investigation for the controls and root causes.
+**Baseline: 11/13 pass@1, $0.00.** The 8- and 6-site hardware-efficient TFIM
+tasks still fail (0.246/0.370 Ha at 54σ/20σ); multi-start cut the 8-site gap
+from 1.202 to 0.246 Ha, and the 6-layer HVA solves the 8-site model to
+0.0027 Ha. The 4-site task passes under the explicit uncertainty-adjusted
+tolerance. QAOA 2/3 layers pass at 0.899/0.948. The 20 000-shot H2 task
+reaches chemical accuracy (0.640 mHa).
 
 **Accuracy-gap investigation (2026-11-18):** `docs/accuracy-gap-investigation-2026-11-18.md`
 found and fixed a QAOA shot bit-order bug (2 layers 0.788 → 0.891), showed the
@@ -590,19 +594,22 @@ design. The session master switch is implemented; the rest is planned.
 - **AG-24:** tenant default switch, policy revision/rollback, strict policy
   read, extended risk taxonomy.
 
-### Accuracy-gap follow-ups (AG-10…AG-16)
+### Accuracy-gap follow-ups (AG-10…AG-16) — implemented
 
 - **AG-10 (done):** QAOA bit order + tests; benchmark shot/target fairness;
   Inspector header wrap + browser test.
-- **AG-11:** TFIM multi-start optimizer (3–4 restarts), gap-based
-  `converged`/`optimizer_status`.
-- **AG-12:** noise-aware benchmark scoring (`uncertainty`, z, perfect-state
-  control).
-- **AG-13:** H2 chemical-accuracy task at 1.6 mHa; HVA/UCCSD evaluation.
-- **AG-14:** QAOA multi-start and depth tasks; document the p=2 ceiling.
-- **AG-15:** console container-query/width-aware panel controls; layout audit.
-- **AG-16:** telemetry semantics (`optimizer_status`, `execution_time_ms`,
-  QAOA `energy` naming).
+- **AG-11 (done):** TFIM multi-start (HVA and HEA), gap-based `converged`,
+  `optimizer_status`, restarts/evaluation telemetry. HVA-6 reaches the exact
+  anchor; HEA 8-site improves 1.202 → 0.246 Ha.
+- **AG-12 (done):** noise-aware scoring (`uncertainty_k`), `uncertainty` and
+  `z` in every attempt; perfect-state control passes at task shots.
+- **AG-13 (done):** 1.6 mHa H2 chemical-accuracy task at 20k shots (passes at
+  0.640 mHa); HVA implemented and validated for TFIM. UCCSD is not shipped.
+- **AG-14 (done):** QAOA multi-start; p=2 0.899, p=3 0.948; p=2/p=3 tasks.
+- **AG-15 (done):** Inspector presets are panel-width aware (not viewport);
+  width-aware browser regression tests; global mode chip in the composer.
+- **AG-16 (done):** `optimizer_status`, gap-based `converged`, `cut_value`
+  aliases, `execution_time_ms`, and `max_iterations` telemetry.
 
 ### Agentic mode (AG-17, implemented)
 

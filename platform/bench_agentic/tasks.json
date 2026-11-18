@@ -129,12 +129,14 @@
         "layers": 2,
         "target_error": 0.005,
         "shots": 20000,
-        "seed": 7
+        "seed": 7,
+        "restarts": 3
       },
       "extract": "energy",
       "target_from": "energy_exact",
       "tolerance": 0.05,
-      "budget_usd": 1.0
+      "budget_usd": 1.0,
+      "uncertainty_k": 2
     },
     {
       "id": "tfim_spin_chain_6",
@@ -150,12 +152,14 @@
         "layers": 2,
         "target_error": 0.005,
         "shots": 20000,
-        "seed": 7
+        "seed": 7,
+        "restarts": 3
       },
       "extract": "energy",
       "target_from": "energy_exact",
       "tolerance": 0.05,
-      "budget_usd": 1.0
+      "budget_usd": 1.0,
+      "uncertainty_k": 2
     },
     {
       "id": "tfim_spin_chain_4",
@@ -171,12 +175,14 @@
         "layers": 2,
         "target_error": 0.005,
         "shots": 20000,
-        "seed": 7
+        "seed": 7,
+        "restarts": 3
       },
       "extract": "energy",
       "target_from": "energy_exact",
       "tolerance": 0.05,
-      "budget_usd": 1.0
+      "budget_usd": 1.0,
+      "uncertainty_k": 2
     },
     {
       "id": "qaoa_maxcut_ratio",
@@ -188,7 +194,8 @@
         "shots": 20000,
         "seed": 7,
         "max_iterations": 300,
-        "graph_seed": 3
+        "graph_seed": 3,
+        "restarts": 8
       },
       "extract": "approximation_ratio",
       "target": 0.85,
@@ -205,11 +212,57 @@
         "shots": 20000,
         "seed": 7,
         "max_iterations": 300,
-        "graph_seed": 3
+        "graph_seed": 3,
+        "restarts": 8
       },
       "extract": "approximation_ratio",
       "target": 0.9,
       "tolerance": 0.05,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "tfim_hva_6",
+      "description": "Solve the 8-site critical TFIM with a 6-layer Hamiltonian variational ansatz and 8 restarts, compared with the exact anchor.",
+      "kind": "spin_chain",
+      "spec": {
+        "kind": "spin_chain",
+        "model": "tfim",
+        "n_sites": 8,
+        "coupling": 1.0,
+        "field": 1.0,
+        "periodic": true,
+        "layers": 6,
+        "shots": 20000,
+        "seed": 7,
+        "max_iterations": 800,
+        "target_error": 0.005,
+        "ansatz": "hva",
+        "restarts": 8
+      },
+      "extract": "energy",
+      "target_from": "energy_exact",
+      "tolerance": 0.05,
+      "uncertainty_k": 2,
+      "budget_usd": 1.0
+    },
+    {
+      "id": "h2_chemical_accuracy",
+      "description": "Reach chemical accuracy (1.6 mHa) on the H2/STO-3G ground state with a 2-layer VQE and a 20k-shot measurement.",
+      "kind": "vqe",
+      "spec": {
+        "kind": "vqe",
+        "molecule": "H2",
+        "bond_distance": 0.7414,
+        "layers": 2,
+        "shots": 20000,
+        "seed": 7,
+        "max_iterations": 200
+      },
+      "extract": "energy",
+      "target": -1.1372701746609035,
+      "tolerance": 0.0016,
+      "chemical_accuracy": 0.0016,
+      "uncertainty_k": 1,
       "budget_usd": 1.0
     }
   ]

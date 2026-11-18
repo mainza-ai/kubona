@@ -820,6 +820,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/approvals/{planId}": {
+      "post": {
+        "operationId": "decideApproval",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: approval.decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval.decision"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents/custom/{id}": {
       "delete": {
         "operationId": "deleteCustomAgent",
@@ -1111,6 +1149,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/access"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/approvals": {
+      "get": {
+        "operationId": "fetchApprovals",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: approval.inbox",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval.inbox"
                 }
               }
             }
@@ -4352,6 +4420,56 @@
           "updated_at": {
             "type": "string"
           }
+        }
+      },
+      "approval.inbox": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "pending",
+          "deferred",
+          "counts"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "pending": {
+            "type": "array",
+            "items": {}
+          },
+          "deferred": {
+            "type": "array",
+            "items": {}
+          },
+          "counts": {
+            "type": "object",
+            "required": [
+              "pending",
+              "deferred"
+            ],
+            "properties": {
+              "pending": {
+                "type": "number"
+              },
+              "deferred": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "approval.decision": {
+        "type": "object",
+        "required": [
+          "decision",
+          "plan"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "plan": {}
         }
       },
       "session.agentic": {

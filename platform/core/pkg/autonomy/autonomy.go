@@ -40,6 +40,7 @@ const (
 	ModeSuggest Mode = "suggest"
 	ModeApprove Mode = "approve"
 	ModeAct     Mode = "act"
+	ModeNotify  Mode = "notify"
 )
 
 // Stages is the stable order used in responses and validation errors.
@@ -55,8 +56,11 @@ type Policy struct {
 	AgenticEnabled *bool `json:"agentic_enabled,omitempty"`
 	// AgenticLocked is set by an operator halt. Session callers may toggle the
 	// switch but cannot clear the lock; only the operator policy write can.
-	AgenticLocked bool   `json:"agentic_locked"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
+	AgenticLocked bool `json:"agentic_locked"`
+	// ToolPermissions gates copilot tools by name: allow | ask | block.
+	// Absent means allow (the tool registry's own role gate still applies).
+	ToolPermissions map[string]string `json:"tool_permissions,omitempty"`
+	UpdatedAt       string            `json:"updated_at,omitempty"`
 }
 
 func boolPtr(v bool) *bool { return &v }
@@ -67,6 +71,17 @@ func (p Policy) Agentic() bool {
 		return true
 	}
 	return *p.AgenticEnabled
+}
+
+// ToolPermission returns allow|ask|block for a tool name (default allow).
+func (p Policy) ToolPermission(name string) string {
+	if p.ToolPermissions == nil {
+		return "allow"
+	}
+	if v, ok := p.ToolPermissions[name]; ok {
+		return v
+	}
+	return "allow"
 }
 
 // DefaultPolicy approximates the platform's existing posture: free stages are
@@ -86,7 +101,7 @@ func DefaultPolicy() Policy {
 
 func ValidMode(m Mode) bool {
 	switch m {
-	case ModeSuggest, ModeApprove, ModeAct:
+	case ModeSuggest, ModeApprove, ModeAct, ModeNotify:
 		return true
 	}
 	return false
@@ -108,7 +123,20 @@ func Normalize(p Policy) (Policy, error) {
 	out := Policy{
 		Stages: map[Stage]Mode{}, MaxActBudgetUSD: p.MaxActBudgetUSD,
 		AgenticEnabled: p.AgenticEnabled, AgenticLocked: p.AgenticLocked,
-		UpdatedAt: p.UpdatedAt,
+		ToolPermissions: map[string]string{}, UpdatedAt: p.UpdatedAt,
+	}
+	for name, permission := range p.ToolPermissions {
+		name = strings.TrimSpace(name)
+		permission = strings.ToLower(strings.TrimSpace(permission))
+		if name == "" {
+			continue
+		}
+		switch permission {
+		case "allow", "ask", "block":
+			out.ToolPermissions[name] = permission
+		default:
+			return Policy{}, fmt.Errorf("tool %q permission %q is not allow|ask|block", name, permission)
+		}
 	}
 	if out.AgenticEnabled == nil {
 		out.AgenticEnabled = boolPtr(true)
@@ -172,7 +200,8 @@ var dualUseTerms = []string{
 	"pathogen", "toxin", "nerve agent", "chemical weapon", "bioweapon",
 	"biological weapon", "weaponize", "weaponise", "explosive", "fissile",
 	"nuclear weapon", "radiological", "gain-of-function", "select agent",
-	"aerosolize", "aerosolise", "casualty",
+	"aerosolize", "aerosolise", "casualty", "precursor", "synthesis route",
+	"virulent", "transmissibility", "detonator", "cultivation", "dispersal",
 }
 
 // Classify returns low/medium/high with the reasons that produced the level.
@@ -229,6 +258,7 @@ type Decision struct {
 	Allowed          bool
 	RequiresApproval bool
 	AutoApprove      bool
+	Notify           bool
 	Code             string
 	Reason           string
 	Risk             Risk
@@ -253,12 +283,18 @@ func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
 		}
 	}
 	if approved {
-		return Decision{Allowed: true, Risk: risk, Reason: "plan approved"}
+		return Decision{Allowed: true, Notify: mode == ModeNotify, Risk: risk, Reason: "plan approved"}
 	}
 	if mode == ModeApprove {
 		return Decision{
 			Allowed: false, RequiresApproval: true, Risk: risk, Code: "plan_not_approved",
 			Reason: "session autonomy is approve: the plan must be approved before execution",
+		}
+	}
+	if mode == ModeNotify {
+		return Decision{
+			Allowed: true, AutoApprove: true, Notify: true, Risk: risk,
+			Reason: "notify mode: low/medium-risk plan inside the act budget; the receipt is batched into the digest",
 		}
 	}
 	return Decision{

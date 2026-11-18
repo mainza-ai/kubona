@@ -229,6 +229,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/tenants/ceiling", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/refund", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/autonomy", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/tenants/agentic-default", Methods: "GET,PUT", Class: RouteAuthBearer, Rationale: "Operator-owned default for the session agentic switch; a session policy overrides it. Tenant autonomy stays the authority boundary."},
 	{Pattern: "/api/tenants/revoke", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/status", Methods: "POST", Class: RouteAuthBearer},
 }

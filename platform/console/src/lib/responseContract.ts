@@ -58,6 +58,13 @@ export const RESPONSE_SCHEMAS = {
     created_at: str,
     updated_at: str,
   }),
+  'approval.inbox': obj({
+    session_id: str,
+    pending: arr(any),
+    deferred: arr(any),
+    counts: obj({ pending: num, deferred: num }),
+  }),
+  'approval.decision': obj({ decision: str, plan: any }),
   'session.agentic': obj({
     session_id: str,
     agentic_enabled: bool,

@@ -7317,3 +7317,21 @@ skipped is the exact failure this incident is about:
   `docs/agentic-mode-toggle-2026-11-18.md`.
 - Runtime: off → loop start 403, plan execute 403, manual experiment 201; halt
   → session unlock 409; operator unlock 200; restart rehydration pauses loops.
+
+## [2026-11-18] implementation | AG-11..AG-24 completion
+
+- AG-11/AG-13/AG-16: `run_spin_chain` gains HVA + multi-start restarts, a
+  gap-based `converged`, `optimizer_status`, restart/evaluation telemetry, and
+  a 6-layer HVA task that reaches the exact 8-site anchor (0.0027 Ha measured).
+  HEA 8-site 2 layers improved 1.202 → 0.246 Ha with restarts.
+- AG-14: QAOA multi-start (8) reaches p=2 0.899 and p=3 0.948; telemetry adds
+  `cut_value`, `optimizer_status`, and execution time.
+- AG-12: the runner accepts `uncertainty_k` and records `uncertainty`/`z`;
+  perfect-state controls pass at task shot budgets.
+- AG-13: a 20k-shot H2 chemical-accuracy task passes at 0.640 mHa.
+- AG-19/20/21/22/23: durable approval inbox (approve/reject/defer + console),
+  `notify` mode + `/agentic/digest`, per-tool allow/ask/block enforcement,
+  queue/fatigue metrics, and `/receipts` undo for reversible decisions.
+- AG-24: operator-owned tenant default, strict unreadable-policy refusal,
+  policy history/rollback, and an expanded dual-use list. Schema 13.
+- Final benchmark: 13 tasks, 11/13 pass (only the 8/6-site HEA TFIM tasks fail).

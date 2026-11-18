@@ -70,6 +70,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
     const out = await setSessionAgentic(sessionId, next);
     if (out.ok) {
       setAgentic({ enabled: out.state.agentic_enabled, locked: out.state.agentic_locked, stages: out.state.stages });
+      window.dispatchEvent(new Event('kubona:agentic-changed'));
       setNotice(next
         ? 'Auto agent on — loops may run under the session policy.'
         : `Manual mode — agent loops and plan execution are blocked${out.paused_loops ? `; ${out.paused_loops} loop(s) paused` : ''}.`);

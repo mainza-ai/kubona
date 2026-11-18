@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AgenticModeChip } from './AgenticModeChip';
 import { ArrowUp, Brain, ChevronUp, Cpu, Paperclip, Sparkles, X } from 'lucide-react';
 import type { ChatAttachment, FollowUpSpec } from '@/domain/useCopilotChat';
 import { subscribeInvalidation } from '@/domain/invalidation';
@@ -632,6 +633,8 @@ export const CommandDock = React.memo(function CommandDock({
               <span className="hidden md:inline">{rememberedCount > 0 ? `Remembered (${rememberedCount})` : 'Memory'}</span>
             </button>
           )}
+
+          <AgenticModeChip sessionId={sessionId} />
 
           <div className="mb-0.5 inline-flex items-center">
             <button

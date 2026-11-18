@@ -75,9 +75,20 @@ def score_attempt(task: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any
         return {"pass": False, "failure": "missing_target", "measured": float(measured),
                 "target": None, "delta": None}
     delta = abs(float(measured) - target)
-    passed = delta <= float(task["tolerance"])
+    tolerance = float(task["tolerance"])
+    # Noise-aware pass: an optional uncertainty_k widens the tolerance by k
+    # standard errors of the experiment's own shot estimate. This stops a
+    # perfect state from failing only because the shot budget is small; it does
+    # not hide an algorithmic gap (a 1.2 Ha miss stays a fail).
+    unc = result.get("uncertainty")
+    k = float(task.get("uncertainty_k", 0) or 0)
+    effective = tolerance
+    if k > 0 and isinstance(unc, (int, float)) and float(unc) >= 0:
+        effective = tolerance + k * float(unc)
+    passed = delta <= effective
     out = {"pass": passed, "failure": None if passed else "tolerance",
-           "measured": float(measured), "target": target, "delta": delta}
+           "measured": float(measured), "target": target, "delta": delta,
+           "tolerance": tolerance, "tolerance_effective": effective}
     chemical = task.get("chemical_accuracy")
     if chemical is not None:
         out["chemical_accuracy"] = delta <= float(chemical)
