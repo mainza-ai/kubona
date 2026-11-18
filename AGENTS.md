@@ -106,6 +106,29 @@ development — re-verify the gate on the exact commit before citing
 > scan. The raw-palette baseline is **0**. Re-verify the full gate on the
 > pushed commit before citing “green”.
 
+> ⚑ State update (2026-11-18, `develop`): the agentic-science program landed
+> AG-1…AG-9 in local commits `8defdb3f`…`7f0bb04e`. The platform now has: a
+> real end-to-end benchmark (`platform/bench_agentic`) with a nightly workflow;
+> a persisted hypothesis engine with a strict-JSON LLM proposer, Elo tournament,
+> measured lexical novelty, and evidence-gated collapse; typed pre-registered
+> plans with automatic spec synthesis from campaign facts + a relative
+> `spec_patch`; a byte-budgeted research-graph summary with a `since_seq` resume
+> cursor; numeric/citation verification that blocks signoff on fabricated
+> numbers or dead citations (calibration 12/12 against maintainer labels);
+> RO-Crate + W3C PROV-JSON + CRediT export; session stage autonomy
+> (suggest/approve/act) with a v1 risk classifier and an operator halt; science
+> telemetry at `/api/ops/science` plus Prometheus gauges; and a tenant-scoped
+> lab-knowledge registry that gates repeated negative results. Ledger schema is
+> **11**; each bump took a verified pre-migration snapshot. Counts are generated
+> in `docs/repo-counts.md`; do not hand-maintain them here. Honest limits
+> recorded with the program: the runtime LLM path was exercised through a real
+> provider failure (no model loaded) and falls back to diagnostics with
+> `llm.error`; the verification calibration labels are maintainer-authored, not
+> an independent human study; human minutes are not recorded and stay `null`;
+> and the pinned Lean image remains operator-built, so no live kernel proof has
+> run here. Re-verify the full gate on the exact pushed commit before citing
+> "green".
+
 ## Three layers
 
 - `dev-docs/` — local working copies of source documents. **Never committed to git, never pushed —
