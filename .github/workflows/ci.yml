@@ -374,7 +374,7 @@ jobs:
           docker logs kubona-prod-backup-1 || true
 
       - name: Local-first loopback acceptance
-        run: scripts/local-deployment-check.sh
+        run: scripts/local-deployment-check.sh --expect-single-lab
       - name: Smoke logs on failure (console/bridge/kubonad tails)
         if: failure()
         run: |

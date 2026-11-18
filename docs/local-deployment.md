@@ -146,6 +146,48 @@ The script refuses while the daemon holds the ledger lock, writes a verified
 `*.reset-backup-<UTC>` snapshot, removes the ledger/WAL/SHM files, and leaves
 the backup in place. Restart `kubonad` to create a clean ledger.
 
+### Reset a compose ledger
+
+`local-reset.py` is a host-path tool: it cannot reach a ledger inside the
+`kubona-state` Docker volume and it cannot take the lock while the compose
+daemon holds it. For the compose topology, back up first, stop only
+`kubonad`, then remove the ledger files through the image (which has the
+volumes mounted at the same paths):
+
+```bash
+COMPOSE="docker compose --env-file .env -f platform/docker/compose.prod.yml"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+
+# 1. verified snapshot while the daemon is still running
+docker exec kubona-prod-kubonad-1 kubonad backup \
+  --db /home/kubona/.kubona/kubona.db \
+  --out "/home/kubona/.kubona/kubona.reset-backup-$STAMP.db"
+
+# 2. release the ledger lock (leaves preflight/backup containers untouched)
+$COMPOSE stop kubonad
+
+# 3. remove the ledger + WAL/SHM, keep every reset-backup-*.db
+$COMPOSE run --rm --no-deps --entrypoint sh kubonad -c \
+  'cd /home/kubona/.kubona && rm -f kubona.db kubona.db-wal kubona.db-shm'
+
+# 4. start clean; the daemon recreates the schema and the default lab
+$COMPOSE up -d
+```
+
+Then assert the declared posture: `scripts/local-deployment-check.sh
+--expect-single-lab`. A fresh ledger holds one tenant, so `/api/access`
+reports `mode:"local_private"` and `single_lab:true`.
+
+> ⚠ `docker compose down -v` is **not** a reset procedure for a deployment
+> you intend to keep: it removes the `kubona-backups` volume with the state
+> volume. Move the backups off-host first, or use the four steps above.
+
+Why this matters: `singleTenantStore()` counts distinct tenants in the
+sessions table, not a config flag. E2E labs created against a live stack (or
+a restored multi-lab ledger) silently flip a `KUBONA_SINGLE_LAB=1` deployment
+to `multi_lab`, which re-requires operator auth for reads/campaign creation
+and disables anonymous local chat.
+
 ## 3. Prove it is private
 
 Both published ports must be loopback-only:
@@ -163,8 +205,12 @@ The host address must be `127.0.0.1` (or `::1`), never `0.0.0.0`, `*`, or a
 LAN address. The convenience check:
 
 ```bash
-scripts/local-deployment-check.sh
+scripts/local-deployment-check.sh --expect-single-lab
 ```
+
+`--expect-single-lab` also fails when the daemon reports `multi_lab`; use it
+whenever the deployment claims the single-lab posture (it is what the compose
+default declares). Without the flag the mode is printed but not asserted.
 
 If a LAN/public listener is required, treat it as a separate deployment
 decision: add TLS (`--tls-cert/--tls-key`) or put the stack behind a
@@ -373,14 +419,31 @@ restore a backup over a running daemon.
 - [ ] `docker compose ... config` is clean.
 - [ ] `kubona doctor --env-file .env` reports no stale rate card or FK orphans.
 - [ ] `/api/health` is 200 and `/api/ready` is 200 on a fresh volume.
+- [ ] `scripts/local-deployment-check.sh --expect-single-lab` passes: loopback
+      only, health/ready green, console reachable, and `/api/access` reports
+      `mode:"local_private"` / `single_lab:true`. A `multi_lab` report on a
+      declared single-lab host means the ledger is not fresh (see "Reset a
+      compose ledger").
 - [ ] Console loads at `http://localhost:3000` (same host as the API so the session cookie stays same-site).
 - [ ] `ss`/`lsof` shows loopback only for 8080/3000.
 - [ ] A request from another host fails.
 - [ ] Writes without `KUBONA_API_TOKEN` fail closed (503).
 - [ ] `kubonad restore --from ... --db ...` dry run is clean; `--apply` on a
       scratch path verifies and leaves a preservation directory.
-- [ ] `kubonad backup-status --dir /backups --max-age 26h` is fresh with the
-      `backup` profile enabled.
+- [ ] `kubonad backup-status --dir /backups --max-age 26h` is fresh **inside
+      the `backup`/`preflight` container**. The `kubonad` service does not
+      mount `kubona-backups`, so running it there reports a false "no backup
+      files found".
+- [ ] `kubonad verify --db <newest backup>` is clean, and one real restore of a
+      backup file (not only `restore-drill`) has been exercised into a scratch
+      path. `restore-drill` proves the live ledger round-trips; it does not
+      prove the scheduled backup file is readable.
+- [ ] Backups are encrypted off-host (`KUBONA_BACKUP_AGE_RECIPIENT` set,
+      `KUBONA_BACKUP_REQUIRE_ENCRYPTION=1`) **or** a signed residual-risk
+      waiver records plaintext same-host backups.
+- [ ] `preflight` is run with `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1` once the
+      backup profile is live, so a stale backup blocks startup instead of
+      warning.
 - [ ] Local LLM answers; cloud LLM refuses without `KUBONA_LLM_CLOUD=1`.
 - [ ] `POST /api/codesign/rerun` with bearer returns a sealed receipt;
       anonymous callers get 401 and no LLM egress.
