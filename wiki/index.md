@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (163 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (165 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -70,11 +70,11 @@ Describes **how decided** something is — never how finished.
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
 | `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
-| `source` | An ingested source record. Immutable once written. | the 10 pages under `sources/` |
+| `source` | An ingested source record. Immutable once written. | the 11 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (163 pages = 48 entities · 100 concepts · 10 sources · 5 meta), 2026-11-18:**
-`settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 53 ·
+**Census (165 pages = 48 entities · 101 concepts · 11 sources · 5 meta), 2026-11-18:**
+`settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 54 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
@@ -101,10 +101,11 @@ mapping, author guidance) for no new expressiveness; claims live as concept
 sections backed by ledger records, and the falsifier lives in the linked tests.
 Revisit only with a concrete claim that fits nowhere.
 
-## Sources (10)
+## Sources (11)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
+| [[source-agentic-science-frontier-2026]] | 2025–2026 web research on autonomous science agents, benchmarks, self-driving labs, provenance | [[agentic-science-frontier-2026]] |
 | [[source-architecture-paper]] | *The Ultimate AI-Quantum Agentic Platform* — architectural design & integration strategy | MCP, QIR/MLIR, providers, mitigation, eval |
 | [[source-gap-analysis-plan]] | *Gap Analysis, Architectural Expansion, and Implementation Plan* — companion plan | Everything; the operational blueprint (+ §13 self-evolution) |
 | [[source-cloudflare-economy]] | *Cloudflare, x402, and the Agent Resource Economy* — podcast insights | [[agent-resource-economy]], [[x402]], startup patterns |
@@ -169,7 +170,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (93 total across this table, Overview & meta, and the layer map)
+## Concepts (101 total across this table, Overview & meta, and the layer map)
 
 | Page | What it is |
 |---|---|
@@ -205,6 +206,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
 | [[risks]] | Risk register synced 2026-11-10 (public DCO/rulesets, export routing, calibration & anti-overclaim gates, scrubbed history) |
 | [[quantum-advantage-realism]] | The anti-quantum-washing policy: never claim advantage; backend, classical anchor and interval travel with every artefact |
+| [[agentic-science-frontier-2026]] | Frontier research synthesis: what agent-led science can do, Kubona gaps, AG-1…AG-9 plan (`tracked`) |
 | [[five-ring-research-loop]] | The outer discovery loop as five rings (Observe → Hypothesise → Compute → Audit → Communicate) plus Ring 0's watchdog discipline |
 | [[claim-credibility-wavefunctions]] | Claims as amplitude vectors: credibility scored from source diversity + engagement + priors, collapsed by verification, audited by a tribunal |
 | [[epistemic-curvature]] | Curvature of the belief manifold as the signal for where research effort is actually informative |
@@ -232,6 +234,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[production-readiness-audit-2026-10-26-details]] | Round-2 audit appendix: P2/P3 register by domain, exact coverage and verification log (`tracked`) |
 | [[production-readiness-audit-2026-11-18]] | Local-private audit at `d9a0c1ab`: publication pipeline not deployed, single-lab posture contradicted by the ledger, unbuildable manuscripts, caller-attested review; R0–R7 plan (`tracked`) |
 | [[publication-pipeline]] | Server-owned manuscripts: campaign-composed drafts, signed-receipt evidence, persisted review, byte-reproducible pdfTeX build, hash-bound signoff, staged deposit (`adopted`) |
+| [[agentic-science-frontier-2026]] | 2025–2026 agentic-science frontier vs Kubona: hypothesis tournaments, lab-in-the-loop, benchmark reality, provenance standards; AG-1…AG-9 plan (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |

@@ -79,6 +79,36 @@ Executed 2026-11-18; each box is closed only by a test or a live run named in
 - [ ] Operator: fresh-volume reset to restore the declared `local_private`
       posture (documented procedure; preserves a verified snapshot).
 
+## Agentic science frontier (2026-11-18)
+
+Research: `docs/agentic-science-frontier-2026-11-18.md`; wiki
+[[agentic-science-frontier-2026]]. Ordered so each slice produces a measured
+capability, not a demo.
+
+- [ ] AG-1: end-to-end Kubona-domain re-discovery benchmark (10–20 tasks;
+      hidden target + rubric; pass@k, cost, wall time, human interventions,
+      failure label). Baseline published with the exact commit.
+- [ ] AG-2: hypothesis engine (generate → dedupe → reflect → rank → evolve →
+      meta-review) with literature refs, falsifier, novelty measured or
+      explicitly unmeasured; hypotheses stored as claims.
+- [ ] AG-3: typed experiment protocol planner (hypothesis id, method,
+      observable, acceptance metric, budget, stop rule, falsifier, executor);
+      no plan → no execution.
+- [ ] AG-4: structured research graph (goal → hypothesis → plan → run →
+      evidence → decision → negative) with context-budgeted summaries and
+      restart resume.
+- [ ] AG-5: numeric/citation claim verification against results/logs and
+      DOI/OpenAlex; block signoff on unsupported claims; calibrate the
+      reviewer against a human-labeled set.
+- [ ] AG-6: RO-Crate/PROV export with agent decisions and prompts/responses;
+      CRediT-style human/agent attribution.
+- [ ] AG-7: stage-level autonomy modes (suggest/approve/act), dual-use/risk
+      screening, and human signoff for flagged directions.
+- [ ] AG-8: stage success/failure taxonomy, cost per accepted claim, human
+      minutes, queue/loop health dashboard.
+- [ ] AG-9: tenant-scoped cumulative lab knowledge registry (hypotheses,
+      negative results, reports) with A2A/tenant-grant access.
+
 ## Follow-up audit slices (2026-11-18, second pass)
 
 Findings and evidence: `docs/publication-followup-audit-2026-11-18.md`.

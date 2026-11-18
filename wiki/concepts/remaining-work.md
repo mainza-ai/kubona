@@ -129,7 +129,35 @@ Still open (A-series in `docs/active-implementation-todos.md`):
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
   the fresh-volume reset for the polluted host ledger.
 
-## Phase-0/1/2 execution record (2026-10-28, `develop`)## Phase-0/1/2 execution record (2026-10-28, `develop`)
+## Agentic science frontier (2026-11-18)
+
+Research: [[agentic-science-frontier-2026]] and
+`docs/agentic-science-frontier-2026-11-18.md`.
+
+- **P0:** AG-1 end-to-end benchmark, AG-2 hypothesis engine, AG-3 protocol
+  planner, AG-4 structured long-horizon state, AG-5 claim/citation
+  verification.
+- **P1:** AG-6 provenance export, AG-7 autonomy/safety, AG-8 telemetry.
+- **P2:** AG-9 cross-lab cumulative knowledge.
+- **Existing strengths to reuse:** LoopEngine, tribunal/claims, campaign
+  projections, Hindsight, discovery step runner, mandates/obligations,
+  publication pipeline.
+
+## Phase-0/1/2 execution record (2026-10-28, `develop`)## Agentic science frontier (2026-11-18)
+
+Research: [[agentic-science-frontier-2026]] and
+`docs/agentic-science-frontier-2026-11-18.md`.
+
+- **P0:** AG-1 end-to-end benchmark, AG-2 hypothesis engine, AG-3 protocol
+  planner, AG-4 structured long-horizon state, AG-5 claim/citation
+  verification.
+- **P1:** AG-6 provenance export, AG-7 autonomy/safety, AG-8 telemetry.
+- **P2:** AG-9 cross-lab cumulative knowledge.
+- **Existing strengths to reuse:** LoopEngine, tribunal/claims, campaign
+  projections, Hindsight, discovery step runner, mandates/obligations,
+  publication pipeline.
+
+## Phase-0/1/2 execution record (2026-10-28, `develop`)
 
 - Phase-0 + Phase-1 hardening landed on `develop` with the full gate
   green (20 checks, run 40786519756): settlement, admission crypto, A2A

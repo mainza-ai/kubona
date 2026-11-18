@@ -26,7 +26,8 @@ SOURCE_KEYS = {"source-architecture-paper", "source-gap-analysis-plan",
                "source-leanrea-investigation-2026",
                "source-llm-circuit-codesign-2026",
                "source-magic-state-cultivation-2026",
-               "source-world-labs-atlas-2026"}
+               "source-world-labs-atlas-2026",
+               "source-agentic-science-frontier-2026"}
 META_PAGES = {"index", "log"}
 REQUIRED = ("type", "tags", "date", "updated", "status")
 WIKI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wiki")

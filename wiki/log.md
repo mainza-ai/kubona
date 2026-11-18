@@ -7070,3 +7070,18 @@ skipped is the exact failure this incident is about:
 - Added `scripts/comparator-keygen.sh`, `comparator-verify.sh`,
   `build-lean-sandbox.sh`, and `reset-compose-state.sh` (archive-first,
   dry-run by default). The reset dry run identified the state volume and plan.
+
+## [2026-11-18] research | Agentic science frontier vs Kubona
+
+- Conducted web research on 2025–2026 end-to-end AI-agent-led science:
+  AI Scientist (Nature 2026), Co-Scientist (Nature 2026 + lab extension),
+  Robin, Kosmos, Virtual Lab, Agent Laboratory, ScienceAgentBench, CORE-Bench,
+  ResearchClawBench, SCI-AGENT-EXAM, SciAgentArena, GPT-5/Ginkgo, A-Lab GPSS,
+  AutoLabs, AutoDNA, SDL testbeds, RO-Crate/W3C PROV/PROV-AGENT.
+- Gap analysis: Kubona is strong on ledger-bound execution, cost governance,
+  real QPU execution, tribunal critique, and publication integrity; it lacks a
+  hypothesis tournament, literature-grounded novelty, a typed protocol
+  planner, structured long-horizon state, end-to-end evaluation, claim/citation
+  verification, stage autonomy modes, safety screening, and provenance export.
+- Filed `docs/agentic-science-frontier-2026-11-18.md`,
+  [[agentic-science-frontier-2026]], and the AG-1…AG-9 plan.
