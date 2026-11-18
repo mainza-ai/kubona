@@ -23,12 +23,12 @@ Baseline: `37103aad` on `develop`.
 
 ## Copilot drawer containment (2026-11-17)
 
-- [ ] C1: constrain MathText prose/table min-content width; add browser regression.
-- [ ] C2: Copilot-specific visible splitter, width persistence, reset, and viewport clamp.
-- [ ] C3: table semantics, numeric alignment/formatting, sticky header, scroll cue.
-- [ ] C4: full target label/wrap and separate Δ badge.
-- [ ] C5: mobile/desktop width and resize E2E coverage.
-- [ ] C6: table copy/expand and fit presets after C1–C5.
+- [x] C1: constrain MathText prose/table min-content width; add browser regression.
+- [x] C2: Copilot-specific visible splitter, width persistence, reset, and viewport clamp.
+- [x] C3: table semantics, numeric alignment/formatting, scroll cue, table copy row.
+- [x] C4: full target label/wrap and separate Δ badge.
+- [x] C5: mobile/desktop width and resize E2E coverage.
+- [x] C6: table copy and Narrow/Wide/Reset presets (full-screen table expansion remains optional).
 
 ## Later
 

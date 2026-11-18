@@ -267,3 +267,26 @@ test('Workbench auto-frames off-screen saved cameras and Fit keeps top cards ins
   expect(topClipCheck.minTopOffset).toBeGreaterThanOrEqual(0);
   expect(topClipCheck.minLeftOffset).toBeGreaterThanOrEqual(0);
 });
+
+test('Copilot drawer resizes horizontally and stays inside the viewport', async ({ page }) => {
+  await mockApi(page, { loops: 2, jobs: 2, obligations: 1 });
+  await page.goto('/');
+  await page.getByRole('button', { name: /Inspector/ }).first().click();
+  await page.getByRole('tab', { name: 'Copilot' }).click();
+
+  const panel = page.getByRole('tabpanel', { name: 'Copilot' });
+  await expect(panel).toBeVisible();
+
+  const separator = page.getByRole('separator', { name: 'Resize Copilot' });
+  await expect(separator).toBeVisible();
+  await separator.focus();
+  const before = Number(await separator.getAttribute('aria-valuenow'));
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => Number(await separator.getAttribute('aria-valuenow'))).toBeGreaterThan(before);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(separator).toBeHidden();
+  const box = await panel.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeLessThanOrEqual(390);
+});

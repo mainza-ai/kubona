@@ -375,8 +375,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
                 {streamingId ? 'STREAMING' : runningTribunal ? 'DELIBERATING' : 'READY'}
               </span>
             </div>
-            <div className="text-[12px] text-muted truncate" title={`Target: ${targetDisplayName} · Δ = ${discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}`}>
-              Target: {targetDisplayName} · Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
+            <div className="text-[12px] text-muted break-words leading-snug" title={`Target: ${targetDisplayName}`}>
+              Target: {targetDisplayName}
             </div>
           </div>
         </div>
@@ -459,7 +459,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       <div className="mx-5 mt-3 px-3 py-2 rounded-row bg-surface border border-border flex flex-wrap items-center justify-between gap-2 text-[12px] font-code shrink-0 min-w-0">
         <div className="flex items-center gap-2 text-label-secondary min-w-0 flex-1">
           <span className="text-accent-ink font-bold shrink-0">TARGET:</span>
-          <span className="truncate" title={targetDisplayName}>{targetDisplayName}</span>
+          <span className="min-w-0 break-words" title={targetDisplayName}>{targetDisplayName}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span
@@ -520,7 +520,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       )}
 
       {/* Messages Feed */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-thin">
+      <div ref={messagesContainerRef} data-testid="copilot-feed" className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden space-y-4 p-4 scrollbar-thin" style={{ minWidth: 0, maxWidth: '100%', overflowX: 'hidden' }}>
         {messages.length === 0 && (
           <div className="p-3 rounded-row bg-surface border border-border text-[12px] text-muted leading-relaxed">
             {campaign ? (
@@ -615,7 +615,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               ref={(el) => {
                 messageRefs.current[m.id] = el;
               }}
-              className={`flex flex-col space-y-1.5 rounded-row -mx-1 px-1 py-0.5 transition-shadow ${
+              className={`flex min-w-0 flex-col space-y-1.5 rounded-row -mx-1 px-1 py-0.5 transition-shadow ${
                 isUser ? 'items-end' : 'items-start'
               } ${matchedIds.length > 0 && matchedIds[searchIndex] === m.id ? 'ring-1 ring-accent-edge' : ''}`}
             >
@@ -760,7 +760,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
               ) : (
                 !hasTribunal && (
                   <div
-                    className={`px-3.5 py-2.5 text-label leading-relaxed max-w-[92%] ${
+                    className={`px-3.5 py-2.5 text-label leading-relaxed max-w-[92%] min-w-0 break-words ${
                       isUser
                         ? 'rounded-card rounded-tr-chip bg-accent-soft border border-accent-edge text-text'
                         : 'rounded-card rounded-tl-chip bg-surface border border-border text-label-secondary shadow-[var(--shadow-raised)]'

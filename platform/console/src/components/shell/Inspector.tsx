@@ -16,8 +16,29 @@ const TABS: Array<{ id: InspectorTab; label: string }> = [
   { id: 'copilot', label: 'Copilot' },
 ];
 const MIN_WIDTH = 320;
+const COPILOT_MIN_WIDTH = 360;
 const MAX_WIDTH = 420;
-const WIDTH_KEY = 'kubona.inspector.width';
+const INSPECTOR_DEFAULT_WIDTH = 380;
+const COPILOT_DEFAULT_WIDTH = 440;
+const WIDTH_KEYS: Record<InspectorTab, string> = {
+  details: 'kubona.inspector.width',
+  evidence: 'kubona.inspector.evidence.width',
+  jobs: 'kubona.inspector.jobs.width',
+  copilot: 'kubona.copilot.width',
+};
+
+function readStoredWidth(tab: InspectorTab): number {
+  const fallback = tab === 'copilot' ? COPILOT_DEFAULT_WIDTH : INSPECTOR_DEFAULT_WIDTH;
+  if (typeof window === 'undefined' || !window.localStorage) return fallback;
+  try {
+    const raw = window.localStorage.getItem(WIDTH_KEYS[tab]);
+    if (raw === null) return fallback;
+    const stored = Number(raw);
+    return Number.isFinite(stored) ? stored : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function num(value: unknown, digits = 5): string {
   return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : 'UNVERIFIED';
@@ -55,26 +76,46 @@ export const Inspector = React.memo(function Inspector({
   onFocusObject?: (object: WorkbenchObject) => void;
   onRemoveObject?: (object: WorkbenchObject) => void;
 }) {
-  const [width, setWidth] = useState(() => {
-    if (typeof window === 'undefined' || !window.localStorage) return 380;
-    try {
-      const stored = Number(window.localStorage.getItem(WIDTH_KEY));
-      return Number.isFinite(stored) ? Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, stored)) : 380;
-    } catch {
-      return 380;
-    }
-  });
+  const [widths, setWidths] = useState<Record<InspectorTab, number>>(() => ({
+    details: readStoredWidth('details'),
+    evidence: readStoredWidth('evidence'),
+    jobs: readStoredWidth('jobs'),
+    copilot: readStoredWidth('copilot'),
+  }));
+  const [viewportWidth, setViewportWidth] = useState(() => (
+    typeof window === 'undefined' ? 1440 : window.innerWidth
+  ));
   const drag = useRef<{ x: number; width: number } | null>(null);
+  const width = widths[tab];
+  const minWidth = tab === 'copilot' ? COPILOT_MIN_WIDTH : MIN_WIDTH;
+  const baseMax = tab === 'copilot'
+    ? Math.min(760, Math.max(420, Math.round(viewportWidth * 0.55)))
+    : MAX_WIDTH;
+  const expandedMax = tab === 'copilot'
+    ? Math.min(900, Math.max(640, Math.round(viewportWidth * 0.72)))
+    : 700;
+  const maxWidth = expanded ? expandedMax : baseMax;
+  const defaultWidth = tab === 'copilot' ? COPILOT_DEFAULT_WIDTH : INSPECTOR_DEFAULT_WIDTH;
+  const effectiveWidth = Math.min(maxWidth, Math.max(minWidth, expanded ? Math.max(width, 640) : width));
+  const setWidth = (value: number) => {
+    setWidths((previous) => ({ ...previous, [tab]: value }));
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.localStorage) return;
-    try { window.localStorage.setItem(WIDTH_KEY, String(Math.round(width))); } catch { /* storage denied */ }
-  }, [width]);
+    try {
+      window.localStorage.setItem(WIDTH_KEYS[tab], String(Math.round(Math.min(maxWidth, Math.max(minWidth, width)))));
+    } catch { /* storage denied */ }
+  }, [tab, width, minWidth, maxWidth]);
 
   if (!open) return null;
-
-  const maxWidth = expanded ? 700 : MAX_WIDTH;
-  const effectiveWidth = expanded ? Math.max(width, 640) : width;
   const anchor = campaign?.classical_anchor;
   const epistemics = campaign?.epistemics;
   const notebook = campaign?.notebook;
@@ -85,32 +126,39 @@ export const Inspector = React.memo(function Inspector({
       <aside
         aria-label="Inspector"
         style={{ '--inspector-width': `${effectiveWidth}px` } as React.CSSProperties}
-        className="fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-chrome shadow-[var(--shadow-float)] lg:static lg:z-auto lg:w-[var(--inspector-width)]"
+        className="fixed inset-y-0 right-0 z-50 flex w-full shrink-0 flex-col overflow-hidden border-l border-border bg-chrome shadow-[var(--shadow-float)] lg:static lg:z-auto lg:w-[var(--inspector-width)]"
       >
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize inspector"
-          aria-valuemin={MIN_WIDTH}
+          aria-label={tab === 'copilot' ? 'Resize Copilot' : 'Resize inspector'}
+          aria-valuemin={minWidth}
           aria-valuemax={maxWidth}
           aria-valuenow={Math.round(effectiveWidth)}
+          aria-valuetext={`${Math.round(effectiveWidth)} pixels`}
           tabIndex={0}
+          title="Drag to resize; double-click to reset; Home/End for min/max"
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
             drag.current = { x: event.clientX, width };
           }}
           onPointerMove={(event) => {
             if (!drag.current) return;
-            setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, drag.current.width + (drag.current.x - event.clientX))));
+            setWidth(Math.min(maxWidth, Math.max(minWidth, drag.current.width + (drag.current.x - event.clientX))));
           }}
           onPointerUp={() => { drag.current = null; }}
           onPointerCancel={() => { drag.current = null; }}
+          onDoubleClick={() => setWidth(defaultWidth)}
           onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') setWidth((value) => Math.min(maxWidth, value + 16));
-            if (event.key === 'ArrowRight') setWidth((value) => Math.max(MIN_WIDTH, value - 16));
+            if (event.key === 'ArrowLeft') setWidth(Math.min(maxWidth, width + 16));
+            if (event.key === 'ArrowRight') setWidth(Math.max(minWidth, width - 16));
+            if (event.key === 'Home') setWidth(minWidth);
+            if (event.key === 'End') setWidth(maxWidth);
           }}
-          className="absolute inset-y-0 left-0 hidden w-1 cursor-col-resize bg-transparent hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none lg:block"
-        />
+          className="group absolute inset-y-0 left-0 hidden w-2 cursor-col-resize bg-transparent hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:outline-none lg:block"
+        >
+          <span aria-hidden className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover:bg-accent/70" />
+        </div>
         <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 min-w-0">
           <div role="tablist" aria-label="Inspector sections" className="flex flex-wrap sm:flex-nowrap min-w-0 gap-1">
             {TABS.map((item) => (
@@ -126,6 +174,13 @@ export const Inspector = React.memo(function Inspector({
               </button>
             ))}
           </div>
+          {tab === 'copilot' && (
+            <div role="group" aria-label="Copilot width presets" className="hidden xl:flex items-center gap-1">
+              <button type="button" onClick={() => setWidth(420)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Narrow Copilot">Narrow</button>
+              <button type="button" onClick={() => setWidth(640)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Wide Copilot">Wide</button>
+              <button type="button" onClick={() => setWidth(defaultWidth)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Reset Copilot width">Reset</button>
+            </div>
+          )}
           <button type="button" onClick={onClose} aria-label="Close inspector" className="shrink-0 rounded-control-compact px-2 py-1 text-[12px] text-muted hover:bg-fill hover:text-text">Close</button>
         </header>
 

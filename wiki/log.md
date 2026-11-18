@@ -6909,3 +6909,13 @@ skipped is the exact failure this incident is about:
   bubble/feed.
 - Filed [[copilot-drawer-layout-audit-2026-11-17]] with C1–C6 implementation
   slices; no production code changed in this audit.
+
+## [2026-11-18] implementation | Copilot drawer containment and resizing
+
+- C1: block-level MathText containment, scrollable tables, min-w-0 feed/bubbles.
+- C2: Copilot-specific persistent splitter, visible grip, keyboard reset/min/max,
+  desktop width range, full-width mobile overlay, Narrow/Wide/Reset presets.
+- C3: scoped table headers, numeric alignment/precision with raw title values,
+  table copy action.
+- C4: wrapped target identity and separate Δ badge.
+- C5: component + a11y/E2E coverage for 320px tables, resize, and mobile width.

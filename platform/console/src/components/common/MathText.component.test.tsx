@@ -120,4 +120,28 @@ describe('MathText markdown in a real browser', () => {
     expect(marks).toHaveLength(1);
     expect(marks[0].textContent).toBe('-1.13727');
   });
+
+  it('keeps a wide numeric table inside its own scroll container', async () => {
+    const screen = await render(
+      <div data-testid="narrow-math" style={{ width: 320 }}>
+        <MathText
+          text={'| R (Å) | FCI | RHF |\n|---|---|---|\n| 1.0 | -7.78446028003123 [o3] | -7.767362 [o3] |\n| 4.0 | -7.784278178715385 [o9] | -7.624972 [o9] |'}
+        />
+      </div>,
+    );
+    const shell = screen.container.querySelector('[data-table-shell]') as HTMLElement | null;
+    const scroller = screen.container.querySelector('[role="region"]') as HTMLElement | null;
+    expect(shell).not.toBeNull();
+    expect(scroller).not.toBeNull();
+    expect(scroller!.scrollWidth).toBeGreaterThan(scroller!.clientWidth);
+    expect(screen.getByTestId('narrow-math').element().scrollWidth).toBeLessThanOrEqual(320);
+
+    const longCell = Array.from(screen.container.querySelectorAll('td')).find((cell) =>
+      cell.textContent?.includes('−7.78446') || cell.textContent?.includes('-7.78446'),
+    );
+    expect(longCell).toBeTruthy();
+    expect(longCell!.getAttribute('title')).toContain('7.78446028003123');
+    expect(longCell!.className).toContain('text-right');
+    expect(screen.container.querySelector('[data-copy-table]')).not.toBeNull();
+  });
 });

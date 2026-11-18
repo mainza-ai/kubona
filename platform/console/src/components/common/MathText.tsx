@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 // D7: KaTeX must not enter the first-load bundle. It is ~280 KiB of renderer
 // code and only chat prose that actually contains `$…$` needs it. The lazy
@@ -105,6 +105,23 @@ function isTableDivider(line: string): boolean {
   return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
 }
 
+function isNumericCell(value: string): boolean {
+  return /^[+\-−]?\d+(?:\.\d+)?(?:\s|$)/.test(value.trim());
+}
+
+function formatNumericCell(value: string): { text: string; raw?: string } {
+  const match = /^([+\-−]?\d+(?:\.\d+)?)([\s\S]*)$/.exec(value.trim());
+  if (!match) return { text: value };
+  const numeric = match[1];
+  // Leave ordinary precision alone; only abbreviate values wide enough to
+  // force a horizontal scroll. The untouched value stays in the title.
+  if (numeric.replace(/\D/g, '').length <= 10) return { text: value };
+  const parsed = Number(numeric.replace('−', '-'));
+  if (!Number.isFinite(parsed)) return { text: value };
+  const fixed = parsed.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  return { text: `${fixed}${match[2]}`, raw: value };
+}
+
 function renderMarkdownText(text: string, katex: KatexRenderer | null, highlights: string[] = []): string {
   // Block parsing runs on raw (math-protected) lines; every emitted text
   // fragment is escaped at the boundary via inlineRaw / escapeHtml, so raw
@@ -160,15 +177,29 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null, highlight
         rows.push(lines[i].trim().split('|').map((c) => c.trim()).filter(Boolean));
         i += 1;
       }
-      const th = headerCells.map((c) => `<th class="px-2 py-1 text-left font-semibold text-text border-b border-border">${inlineRaw(c, highlights)}</th>`).join('');
-      const tb = rows
+      const numericColumns = headerCells.map(
+        (_, index) => rows.length > 0 && rows.every((row) => isNumericCell(row[index] ?? '')),
+      );
+      const th = headerCells
         .map(
-          (r) =>
-            `<tr class="border-b border-border">${r.map((c) => `<td class="px-2 py-1 text-label-secondary">${inlineRaw(c, highlights)}</td>`).join('')}</tr>`
+          (c, index) =>
+            `<th scope="col" class="px-2 py-1 ${numericColumns[index] ? 'text-right' : 'text-left'} font-semibold text-text border-b border-border">${inlineRaw(c, highlights)}</th>`,
         )
         .join('');
+      const tb = rows
+        .map((r) => {
+          const cells = r.map((c, index) => {
+            const numeric = numericColumns[index] || isNumericCell(c);
+            const formatted = formatNumericCell(c);
+            const title = formatted.raw ? ` title="${escapeHtml(formatted.raw)}"` : '';
+            return `<td${title} class="px-2 py-1 align-top ${numeric ? 'text-right tabular-nums whitespace-nowrap' : 'text-label-secondary'}">${inlineRaw(formatted.text, highlights)}</td>`;
+          }).join('');
+          return `<tr class="border-b border-border">${cells}</tr>`;
+        })
+        .join('');
+      const label = `Table: ${headerCells.join(' · ')}`;
       blocks.push(
-        `<div class="my-2 overflow-x-auto rounded-row border border-border"><table class="w-full text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`
+        `<div class="my-2 max-w-full min-w-0 rounded-row border border-border" style="max-width:100%;min-width:0;width:100%" data-table-shell><div class="flex items-center justify-between gap-2 border-b border-border px-2 py-1"><span class="text-[11px] font-code text-muted">${escapeHtml(label)}</span><button type="button" data-copy-table class="rounded-control-compact border border-border px-1.5 py-0.5 text-[10px] font-code text-muted hover:bg-fill hover:text-text" aria-label="${escapeHtml(`Copy ${label}`)}">Copy</button></div><div class="max-w-full min-w-0 overflow-x-auto scrollbar-thin" style="max-width:100%;min-width:0;overflow-x:auto" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><table style="width:max-content;min-width:${headerCells.length >= 3 ? '30rem' : '100%'}" class="text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div></div>`
       );
       continue;
     }
@@ -241,6 +272,7 @@ export function MathText({ math, text, block = false, className = '', highlightN
   const needsKatex = Boolean(math) || Boolean(text?.includes('$'));
   const [katex, setKatex] = useState<KatexRenderer | null>(null);
   const [katexFailed, setKatexFailed] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!needsKatex || katex !== null || katexFailed) return;
@@ -279,9 +311,38 @@ export function MathText({ math, text, block = false, className = '', highlightN
     return '';
   }, [math, text, block, katex, highlightNumbers]);
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const button = target.closest('[data-copy-table]');
+      if (!(button instanceof HTMLElement) || !root.contains(button)) return;
+      const table = button.closest('[data-table-shell]')?.querySelector('table');
+      if (!table) return;
+      const text = Array.from(table.querySelectorAll('tr'))
+        .map((row) => Array.from(row.querySelectorAll('th,td')).map((cell) => cell.textContent?.trim() ?? '').join('\t'))
+        .join('\n');
+      const clipboard = navigator.clipboard;
+      if (!clipboard) return;
+      void clipboard.writeText(text).then(() => {
+        const previous = button.textContent;
+        button.textContent = 'Copied';
+        window.setTimeout(() => { button.textContent = previous ?? 'Copy'; }, 1200);
+      }).catch(() => {
+        // Clipboard denial is non-fatal; the table remains readable/selectable.
+      });
+    };
+    root.addEventListener('click', onClick);
+    return () => root.removeEventListener('click', onClick);
+  }, [html]);
+
   return (
-    <span
-      className={`inline-block ${className}`}
+    <div
+      ref={rootRef}
+      className={`${math ? 'inline-block' : 'block min-w-0 max-w-full break-words'} ${className}`}
+      style={math ? undefined : { minWidth: 0, maxWidth: '100%' }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

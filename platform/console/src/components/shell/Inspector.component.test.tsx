@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
+import { userEvent } from 'vitest/browser';
 import React from 'react';
 import { Inspector } from './Inspector';
 import type { CampaignState } from '@/types';
@@ -62,6 +63,21 @@ describe('Inspector in a real browser', () => {
     );
     await screen.getByRole('button', { name: 'Mark done' }).click();
     expect(onTaskStatus).toHaveBeenCalledWith('t1', 'done');
+  });
+
+  it('offers a visible Copilot splitter with keyboard resize and persistence', async () => {
+    window.localStorage.clear();
+    const screen = await render(
+      <Inspector open tab="copilot" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={null} jobs={[]} copilot={<div>copilot</div>} />,
+    );
+    const separator = screen.getByRole('separator', { name: 'Resize Copilot' });
+    expect(separator.element().getAttribute('aria-valuemin')).toBe('360');
+    separator.element().focus();
+    await userEvent.keyboard('{Home}');
+    await expect.poll(() => Number(separator.element().getAttribute('aria-valuenow'))).toBe(360);
+    await userEvent.keyboard('{ArrowLeft}');
+    await expect.poll(() => Number(separator.element().getAttribute('aria-valuenow'))).toBeGreaterThan(360);
+    expect(Number(window.localStorage.getItem('kubona.copilot.width'))).toBeGreaterThan(360);
   });
 
   it('makes Jobs tab rows clickable and invokes onFocusJob', async () => {

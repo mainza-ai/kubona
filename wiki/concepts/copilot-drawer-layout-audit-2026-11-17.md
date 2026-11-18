@@ -134,3 +134,23 @@ the CSS containment will leave the table cramped at 320 px. Both are required.
 - No new server endpoint.
 - No replacement of the markdown renderer or KaTeX.
 - No weakening of the numeric-claim/citation controls.
+
+## Implementation status (2026-11-18)
+
+- **C1 landed:** `MathText` text mode is block-level and width-constrained;
+  tables have their own `min-w-0 max-w-full` scroll wrapper; the Copilot feed
+  and bubbles are `min-w-0` with no horizontal page overflow.
+- **C2 landed:** Copilot has a separate persisted width key, a visible
+  keyboard-operable splitter, double-click reset, Home/End min/max, desktop
+  width range, full-width mobile overlay, and Narrow/Wide/Reset presets.
+- **C3 landed:** numeric columns are right-aligned/tabular, long values show a
+  six-decimal display with the raw value in `title`, tables have scoped
+  headers, a labelled region, and a visible table header/copy row.
+- **C4 landed:** the target is no longer single-line ellipsized; it wraps in
+  the header and ribbon, with Δ kept as a separate state badge.
+- **C5 landed:** browser tests cover a 320 px long table, the splitter keyboard
+  and persistence path, long-target containment, and a desktop/mobile E2E
+  resize check.
+- **C6 landed:** table copy and Narrow/Wide/Reset presets. A full-screen table
+  expansion remains an optional follow-up; it is not required for containment
+  or readability.
