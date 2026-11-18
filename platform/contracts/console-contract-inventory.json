@@ -87,6 +87,13 @@
     "loops.list",
     "mandate.sign",
     "mandate.verify",
+    "manuscripts.build",
+    "manuscripts.create",
+    "manuscripts.deposit",
+    "manuscripts.detail",
+    "manuscripts.list",
+    "manuscripts.review",
+    "manuscripts.signoff",
     "memory.recall",
     "memory.retain",
     "mesh.route",
@@ -238,6 +245,13 @@
     "loops.list",
     "mandate.sign",
     "mandate.verify",
+    "manuscripts.build",
+    "manuscripts.create",
+    "manuscripts.deposit",
+    "manuscripts.detail",
+    "manuscripts.list",
+    "manuscripts.review",
+    "manuscripts.signoff",
     "memory.recall",
     "memory.retain",
     "mesh.route",
@@ -370,6 +384,12 @@
       "contract": "auth.whoami"
     },
     {
+      "function": "buildManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/build",
+      "method": "POST",
+      "contract": "manuscripts.build"
+    },
+    {
       "function": "cancelHFDownload",
       "path": "/api/hf/downloads/:id/cancel",
       "method": "POST",
@@ -416,6 +436,12 @@
       "path": "/api/tenants",
       "method": "POST",
       "contract": "lab"
+    },
+    {
+      "function": "createManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts",
+      "method": "POST",
+      "contract": "manuscripts.create"
     },
     {
       "function": "createSession",
@@ -692,6 +718,18 @@
       "path": "/api/loops",
       "method": "GET",
       "contract": "loops.list"
+    },
+    {
+      "function": "fetchManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id",
+      "method": "GET",
+      "contract": "manuscripts.detail"
+    },
+    {
+      "function": "fetchManuscripts",
+      "path": "/api/sessions/:sessionId/manuscripts",
+      "method": "GET",
+      "contract": "manuscripts.list"
     },
     {
       "function": "fetchMemoryRecall",
@@ -1066,6 +1104,12 @@
       "contract": "claims.review"
     },
     {
+      "function": "reviewManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/reviews",
+      "method": "POST",
+      "contract": "manuscripts.review"
+    },
+    {
       "function": "revokeRunAllowance",
       "path": "/api/run-allowances/:id/revoke",
       "method": "POST",
@@ -1234,6 +1278,18 @@
       "contract": "tenant.write"
     },
     {
+      "function": "signoffManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/signoff",
+      "method": "POST",
+      "contract": "manuscripts.signoff"
+    },
+    {
+      "function": "stageManuscriptDeposit",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/deposit",
+      "method": "POST",
+      "contract": "manuscripts.deposit"
+    },
+    {
       "function": "startAutoresearchLoop",
       "path": "/api/autoresearch/start",
       "method": "POST",
@@ -1382,6 +1438,10 @@
     {
       "function": "lensImageProxyUrl",
       "reason": "same-origin URL helper"
+    },
+    {
+      "function": "manuscriptArtifactUrl",
+      "reason": "browser download URL helper"
     },
     {
       "function": "reportError",

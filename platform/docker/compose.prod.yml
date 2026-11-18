@@ -245,6 +245,10 @@ services:
       # opt-in. TLS terminates in front (reverse proxy) or via mounted
       # PEM + --tls-cert/--tls-key flags — never expose :8080 directly.
       KUBONA_ALLOW_PLAINTEXT: "1"
+      # Read-only view of the backup volume so /metrics reports backup age
+      # and an in-daemon preflight sees the same backups the preflight
+      # container does (it previously reported a false "no backup files").
+      KUBONA_BACKUP_DIR: /backups
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -256,6 +260,7 @@ services:
     # dev daemon before trusting host-port curls.
     volumes:
       - kubona-state:/home/kubona/.kubona
+      - kubona-backups:/backups:ro
       - bridge-sock:/run/kubona
     tmpfs:
       - /tmp

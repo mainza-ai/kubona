@@ -1042,6 +1042,61 @@ export type ClaimsReview = {
   "review": unknown;
 };
 
+export type ManuscriptsList = {
+  "manuscripts": {
+  "id": string;
+  "title": string;
+  "state": string;
+  "content_hash": string;
+  "created_at": string;
+  "updated_at": string;
+}[];
+};
+
+export type ManuscriptsDetail = {
+  "manuscript": {
+  "id": string;
+  "session_id": string;
+  "title": string;
+  "abstract": string;
+  "state": string;
+  "content_hash": string;
+  "sections": unknown[];
+  "citations": unknown[];
+  "artifacts": unknown[];
+  "review": unknown;
+  "signoff": unknown;
+  "created_at": string;
+  "updated_at": string;
+};
+  "reviews": unknown[];
+};
+
+export type ManuscriptsCreate = {
+  "manuscript": unknown;
+  "reviews": unknown[];
+};
+
+export type ManuscriptsBuild = {
+  "manuscript": unknown;
+  "reviews": unknown[];
+};
+
+export type ManuscriptsReview = {
+  "manuscript": unknown;
+  "reviews": unknown[];
+};
+
+export type ManuscriptsSignoff = {
+  "manuscript": unknown;
+  "reviews": unknown[];
+};
+
+export type ManuscriptsDeposit = {
+  "ok": boolean;
+  "manifest": unknown;
+};
+
 export type QuantumBackends = {
   "backends": {
   "provider": string;
@@ -1139,6 +1194,7 @@ export type ApiOperationResponse = {
   authRevoke: AuthAction;
   authSessions: AuthSessions;
   authWhoami: AuthWhoami;
+  buildManuscript: ManuscriptsBuild;
   cancelHFDownload: HfCancel;
   cancelLoopSteer: LoopSteerCancel;
   cancelQuantumJob: QuantumCancel;
@@ -1147,6 +1203,7 @@ export type ApiOperationResponse = {
   closeObligation: ObligationsClose;
   createCustomAgent: AgentOne;
   createLab: Lab;
+  createManuscript: ManuscriptsCreate;
   createSession: SessionCreate;
   createTask: Task;
   createTasksBatch: TasksBatch;
@@ -1193,6 +1250,8 @@ export type ApiOperationResponse = {
   fetchLoopParts: LoopParts;
   fetchLoopSteers: LoopSteers;
   fetchLoopsResult: LoopsList;
+  fetchManuscript: ManuscriptsDetail;
+  fetchManuscripts: ManuscriptsList;
   fetchMemoryRecall: MemoryRecall;
   fetchMessages: MessagesList;
   fetchMetasearchProposals: MetasearchProposals;
@@ -1255,6 +1314,7 @@ export type ApiOperationResponse = {
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
   reviewClaim: ClaimsReview;
+  reviewManuscript: ManuscriptsReview;
   revokeRunAllowance: RunAllowanceRevoke;
   revokeTenantAutonomy: TenantWrite;
   revokeTenantGrant: TenantGrantRevoke;
@@ -1283,6 +1343,8 @@ export type ApiOperationResponse = {
   setTenantAutonomy: TenantWrite;
   setTenantCeiling: TenantWrite;
   setTenantStatus: TenantWrite;
+  signoffManuscript: ManuscriptsSignoff;
+  stageManuscriptDeposit: ManuscriptsDeposit;
   startAutoresearchLoop: AutoresearchLoop;
   startHFDownload: HfDownload;
   steerAutoresearchLoop: AutoresearchSteer;
@@ -1315,6 +1377,7 @@ export const API_OPERATIONS = {
   authRevoke: { method: "post", path: "/api/auth/revoke", response: "auth.action" },
   authSessions: { method: "get", path: "/api/auth/sessions", response: "auth.sessions" },
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
+  buildManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/build", response: "manuscripts.build" },
   cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
   cancelLoopSteer: { method: "delete", path: "/api/loops/{loopId}/steers/{steerId}", response: "loop.steer.cancel" },
   cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
@@ -1323,6 +1386,7 @@ export const API_OPERATIONS = {
   closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
+  createManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts", response: "manuscripts.create" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
@@ -1369,6 +1433,8 @@ export const API_OPERATIONS = {
   fetchLoopParts: { method: "get", path: "/api/loops/{id}/parts", response: "loop.parts" },
   fetchLoopSteers: { method: "get", path: "/api/loops/{loopId}/steers", response: "loop.steers" },
   fetchLoopsResult: { method: "get", path: "/api/loops", response: "loops.list" },
+  fetchManuscript: { method: "get", path: "/api/sessions/{sessionId}/manuscripts/{id}", response: "manuscripts.detail" },
+  fetchManuscripts: { method: "get", path: "/api/sessions/{sessionId}/manuscripts", response: "manuscripts.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
   fetchMessages: { method: "get", path: "/api/sessions/{id}/messages", response: "messages.list" },
   fetchMetasearchProposals: { method: "get", path: "/api/metasearch/proposals", response: "metasearch.proposals" },
@@ -1431,6 +1497,7 @@ export const API_OPERATIONS = {
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
   reviewClaim: { method: "post", path: "/api/sessions/{sessionId}/claims/{claimId}/review", response: "claims.review" },
+  reviewManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/reviews", response: "manuscripts.review" },
   revokeRunAllowance: { method: "post", path: "/api/run-allowances/{id}/revoke", response: "runAllowance.revoke" },
   revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
   revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
@@ -1459,6 +1526,8 @@ export const API_OPERATIONS = {
   setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
   setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },
+  signoffManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/signoff", response: "manuscripts.signoff" },
+  stageManuscriptDeposit: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/deposit", response: "manuscripts.deposit" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
   startHFDownload: { method: "post", path: "/api/hf/download", response: "hf.download" },
   steerAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{loopId}/steer", response: "autoresearch.steer" },

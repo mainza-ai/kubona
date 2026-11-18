@@ -26,6 +26,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
+# Publication builds run in this compute plane: pdfTeX + the base font/bst
+# packages are the real build path, and the API fails closed (build_unavailable)
+# without them. The preamble uses amsmath/amssymb/graphicx and unsrt.bst only;
+# keep the set minimal rather than pulling all of TeX Live.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
+    && rm -rf /var/lib/apt/lists/*
 # Install first (better layer caching): lock + metadata, then the package,
 # then the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
 COPY pyproject.toml uv.lock ./

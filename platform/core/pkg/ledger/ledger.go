@@ -650,7 +650,7 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (session_id, request_id)
 	);
-	` + obligationSchema + scoresSchema
+	` + obligationSchema + scoresSchema + manuscriptsSchema
 
 	if _, err := db.Exec(initSchema); err != nil {
 		db.Close()

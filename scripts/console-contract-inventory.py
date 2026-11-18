@@ -36,6 +36,7 @@ CLIENT_ONLY = {
     "configureApiBase": "runtime base-URL probe",
     "downloadFile": "browser file helper",
     "lensImageProxyUrl": "same-origin URL helper",
+    "manuscriptArtifactUrl": "browser download URL helper",
     "versionedApiPath": "versioned route alias helper",
     "reportError": "console error reporter",
     "resetDedupForTests": "test reset helper",

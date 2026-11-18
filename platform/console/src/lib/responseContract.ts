@@ -728,6 +728,54 @@ export const RESPONSE_SCHEMAS = {
   'claims.review': obj({
     review: any,
   }),
+  'manuscripts.list': obj({
+    manuscripts: arr(obj({
+      id: str,
+      title: str,
+      state: str,
+      content_hash: str,
+      created_at: str,
+      updated_at: str,
+    })),
+  }),
+  'manuscripts.detail': obj({
+    manuscript: obj({
+      id: str,
+      session_id: str,
+      title: str,
+      abstract: str,
+      state: str,
+      content_hash: str,
+      sections: arr(any),
+      citations: arr(any),
+      artifacts: arr(any),
+      review: any,
+      signoff: any,
+      created_at: str,
+      updated_at: str,
+    }),
+    reviews: arr(any),
+  }),
+  'manuscripts.create': obj({
+    manuscript: any,
+    reviews: arr(any),
+  }),
+  'manuscripts.build': obj({
+    manuscript: any,
+    reviews: arr(any),
+  }),
+  'manuscripts.review': obj({
+    manuscript: any,
+    reviews: arr(any),
+  }),
+  'manuscripts.signoff': obj({
+    manuscript: any,
+    reviews: arr(any),
+  }),
+  'manuscripts.deposit': obj({
+    ok: bool,
+    manifest: any,
+  }),
   'quantum.backends': obj({
     backends: arr(
       obj({

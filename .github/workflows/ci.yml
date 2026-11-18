@@ -143,6 +143,15 @@ jobs:
       # It is fast (~seconds) and hermetic (no creds, no network).
       - name: Bridge contract suite (credential fail-closed pins)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py bridge/test_adapt.py -q
+      # The manuscript build is a real pdfTeX compile, not a string assert.
+      # Two builds of the same source must be byte-identical; without TeX the
+      # tests would skip, so this step installs the toolchain instead.
+      - name: Manuscript build contract (pdfTeX, byte-reproducible)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+          KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest bridge/test_manuscript_ops.py -q
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.run doctor

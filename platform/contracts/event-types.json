@@ -882,6 +882,59 @@
         "subject_id"
       ]
     },
+    "manuscript_drafted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Manuscript draft stored from the campaign projection.",
+      "required": [
+        "manuscript_id",
+        "content_hash"
+      ]
+    },
+    "manuscript_reviewed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Automated peer review recomputed over the stored manuscript source.",
+      "required": [
+        "manuscript_id",
+        "recommendation",
+        "content_hash"
+      ]
+    },
+    "manuscript_signed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Operator signoff over the exact manuscript content hash.",
+      "required": [
+        "manuscript_id",
+        "content_hash",
+        "signer_pubkey_hex"
+      ]
+    },
+    "manuscript_built": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Reproducible LaTeX build installed with its artifact hashes.",
+      "required": [
+        "manuscript_id",
+        "build_hash"
+      ]
+    },
+    "manuscript_deposit_staged": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Zenodo deposit manifest staged from built artifacts (human upload only).",
+      "required": [
+        "manuscript_id",
+        "content_hash",
+        "build_hash"
+      ]
+    },
     "peer_review": {
       "emitters": [
         "go"

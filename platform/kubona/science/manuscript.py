@@ -131,17 +131,33 @@ class ScientificManuscript:
     bilingual_title: Optional[str] = None
     bilingual_abstract: Optional[str] = None
     second_language: str = "Tonga"
-    figures: Dict[str, str] = field(default_factory=dict)
+    figures: Dict[str, Any] = field(default_factory=dict)
     signoff: Optional[ManuscriptSignoff] = None
 
     def compile_latex(self) -> str:
-        """Assembles a modular LaTeX document with bilingual headers if available."""
+        r"""Assembles main.tex for the modular project.
+
+        The document ``\input``s ``sections/<slug>.tex`` rather than inlining
+        section bodies: the project written by ``export_project`` and the
+        build path compile the same source, so they cannot drift. Figures are
+        included only when declared, and only in formats pdfTeX can read — a
+        stray SVG refuses instead of silently producing a figure-less paper.
+        """
+        for name in self.figures:
+            suffix = Path(name).suffix.lower()
+            if suffix not in {".pdf", ".png", ".jpg", ".jpeg"}:
+                raise ValueError(
+                    f"figure {name!r} is not includable by pdfTeX "
+                    f"({suffix or 'no extension'}); supply PDF/PNG or remove it")
         out = []
         out.append(r"\documentclass[11pt,letterpaper]{article}")
-        out.append(r"\usepackage{amsmath,amssymb,mathtools}")
-        out.append(r"\usepackage{hyperref}")
-        out.append(r"\usepackage{cite}")
+        out.append(r"\usepackage{amsmath,amssymb}")
         out.append(r"\usepackage{graphicx}")
+        # Reproducible-byte primitives (pdfTeX). Guarded so a different
+        # engine ignores them instead of failing on an unknown primitive.
+        out.append(r"\ifdefined\pdfinfoomitdate\pdfinfoomitdate=1\fi")
+        out.append(r"\ifdefined\pdftrailerid\pdftrailerid{}\fi")
+        out.append(r"\ifdefined\pdfsuppressptexinfo\pdfsuppressptexinfo=-1\fi")
 
         # Title
         full_title = self.title
@@ -161,11 +177,10 @@ class ScientificManuscript:
         if self.bilingual_abstract:
             out.append(f"\n\n\\vspace{{0.5em}}\n\\noindent\\textbf{{{self.second_language} Summary:}}\\\\\n\\textit{{{self.bilingual_abstract}}}")
         out.append(r"\end{abstract}")
-        
+
         for sec in self.sections:
-            out.append(f"\\section{{{sec.title}}}")
-            out.append(sec.latex_content)
-        
+            out.append(f"\\input{{sections/{sec.slug}}}")
+
         out.append(r"\bibliographystyle{unsrt}")
         out.append(r"\bibliography{references}")
         out.append(r"\end{document}")
@@ -176,26 +191,36 @@ class ScientificManuscript:
         return "\n\n".join(self.bibtex_entries.values())
 
     def export_project(self, target_dir: Path) -> Path:
-        """Exports the manuscript project to a structured directory including figures/."""
+        """Exports the manuscript project to a structured directory.
+
+        ``main.tex`` \\input-s these section files, so the written project is
+        the exact source the build path compiles. Figures are written as
+        binary artifacts (PDF/PNG); SVG is refused by ``compile_latex``.
+        """
         target_dir.mkdir(parents=True, exist_ok=True)
         sections_dir = target_dir / "sections"
         sections_dir.mkdir(exist_ok=True)
         figures_dir = target_dir / "figures"
         figures_dir.mkdir(exist_ok=True)
 
-        # Write main.tex
+        # Write main.tex (validates figure formats before anything is written)
         (target_dir / "main.tex").write_text(self.compile_latex(), encoding="utf-8")
-        
+
         # Write references.bib
         (target_dir / "references.bib").write_text(self.compile_bibtex(), encoding="utf-8")
-        
-        # Write individual section files
-        for sec in self.sections:
-            (sections_dir / f"{sec.slug}.tex").write_text(sec.latex_content, encoding="utf-8")
 
-        # Write vector figures
+        # Write individual section files, headings included: main.tex only
+        # \input-s them, so a heading-less body would erase the structure.
+        for sec in self.sections:
+            (sections_dir / f"{sec.slug}.tex").write_text(
+                f"\\section{{{sec.title}}}\n\n{sec.latex_content}", encoding="utf-8")
+
+        # Write figures (compile_latex already refused non-includable formats)
         for fig_name, fig_content in self.figures.items():
-            (figures_dir / fig_name).write_text(fig_content, encoding="utf-8")
+            target = (figures_dir / fig_name).resolve()
+            if figures_dir.resolve() not in target.parents:
+                raise ValueError(f"figure path escapes figures/: {fig_name!r}")
+            target.write_bytes(fig_content.encode("utf-8") if isinstance(fig_content, str) else fig_content)
 
         # Write metadata
         meta = {
@@ -218,98 +243,6 @@ class ScientificManuscript:
         }
         (target_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         return target_dir
-
-
-# =========================================================================
-# VECTOR GRAPHICS GENERATORS FOR MANUSCRIPT PREPRINTS
-# =========================================================================
-
-def generate_crystal_lattice_svg() -> str:
-    """Generates an SVG vector graphic of a 3D cubic crystal lattice."""
-    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
-  <defs>
-    <radialGradient id="atomGrad" cx="30%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#818cf8"/>
-      <stop offset="100%" stop-color="#312e81"/>
-    </radialGradient>
-  </defs>
-  <!-- Lattice Bonds -->
-  <line x1="100" y1="180" x2="250" y2="180" stroke="#475569" stroke-width="3"/>
-  <line x1="250" y1="180" x2="320" y2="110" stroke="#475569" stroke-width="3"/>
-  <line x1="170" y1="110" x2="320" y2="110" stroke="#475569" stroke-width="3"/>
-  <line x1="100" y1="180" x2="170" y2="110" stroke="#475569" stroke-width="3"/>
-  
-  <line x1="100" y1="80" x2="250" y2="80" stroke="#475569" stroke-width="3"/>
-  <line x1="250" y1="80" x2="320" y2="10" stroke="#475569" stroke-width="3"/>
-  <line x1="170" y1="10" x2="320" y2="10" stroke="#475569" stroke-width="3"/>
-  <line x1="100" y1="80" x2="170" y2="10" stroke="#475569" stroke-width="3"/>
-  
-  <line x1="100" y1="180" x2="100" y2="80" stroke="#475569" stroke-width="3"/>
-  <line x1="250" y1="180" x2="250" y2="80" stroke="#475569" stroke-width="3"/>
-  <line x1="170" y1="110" x2="170" y2="10" stroke="#475569" stroke-width="3"/>
-  <line x1="320" y1="110" x2="320" y2="10" stroke="#475569" stroke-width="3"/>
-  
-  <!-- Lattice Atoms -->
-  <circle cx="100" cy="180" r="14" fill="url(#atomGrad)"/>
-  <circle cx="250" cy="180" r="14" fill="url(#atomGrad)"/>
-  <circle cx="170" cy="110" r="12" fill="url(#atomGrad)"/>
-  <circle cx="320" cy="110" r="12" fill="url(#atomGrad)"/>
-  <circle cx="100" cy="80" r="14" fill="url(#atomGrad)"/>
-  <circle cx="250" cy="80" r="14" fill="url(#atomGrad)"/>
-  <circle cx="170" cy="10" r="12" fill="url(#atomGrad)"/>
-  <circle cx="320" cy="10" r="12" fill="url(#atomGrad)"/>
-  <text x="140" y="230" fill="#94a3b8" font-family="sans-serif" font-size="14">3D Cubic Heisenberg Lattice</text>
-</svg>"""
-
-
-def generate_bloch_sphere_svg() -> str:
-    """Generates an SVG vector graphic of a quantum state on the Bloch sphere."""
-    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
-  <!-- Sphere outlines -->
-  <circle cx="150" cy="150" r="110" fill="none" stroke="#38bdf8" stroke-width="2"/>
-  <ellipse cx="150" cy="150" rx="110" ry="35" fill="none" stroke="#0284c7" stroke-dasharray="4,4"/>
-  <!-- Axes -->
-  <line x1="150" y1="20" x2="150" y2="280" stroke="#64748b" stroke-width="1.5"/>
-  <line x1="30" y1="150" x2="270" y2="150" stroke="#64748b" stroke-width="1.5"/>
-  <!-- State Vector |psi> -->
-  <line x1="150" y1="150" x2="215" y2="75" stroke="#f43f5e" stroke-width="3" marker-end="url(#arrow)"/>
-  <circle cx="215" cy="75" r="5" fill="#f43f5e"/>
-  <!-- Labels -->
-  <text x="155" y="35" fill="#e2e8f0" font-family="sans-serif" font-size="14">|0⟩</text>
-  <text x="155" y="275" fill="#e2e8f0" font-family="sans-serif" font-size="14">|1⟩</text>
-  <text x="225" y="75" fill="#fb7185" font-family="sans-serif" font-size="14">|ψ⟩</text>
-</svg>"""
-
-
-def generate_convergence_svg(energies: List[float], anchor_val: float) -> str:
-    """Generates an SVG vector graphic of the energy convergence trajectory."""
-    width, height = 400, 200
-    points_svg = ""
-    if energies:
-        min_e = min(min(energies), anchor_val) - 0.05
-        max_e = max(max(energies), anchor_val) + 0.05
-        span = max(1e-6, max_e - min_e)
-        coords = []
-        for i, e in enumerate(energies):
-            x = 50 + (i / max(1, len(energies) - 1)) * 300
-            y = 170 - ((e - min_e) / span) * 140
-            coords.append(f"{x:.1f},{y:.1f}")
-        points_svg = " ".join(coords)
-        anchor_y = 170 - ((anchor_val - min_e) / span) * 140
-    else:
-        anchor_y = 100
-
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
-  <!-- Axis -->
-  <line x1="50" y1="170" x2="370" y2="170" stroke="#475569" stroke-width="2"/>
-  <line x1="50" y1="30" x2="50" y2="170" stroke="#475569" stroke-width="2"/>
-  <!-- Anchor Line -->
-  <line x1="50" y1="{anchor_y:.1f}" x2="370" y2="{anchor_y:.1f}" stroke="#22c55e" stroke-dasharray="5,5" stroke-width="2"/>
-  <!-- Trajectory Polyline -->
-  <polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="{points_svg}"/>
-  <text x="60" y="25" fill="#94a3b8" font-family="sans-serif" font-size="12">Energy Convergence vs Analytical Anchor</text>
-</svg>"""
-
 
 
 class ManuscriptGenerator:
@@ -546,9 +479,15 @@ class ManuscriptGenerator:
         lean4_proof_hash: Optional[str] = None,
         provenance_record_hash: Optional[str] = None,
         negative_certificates: Optional[List[str]] = None,
-        convergence_energies: Optional[List[float]] = None,
+        figures: Optional[Dict[str, Any]] = None,
     ) -> ScientificManuscript:
-        """Assembles a dual-language (e.g. English + Tonga) scientific preprint with vector figures."""
+        """Assembles a dual-language (e.g. English + Tonga) scientific preprint.
+
+        Figures are only ever the caller's artifacts (PDF/PNG bytes). This
+        constructor never fabricates a convergence trajectory or attaches a
+        decorative graphic: a figure that is not measured data is not a
+        result, and pdfTeX cannot include the old SVG output anyway.
+        """
         manuscript = cls.create_discovery_manuscript(
             title=title,
             target_system=target_system,
@@ -564,15 +503,7 @@ class ManuscriptGenerator:
         manuscript.bilingual_abstract = bilingual_abstract
         manuscript.second_language = second_language
         manuscript.provenance_record_hash = provenance_record_hash
-
-        # Attach production vector graphics
-        energies = convergence_energies or [measured_val + 0.1, measured_val + 0.03, measured_val + 0.005, measured_val]
-        manuscript.figures = {
-            "crystal_lattice.svg": generate_crystal_lattice_svg(),
-            "bloch_sphere.svg": generate_bloch_sphere_svg(),
-            "energy_convergence.svg": generate_convergence_svg(energies, analytical_anchor_val),
-        }
-
+        manuscript.figures = dict(figures or {})
         return manuscript
 
     @staticmethod

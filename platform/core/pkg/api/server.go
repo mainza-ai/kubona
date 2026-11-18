@@ -2349,6 +2349,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleExperimentExport(w, r, sid)
 		return
 	}
+	if sid, rest, ok := manuscriptSubpath(id); ok {
+		s.handleManuscriptRoute(w, r, sid, rest)
+		return
+	}
 	if strings.HasSuffix(id, "/messages") {
 		sessionID := strings.TrimSuffix(id, "/messages")
 		// T-09b: known session — bind caller to session tenant. Ghosts

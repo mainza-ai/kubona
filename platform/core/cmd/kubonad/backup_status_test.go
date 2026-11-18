@@ -74,3 +74,27 @@ func TestBackupStatusEncryptedAndMissing(t *testing.T) {
 		t.Fatalf("missing status = %+v", st)
 	}
 }
+
+func TestBackupStatusEnforcesDeclaredEncryption(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now().UTC()
+	touchBackup(t, dir, "kubona.db.backup-"+now.Format("20060102T150405Z"))
+
+	t.Setenv("KUBONA_BACKUP_REQUIRE_ENCRYPTION", "1")
+	if code := runBackupStatus([]string{"--dir", dir}); code == 0 {
+		t.Fatal("plaintext backup passed while encryption is required")
+	}
+
+	// With the requirement off, the same directory is healthy.
+	t.Setenv("KUBONA_BACKUP_REQUIRE_ENCRYPTION", "0")
+	if code := runBackupStatus([]string{"--dir", dir}); code != 0 {
+		t.Fatalf("plaintext backup failed without a requirement: exit %d", code)
+	}
+
+	// An encrypted newest artifact satisfies the requirement.
+	t.Setenv("KUBONA_BACKUP_REQUIRE_ENCRYPTION", "1")
+	touchBackup(t, dir, "kubona.db.backup-"+now.Add(time.Minute).Format("20060102T150405Z")+".age")
+	if code := runBackupStatus([]string{"--dir", dir}); code != 0 {
+		t.Fatalf("encrypted backup failed under the requirement: exit %d", code)
+	}
+}

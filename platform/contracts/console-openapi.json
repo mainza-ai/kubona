@@ -226,6 +226,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/manuscripts/{id}/build": {
+      "post": {
+        "operationId": "buildManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.build",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.build"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hf/downloads/{id}/cancel": {
       "post": {
         "operationId": "cancelHFDownload",
@@ -547,6 +585,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/labs.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts": {
+      "post": {
+        "operationId": "createManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.create"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchManuscripts",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.list"
                 }
               }
             }
@@ -1669,6 +1765,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/loops.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}": {
+      "get": {
+        "operationId": "fetchManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.detail"
                 }
               }
             }
@@ -3012,6 +3146,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/manuscripts/{id}/reviews": {
+      "post": {
+        "operationId": "reviewManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.review"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/run-allowances/{id}/revoke": {
       "post": {
         "operationId": "revokeRunAllowance",
@@ -3415,6 +3587,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}/signoff": {
+      "post": {
+        "operationId": "signoffManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.signoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.signoff"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}/deposit": {
+      "post": {
+        "operationId": "stageManuscriptDeposit",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.deposit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.deposit"
                 }
               }
             }
@@ -7241,6 +7489,188 @@
           "review": {}
         }
       },
+      "manuscripts.list": {
+        "type": "object",
+        "required": [
+          "manuscripts"
+        ],
+        "properties": {
+          "manuscripts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "title",
+                "state",
+                "content_hash",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "content_hash": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "manuscripts.detail": {
+        "type": "object",
+        "required": [
+          "manuscript",
+          "reviews"
+        ],
+        "properties": {
+          "manuscript": {
+            "type": "object",
+            "required": [
+              "id",
+              "session_id",
+              "title",
+              "abstract",
+              "state",
+              "content_hash",
+              "sections",
+              "citations",
+              "artifacts",
+              "review",
+              "signoff",
+              "created_at",
+              "updated_at"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "abstract": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "content_hash": {
+                "type": "string"
+              },
+              "sections": {
+                "type": "array",
+                "items": {}
+              },
+              "citations": {
+                "type": "array",
+                "items": {}
+              },
+              "artifacts": {
+                "type": "array",
+                "items": {}
+              },
+              "review": {},
+              "signoff": {},
+              "created_at": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            }
+          },
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.create": {
+        "type": "object",
+        "required": [
+          "manuscript",
+          "reviews"
+        ],
+        "properties": {
+          "manuscript": {},
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.build": {
+        "type": "object",
+        "required": [
+          "manuscript",
+          "reviews"
+        ],
+        "properties": {
+          "manuscript": {},
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.review": {
+        "type": "object",
+        "required": [
+          "manuscript",
+          "reviews"
+        ],
+        "properties": {
+          "manuscript": {},
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.signoff": {
+        "type": "object",
+        "required": [
+          "manuscript",
+          "reviews"
+        ],
+        "properties": {
+          "manuscript": {},
+          "reviews": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.deposit": {
+        "type": "object",
+        "required": [
+          "ok",
+          "manifest"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "manifest": {}
+        }
+      },
       "quantum.backends": {
         "type": "object",
         "required": [
@@ -7565,6 +7995,7 @@
     "fetchSessions",
     "hasOperatorBearer",
     "lensImageProxyUrl",
+    "manuscriptArtifactUrl",
     "reportError",
     "resetDedupForTests",
     "versionedApiPath",

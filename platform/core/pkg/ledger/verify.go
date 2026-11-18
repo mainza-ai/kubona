@@ -25,9 +25,12 @@ const genesisHash = "00000000000000000000000000000000000000000000000000000000000
 // them so unsigned authority can never pass as verified history.
 var CommitEventTypes = map[string]bool{
 	"tribunal_commit": true, "peer_review": true,
-	"mandate_verified_client": true, "mandate_verified_pqc_mlkem768": true,
-	"grant_issued": true, "grant_revoked": true,
-	"session_deleted": true,
+	"manuscript_signed":             true,
+	"mandate_verified_client":       true,
+	"mandate_verified_pqc_mlkem768": true,
+	"grant_issued":                  true,
+	"grant_revoked":                 true,
+	"session_deleted":               true,
 }
 
 // chainDigestBytes is the single byte-encoding both writers

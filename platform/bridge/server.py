@@ -851,6 +851,57 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             sampling_overhead_kappa=float(res.get("sampling_overhead_kappa", 0.0)),
         )
 
+    def ComposeManuscript(self, request, context):
+        """Compose/compile a manuscript over the request JSON.
+
+        Stateless compute: identity, tenancy, persistence, evidence
+        resolution, and signoff live in the Go API. Refusals are typed
+        (invalid_request / build_unavailable / build_failed) so the caller
+        can map them onto HTTP without guessing from prose.
+        """
+        import base64 as _b64
+        import json as _json
+
+        try:
+            req = _json.loads(request.request_json or "{}")
+        except Exception as e:  # noqa: BLE001 - malformed input refuses
+            return kubona_pb2.ManuscriptResponse(
+                ok=False, error_code="invalid_request",
+                error_message=f"invalid manuscript request JSON: {e}")
+        if not isinstance(req, dict):
+            return kubona_pb2.ManuscriptResponse(
+                ok=False, error_code="invalid_request",
+                error_message="manuscript request must be a JSON object")
+
+        import manuscript_ops
+
+        result = manuscript_ops.run(req)
+        artifacts = []
+        build = result.get("build")
+        if isinstance(build, dict):
+            for entry in build.get("artifacts") or []:
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    raw = _b64.b64decode(str(entry.get("content_b64") or ""), validate=True)
+                except Exception:  # noqa: BLE001 - refuse a malformed artifact
+                    return kubona_pb2.ManuscriptResponse(
+                        ok=False, error_code="internal",
+                        error_message="manuscript build produced a non-base64 artifact")
+                artifacts.append(kubona_pb2.ManuscriptArtifact(
+                    name=str(entry.get("name") or ""),
+                    content=raw,
+                    sha256=str(entry.get("sha256") or ""),
+                ))
+            build.pop("artifacts", None)
+        return kubona_pb2.ManuscriptResponse(
+            ok=bool(result.get("ok")),
+            error_code=str(result.get("error_code") or ""),
+            error_message=str(result.get("error") or ""),
+            response_json=_json.dumps(result, sort_keys=True),
+            artifacts=artifacts,
+        )
+
     def RunExperiment(self, request, context):
         """Execute a bounded real experiment (VQE/PES) in this compute plane.
 

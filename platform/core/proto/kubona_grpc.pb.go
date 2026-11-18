@@ -34,6 +34,7 @@ const (
 	QuantumBridgeService_QuantumCancel_FullMethodName             = "/kubona.QuantumBridgeService/QuantumCancel"
 	QuantumBridgeService_RunCanary_FullMethodName                 = "/kubona.QuantumBridgeService/RunCanary"
 	QuantumBridgeService_RunExperiment_FullMethodName             = "/kubona.QuantumBridgeService/RunExperiment"
+	QuantumBridgeService_ComposeManuscript_FullMethodName         = "/kubona.QuantumBridgeService/ComposeManuscript"
 	QuantumBridgeService_WorkflowPlan_FullMethodName              = "/kubona.QuantumBridgeService/WorkflowPlan"
 	QuantumBridgeService_WorkflowRun_FullMethodName               = "/kubona.QuantumBridgeService/WorkflowRun"
 	QuantumBridgeService_RunWorkflowStep_FullMethodName           = "/kubona.QuantumBridgeService/RunWorkflowStep"
@@ -58,6 +59,7 @@ type QuantumBridgeServiceClient interface {
 	QuantumCancel(ctx context.Context, in *QuantumCancelRequest, opts ...grpc.CallOption) (*QuantumCancelResponse, error)
 	RunCanary(ctx context.Context, in *CanaryRunRequest, opts ...grpc.CallOption) (*CanaryRunResponse, error)
 	RunExperiment(ctx context.Context, in *ExperimentRequest, opts ...grpc.CallOption) (*ExperimentResponse, error)
+	ComposeManuscript(ctx context.Context, in *ManuscriptRequest, opts ...grpc.CallOption) (*ManuscriptResponse, error)
 	WorkflowPlan(ctx context.Context, in *WorkflowPlanRequest, opts ...grpc.CallOption) (*WorkflowPlanResponse, error)
 	WorkflowRun(ctx context.Context, in *WorkflowRunRequest, opts ...grpc.CallOption) (*WorkflowRunResponse, error)
 	RunWorkflowStep(ctx context.Context, in *WorkflowStepRequest, opts ...grpc.CallOption) (*WorkflowStepResponse, error)
@@ -221,6 +223,16 @@ func (c *quantumBridgeServiceClient) RunExperiment(ctx context.Context, in *Expe
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) ComposeManuscript(ctx context.Context, in *ManuscriptRequest, opts ...grpc.CallOption) (*ManuscriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ManuscriptResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_ComposeManuscript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *quantumBridgeServiceClient) WorkflowPlan(ctx context.Context, in *WorkflowPlanRequest, opts ...grpc.CallOption) (*WorkflowPlanResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(WorkflowPlanResponse)
@@ -270,6 +282,7 @@ type QuantumBridgeServiceServer interface {
 	QuantumCancel(context.Context, *QuantumCancelRequest) (*QuantumCancelResponse, error)
 	RunCanary(context.Context, *CanaryRunRequest) (*CanaryRunResponse, error)
 	RunExperiment(context.Context, *ExperimentRequest) (*ExperimentResponse, error)
+	ComposeManuscript(context.Context, *ManuscriptRequest) (*ManuscriptResponse, error)
 	WorkflowPlan(context.Context, *WorkflowPlanRequest) (*WorkflowPlanResponse, error)
 	WorkflowRun(context.Context, *WorkflowRunRequest) (*WorkflowRunResponse, error)
 	RunWorkflowStep(context.Context, *WorkflowStepRequest) (*WorkflowStepResponse, error)
@@ -327,6 +340,9 @@ func (UnimplementedQuantumBridgeServiceServer) RunCanary(context.Context, *Canar
 }
 func (UnimplementedQuantumBridgeServiceServer) RunExperiment(context.Context, *ExperimentRequest) (*ExperimentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunExperiment not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) ComposeManuscript(context.Context, *ManuscriptRequest) (*ManuscriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ComposeManuscript not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) WorkflowPlan(context.Context, *WorkflowPlanRequest) (*WorkflowPlanResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method WorkflowPlan not implemented")
@@ -628,6 +644,24 @@ func _QuantumBridgeService_RunExperiment_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_ComposeManuscript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ManuscriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).ComposeManuscript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_ComposeManuscript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).ComposeManuscript(ctx, req.(*ManuscriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _QuantumBridgeService_WorkflowPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WorkflowPlanRequest)
 	if err := dec(in); err != nil {
@@ -748,6 +782,10 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunExperiment",
 			Handler:    _QuantumBridgeService_RunExperiment_Handler,
+		},
+		{
+			MethodName: "ComposeManuscript",
+			Handler:    _QuantumBridgeService_ComposeManuscript_Handler,
 		},
 		{
 			MethodName: "WorkflowPlan",

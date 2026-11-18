@@ -4048,3 +4048,215 @@ export function resetDedupForTests(): void {
   dedupInflight.clear();
 }
 
+
+// ---------------------------------------------------------------------------
+// Publication pipeline (R1/R4): manuscripts are server-owned evidence. The
+// console only creates drafts from the stored campaign, asks for a build,
+// signs off, and downloads artifacts; it never authors numbers.
+// ---------------------------------------------------------------------------
+
+export interface ManuscriptSummary {
+  id: string;
+  title: string;
+  state: 'draft' | 'reviewed' | 'signed' | 'built' | string;
+  content_hash: string;
+  build_hash?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManuscriptSection {
+  slug: string;
+  title: string;
+  latex: string;
+  position: number;
+}
+
+export interface ManuscriptArtifact {
+  name: string;
+  sha256: string;
+  size: number;
+  created_at: string;
+}
+
+export interface ManuscriptSignoff {
+  signer_pubkey_hex: string;
+  signature_hex: string;
+  content_hash: string;
+  expiry: string;
+  signed_at: string;
+}
+
+export interface ManuscriptReviewRecord {
+  id: string;
+  reviewer: string;
+  recommendation: 'ACCEPT' | 'REVISE' | 'REJECT' | string;
+  acceptable: boolean;
+  mean_score: number;
+  hygiene: number;
+  content_hash: string;
+  created_at: string;
+}
+
+export interface Manuscript {
+  id: string;
+  session_id: string;
+  title: string;
+  abstract: string;
+  state: string;
+  content_hash: string;
+  build_hash?: string;
+  review: Record<string, unknown>;
+  source_date_epoch: number;
+  created_at: string;
+  updated_at: string;
+  sections: ManuscriptSection[];
+  citations: Array<{ key: string; title: string; authors: string; year: string; doi: string }>;
+  artifacts: ManuscriptArtifact[];
+  signoff: ManuscriptSignoff | null;
+}
+
+export interface ManuscriptDetail {
+  manuscript: Manuscript;
+  reviews: ManuscriptReviewRecord[];
+}
+
+export type ManuscriptResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; status: number };
+
+function manuscriptFailure(res: Response, payload: Record<string, unknown>): ManuscriptResult<never> {
+  const message = typeof payload.message === 'string'
+    ? payload.message
+    : typeof payload.error === 'string'
+      ? payload.error
+      : `manuscript request failed (${res.status})`;
+  return { ok: false, error: message.slice(0, 280), status: res.status };
+}
+
+export async function fetchManuscripts(sessionId: string): Promise<ManuscriptResult<{ manuscripts: ManuscriptSummary[] }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.list', payload) as unknown as { manuscripts: ManuscriptSummary[] } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function fetchManuscript(sessionId: string, id: string): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.detail', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function createManuscript(
+  sessionId: string,
+  body: {
+    title?: string;
+    authors?: string[];
+    abstract?: string;
+    evidence_refs?: string[];
+    proof_hash?: string;
+    build?: boolean;
+  },
+): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.create', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function buildManuscript(sessionId: string, id: string): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/build`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.build', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function reviewManuscript(sessionId: string, id: string): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/reviews`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.review', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function signoffManuscript(
+  sessionId: string,
+  id: string,
+  contentHash: string,
+  expiry?: string,
+): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/signoff`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ content_hash: contentHash, ...(expiry ? { expiry } : {}) }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.signoff', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function stageManuscriptDeposit(sessionId: string, id: string): Promise<ManuscriptResult<{ ok: boolean; manifest: Record<string, unknown> }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/deposit`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.deposit', payload) as unknown as { ok: boolean; manifest: Record<string, unknown> } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export function manuscriptArtifactUrl(sessionId: string, id: string, name: string): string {
+  return `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(name)}`;
+}

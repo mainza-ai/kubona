@@ -112,6 +112,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	s.httpMetrics.render(w)
+	s.renderOpsMetrics(w)
 }
 
 func (s *Server) instrument(next http.Handler) http.Handler {

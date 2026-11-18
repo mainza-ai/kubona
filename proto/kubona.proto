@@ -250,6 +250,31 @@ message CodesignResponse {
   string error_message = 3;
 }
 
+
+// Publication pipeline: the bridge composes prose, runs the evidence-gated
+// peer review, and (when build=true) compiles the LaTeX project. Go owns
+// persistence, tenancy, evidence resolution, and signoff; this RPC is
+// stateless compute over the request JSON.
+message ManuscriptRequest {
+  string session_id = 1;
+  string request_json = 2;
+}
+
+message ManuscriptArtifact {
+  string name = 1;
+  bytes content = 2;
+  string sha256 = 3;
+}
+
+message ManuscriptResponse {
+  bool ok = 1;
+  string error_code = 2;
+  string error_message = 3;
+  // Draft/review/build metadata (artifact bytes ride in `artifacts`).
+  string response_json = 4;
+  repeated ManuscriptArtifact artifacts = 5;
+}
+
 service QuantumBridgeService {
   rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
   rpc CutCircuit(CircuitCutRequest) returns (CircuitCutResponse);
@@ -266,6 +291,7 @@ service QuantumBridgeService {
   rpc QuantumCancel(QuantumCancelRequest) returns (QuantumCancelResponse);
   rpc RunCanary(CanaryRunRequest) returns (CanaryRunResponse);
   rpc RunExperiment(ExperimentRequest) returns (ExperimentResponse);
+  rpc ComposeManuscript(ManuscriptRequest) returns (ManuscriptResponse);
   rpc WorkflowPlan(WorkflowPlanRequest) returns (WorkflowPlanResponse);
   rpc WorkflowRun(WorkflowRunRequest) returns (WorkflowRunResponse);
   rpc RunWorkflowStep(WorkflowStepRequest) returns (WorkflowStepResponse);

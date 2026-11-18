@@ -111,6 +111,7 @@ func runPreflight(args []string) int {
 		dir = os.Getenv("KUBONA_BACKUP_DIR")
 	}
 	requireBackup := os.Getenv("KUBONA_PREFLIGHT_REQUIRE_BACKUP") == "1"
+	requireEncryption := os.Getenv("KUBONA_BACKUP_REQUIRE_ENCRYPTION") == "1"
 	if dir == "" {
 		report("backups", !requireBackup, "not configured (optional)")
 	} else if !filepath.IsAbs(dir) {
@@ -119,7 +120,9 @@ func runPreflight(args []string) int {
 		report("backups", !requireBackup, "directory absent (optional)")
 	} else {
 		st := inspectBackups(dir, *maxAge)
-		if st.Fresh {
+		if st.Fresh && requireEncryption && !st.Encrypted {
+			report("backups", false, "newest backup is plaintext but KUBONA_BACKUP_REQUIRE_ENCRYPTION=1")
+		} else if st.Fresh {
 			report("backups", true, fmt.Sprintf("newest %s old", time.Duration(st.AgeSeconds)*time.Second))
 		} else if requireBackup {
 			report("backups", false, st.Error)

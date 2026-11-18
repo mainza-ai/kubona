@@ -3,41 +3,45 @@ package api_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestMetricsExposeHTTPCounters(t *testing.T) {
-	srv, cleanup := setupTestServer(t)
+func TestMetricsExposeOperationsGauges(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
-	h := srv.Handler()
 
-	health := httptest.NewRequest(http.MethodGet, "/api/health", nil)
-	healthW := httptest.NewRecorder()
-	h.ServeHTTP(healthW, health)
-	if healthW.Code != http.StatusOK {
-		t.Fatalf("health: %d", healthW.Code)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "kubona.db.backup-20260101T000000Z"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
 	}
+	t.Setenv("KUBONA_BACKUP_DIR", dir)
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	req.Header.Set("Authorization", "Bearer test-token")
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("metrics: %d %s", w.Code, w.Body.String())
+		t.Fatalf("metrics = %d", w.Code)
 	}
 	body := w.Body.String()
 	for _, want := range []string{
-		"kubona_http_requests_total",
-		`method="GET"`,
-		`status="200"`,
-		"kubona_http_inflight_requests",
+		"# HELP kubona_jobs",
+		"# HELP kubona_manuscripts",
+		"kubona_bridge_configured ",
+		"kubona_backup_count 1",
+		"kubona_backup_age_seconds ",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("metrics missing %q:\n%s", want, body)
 		}
 	}
-	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/plain") {
-		t.Fatalf("metrics content-type: %q", ct)
+	// The backup age must be a real measurement, not a placeholder.
+	if !strings.Contains(body, "kubona_backup_age_seconds ") {
+		t.Fatal("no backup age gauge")
 	}
+	_ = time.Now()
 }

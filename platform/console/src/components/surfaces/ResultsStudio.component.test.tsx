@@ -70,6 +70,9 @@ function installFetch(stub: StudioStub = {}) {
     if (path === '/api/results/notebooks') {
       return json({ notebooks: [] });
     }
+    if (method === 'GET' && /\/manuscripts$/.test(path)) {
+      return json({ manuscripts: [] });
+    }
     throw new Error(`unexpected fetch ${method} ${path}`);
   });
   return calls;

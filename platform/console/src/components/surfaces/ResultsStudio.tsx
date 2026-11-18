@@ -25,6 +25,7 @@ import { classifyJobTargetScope } from '@/lib/target-scope';
 import { numericClaimGuard } from '@/lib/resultNarrative';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { LiteraturePanel } from './LiteraturePanel';
+import { PublicationPanel } from './PublicationPanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
 import { ClaimHistory } from '@/components/common/ClaimHistory';
 import { Chart } from '@/components/data/LazyChart';
@@ -965,6 +966,8 @@ ${bibtex}
         <div className="lg:col-span-2 bg-surface border border-border rounded-card p-6 overflow-y-auto max-h-[580px] space-y-6">
           {activeTab === 'manuscript' && (
             <div className="space-y-6">
+              {/* Server-owned publication workflow: draft, review, build, signoff. */}
+              <PublicationPanel sessionId={sessionId ?? null} />
               {/* Measured job outputs: what ran, bound to job ids */}
               <MeasuredOutputs sessionId={sessionId ?? null} targetScope={targetScope} />
               {(campaign?.pes_points?.length ?? 0) > 0 && (

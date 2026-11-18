@@ -51,6 +51,11 @@ func runBackupStatus(args []string) int {
 		return 1
 	}
 	st := inspectBackups(*dir, *maxAge)
+	requireEncryption := os.Getenv("KUBONA_BACKUP_REQUIRE_ENCRYPTION") == "1"
+	if requireEncryption && st.Fresh && !st.Encrypted {
+		st.Fresh = false
+		st.Error = "newest backup is plaintext but KUBONA_BACKUP_REQUIRE_ENCRYPTION=1"
+	}
 	if *jsonOut {
 		out, _ := json.MarshalIndent(st, "", "  ")
 		fmt.Println(string(out))

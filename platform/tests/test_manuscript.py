@@ -1,5 +1,7 @@
 """Tests for Scientific Manuscript and Automated Peer Review Engine."""
 
+import base64
+
 import pytest
 from pathlib import Path
 from kubona.science.manuscript import (
@@ -27,8 +29,11 @@ def test_create_and_export_discovery_manuscript(tmp_path):
     latex = manuscript.compile_latex()
     assert r"\documentclass" in latex
     assert r"\maketitle" in latex
-    assert "Haldane_Spin_1_Chain" in latex
-    assert "Barren_Plateau_Ansatz_DeepHardwareEfficient_N16" in latex
+    # main.tex composes sections; the bodies live in the project files so the
+    # in-memory source and the written project cannot drift.
+    assert r"\input{sections/introduction}" in latex
+    assert r"\input{sections/analytical_anchors}" in latex
+    assert "Haldane_Spin_1_Chain" not in latex
 
     bibtex = manuscript.compile_bibtex()
     assert "@misc{openai_math_corpus_2026" in bibtex
@@ -40,7 +45,35 @@ def test_create_and_export_discovery_manuscript(tmp_path):
     assert (export_dir / "main.tex").exists()
     assert (export_dir / "references.bib").exists()
     assert (export_dir / "metadata.json").exists()
-    assert (export_dir / "sections" / "introduction.tex").exists()
+    intro = (export_dir / "sections" / "introduction.tex").read_text()
+    assert intro.startswith(r"\section{Introduction and Physical System}")
+    anchors = (export_dir / "sections" / "analytical_anchors.tex").read_text()
+    assert "Haldane_Spin_1_Chain" in anchors
+    assert "Barren_Plateau" in (export_dir / "sections" / "results_and_reproducibility.tex").read_text()
+
+
+def test_compile_refuses_unincludable_figure_formats(tmp_path):
+    manuscript = ManuscriptGenerator.create_discovery_manuscript(
+        title="t", target_system="H2", authors=["a"], abstract="x",
+        analytical_anchor_name="a", analytical_anchor_val=0.0, measured_val=0.0,
+    )
+    manuscript.figures = {"convergence.svg": "<svg/>"}
+    with pytest.raises(ValueError, match="not includable by pdfTeX"):
+        manuscript.compile_latex()
+    with pytest.raises(ValueError, match="not includable by pdfTeX"):
+        manuscript.export_project(tmp_path / "proj")
+
+
+def test_no_figures_are_attached_by_default():
+    manuscript = ManuscriptGenerator.create_bilingual_discovery_manuscript(
+        title="t", bilingual_title="b", target_system="H2", authors=["a"],
+        abstract="x", bilingual_abstract="y", analytical_anchor_name="a",
+        analytical_anchor_val=0.0, measured_val=0.0,
+    )
+    # The old constructor fabricated a convergence trajectory and attached
+    # static crystal/Bloch SVGs. A figure that is not measured data is not a
+    # result: nothing is attached unless the caller supplies artifacts.
+    assert manuscript.figures == {}
 
 
 def test_automated_peer_review_accept():
@@ -87,6 +120,8 @@ def test_automated_peer_review_revise_when_lacking_formal_proof():
 
 
 def test_bilingual_manuscript_and_vector_graphics_export(tmp_path):
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
     bilingual_ms = ManuscriptGenerator.create_bilingual_discovery_manuscript(
         title="Quantum Krylov Subspace Ground State Discovery",
         bilingual_title="Kukubona Kwamagesi Akwa-Krylov Amu-Quantum",
@@ -100,12 +135,11 @@ def test_bilingual_manuscript_and_vector_graphics_export(tmp_path):
         second_language="Tonga",
         lean4_proof_hash="0xLEAN4PROOFCERT777",
         provenance_record_hash="0xMERKLEDAGHASH888",
+        figures={"convergence.png": png},
     )
 
     assert bilingual_ms.second_language == "Tonga"
-    assert "crystal_lattice.svg" in bilingual_ms.figures
-    assert "bloch_sphere.svg" in bilingual_ms.figures
-    assert "energy_convergence.svg" in bilingual_ms.figures
+    assert "convergence.png" in bilingual_ms.figures
 
     latex = bilingual_ms.compile_latex()
     assert "Kukubona Kwamagesi" in latex
@@ -114,9 +148,7 @@ def test_bilingual_manuscript_and_vector_graphics_export(tmp_path):
     export_dir = tmp_path / "bilingual_preprint"
     bilingual_ms.export_project(export_dir)
 
-    assert (export_dir / "figures" / "crystal_lattice.svg").exists()
-    assert (export_dir / "figures" / "bloch_sphere.svg").exists()
-    assert (export_dir / "figures" / "energy_convergence.svg").exists()
+    assert (export_dir / "figures" / "convergence.png").read_bytes() == png
 
     # 5-Dimensional Peer Review Tribunal over live-kernel evidence
     bilingual_evidence = ReviewEvidence(
@@ -230,6 +262,12 @@ _VERIFIED_SENTENCES = (
 )
 
 
+def _composed_source(ms) -> str:
+    """main.tex plus the section bodies it \\input-s (the composed project)."""
+    return ms.compile_latex() + "\n" + "\n".join(
+        f"\\section{{{sec.title}}}\n{sec.latex_content}" for sec in ms.sections)
+
+
 def _draft(**kw):
     from kubona.science.manuscript import ManuscriptGenerator
     base = dict(title="T", target_system="H2", authors=["A"], abstract="B",
@@ -241,7 +279,7 @@ def _draft(**kw):
 
 def test_draft_emits_no_verification_prose():
     ms = _draft(measured_val=-1.5, lean4_proof_hash=None)  # 363 mHa off
-    latex = ms.compile_latex()
+    latex = _composed_source(ms)
     for sentence in _VERIFIED_SENTENCES:
         assert sentence not in latex
     assert "UNVERIFIED" in latex  # hash slot honestly marked
@@ -253,7 +291,7 @@ def test_draft_with_hash_still_claims_no_verification():
     """A hash string's mere presence proves nothing: the draft path emits
     no verification prose even when a proof hash is supplied."""
     ms = _draft(measured_val=-1.137, lean4_proof_hash="0xHASH")
-    latex = ms.compile_latex()
+    latex = _composed_source(ms)
     for sentence in _VERIFIED_SENTENCES:
         assert sentence not in latex
     assert "0.0000 mHa" in latex
@@ -319,6 +357,6 @@ def test_certified_happy_path_emits_verified_prose():
         analytical_anchor_name="H2", analytical_anchor_val=-1.137,
         measured_val=-1.137, lean4_proof_hash="0xHASH",
         evidence=_live_evidence(disc_mha=0.0))
-    latex = ms.compile_latex()
+    latex = _composed_source(ms)
     for sentence in _VERIFIED_SENTENCES:
         assert sentence in latex

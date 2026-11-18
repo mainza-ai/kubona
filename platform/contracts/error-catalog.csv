@@ -35,3 +35,14 @@ proposal_digest_mismatch,validation,400,false,the digest does not match the serv
 proposal_unmintable,validation,400,false,"the plan cannot be priced or routed honestly (missing circuit, unknown backend, or unpriced metered hardware): revise the plan"
 loop_not_running,state,409,false,"steering applies only to a running run: resume it first (paused and terminal runs never consume instructions)"
 delete_blocked,state,409,false,"settle or abort the named work, then delete again; nothing was removed"
+campaign_missing,state,409,false,run an experiment so the session has a campaign projection before creating a manuscript
+campaign_invalid,validation,400,false,the stored campaign projection is not decodable: re-create the campaign
+source_changed,state,409,false,"the manuscript source changed since the draft was stored: create a new draft rather than rebuilding a stale one"
+content_hash_mismatch,validation,409,false,sign the manuscript's current content hash (read it from the manuscript detail)
+review_not_accepted,state,409,false,"deposit staging requires an ACCEPT review; address the review critiques and re-review"
+signoff_required,state,409,false,record an operator signoff over the content hash before staging a deposit
+signoff_expired,state,409,false,re-sign the manuscript with a future expiry before staging a deposit
+build_required,state,409,false,build the manuscript first: deposit staging packages the built artifacts
+build_unavailable,upstream,503,true,"install the TeX toolchain in the bridge image or retry when it is available; no PDF is produced without it"
+build_failed,upstream,502,false,"read the build log in the response and fix the LaTeX source or figure; the build is deterministic and will not fix itself"
+reviewer_key_unconfigured,internal,503,false,commission KUBONA_REVIEWER_PRIVKEY_HEX on the deployment host before signing manuscripts

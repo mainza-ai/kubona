@@ -2020,6 +2020,199 @@ func (x *CodesignResponse) GetErrorMessage() string {
 	return ""
 }
 
+// Publication pipeline: the bridge composes prose, runs the evidence-gated
+// peer review, and (when build=true) compiles the LaTeX project. Go owns
+// persistence, tenancy, evidence resolution, and signoff; this RPC is
+// stateless compute over the request JSON.
+type ManuscriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	RequestJson   string                 `protobuf:"bytes,2,opt,name=request_json,json=requestJson,proto3" json:"request_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManuscriptRequest) Reset() {
+	*x = ManuscriptRequest{}
+	mi := &file_kubona_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManuscriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManuscriptRequest) ProtoMessage() {}
+
+func (x *ManuscriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManuscriptRequest.ProtoReflect.Descriptor instead.
+func (*ManuscriptRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ManuscriptRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ManuscriptRequest) GetRequestJson() string {
+	if x != nil {
+		return x.RequestJson
+	}
+	return ""
+}
+
+type ManuscriptArtifact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Content       []byte                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	Sha256        string                 `protobuf:"bytes,3,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManuscriptArtifact) Reset() {
+	*x = ManuscriptArtifact{}
+	mi := &file_kubona_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManuscriptArtifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManuscriptArtifact) ProtoMessage() {}
+
+func (x *ManuscriptArtifact) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManuscriptArtifact.ProtoReflect.Descriptor instead.
+func (*ManuscriptArtifact) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ManuscriptArtifact) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ManuscriptArtifact) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *ManuscriptArtifact) GetSha256() string {
+	if x != nil {
+		return x.Sha256
+	}
+	return ""
+}
+
+type ManuscriptResponse struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Ok           bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorCode    string                 `protobuf:"bytes,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage string                 `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	// Draft/review/build metadata (artifact bytes ride in `artifacts`).
+	ResponseJson  string                `protobuf:"bytes,4,opt,name=response_json,json=responseJson,proto3" json:"response_json,omitempty"`
+	Artifacts     []*ManuscriptArtifact `protobuf:"bytes,5,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManuscriptResponse) Reset() {
+	*x = ManuscriptResponse{}
+	mi := &file_kubona_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManuscriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManuscriptResponse) ProtoMessage() {}
+
+func (x *ManuscriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManuscriptResponse.ProtoReflect.Descriptor instead.
+func (*ManuscriptResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ManuscriptResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *ManuscriptResponse) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *ManuscriptResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *ManuscriptResponse) GetResponseJson() string {
+	if x != nil {
+		return x.ResponseJson
+	}
+	return ""
+}
+
+func (x *ManuscriptResponse) GetArtifacts() []*ManuscriptArtifact {
+	if x != nil {
+		return x.Artifacts
+	}
+	return nil
+}
+
 // Human quantum dispatch (R-34) + provider cancel (R-33): the transport
 // for the human rail. The handler MUST call the same submit_job the
 // agents use (identical jurisdiction/preflight/fidelity/spend rules) —
@@ -2062,7 +2255,7 @@ type QuantumSubmitRequest struct {
 
 func (x *QuantumSubmitRequest) Reset() {
 	*x = QuantumSubmitRequest{}
-	mi := &file_kubona_proto_msgTypes[25]
+	mi := &file_kubona_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2074,7 +2267,7 @@ func (x *QuantumSubmitRequest) String() string {
 func (*QuantumSubmitRequest) ProtoMessage() {}
 
 func (x *QuantumSubmitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[25]
+	mi := &file_kubona_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2087,7 +2280,7 @@ func (x *QuantumSubmitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumSubmitRequest.ProtoReflect.Descriptor instead.
 func (*QuantumSubmitRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{25}
+	return file_kubona_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *QuantumSubmitRequest) GetQasm() string {
@@ -2206,7 +2399,7 @@ type QuantumSubmitResponse struct {
 
 func (x *QuantumSubmitResponse) Reset() {
 	*x = QuantumSubmitResponse{}
-	mi := &file_kubona_proto_msgTypes[26]
+	mi := &file_kubona_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2218,7 +2411,7 @@ func (x *QuantumSubmitResponse) String() string {
 func (*QuantumSubmitResponse) ProtoMessage() {}
 
 func (x *QuantumSubmitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[26]
+	mi := &file_kubona_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2231,7 +2424,7 @@ func (x *QuantumSubmitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumSubmitResponse.ProtoReflect.Descriptor instead.
 func (*QuantumSubmitResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{26}
+	return file_kubona_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *QuantumSubmitResponse) GetOk() bool {
@@ -2299,7 +2492,7 @@ type QuantumJobStatusRequest struct {
 
 func (x *QuantumJobStatusRequest) Reset() {
 	*x = QuantumJobStatusRequest{}
-	mi := &file_kubona_proto_msgTypes[27]
+	mi := &file_kubona_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2311,7 +2504,7 @@ func (x *QuantumJobStatusRequest) String() string {
 func (*QuantumJobStatusRequest) ProtoMessage() {}
 
 func (x *QuantumJobStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[27]
+	mi := &file_kubona_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2324,7 +2517,7 @@ func (x *QuantumJobStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumJobStatusRequest.ProtoReflect.Descriptor instead.
 func (*QuantumJobStatusRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{27}
+	return file_kubona_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *QuantumJobStatusRequest) GetJobId() string {
@@ -2349,7 +2542,7 @@ type QuantumJobStatusResponse struct {
 
 func (x *QuantumJobStatusResponse) Reset() {
 	*x = QuantumJobStatusResponse{}
-	mi := &file_kubona_proto_msgTypes[28]
+	mi := &file_kubona_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2361,7 +2554,7 @@ func (x *QuantumJobStatusResponse) String() string {
 func (*QuantumJobStatusResponse) ProtoMessage() {}
 
 func (x *QuantumJobStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[28]
+	mi := &file_kubona_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2374,7 +2567,7 @@ func (x *QuantumJobStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumJobStatusResponse.ProtoReflect.Descriptor instead.
 func (*QuantumJobStatusResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{28}
+	return file_kubona_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *QuantumJobStatusResponse) GetOk() bool {
@@ -2436,7 +2629,7 @@ type QuantumCancelRequest struct {
 
 func (x *QuantumCancelRequest) Reset() {
 	*x = QuantumCancelRequest{}
-	mi := &file_kubona_proto_msgTypes[29]
+	mi := &file_kubona_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2448,7 +2641,7 @@ func (x *QuantumCancelRequest) String() string {
 func (*QuantumCancelRequest) ProtoMessage() {}
 
 func (x *QuantumCancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[29]
+	mi := &file_kubona_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2461,7 +2654,7 @@ func (x *QuantumCancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumCancelRequest.ProtoReflect.Descriptor instead.
 func (*QuantumCancelRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{29}
+	return file_kubona_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *QuantumCancelRequest) GetJobId() string {
@@ -2494,7 +2687,7 @@ type QuantumCancelResponse struct {
 
 func (x *QuantumCancelResponse) Reset() {
 	*x = QuantumCancelResponse{}
-	mi := &file_kubona_proto_msgTypes[30]
+	mi := &file_kubona_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2506,7 +2699,7 @@ func (x *QuantumCancelResponse) String() string {
 func (*QuantumCancelResponse) ProtoMessage() {}
 
 func (x *QuantumCancelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[30]
+	mi := &file_kubona_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2519,7 +2712,7 @@ func (x *QuantumCancelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuantumCancelResponse.ProtoReflect.Descriptor instead.
 func (*QuantumCancelResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{30}
+	return file_kubona_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *QuantumCancelResponse) GetOk() bool {
@@ -2571,7 +2764,7 @@ type CanaryRunRequest struct {
 
 func (x *CanaryRunRequest) Reset() {
 	*x = CanaryRunRequest{}
-	mi := &file_kubona_proto_msgTypes[31]
+	mi := &file_kubona_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2583,7 +2776,7 @@ func (x *CanaryRunRequest) String() string {
 func (*CanaryRunRequest) ProtoMessage() {}
 
 func (x *CanaryRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[31]
+	mi := &file_kubona_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2596,7 +2789,7 @@ func (x *CanaryRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanaryRunRequest.ProtoReflect.Descriptor instead.
 func (*CanaryRunRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{31}
+	return file_kubona_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CanaryRunRequest) GetProviders() []string {
@@ -2624,7 +2817,7 @@ type CanaryRunResponse struct {
 
 func (x *CanaryRunResponse) Reset() {
 	*x = CanaryRunResponse{}
-	mi := &file_kubona_proto_msgTypes[32]
+	mi := &file_kubona_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2636,7 +2829,7 @@ func (x *CanaryRunResponse) String() string {
 func (*CanaryRunResponse) ProtoMessage() {}
 
 func (x *CanaryRunResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[32]
+	mi := &file_kubona_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2649,7 +2842,7 @@ func (x *CanaryRunResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanaryRunResponse.ProtoReflect.Descriptor instead.
 func (*CanaryRunResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{32}
+	return file_kubona_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *CanaryRunResponse) GetOk() bool {
@@ -2694,7 +2887,7 @@ type EvidenceEnvelope struct {
 
 func (x *EvidenceEnvelope) Reset() {
 	*x = EvidenceEnvelope{}
-	mi := &file_kubona_proto_msgTypes[33]
+	mi := &file_kubona_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2706,7 +2899,7 @@ func (x *EvidenceEnvelope) String() string {
 func (*EvidenceEnvelope) ProtoMessage() {}
 
 func (x *EvidenceEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[33]
+	mi := &file_kubona_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2719,7 +2912,7 @@ func (x *EvidenceEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EvidenceEnvelope.ProtoReflect.Descriptor instead.
 func (*EvidenceEnvelope) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{33}
+	return file_kubona_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *EvidenceEnvelope) GetEvidenceId() string {
@@ -2776,7 +2969,7 @@ type WorkflowPlanRequest struct {
 
 func (x *WorkflowPlanRequest) Reset() {
 	*x = WorkflowPlanRequest{}
-	mi := &file_kubona_proto_msgTypes[34]
+	mi := &file_kubona_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2788,7 +2981,7 @@ func (x *WorkflowPlanRequest) String() string {
 func (*WorkflowPlanRequest) ProtoMessage() {}
 
 func (x *WorkflowPlanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[34]
+	mi := &file_kubona_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2801,7 +2994,7 @@ func (x *WorkflowPlanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowPlanRequest.ProtoReflect.Descriptor instead.
 func (*WorkflowPlanRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{34}
+	return file_kubona_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *WorkflowPlanRequest) GetWorkflowJson() string {
@@ -2839,7 +3032,7 @@ type WorkflowPlanResponse struct {
 
 func (x *WorkflowPlanResponse) Reset() {
 	*x = WorkflowPlanResponse{}
-	mi := &file_kubona_proto_msgTypes[35]
+	mi := &file_kubona_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2851,7 +3044,7 @@ func (x *WorkflowPlanResponse) String() string {
 func (*WorkflowPlanResponse) ProtoMessage() {}
 
 func (x *WorkflowPlanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[35]
+	mi := &file_kubona_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2864,7 +3057,7 @@ func (x *WorkflowPlanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowPlanResponse.ProtoReflect.Descriptor instead.
 func (*WorkflowPlanResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{35}
+	return file_kubona_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *WorkflowPlanResponse) GetOk() bool {
@@ -2926,7 +3119,7 @@ type WorkflowRunRequest struct {
 
 func (x *WorkflowRunRequest) Reset() {
 	*x = WorkflowRunRequest{}
-	mi := &file_kubona_proto_msgTypes[36]
+	mi := &file_kubona_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2938,7 +3131,7 @@ func (x *WorkflowRunRequest) String() string {
 func (*WorkflowRunRequest) ProtoMessage() {}
 
 func (x *WorkflowRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[36]
+	mi := &file_kubona_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2951,7 +3144,7 @@ func (x *WorkflowRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowRunRequest.ProtoReflect.Descriptor instead.
 func (*WorkflowRunRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{36}
+	return file_kubona_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *WorkflowRunRequest) GetWorkflowJson() string {
@@ -3033,7 +3226,7 @@ type WorkflowRunResponse struct {
 
 func (x *WorkflowRunResponse) Reset() {
 	*x = WorkflowRunResponse{}
-	mi := &file_kubona_proto_msgTypes[37]
+	mi := &file_kubona_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3045,7 +3238,7 @@ func (x *WorkflowRunResponse) String() string {
 func (*WorkflowRunResponse) ProtoMessage() {}
 
 func (x *WorkflowRunResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[37]
+	mi := &file_kubona_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3058,7 +3251,7 @@ func (x *WorkflowRunResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowRunResponse.ProtoReflect.Descriptor instead.
 func (*WorkflowRunResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{37}
+	return file_kubona_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *WorkflowRunResponse) GetOk() bool {
@@ -3136,7 +3329,7 @@ type WorkflowStepRequest struct {
 
 func (x *WorkflowStepRequest) Reset() {
 	*x = WorkflowStepRequest{}
-	mi := &file_kubona_proto_msgTypes[38]
+	mi := &file_kubona_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3148,7 +3341,7 @@ func (x *WorkflowStepRequest) String() string {
 func (*WorkflowStepRequest) ProtoMessage() {}
 
 func (x *WorkflowStepRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[38]
+	mi := &file_kubona_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3161,7 +3354,7 @@ func (x *WorkflowStepRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowStepRequest.ProtoReflect.Descriptor instead.
 func (*WorkflowStepRequest) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{38}
+	return file_kubona_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *WorkflowStepRequest) GetStepJson() string {
@@ -3241,7 +3434,7 @@ type WorkflowStepResponse struct {
 
 func (x *WorkflowStepResponse) Reset() {
 	*x = WorkflowStepResponse{}
-	mi := &file_kubona_proto_msgTypes[39]
+	mi := &file_kubona_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3253,7 +3446,7 @@ func (x *WorkflowStepResponse) String() string {
 func (*WorkflowStepResponse) ProtoMessage() {}
 
 func (x *WorkflowStepResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_kubona_proto_msgTypes[39]
+	mi := &file_kubona_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3266,7 +3459,7 @@ func (x *WorkflowStepResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowStepResponse.ProtoReflect.Descriptor instead.
 func (*WorkflowStepResponse) Descriptor() ([]byte, []int) {
-	return file_kubona_proto_rawDescGZIP(), []int{39}
+	return file_kubona_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *WorkflowStepResponse) GetOk() bool {
@@ -3477,7 +3670,22 @@ const file_kubona_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1f\n" +
 	"\vresult_json\x18\x02 \x01(\tR\n" +
 	"resultJson\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\xa2\x04\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"U\n" +
+	"\x11ManuscriptRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
+	"\frequest_json\x18\x02 \x01(\tR\vrequestJson\"Z\n" +
+	"\x12ManuscriptArtifact\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\fR\acontent\x12\x16\n" +
+	"\x06sha256\x18\x03 \x01(\tR\x06sha256\"\xc7\x01\n" +
+	"\x12ManuscriptResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x02 \x01(\tR\terrorCode\x12#\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\x12#\n" +
+	"\rresponse_json\x18\x04 \x01(\tR\fresponseJson\x128\n" +
+	"\tartifacts\x18\x05 \x03(\v2\x1a.kubona.ManuscriptArtifactR\tartifacts\"\xa2\x04\n" +
 	"\x14QuantumSubmitRequest\x12\x12\n" +
 	"\x04qasm\x18\x01 \x01(\tR\x04qasm\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
@@ -3614,7 +3822,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x18DEGRADATION_QPU_HARDWARE\x10\x01\x12\x1d\n" +
 	"\x19DEGRADATION_AER_NOISE_SIM\x10\x02\x12\x1f\n" +
 	"\x1bDEGRADATION_STATEVECTOR_SIM\x10\x03\x12\"\n" +
-	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xc0\v\n" +
+	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\x8c\f\n" +
 	"\x14QuantumBridgeService\x12S\n" +
 	"\x0eExecuteCircuit\x12\x1f.kubona.CircuitExecutionRequest\x1a .kubona.CircuitExecutionResponse\x12C\n" +
 	"\n" +
@@ -3631,7 +3839,8 @@ const file_kubona_proto_rawDesc = "" +
 	"\x10QuantumJobStatus\x12\x1f.kubona.QuantumJobStatusRequest\x1a .kubona.QuantumJobStatusResponse\x12L\n" +
 	"\rQuantumCancel\x12\x1c.kubona.QuantumCancelRequest\x1a\x1d.kubona.QuantumCancelResponse\x12@\n" +
 	"\tRunCanary\x12\x18.kubona.CanaryRunRequest\x1a\x19.kubona.CanaryRunResponse\x12F\n" +
-	"\rRunExperiment\x12\x19.kubona.ExperimentRequest\x1a\x1a.kubona.ExperimentResponse\x12I\n" +
+	"\rRunExperiment\x12\x19.kubona.ExperimentRequest\x1a\x1a.kubona.ExperimentResponse\x12J\n" +
+	"\x11ComposeManuscript\x12\x19.kubona.ManuscriptRequest\x1a\x1a.kubona.ManuscriptResponse\x12I\n" +
 	"\fWorkflowPlan\x12\x1b.kubona.WorkflowPlanRequest\x1a\x1c.kubona.WorkflowPlanResponse\x12F\n" +
 	"\vWorkflowRun\x12\x1a.kubona.WorkflowRunRequest\x1a\x1b.kubona.WorkflowRunResponse\x12L\n" +
 	"\x0fRunWorkflowStep\x12\x1b.kubona.WorkflowStepRequest\x1a\x1c.kubona.WorkflowStepResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
@@ -3649,7 +3858,7 @@ func file_kubona_proto_rawDescGZIP() []byte {
 }
 
 var file_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 44)
 var file_kubona_proto_goTypes = []any{
 	(JobStatus)(0),                      // 0: kubona.JobStatus
 	(DegradationLevel)(0),               // 1: kubona.DegradationLevel
@@ -3678,70 +3887,76 @@ var file_kubona_proto_goTypes = []any{
 	(*DiscoveryPipelineResponse)(nil),   // 24: kubona.DiscoveryPipelineResponse
 	(*CodesignRequest)(nil),             // 25: kubona.CodesignRequest
 	(*CodesignResponse)(nil),            // 26: kubona.CodesignResponse
-	(*QuantumSubmitRequest)(nil),        // 27: kubona.QuantumSubmitRequest
-	(*QuantumSubmitResponse)(nil),       // 28: kubona.QuantumSubmitResponse
-	(*QuantumJobStatusRequest)(nil),     // 29: kubona.QuantumJobStatusRequest
-	(*QuantumJobStatusResponse)(nil),    // 30: kubona.QuantumJobStatusResponse
-	(*QuantumCancelRequest)(nil),        // 31: kubona.QuantumCancelRequest
-	(*QuantumCancelResponse)(nil),       // 32: kubona.QuantumCancelResponse
-	(*CanaryRunRequest)(nil),            // 33: kubona.CanaryRunRequest
-	(*CanaryRunResponse)(nil),           // 34: kubona.CanaryRunResponse
-	(*EvidenceEnvelope)(nil),            // 35: kubona.EvidenceEnvelope
-	(*WorkflowPlanRequest)(nil),         // 36: kubona.WorkflowPlanRequest
-	(*WorkflowPlanResponse)(nil),        // 37: kubona.WorkflowPlanResponse
-	(*WorkflowRunRequest)(nil),          // 38: kubona.WorkflowRunRequest
-	(*WorkflowRunResponse)(nil),         // 39: kubona.WorkflowRunResponse
-	(*WorkflowStepRequest)(nil),         // 40: kubona.WorkflowStepRequest
-	(*WorkflowStepResponse)(nil),        // 41: kubona.WorkflowStepResponse
-	nil,                                 // 42: kubona.CircuitExecutionResponse.CountsEntry
+	(*ManuscriptRequest)(nil),           // 27: kubona.ManuscriptRequest
+	(*ManuscriptArtifact)(nil),          // 28: kubona.ManuscriptArtifact
+	(*ManuscriptResponse)(nil),          // 29: kubona.ManuscriptResponse
+	(*QuantumSubmitRequest)(nil),        // 30: kubona.QuantumSubmitRequest
+	(*QuantumSubmitResponse)(nil),       // 31: kubona.QuantumSubmitResponse
+	(*QuantumJobStatusRequest)(nil),     // 32: kubona.QuantumJobStatusRequest
+	(*QuantumJobStatusResponse)(nil),    // 33: kubona.QuantumJobStatusResponse
+	(*QuantumCancelRequest)(nil),        // 34: kubona.QuantumCancelRequest
+	(*QuantumCancelResponse)(nil),       // 35: kubona.QuantumCancelResponse
+	(*CanaryRunRequest)(nil),            // 36: kubona.CanaryRunRequest
+	(*CanaryRunResponse)(nil),           // 37: kubona.CanaryRunResponse
+	(*EvidenceEnvelope)(nil),            // 38: kubona.EvidenceEnvelope
+	(*WorkflowPlanRequest)(nil),         // 39: kubona.WorkflowPlanRequest
+	(*WorkflowPlanResponse)(nil),        // 40: kubona.WorkflowPlanResponse
+	(*WorkflowRunRequest)(nil),          // 41: kubona.WorkflowRunRequest
+	(*WorkflowRunResponse)(nil),         // 42: kubona.WorkflowRunResponse
+	(*WorkflowStepRequest)(nil),         // 43: kubona.WorkflowStepRequest
+	(*WorkflowStepResponse)(nil),        // 44: kubona.WorkflowStepResponse
+	nil,                                 // 45: kubona.CircuitExecutionResponse.CountsEntry
 }
 var file_kubona_proto_depIdxs = []int32{
 	1,  // 0: kubona.CircuitExecutionResponse.degradation_level:type_name -> kubona.DegradationLevel
-	42, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
+	45, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
 	5,  // 2: kubona.CircuitCutResponse.fragments:type_name -> kubona.SubcircuitFragment
 	12, // 3: kubona.LiteratureGroundingResponse.records:type_name -> kubona.LiteratureRecord
 	22, // 4: kubona.DiscoveryPipelineRequest.candidates:type_name -> kubona.DiscoveryCandidate
-	2,  // 5: kubona.QuantumBridgeService.ExecuteCircuit:input_type -> kubona.CircuitExecutionRequest
-	4,  // 6: kubona.QuantumBridgeService.CutCircuit:input_type -> kubona.CircuitCutRequest
-	7,  // 7: kubona.QuantumBridgeService.ComputeClassicalAnchor:input_type -> kubona.ClassicalAnchorRequest
-	9,  // 8: kubona.QuantumBridgeService.EvaluateWavefunction:input_type -> kubona.ClaimEvaluationRequest
-	11, // 9: kubona.QuantumBridgeService.GroundLiterature:input_type -> kubona.LiteratureGroundingRequest
-	14, // 10: kubona.QuantumBridgeService.ExecuteQuantumKrylov:input_type -> kubona.QuantumKrylovRequest
-	18, // 11: kubona.QuantumBridgeService.MitigateCircuit:input_type -> kubona.MitigationRequest
-	20, // 12: kubona.QuantumBridgeService.EvaluateMolecularADMET:input_type -> kubona.ChemistryADMETRequest
-	23, // 13: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:input_type -> kubona.DiscoveryPipelineRequest
-	25, // 14: kubona.QuantumBridgeService.EvaluateCodesign:input_type -> kubona.CodesignRequest
-	27, // 15: kubona.QuantumBridgeService.QuantumSubmit:input_type -> kubona.QuantumSubmitRequest
-	29, // 16: kubona.QuantumBridgeService.QuantumJobStatus:input_type -> kubona.QuantumJobStatusRequest
-	31, // 17: kubona.QuantumBridgeService.QuantumCancel:input_type -> kubona.QuantumCancelRequest
-	33, // 18: kubona.QuantumBridgeService.RunCanary:input_type -> kubona.CanaryRunRequest
-	16, // 19: kubona.QuantumBridgeService.RunExperiment:input_type -> kubona.ExperimentRequest
-	36, // 20: kubona.QuantumBridgeService.WorkflowPlan:input_type -> kubona.WorkflowPlanRequest
-	38, // 21: kubona.QuantumBridgeService.WorkflowRun:input_type -> kubona.WorkflowRunRequest
-	40, // 22: kubona.QuantumBridgeService.RunWorkflowStep:input_type -> kubona.WorkflowStepRequest
-	3,  // 23: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
-	6,  // 24: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
-	8,  // 25: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
-	10, // 26: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
-	13, // 27: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
-	15, // 28: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
-	19, // 29: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
-	21, // 30: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
-	24, // 31: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
-	26, // 32: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
-	28, // 33: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
-	30, // 34: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
-	32, // 35: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
-	34, // 36: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
-	17, // 37: kubona.QuantumBridgeService.RunExperiment:output_type -> kubona.ExperimentResponse
-	37, // 38: kubona.QuantumBridgeService.WorkflowPlan:output_type -> kubona.WorkflowPlanResponse
-	39, // 39: kubona.QuantumBridgeService.WorkflowRun:output_type -> kubona.WorkflowRunResponse
-	41, // 40: kubona.QuantumBridgeService.RunWorkflowStep:output_type -> kubona.WorkflowStepResponse
-	23, // [23:41] is the sub-list for method output_type
-	5,  // [5:23] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	28, // 5: kubona.ManuscriptResponse.artifacts:type_name -> kubona.ManuscriptArtifact
+	2,  // 6: kubona.QuantumBridgeService.ExecuteCircuit:input_type -> kubona.CircuitExecutionRequest
+	4,  // 7: kubona.QuantumBridgeService.CutCircuit:input_type -> kubona.CircuitCutRequest
+	7,  // 8: kubona.QuantumBridgeService.ComputeClassicalAnchor:input_type -> kubona.ClassicalAnchorRequest
+	9,  // 9: kubona.QuantumBridgeService.EvaluateWavefunction:input_type -> kubona.ClaimEvaluationRequest
+	11, // 10: kubona.QuantumBridgeService.GroundLiterature:input_type -> kubona.LiteratureGroundingRequest
+	14, // 11: kubona.QuantumBridgeService.ExecuteQuantumKrylov:input_type -> kubona.QuantumKrylovRequest
+	18, // 12: kubona.QuantumBridgeService.MitigateCircuit:input_type -> kubona.MitigationRequest
+	20, // 13: kubona.QuantumBridgeService.EvaluateMolecularADMET:input_type -> kubona.ChemistryADMETRequest
+	23, // 14: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:input_type -> kubona.DiscoveryPipelineRequest
+	25, // 15: kubona.QuantumBridgeService.EvaluateCodesign:input_type -> kubona.CodesignRequest
+	30, // 16: kubona.QuantumBridgeService.QuantumSubmit:input_type -> kubona.QuantumSubmitRequest
+	32, // 17: kubona.QuantumBridgeService.QuantumJobStatus:input_type -> kubona.QuantumJobStatusRequest
+	34, // 18: kubona.QuantumBridgeService.QuantumCancel:input_type -> kubona.QuantumCancelRequest
+	36, // 19: kubona.QuantumBridgeService.RunCanary:input_type -> kubona.CanaryRunRequest
+	16, // 20: kubona.QuantumBridgeService.RunExperiment:input_type -> kubona.ExperimentRequest
+	27, // 21: kubona.QuantumBridgeService.ComposeManuscript:input_type -> kubona.ManuscriptRequest
+	39, // 22: kubona.QuantumBridgeService.WorkflowPlan:input_type -> kubona.WorkflowPlanRequest
+	41, // 23: kubona.QuantumBridgeService.WorkflowRun:input_type -> kubona.WorkflowRunRequest
+	43, // 24: kubona.QuantumBridgeService.RunWorkflowStep:input_type -> kubona.WorkflowStepRequest
+	3,  // 25: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
+	6,  // 26: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
+	8,  // 27: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
+	10, // 28: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
+	13, // 29: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
+	15, // 30: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
+	19, // 31: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
+	21, // 32: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
+	24, // 33: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
+	26, // 34: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
+	31, // 35: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
+	33, // 36: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
+	35, // 37: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
+	37, // 38: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
+	17, // 39: kubona.QuantumBridgeService.RunExperiment:output_type -> kubona.ExperimentResponse
+	29, // 40: kubona.QuantumBridgeService.ComposeManuscript:output_type -> kubona.ManuscriptResponse
+	40, // 41: kubona.QuantumBridgeService.WorkflowPlan:output_type -> kubona.WorkflowPlanResponse
+	42, // 42: kubona.QuantumBridgeService.WorkflowRun:output_type -> kubona.WorkflowRunResponse
+	44, // 43: kubona.QuantumBridgeService.RunWorkflowStep:output_type -> kubona.WorkflowStepResponse
+	25, // [25:44] is the sub-list for method output_type
+	6,  // [6:25] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_kubona_proto_init() }
@@ -3755,7 +3970,7 @@ func file_kubona_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   41,
+			NumMessages:   44,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

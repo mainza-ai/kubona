@@ -109,6 +109,11 @@ class QuantumBridgeServiceStub:
                 request_serializer=kubona__pb2.ExperimentRequest.SerializeToString,
                 response_deserializer=kubona__pb2.ExperimentResponse.FromString,
                 _registered_method=True)
+        self.ComposeManuscript = channel.unary_unary(
+                '/kubona.QuantumBridgeService/ComposeManuscript',
+                request_serializer=kubona__pb2.ManuscriptRequest.SerializeToString,
+                response_deserializer=kubona__pb2.ManuscriptResponse.FromString,
+                _registered_method=True)
         self.WorkflowPlan = channel.unary_unary(
                 '/kubona.QuantumBridgeService/WorkflowPlan',
                 request_serializer=kubona__pb2.WorkflowPlanRequest.SerializeToString,
@@ -219,6 +224,12 @@ class QuantumBridgeServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ComposeManuscript(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def WorkflowPlan(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -314,6 +325,11 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
                     servicer.RunExperiment,
                     request_deserializer=kubona__pb2.ExperimentRequest.FromString,
                     response_serializer=kubona__pb2.ExperimentResponse.SerializeToString,
+            ),
+            'ComposeManuscript': grpc.unary_unary_rpc_method_handler(
+                    servicer.ComposeManuscript,
+                    request_deserializer=kubona__pb2.ManuscriptRequest.FromString,
+                    response_serializer=kubona__pb2.ManuscriptResponse.SerializeToString,
             ),
             'WorkflowPlan': grpc.unary_unary_rpc_method_handler(
                     servicer.WorkflowPlan,
@@ -736,6 +752,33 @@ class QuantumBridgeService:
             '/kubona.QuantumBridgeService/RunExperiment',
             kubona__pb2.ExperimentRequest.SerializeToString,
             kubona__pb2.ExperimentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ComposeManuscript(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/ComposeManuscript',
+            kubona__pb2.ManuscriptRequest.SerializeToString,
+            kubona__pb2.ManuscriptResponse.FromString,
             options,
             channel_credentials,
             insecure,
