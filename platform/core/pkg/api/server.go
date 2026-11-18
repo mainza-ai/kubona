@@ -58,34 +58,37 @@ import (
 )
 
 type Server struct {
-	httpMetrics        *httpMetrics
-	ledger             *ledger.Ledger
-	sessionMgr         *session.Manager
-	tenantMgr          *tenants.Manager
-	jobRunner          *jobs.Runner
-	supervisor         *supervisor.Supervisor
-	watchdog           *watchdog.TaskWatchdog
-	collective         *agents.AgentCollective
-	a2aServer          *agents.A2AServer
-	fidelityGate       *fidelity.FidelityGate
-	epistemicGate      *epistemics.EpistemicGate
-	harnessReg         *autoresearch.HarnessRegistry
-	llmSettings        *llm.Settings
-	llmClient          *llm.Client
-	quantumSettings    *QuantumSettings
-	quantumCanaryCache *canaryCache
-	providerQueueMu    sync.RWMutex
-	providerQueue      map[string]providerQueueSnapshot
-	toolRegistry       *tools.Registry
-	skillStore         *skills.Store
-	skillStoreMu       sync.RWMutex
-	evalStore          evals.Store
-	memoryStore        *memory.HindsightStore
-	metaSearchEngine   *metasearch.MetaSearchEngine
-	sandboxRunner      *sandbox.SandboxRunner
-	autoresearchMu     sync.RWMutex
-	activeAutoloops    map[string]*autoresearch.LoopEngine
-	mux                *http.ServeMux
+	httpMetrics   *httpMetrics
+	ledger        *ledger.Ledger
+	sessionMgr    *session.Manager
+	tenantMgr     *tenants.Manager
+	jobRunner     *jobs.Runner
+	supervisor    *supervisor.Supervisor
+	watchdog      *watchdog.TaskWatchdog
+	collective    *agents.AgentCollective
+	a2aServer     *agents.A2AServer
+	fidelityGate  *fidelity.FidelityGate
+	epistemicGate *epistemics.EpistemicGate
+	harnessReg    *autoresearch.HarnessRegistry
+	llmSettings   *llm.Settings
+	llmClient     *llm.Client
+	// hypothesisCompleter is the proposer's LLM seam (AG-2b). Nil disables
+	// model proposals; diagnostics always remain.
+	hypothesisCompleter HypothesisCompleter
+	quantumSettings     *QuantumSettings
+	quantumCanaryCache  *canaryCache
+	providerQueueMu     sync.RWMutex
+	providerQueue       map[string]providerQueueSnapshot
+	toolRegistry        *tools.Registry
+	skillStore          *skills.Store
+	skillStoreMu        sync.RWMutex
+	evalStore           evals.Store
+	memoryStore         *memory.HindsightStore
+	metaSearchEngine    *metasearch.MetaSearchEngine
+	sandboxRunner       *sandbox.SandboxRunner
+	autoresearchMu      sync.RWMutex
+	activeAutoloops     map[string]*autoresearch.LoopEngine
+	mux                 *http.ServeMux
 
 	// Hugging Face Hub client & Custom Agent Registry
 	hfClient     *hf.HubClient
@@ -398,6 +401,7 @@ func NewServer(
 		harnessReg:            autoresearch.NewHarnessRegistry(),
 		llmSettings:           llmSet,
 		llmClient:             llmCli,
+		hypothesisCompleter:   llmHypothesisCompleter{client: llmCli},
 		quantumSettings:       mustLoadQuantumSettings(l.DB()),
 		quantumCanaryCache:    newCanaryCache(),
 		providerQueue:         make(map[string]providerQueueSnapshot),

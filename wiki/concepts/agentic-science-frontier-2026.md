@@ -67,17 +67,23 @@ prove autonomy on a benchmark.
 
 - **AG-1a closed:** `platform/bench_agentic` runner/tasks/tests; disposable
   stack baseline 2/3 pass@1 (H2 VQE 4.5 mHa; anchor exact; TFIM 1.227 Ha off).
+- **AG-1b closed:** nightly/dispatch benchmark workflow with `--allow-failures`
+  and a retained JSON artifact.
 - **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
   falsifiable hypotheses from the H2 campaign, literature refs, shortlist.
+- **AG-2b closed:** strict-JSON LLM proposer (diagnostics floor, honest
+  fallback), deterministic Elo tournament + derived meta-review,
+  `lexical_containment_v1` measured novelty (schema 7), evidence-gated collapse
+  to a claim, shortlist-before-plan gate.
 - **AG-3a closed:** typed plans (schema 6), approval, execution through the
   job rail, observable-vs-acceptance scoring.
 - **AG-4a closed:** `/research-graph` ledger projection.
 - **AG-6a closed:** RO-Crate 1.1 metadata in `manuscript-export`.
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-1b nightly job; AG-2b LLM/tournament/evolution; AG-3b automatic
-  spec synthesis; AG-4b compaction/resume; AG-5 verification; AG-6b PROV;
-  AG-7 autonomy/safety; AG-8b dashboards; AG-9 registry.
-- Schema 6.
+- **Open:** AG-3b automatic spec synthesis; AG-4b compaction/resume; AG-5
+  verification; AG-6b PROV; AG-7 autonomy/safety; AG-8b dashboards; AG-9
+  registry.
+- Schema 7.
 
 ## Cross-references
 

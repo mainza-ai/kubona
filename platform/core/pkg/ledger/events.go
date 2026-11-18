@@ -97,6 +97,7 @@ var KnownEventTypes = map[string]bool{
 	"mandate_verified_pqc_mlkem768":     true,
 	"formal_verification":               true,
 	"hypotheses_generated":              true,
+	"hypotheses_tournament":             true,
 	"plan_created":                      true,
 	"plan_executed":                     true,
 	"plan_started":                      true,

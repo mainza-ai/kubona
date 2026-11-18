@@ -7114,3 +7114,23 @@ skipped is the exact failure this incident is about:
 - Remaining: AG-1b nightly job, AG-2b tournament/LLM/novelty, AG-3b auto-spec,
   AG-4b compaction/resume, AG-5 verification, AG-6b PROV, AG-7 autonomy/safety,
   AG-8b dashboards, AG-9 registry.
+
+## [2026-11-18] implementation | AG-1b nightly benchmark and AG-2b hypothesis evolution
+
+- AG-1b: `.github/workflows/agentic-bench.yml` runs the AG-1 benchmark nightly
+  and on dispatch, with `--allow-failures` (a scientific miss is baseline data),
+  a retained `agentic-bench.json` artifact, and stack logs only on failure.
+- AG-2b: the hypothesis engine gained a strict-JSON LLM proposer with a
+  diagnostics floor and an honest `llm.error` fallback, a deterministic Elo
+  tournament with a derived meta-review, measured lexical novelty
+  (`lexical_containment_v1`, schema 7 `novelty_method`), and evidence-gated
+  collapse into a cited claim (completed accepted plan or verified claim only).
+- Planning now refuses a merely proposed hypothesis: shortlist (or collapse)
+  first, so only admitted probes spend experiment budget.
+- New error codes: `hypothesis_not_evidenced`, `hypothesis_not_shortlisted`.
+- Runtime (disposable stack, schema 7): a real provider error was surfaced as
+  `llm.error` while 10 diagnostics still returned; all 10 got measured
+  `lexical_containment_v1` novelty; the 3-round tournament recorded 15 matches;
+  the shortlisted top probe executed a real VQE plan (`accepted:true`) and
+  collapsed into a verified claim; unknown claim → 404, execute-before-approve
+  → 409.

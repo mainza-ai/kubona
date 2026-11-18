@@ -70,3 +70,12 @@ def test_duplicate_or_incomplete_tasks_refuse(tmp_path):
                                           "extract": "energy", "tolerance": 1}]}))
     with pytest.raises(BenchError):
         load_tasks(bad)
+
+
+def test_main_dry_run_and_allow_failures_contract():
+    from bench_agentic.runner import main
+
+    assert main(["--dry-run"]) == 0
+    assert main(["--dry-run", "--allow-failures"]) == 0
+    with pytest.raises(SystemExit):
+        main(["--unknown-flag"])

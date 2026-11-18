@@ -27,6 +27,12 @@ type Candidate struct {
 	Literature     []string
 	Score          float64
 	Source         string
+	// Novelty is filled by the caller that has a prior-art corpus. The
+	// generator and proposer leave it empty: they have no corpus, so novelty
+	// is "unmeasured" rather than guessed.
+	NoveltyStatus   string
+	NoveltyMethod   string
+	NoveltyDistance *float64
 }
 
 const chemicalAccuracyMHa = 1.6

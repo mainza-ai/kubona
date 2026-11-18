@@ -91,6 +91,8 @@ var errorRegistry = map[string]errorSpec{
 	"comparator_unconfigured":      {"internal", 503, false, "set KUBONA_COMPARATOR_PUBKEY_HEX from the operator-run comparator key before attesting a kernel proof"},
 	"publication_evidence_present": {"state", 409, false, "export the session's manuscripts with kubonad manuscript-export, then retry with ?acknowledge_publication_loss=1"},
 	"plan_not_approved":            {"state", 409, false, "approve the experiment plan before executing it"},
+	"hypothesis_not_evidenced":     {"state", 409, false, "collapse needs a completed accepted plan or an existing verified claim"},
+	"hypothesis_not_shortlisted":   {"state", 409, false, "shortlist the hypothesis before planning an experiment from it"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

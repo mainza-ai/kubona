@@ -199,6 +199,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--task", action="append", default=[], help="task id (repeatable)")
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--json-out")
+    parser.add_argument("--allow-failures", action="store_true",
+                        help="exit 0 even when tasks miss their targets (nightly baseline)")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -235,7 +237,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return 0 if all_ok else 1
+    return 0 if (all_ok or args.allow_failures) else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

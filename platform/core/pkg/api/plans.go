@@ -132,8 +132,16 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 			WriteAPIError(w, "not_found", "unknown hypothesis", nil)
 			return
 		}
-		if h.Status == ledger.HypothesisRejected {
+		switch h.Status {
+		case ledger.HypothesisRejected:
 			WriteAPIError(w, "bad_request", "a rejected hypothesis cannot be planned", nil)
+			return
+		case ledger.HypothesisShortlist, ledger.HypothesisCollapsed:
+			// A human (or the tournament plus shortlist) has admitted the
+			// probe; only admitted probes may spend experiment budget.
+		default:
+			WriteAPIError(w, "hypothesis_not_shortlisted",
+				"hypothesis must be shortlisted (or collapsed) before it can be planned", nil)
 			return
 		}
 		if strings.TrimSpace(body.Statement) == "" {

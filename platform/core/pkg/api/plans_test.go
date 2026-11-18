@@ -11,7 +11,19 @@ import (
 	"google.golang.org/grpc"
 )
 
-func (f *fakeManuscriptBridge) RunExperiment(_ context.Context, _ *pb.ExperimentRequest, _ ...grpc.CallOption) (*pb.ExperimentResponse, error) {
+func (f *fakeManuscriptBridge) RunExperiment(_ context.Context, in *pb.ExperimentRequest, _ ...grpc.CallOption) (*pb.ExperimentResponse, error) {
+	// Echo the requested kind: a result that claims another kind is refused by
+	// the worker, and the tests must exercise the accepted path.
+	var spec struct {
+		Kind string `json:"kind"`
+	}
+	_ = json.Unmarshal([]byte(in.SpecJson), &spec)
+	if spec.Kind == "vqe" {
+		return &pb.ExperimentResponse{
+			Ok:         true,
+			ResultJson: `{"result_version":"experiment-result-v1","success":true,"kind":"vqe","molecule":"H2","energy":-1.1372,"energy_exact":-1.13727,"fci_exact_energy":-1.13727}`,
+		}, nil
+	}
 	return &pb.ExperimentResponse{
 		Ok:         true,
 		ResultJson: `{"result_version":"experiment-result-v1","success":true,"kind":"spin_chain","model":"tfim","n_sites":8,"energy":-10.2516,"energy_exact":-10.2516}`,
@@ -97,6 +109,19 @@ func TestResearchGraphAssemblesSessionState(t *testing.T) {
 		} `json:"hypotheses"`
 	}
 	json.Unmarshal(w.Body.Bytes(), &hy)
+	// AG-2b gate: a merely proposed hypothesis may not spend experiment budget.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/plans", "", map[string]any{
+		"hypothesis_id": hy.Hypotheses[0].ID, "method": "spin_chain",
+		"observable": "energy", "acceptance_metric": "energy_exact", "tolerance": 0.05,
+		"stop_rule": "one run", "spec": map[string]any{"kind": "spin_chain", "model": "tfim", "n_sites": 4},
+	})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "hypothesis_not_shortlisted") {
+		t.Fatalf("proposed hypothesis planned = %d: %s", w.Code, w.Body.String())
+	}
+	w = doJSON(t, srv, http.MethodPatch, "/api/sessions/"+sid+"/hypotheses/"+hy.Hypotheses[0].ID, "", map[string]any{"status": "shortlisted"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("shortlist = %d: %s", w.Code, w.Body.String())
+	}
 	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/plans", "", map[string]any{
 		"hypothesis_id": hy.Hypotheses[0].ID, "method": "spin_chain",
 		"observable": "energy", "acceptance_metric": "energy_exact", "tolerance": 0.05,

@@ -199,12 +199,12 @@ func (l *Ledger) GetHypothesis(sessionID, id string) (*Hypothesis, error) {
 	var lit string
 	var distance sql.NullFloat64
 	err := l.DB().QueryRow(`SELECT id, session_id, statement, rationale, falsifier,
-		experiment_kind, experiment_hint, literature_json, novelty_status, novelty_distance,
-		score, status, source, claim_id, created_at, updated_at
+		experiment_kind, experiment_hint, literature_json, novelty_status, novelty_method,
+		novelty_distance, score, status, source, claim_id, created_at, updated_at
 		FROM hypotheses WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&h.ID, &h.SessionID, &h.Statement, &h.Rationale, &h.Falsifier, &h.ExperimentKind,
-		&h.ExperimentHint, &lit, &h.NoveltyStatus, &distance, &h.Score, &h.Status,
-		&h.Source, &h.ClaimID, &h.CreatedAt, &h.UpdatedAt)
+		&h.ExperimentHint, &lit, &h.NoveltyStatus, &h.NoveltyMethod, &distance, &h.Score,
+		&h.Status, &h.Source, &h.ClaimID, &h.CreatedAt, &h.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrHypothesisNotFound
 	}

@@ -991,6 +991,19 @@
         "status"
       ]
     },
+    "hypotheses_tournament": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Comparison tournament over open hypotheses with Elo-derived scores and a derived meta-review.",
+      "required": [
+        "judge",
+        "rounds",
+        "matches",
+        "ranking",
+        "meta_review"
+      ]
+    },
     "hypotheses_generated": {
       "emitters": [
         "go"

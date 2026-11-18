@@ -236,8 +236,14 @@ Baseline on a disposable stack (schema 5, 2026-11-18):
 
 **Baseline: 2/3 pass@1, $0.00, 16.7 s total.** The TFIM failure is a real
 accuracy gap (shot-based 2-layer VQE vs the exact anchor), not a harness bug —
-exactly the class of failure ResearchClawBench reports. AG-1b (nightly CI job
-with a published baseline artifact) remains open.
+exactly the class of failure ResearchClawBench reports.
+
+**AG-1b (nightly):** `.github/workflows/agentic-bench.yml` runs nightly and on
+dispatch: it builds the stack on a fresh volume, waits for `/api/ready`, runs
+the benchmark with `--allow-failures` (a scientific miss is a baseline datum,
+not a broken workflow), uploads `agentic-bench.json` as an artifact, and dumps
+stack logs on harness failure. The runner's `--allow-failures` flag is covered
+by a unit test.
 
 ### AG-2a — hypothesis engine
 
@@ -253,8 +259,42 @@ with a published baseline artifact) remains open.
 
 Runtime on the H2 benchmark campaign: **10 hypotheses**, direct experiments
 ranked above prior-art checks, every candidate has a falsifier, shortlist
-transition returns 200. AG-2b (LLM proposer, tournament evolution, meta-review,
-measured novelty) remains open; the API and storage are the substrate for it.
+transition returns 200.
+
+### AG-2b — LLM proposer, tournament, measured novelty, collapse
+
+- `pkg/hypotheses/proposer.go`: a `Completer` seam asks the configured model
+  for candidates under a strict JSON contract. The whole reply is rejected if
+  any item lacks a statement/falsifier, uses an unknown `experiment_kind`, or
+  carries an unknown field; aliases are normalized to the closed vocabulary.
+  Survivors are `source:"llm"` at a neutral 0.5 and are merged with the
+  diagnostics by score + de-duplication (`Merge`). A provider/parse failure
+  falls back to diagnostics and is surfaced as `llm.error` — never hidden.
+- `pkg/hypotheses/tournament.go`: deterministic pairwise tournament with an
+  Elo update and a documented `heuristic_v1` judge (falsifier checkability,
+  executable grounding, rationale specificity, claim-language penalties).
+  `meta_review` is derived from the match record, so it cannot invent a reason.
+- `pkg/hypotheses/novelty.go`: `lexical_containment_v1` measures distance in
+  [0,1] against retrieved titles/abstracts. No corpus → `unmeasured`; the
+  method is persisted beside the distance (schema 7 `novelty_method`).
+- `POST …/hypotheses` accepts `use_llm`; `POST …/hypotheses/tournament` ranks
+  and persists scores; `POST …/hypotheses/{id}/collapse` turns a hypothesis
+  into a cited claim **only** with a completed, accepted plan or an existing
+  verified claim. `PATCH status:"collapsed"` is refused.
+- Planning is gated: a hypothesis must be `shortlisted` (or `collapsed`) before
+  a plan may reference it, so only admitted probes spend experiment budget.
+- New error codes: `hypothesis_not_evidenced`, `hypothesis_not_shortlisted`.
+- Tests: proposer contract/fallback/merge, novelty measurement, tournament
+  ranking/determinism/symmetry, LLM API path, tournament persistence, collapse
+  evidence rules (plan and claim paths), shortlist-before-plan gate.
+- Runtime on a disposable stack (schema 7): `use_llm:true` hit a real provider
+  error (`Choose a loaded model ID`), returned `llm.used=false` with the error
+  surfaced, and still produced 10 diagnostics — the fallback is honest, not a
+  silent failure. All 10 carried `lexical_containment_v1` distances; the
+  3-round tournament recorded 15 matches and a derived meta-review; the
+  shortlisted top probe ran a real VQE plan (`accepted:true`) and collapsed
+  into a verified claim (`clm-…-0003`); unknown-claim collapse returned 404 and
+  execution before approval returned 409.
 
 ### AG-3a — typed plan and execution
 
@@ -290,12 +330,11 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-1b (nightly benchmark job), AG-2b (LLM/tournament/evolution/measured
-novelty), AG-3b (automatic spec synthesis from a hypothesis; execution is
-implemented but the spec is caller-supplied), AG-4b (context-budgeted
-compaction and restart resume of the graph), AG-5 (claim/citation verification),
-AG-6b (PROV/PROV-AGENT export), AG-7 (stage autonomy + safety screening),
-AG-8b (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
+AG-3b (automatic spec synthesis from a hypothesis; execution is implemented but
+the spec is caller-supplied), AG-4b (context-budgeted compaction and restart
+resume of the graph), AG-5 (claim/citation verification), AG-6b (PROV/PROV-AGENT
+export and CRediT attribution), AG-7 (stage autonomy + safety screening), AG-8b
+(dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations
 

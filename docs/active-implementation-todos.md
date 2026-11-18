@@ -88,12 +88,15 @@ capability, not a demo.
 - [x] AG-1a: benchmark runner + tasks + unit tests; disposable-stack baseline
       published (2/3 pass@1; TFIM 1.227 Ha off exact). See the frontier report
       §8.
-- [ ] AG-1b: wire AG-1 into a nightly CI job with a retained baseline artifact.
+- [x] AG-1b: `.github/workflows/agentic-bench.yml` nightly/dispatch run with
+      `--allow-failures`, a retained JSON artifact, and failure-only stack logs.
 - [x] AG-2a: persisted hypothesis engine (evidence-grounded generation,
       dedupe, ranking, falsifier, literature refs, explicit novelty status,
       shortlist API + tests). 10 hypotheses on the H2 campaign.
-- [ ] AG-2b: LLM proposer, tournament evolution/meta-review, measured novelty;
-      collapse a hypothesis into a claim.
+- [x] AG-2b: strict-JSON LLM proposer with honest fallback; deterministic Elo
+      tournament + derived meta-review; `lexical_containment_v1` measured
+      novelty; evidence-gated collapse into a cited claim; shortlist-before-
+      plan gate. Schema 7.
 - [x] AG-3a: `experiment_plans` table/API; plan requires acceptance metric +
       stop rule + spec; approval gate; execute through the job rail and score
       the observable against the acceptance target.

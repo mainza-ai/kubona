@@ -1,0 +1,63 @@
+# AG-1b: nightly end-to-end agentic benchmark.
+#
+# Runs the real API stack on a fresh volume, executes the Kubona-domain
+# re-discovery tasks, and retains the JSON baseline artifact. Scientific
+# failures (a task missing its target) do not fail the workflow; a broken
+# harness does (the runner exits non-zero on transport/session errors unless
+# --allow-failures is set, which we set here for the baseline).
+name: Agentic benchmark (nightly)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agentic-bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      KUBONA_API_TOKEN: ci-agentic-bench
+      KUBONA_BRIDGE_TOKEN: ci-agentic-bench
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build and start the API stack
+        run: docker compose -f platform/docker/compose.prod.yml up --build -d kubonad
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8080/api/ready && exit 0 || sleep 5
+          done
+          echo "API did not become ready" >&2
+          exit 1
+      - name: Run AG-1 benchmark
+        run: |
+          python3 platform/bench_agentic/runner.py \
+            --api-url http://127.0.0.1:8080 \
+            --attempts 1 \
+            --allow-failures \
+            --json-out /tmp/agentic-bench.json
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentic-bench-${{ github.run_id }}
+          path: |
+            /tmp/agentic-bench.json
+          if-no-files-found: warn
+      - name: Stack logs on failure
+        if: failure()
+        run: |
+          docker compose -f platform/docker/compose.prod.yml logs --tail=80 kubonad || true
+          docker compose -f platform/docker/compose.prod.yml logs --tail=40 bridge || true
+          docker compose -f platform/docker/compose.prod.yml logs --tail=40 preflight || true
+      - name: Tear down
+        if: always()
+        run: docker compose -f platform/docker/compose.prod.yml down -v
