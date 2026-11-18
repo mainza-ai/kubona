@@ -199,7 +199,7 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null, highlight
         .join('');
       const label = `Table: ${headerCells.join(' · ')}`;
       blocks.push(
-        `<div class="my-2 max-w-full min-w-0 rounded-row border border-border" style="max-width:100%;min-width:0;width:100%" data-table-shell><div class="flex items-center justify-between gap-2 border-b border-border px-2 py-1"><span class="text-[11px] font-code text-muted">${escapeHtml(label)}</span><button type="button" data-copy-table class="rounded-control-compact border border-border px-1.5 py-0.5 text-[10px] font-code text-muted hover:bg-fill hover:text-text" aria-label="${escapeHtml(`Copy ${label}`)}">Copy</button></div><div class="max-w-full min-w-0 overflow-x-auto scrollbar-thin" style="max-width:100%;min-width:0;overflow-x:auto" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><table style="width:max-content;min-width:${headerCells.length >= 3 ? '30rem' : '100%'}" class="text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div></div>`
+        `<div class="my-2 max-w-full min-w-0 rounded-row border border-border" style="max-width:100%;min-width:0;width:100%" data-table-shell><div class="flex items-center justify-between gap-2 border-b border-border px-2 py-1"><span class="text-[11px] font-code text-muted">${escapeHtml(label)}</span><span role="button" tabindex="0" data-copy-table class="cursor-pointer select-none rounded-control-compact border border-border px-1.5 py-0.5 text-caption font-code text-muted hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent" aria-label="${escapeHtml(`Copy ${label}`)}">Copy</span></div><div class="max-w-full min-w-0 overflow-x-auto scrollbar-thin" style="max-width:100%;min-width:0;overflow-x:auto" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><table style="width:max-content;min-width:${headerCells.length >= 3 ? '30rem' : '100%'}" class="text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div></div>`
       );
       continue;
     }
@@ -314,11 +314,7 @@ export function MathText({ math, text, block = false, className = '', highlightN
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const onClick = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const button = target.closest('[data-copy-table]');
-      if (!(button instanceof HTMLElement) || !root.contains(button)) return;
+    const copyTable = (button: HTMLElement) => {
       const table = button.closest('[data-table-shell]')?.querySelector('table');
       if (!table) return;
       const text = Array.from(table.querySelectorAll('tr'))
@@ -334,8 +330,29 @@ export function MathText({ math, text, block = false, className = '', highlightN
         // Clipboard denial is non-fatal; the table remains readable/selectable.
       });
     };
+    const targetButton = (event: Event): HTMLElement | null => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return null;
+      const button = target.closest('[data-copy-table]');
+      return button instanceof HTMLElement && root.contains(button) ? button : null;
+    };
+    const onClick = (event: MouseEvent) => {
+      const button = targetButton(event);
+      if (button) copyTable(button);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const button = targetButton(event);
+      if (!button) return;
+      event.preventDefault();
+      copyTable(button);
+    };
     root.addEventListener('click', onClick);
-    return () => root.removeEventListener('click', onClick);
+    root.addEventListener('keydown', onKeyDown);
+    return () => {
+      root.removeEventListener('click', onClick);
+      root.removeEventListener('keydown', onKeyDown);
+    };
   }, [html]);
 
   return (

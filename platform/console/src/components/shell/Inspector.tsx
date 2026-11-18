@@ -176,9 +176,9 @@ export const Inspector = React.memo(function Inspector({
           </div>
           {tab === 'copilot' && (
             <div role="group" aria-label="Copilot width presets" className="hidden xl:flex items-center gap-1">
-              <button type="button" onClick={() => setWidth(420)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Narrow Copilot">Narrow</button>
-              <button type="button" onClick={() => setWidth(640)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Wide Copilot">Wide</button>
-              <button type="button" onClick={() => setWidth(defaultWidth)} className="rounded-control-compact px-1.5 py-1 text-[11px] text-muted hover:bg-fill hover:text-text" title="Reset Copilot width">Reset</button>
+              <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(420)} title="Narrow Copilot">Narrow</Button>
+              <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(640)} title="Wide Copilot">Wide</Button>
+              <Button type="button" size="compact" variant="ghost" onClick={() => setWidth(defaultWidth)} title="Reset Copilot width">Reset</Button>
             </div>
           )}
           <button type="button" onClick={onClose} aria-label="Close inspector" className="shrink-0 rounded-control-compact px-2 py-1 text-[12px] text-muted hover:bg-fill hover:text-text">Close</button>
