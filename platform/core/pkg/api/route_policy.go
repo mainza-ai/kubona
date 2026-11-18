@@ -91,7 +91,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/sessions/export", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Read-only manifest export; known sessions bind caller to session tenant (ghosts 404)."},
 	{Pattern: "/api/sessions/import", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/sessions/context", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "Read-only context readout; known sessions bind caller to session tenant."},
-	{Pattern: "/api/sessions/", Methods: "GET,POST,PUT,DELETE", Class: RouteAuthSessionScoped, Rationale: "Session CRUD, messages, claims, clear-chat: every known-session path binds caller to session tenant (ghosts keep legacy behavior). Destruction (clear-chat DELETE) takes the same gate as reads."},
+	{Pattern: "/api/sessions/", Methods: "GET,POST,PUT,PATCH,DELETE", Class: RouteAuthSessionScoped, Rationale: "Session CRUD, messages, claims, manuscripts/annotations, clear-chat: every known-session path binds caller to session tenant (ghosts keep legacy behavior). Destruction (clear-chat DELETE) takes the same gate as reads."},
 	{Pattern: "/api/campaigns/", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "Flight-recorder reads bind caller to session tenant via authorizeKnownSession."},
 	{Pattern: "/api/chat/messages", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Session content write: caller bound to session tenant (T-09c); LLM spend tracked per session, never reserved here."},
 	{Pattern: "/api/chat/stream", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Streaming twin of chat POST: same caller binding, same spend tracking."},

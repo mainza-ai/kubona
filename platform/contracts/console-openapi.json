@@ -650,6 +650,80 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/manuscripts/{id}/annotations": {
+      "post": {
+        "operationId": "createManuscriptAnnotation",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.annotation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.annotation"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchManuscriptAnnotations",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.annotations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.annotations"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions": {
       "post": {
         "operationId": "createSession",
@@ -3527,6 +3601,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/chat.send"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}/annotations/{annotationId}": {
+      "patch": {
+        "operationId": "setManuscriptAnnotationStatus",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "annotationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.detail"
                 }
               }
             }
@@ -7535,7 +7655,9 @@
         "type": "object",
         "required": [
           "manuscript",
-          "reviews"
+          "reviews",
+          "annotations",
+          "open_annotations"
         ],
         "properties": {
           "manuscript": {
@@ -7599,6 +7721,13 @@
           "reviews": {
             "type": "array",
             "items": {}
+          },
+          "annotations": {
+            "type": "array",
+            "items": {}
+          },
+          "open_annotations": {
+            "type": "number"
           }
         }
       },
@@ -7669,6 +7798,27 @@
             "type": "boolean"
           },
           "manifest": {}
+        }
+      },
+      "manuscripts.annotations": {
+        "type": "object",
+        "required": [
+          "annotations"
+        ],
+        "properties": {
+          "annotations": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "manuscripts.annotation": {
+        "type": "object",
+        "required": [
+          "annotation"
+        ],
+        "properties": {
+          "annotation": {}
         }
       },
       "quantum.backends": {

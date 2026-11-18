@@ -1070,6 +1070,8 @@ export type ManuscriptsDetail = {
   "updated_at": string;
 };
   "reviews": unknown[];
+  "annotations": unknown[];
+  "open_annotations": number;
 };
 
 export type ManuscriptsCreate = {
@@ -1095,6 +1097,14 @@ export type ManuscriptsSignoff = {
 export type ManuscriptsDeposit = {
   "ok": boolean;
   "manifest": unknown;
+};
+
+export type ManuscriptsAnnotations = {
+  "annotations": unknown[];
+};
+
+export type ManuscriptsAnnotation = {
+  "annotation": unknown;
 };
 
 export type QuantumBackends = {
@@ -1204,6 +1214,7 @@ export type ApiOperationResponse = {
   createCustomAgent: AgentOne;
   createLab: Lab;
   createManuscript: ManuscriptsCreate;
+  createManuscriptAnnotation: ManuscriptsAnnotation;
   createSession: SessionCreate;
   createTask: Task;
   createTasksBatch: TasksBatch;
@@ -1251,6 +1262,7 @@ export type ApiOperationResponse = {
   fetchLoopSteers: LoopSteers;
   fetchLoopsResult: LoopsList;
   fetchManuscript: ManuscriptsDetail;
+  fetchManuscriptAnnotations: ManuscriptsAnnotations;
   fetchManuscripts: ManuscriptsList;
   fetchMemoryRecall: MemoryRecall;
   fetchMessages: MessagesList;
@@ -1340,6 +1352,7 @@ export type ApiOperationResponse = {
   sendChatMessage: ChatSend;
   sendFeedback: ChatFeedback;
   setLLMAirGap: SettingsUpdate;
+  setManuscriptAnnotationStatus: ManuscriptsDetail;
   setTenantAutonomy: TenantWrite;
   setTenantCeiling: TenantWrite;
   setTenantStatus: TenantWrite;
@@ -1387,6 +1400,7 @@ export const API_OPERATIONS = {
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts", response: "manuscripts.create" },
+  createManuscriptAnnotation: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations", response: "manuscripts.annotation" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
@@ -1434,6 +1448,7 @@ export const API_OPERATIONS = {
   fetchLoopSteers: { method: "get", path: "/api/loops/{loopId}/steers", response: "loop.steers" },
   fetchLoopsResult: { method: "get", path: "/api/loops", response: "loops.list" },
   fetchManuscript: { method: "get", path: "/api/sessions/{sessionId}/manuscripts/{id}", response: "manuscripts.detail" },
+  fetchManuscriptAnnotations: { method: "get", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations", response: "manuscripts.annotations" },
   fetchManuscripts: { method: "get", path: "/api/sessions/{sessionId}/manuscripts", response: "manuscripts.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
   fetchMessages: { method: "get", path: "/api/sessions/{id}/messages", response: "messages.list" },
@@ -1523,6 +1538,7 @@ export const API_OPERATIONS = {
   sendChatMessage: { method: "post", path: "/api/chat/messages", response: "chat.send" },
   sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
   setLLMAirGap: { method: "patch", path: "/api/llm/settings", response: "settings.update" },
+  setManuscriptAnnotationStatus: { method: "patch", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations/{annotationId}", response: "manuscripts.detail" },
   setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
   setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },

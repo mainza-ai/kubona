@@ -180,7 +180,10 @@ def test_build_is_byte_reproducible_and_ships_the_source():
     assert second["ok"], second
     assert first["build"]["build_hash"] == second["build"]["build_hash"]
     names = {a["name"] for a in first["build"]["artifacts"]}
-    assert {"main.tex", "main.pdf", "references.bib", "sections/results.tex"} <= names
+    assert {"main.tex", "main.pdf", "references.bib", "sections/results.tex", "build.log"} <= names
+    log = base64.b64decode(next(a for a in first["build"]["artifacts"] if a["name"] == "build.log")["content_b64"])
+    assert b"pdfTeX" in log
+    assert b"/tmp/kubona-ms-" not in log, "build log leaked the host temp path"
     pdf = next(a for a in first["build"]["artifacts"] if a["name"] == "main.pdf")
     raw = base64.b64decode(pdf["content_b64"])
     assert raw.startswith(b"%PDF-")

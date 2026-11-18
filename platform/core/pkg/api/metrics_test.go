@@ -45,3 +45,30 @@ func TestMetricsExposeOperationsGauges(t *testing.T) {
 	}
 	_ = time.Now()
 }
+
+func TestMetricsExposeManuscriptBuildTelemetry(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	created := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"build": true})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create+build = %d: %s", created.Code, created.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer op-token")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, `kubona_manuscript_builds_total{result="success"} 1`) {
+		t.Fatalf("missing build counter:\n%s", body)
+	}
+	if !strings.Contains(body, "kubona_manuscript_build_seconds_count 1") {
+		t.Fatalf("missing build duration count:\n%s", body)
+	}
+	if !strings.Contains(body, "kubona_manuscript_artifact_bytes ") {
+		t.Fatalf("missing artifact bytes gauge:\n%s", body)
+	}
+}

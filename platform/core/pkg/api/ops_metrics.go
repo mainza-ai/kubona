@@ -27,6 +27,35 @@ func (s *Server) renderOpsMetrics(w io.Writer) {
 	fmt.Fprintln(w, "# TYPE kubona_bridge_configured gauge")
 	fmt.Fprintf(w, "kubona_bridge_configured %d\n", boolGauge(s.bridgeClient() != nil))
 
+	s.manuscriptMu.Lock()
+	builds := make(map[string]int64, len(s.manuscriptBuilds))
+	for k, v := range s.manuscriptBuilds {
+		builds[k] = v
+	}
+	buildSeconds, buildCount := s.manuscriptBuildSeconds, s.manuscriptBuildCount
+	s.manuscriptMu.Unlock()
+	if len(builds) > 0 {
+		fmt.Fprintln(w, "# HELP kubona_manuscript_builds_total Manuscript builds by outcome.")
+		fmt.Fprintln(w, "# TYPE kubona_manuscript_builds_total counter")
+		keys := make([]string, 0, len(builds))
+		for k := range builds {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(w, "kubona_manuscript_builds_total{result=%q} %d\n", k, builds[k])
+		}
+		fmt.Fprintln(w, "# HELP kubona_manuscript_build_seconds_sum Total manuscript build time.")
+		fmt.Fprintln(w, "# TYPE kubona_manuscript_build_seconds_sum counter")
+		fmt.Fprintf(w, "kubona_manuscript_build_seconds_sum %f\n", buildSeconds)
+		fmt.Fprintf(w, "kubona_manuscript_build_seconds_count %d\n", buildCount)
+	}
+	if bytes, err := s.ledger.ManuscriptArtifactBytes(); err == nil {
+		fmt.Fprintln(w, "# HELP kubona_manuscript_artifact_bytes Bytes of stored manuscript artifacts.")
+		fmt.Fprintln(w, "# TYPE kubona_manuscript_artifact_bytes gauge")
+		fmt.Fprintf(w, "kubona_manuscript_artifact_bytes %d\n", bytes)
+	}
+
 	if dir := strings.TrimSpace(os.Getenv("KUBONA_BACKUP_DIR")); dir != "" {
 		if count, age, ok := backupDirStatus(dir); ok {
 			fmt.Fprintln(w, "# HELP kubona_backup_count Number of backup artifacts in KUBONA_BACKUP_DIR.")

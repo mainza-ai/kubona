@@ -135,6 +135,11 @@ type Server struct {
 	// multi-megabyte artifacts; human-paced so a lab admin cannot queue a
 	// build loop. Signoff/deposit are operator-authenticated and not limited.
 	manuscriptLimiter *rateLimiter
+	// Publication build telemetry (scrape-time render; guarded by mu).
+	manuscriptMu           sync.Mutex
+	manuscriptBuilds       map[string]int64
+	manuscriptBuildSeconds float64
+	manuscriptBuildCount   int64
 	// Auth sessions: challenge-response login bound to lab admin keys.
 	// Set at construction (nil only in tests that never touch auth).
 	authSessions *AuthSessionStore
@@ -418,6 +423,7 @@ func NewServer(
 		authLimiter:           namedRateFromEnv("auth", "KUBONA_RATE_AUTH", 5, 15),
 		codesignLimiter:       namedRateFromEnv("codesign", "KUBONA_RATE_CODESIGN", 1, 3),
 		manuscriptLimiter:     namedRateFromEnv("manuscript", "KUBONA_RATE_MANUSCRIPT", 0.2, 3),
+		manuscriptBuilds:      map[string]int64{},
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}

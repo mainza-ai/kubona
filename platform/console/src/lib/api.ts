@@ -4116,9 +4116,23 @@ export interface Manuscript {
   signoff: ManuscriptSignoff | null;
 }
 
+export interface ManuscriptAnnotation {
+  id: string;
+  manuscript_id: string;
+  author: string;
+  anchor: string;
+  body: string;
+  status: 'open' | 'addressed' | 'dismissed' | string;
+  content_hash: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ManuscriptDetail {
   manuscript: Manuscript;
   reviews: ManuscriptReviewRecord[];
+  annotations: ManuscriptAnnotation[];
+  open_annotations: number;
 }
 
 export type ManuscriptResult<T> =
@@ -4165,6 +4179,7 @@ export async function fetchManuscript(sessionId: string, id: string): Promise<Ma
 export async function createManuscript(
   sessionId: string,
   body: {
+    request_id?: string;
     title?: string;
     authors?: string[];
     abstract?: string;
@@ -4262,4 +4277,70 @@ export function manuscriptArtifactUrl(sessionId: string, id: string, name: strin
   // not a single encoded segment (pdfTeX project paths are nested).
   const encodedName = name.split('/').map((segment) => encodeURIComponent(segment)).join('/');
   return `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/artifacts/${encodedName}`;
+}
+
+
+export async function fetchManuscriptAnnotations(
+  sessionId: string,
+  id: string,
+): Promise<ManuscriptResult<{ annotations: ManuscriptAnnotation[] }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/annotations`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.annotations', payload) as unknown as { annotations: ManuscriptAnnotation[] } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function createManuscriptAnnotation(
+  sessionId: string,
+  id: string,
+  anchor: string,
+  body: string,
+): Promise<ManuscriptResult<{ annotation: ManuscriptAnnotation }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/annotations`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ anchor, body }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.annotation', payload) as unknown as { annotation: ManuscriptAnnotation } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function setManuscriptAnnotationStatus(
+  sessionId: string,
+  id: string,
+  annotationId: string,
+  status: 'open' | 'addressed' | 'dismissed',
+): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annotationId)}`,
+      {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.detail', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
 }

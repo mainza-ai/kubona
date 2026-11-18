@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS manuscripts (
 	title TEXT NOT NULL,
 	abstract TEXT NOT NULL DEFAULT '',
 	state TEXT NOT NULL DEFAULT 'draft',
+	request_id TEXT NOT NULL DEFAULT '',
 	content_hash TEXT NOT NULL DEFAULT '',
 	build_hash TEXT NOT NULL DEFAULT '',
 	review_json TEXT NOT NULL DEFAULT '{}',
@@ -101,16 +103,33 @@ CREATE TABLE IF NOT EXISTS manuscript_citations (
 	year TEXT NOT NULL DEFAULT '',
 	doi TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (manuscript_id, cite_key)
-);`
+);
+
+CREATE TABLE IF NOT EXISTS manuscript_annotations (
+	id TEXT PRIMARY KEY,
+	manuscript_id TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	tenant_id TEXT NOT NULL DEFAULT '',
+	author TEXT NOT NULL,
+	anchor TEXT NOT NULL,
+	body TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'open',
+	content_hash TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_manuscript_annotations
+	ON manuscript_annotations(manuscript_id, created_at);`
 
 // Manuscript states. A draft may be reviewed and signed; a build may happen
 // before or after signoff, but a content change invalidates both. The API
 // owns transition policy; the ledger stores the state.
 const (
-	ManuscriptStateDraft    = "draft"
-	ManuscriptStateReviewed = "reviewed"
-	ManuscriptStateSigned   = "signed"
-	ManuscriptStateBuilt    = "built"
+	ManuscriptStateDraft        = "draft"
+	ManuscriptStateReviewed     = "reviewed"
+	ManuscriptStateSigned       = "signed"
+	ManuscriptStateBuilt        = "built"
+	ManuscriptStateDepositReady = "deposit_ready"
 )
 
 var (
@@ -157,6 +176,7 @@ type Manuscript struct {
 	Title           string
 	Abstract        string
 	State           string
+	RequestID       string
 	ContentHash     string
 	BuildHash       string
 	ReviewJSON      string
@@ -208,11 +228,11 @@ func (l *Ledger) CreateManuscript(m *Manuscript) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`INSERT INTO manuscripts
-		(id, session_id, tenant_id, title, abstract, state, content_hash, build_hash,
+		(id, session_id, tenant_id, title, abstract, state, request_id, content_hash, build_hash,
 		 review_json, campaign_json, evidence_json, authors_json, figures_json,
 		 figure_sha_json, source_date_epoch, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.ID, m.SessionID, m.TenantID, m.Title, m.Abstract, m.State, m.ContentHash,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.SessionID, m.TenantID, m.Title, m.Abstract, m.State, m.RequestID, m.ContentHash,
 		m.BuildHash, m.ReviewJSON, m.CampaignJSON, m.EvidenceJSON, m.AuthorsJSON,
 		m.FiguresJSON, m.FigureSHAJSON, m.SourceDateEpoch, m.CreatedAt, m.UpdatedAt); err != nil {
 		return fmt.Errorf("insert manuscript: %w", err)
@@ -260,11 +280,11 @@ func (l *Ledger) ListManuscripts(sessionID string) ([]ManuscriptSummary, error) 
 func (l *Ledger) GetManuscript(sessionID, id string) (*Manuscript, error) {
 	var m Manuscript
 	err := l.DB().QueryRow(`SELECT id, session_id, tenant_id, title, abstract, state,
-		content_hash, build_hash, review_json, campaign_json, evidence_json, authors_json,
+		request_id, content_hash, build_hash, review_json, campaign_json, evidence_json, authors_json,
 		figures_json, figure_sha_json, source_date_epoch, created_at, updated_at
 		FROM manuscripts WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&m.ID, &m.SessionID, &m.TenantID, &m.Title, &m.Abstract, &m.State,
-		&m.ContentHash, &m.BuildHash, &m.ReviewJSON, &m.CampaignJSON, &m.EvidenceJSON,
+		&m.RequestID, &m.ContentHash, &m.BuildHash, &m.ReviewJSON, &m.CampaignJSON, &m.EvidenceJSON,
 		&m.AuthorsJSON, &m.FiguresJSON, &m.FigureSHAJSON, &m.SourceDateEpoch,
 		&m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -613,4 +633,170 @@ func (l *Ledger) GetManuscriptSignoff(manuscriptID string) (*ManuscriptSignoff, 
 		return nil, err
 	}
 	return &s, nil
+}
+
+// Manuscript annotation statuses (closed vocabulary).
+const (
+	AnnotationOpen      = "open"
+	AnnotationAddressed = "addressed"
+	AnnotationDismissed = "dismissed"
+)
+
+// ManuscriptAnnotation is one human review note anchored to a section of a
+// specific draft. Annotations are evidence of review, not part of the
+// rendered document, so they never enter the content hash; an open annotation
+// blocks signoff.
+type ManuscriptAnnotation struct {
+	ID           string `json:"id"`
+	ManuscriptID string `json:"manuscript_id"`
+	Author       string `json:"author"`
+	Anchor       string `json:"anchor"`
+	Body         string `json:"body"`
+	Status       string `json:"status"`
+	ContentHash  string `json:"content_hash"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+func validAnnotationStatus(status string) bool {
+	switch status {
+	case AnnotationOpen, AnnotationAddressed, AnnotationDismissed:
+		return true
+	}
+	return false
+}
+
+func (l *Ledger) manuscriptTenant(sessionID, manuscriptID string) (string, string, error) {
+	var tenant, contentHash string
+	err := l.DB().QueryRow(`SELECT tenant_id, content_hash FROM manuscripts
+		WHERE session_id = ? AND id = ?`, sessionID, manuscriptID).Scan(&tenant, &contentHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", ErrManuscriptNotFound
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return tenant, contentHash, nil
+}
+
+func (l *Ledger) AddManuscriptAnnotation(sessionID, manuscriptID string, a ManuscriptAnnotation) error {
+	if a.ID == "" || a.Author == "" || a.Body == "" {
+		return fmt.Errorf("annotation needs id, author, and body")
+	}
+	if a.Anchor == "" {
+		a.Anchor = "general"
+	}
+	if a.Status == "" {
+		a.Status = AnnotationOpen
+	}
+	if !validAnnotationStatus(a.Status) {
+		return fmt.Errorf("annotation status %q is not open|addressed|dismissed", a.Status)
+	}
+	tenant, contentHash, err := l.manuscriptTenant(sessionID, manuscriptID)
+	if err != nil {
+		return err
+	}
+	now := nowUTC()
+	_, err = l.DB().Exec(`INSERT INTO manuscript_annotations
+		(id, manuscript_id, session_id, tenant_id, author, anchor, body, status,
+		 content_hash, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, manuscriptID, sessionID, tenant, a.Author, a.Anchor, a.Body, a.Status,
+		contentHash, now, now)
+	if err != nil {
+		return fmt.Errorf("insert manuscript annotation: %w", err)
+	}
+	return nil
+}
+
+func (l *Ledger) ListManuscriptAnnotations(sessionID, manuscriptID string) ([]ManuscriptAnnotation, error) {
+	if _, _, err := l.manuscriptTenant(sessionID, manuscriptID); err != nil {
+		return nil, err
+	}
+	rows, err := l.DB().Query(`SELECT id, manuscript_id, author, anchor, body, status,
+		content_hash, created_at, updated_at FROM manuscript_annotations
+		WHERE manuscript_id = ? ORDER BY created_at, id`, manuscriptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ManuscriptAnnotation{}
+	for rows.Next() {
+		var a ManuscriptAnnotation
+		if err := rows.Scan(&a.ID, &a.ManuscriptID, &a.Author, &a.Anchor, &a.Body,
+			&a.Status, &a.ContentHash, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (l *Ledger) SetManuscriptAnnotationStatus(sessionID, manuscriptID, annotationID, status string) error {
+	status = strings.ToLower(strings.TrimSpace(status))
+	if !validAnnotationStatus(status) {
+		return fmt.Errorf("annotation status %q is not open|addressed|dismissed", status)
+	}
+	if _, _, err := l.manuscriptTenant(sessionID, manuscriptID); err != nil {
+		return err
+	}
+	res, err := l.DB().Exec(`UPDATE manuscript_annotations SET status = ?, updated_at = ?
+		WHERE manuscript_id = ? AND id = ?`, status, nowUTC(), manuscriptID, annotationID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrManuscriptNotFound
+	}
+	return nil
+}
+
+func (l *Ledger) CountOpenAnnotations(sessionID, manuscriptID string) (int, error) {
+	if _, _, err := l.manuscriptTenant(sessionID, manuscriptID); err != nil {
+		return 0, err
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM manuscript_annotations
+		WHERE manuscript_id = ? AND status = ?`, manuscriptID, AnnotationOpen).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// GetManuscriptByRequestID resolves an idempotent create. Empty ids never
+// match: only explicit request ids participate.
+func (l *Ledger) GetManuscriptByRequestID(sessionID, requestID string) (*Manuscript, error) {
+	if strings.TrimSpace(requestID) == "" {
+		return nil, ErrManuscriptNotFound
+	}
+	var id string
+	err := l.DB().QueryRow(`SELECT id FROM manuscripts WHERE session_id = ? AND request_id = ?`,
+		sessionID, requestID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrManuscriptNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return l.GetManuscript(sessionID, id)
+}
+
+// SetManuscriptState records an explicit state transition (used by deposit
+// staging to distinguish "built" from "staged"). Unknown states refuse.
+func (l *Ledger) SetManuscriptState(sessionID, id, state string) error {
+	switch state {
+	case ManuscriptStateDraft, ManuscriptStateReviewed, ManuscriptStateSigned,
+		ManuscriptStateBuilt, ManuscriptStateDepositReady:
+	default:
+		return fmt.Errorf("unknown manuscript state %q", state)
+	}
+	res, err := l.DB().Exec(`UPDATE manuscripts SET state = ?, updated_at = ?
+		WHERE session_id = ? AND id = ?`, state, nowUTC(), sessionID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrManuscriptNotFound
+	}
+	return nil
 }

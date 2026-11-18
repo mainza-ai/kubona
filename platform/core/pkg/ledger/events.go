@@ -95,6 +95,8 @@ var KnownEventTypes = map[string]bool{
 	"loop_stalled_timeout":              true,
 	"mandate_verified_client":           true,
 	"mandate_verified_pqc_mlkem768":     true,
+	"manuscript_annotated":              true,
+	"manuscript_annotation_resolved":    true,
 	"manuscript_built":                  true,
 	"manuscript_deposit_staged":         true,
 	"manuscript_drafted":                true,

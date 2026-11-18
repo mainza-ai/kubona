@@ -374,6 +374,10 @@ func TestManuscriptBuildSignoffAndDeposit(t *testing.T) {
 	if deposit.Manifest.State != "staged-needs-human-upload" || deposit.Manifest.AutoPublish || deposit.Manifest.DOI != nil {
 		t.Fatalf("manifest is not a human-upload staging record: %+v", deposit.Manifest)
 	}
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts/"+ms.ID, "", nil)
+	if !strings.Contains(w.Body.String(), `"state":"deposit_ready"`) {
+		t.Fatalf("deposit did not mark the manuscript deposit_ready: %s", w.Body.String())
+	}
 }
 
 func TestManuscriptDepositRefusesWithoutAcceptReview(t *testing.T) {
@@ -572,5 +576,98 @@ func TestManuscriptHashCoversSectionOrder(t *testing.T) {
 	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+detail.Manuscript.ID+"/build", "", nil)
 	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "source_changed") {
 		t.Fatalf("reordered sections = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestManuscriptAnnotationsGateSignoff(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "review me"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			ID          string `json:"id"`
+			ContentHash string `json:"content_hash"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+	mid := detail.Manuscript.ID
+
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/annotations", "",
+		map[string]any{"anchor": "results", "body": "Explain the discrepancy."})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("annotation = %d: %s", w.Code, w.Body.String())
+	}
+	var ann struct {
+		Annotation struct {
+			ID string `json:"id"`
+		} `json:"annotation"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &ann)
+
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/signoff", "op-token",
+		map[string]any{"content_hash": detail.Manuscript.ContentHash})
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "annotations_open") {
+		t.Fatalf("signoff with open note = %d %s", w.Code, w.Body.String())
+	}
+
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts/"+mid, "", nil)
+	if !strings.Contains(w.Body.String(), `"open_annotations":1`) {
+		t.Fatalf("detail open count missing: %s", w.Body.String())
+	}
+
+	w = doJSON(t, srv, http.MethodPatch,
+		"/api/sessions/"+sid+"/manuscripts/"+mid+"/annotations/"+ann.Annotation.ID, "",
+		map[string]any{"status": "addressed"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("resolve = %d: %s", w.Code, w.Body.String())
+	}
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/signoff", "op-token",
+		map[string]any{"content_hash": detail.Manuscript.ContentHash})
+	if w.Code != http.StatusOK {
+		t.Fatalf("signoff after resolve = %d: %s", w.Code, w.Body.String())
+	}
+
+	// A second lab cannot read the notes.
+	other := createSession(t, srv, "other")
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+other+"/manuscripts/"+mid+"/annotations", "", nil)
+	if w.Code == http.StatusOK {
+		t.Fatalf("cross-tenant annotations = 200: %s", w.Body.String())
+	}
+}
+
+func TestManuscriptCreateIsIdempotentByRequestID(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	body := map[string]any{"request_id": "ms-create-1", "title": "Once"}
+	first := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", body)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create = %d: %s", first.Code, first.Body.String())
+	}
+	second := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", body)
+	if second.Code != http.StatusOK {
+		t.Fatalf("replay = %d: %s", second.Code, second.Body.String())
+	}
+	var a, b struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(first.Body.Bytes(), &a)
+	json.Unmarshal(second.Body.Bytes(), &b)
+	if a.Manuscript.ID == "" || a.Manuscript.ID != b.Manuscript.ID {
+		t.Fatalf("replay created a second draft: %q vs %q", a.Manuscript.ID, b.Manuscript.ID)
+	}
+	list := doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/manuscripts", "", nil)
+	if !strings.Contains(list.Body.String(), `"id":"`+a.Manuscript.ID+`"`) || strings.Count(list.Body.String(), `"id":"`) != 1 {
+		t.Fatalf("idempotent create persisted duplicates: %s", list.Body.String())
 	}
 }

@@ -914,6 +914,27 @@
         "signer_pubkey_hex"
       ]
     },
+    "manuscript_annotated": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Human review note recorded against a manuscript section.",
+      "required": [
+        "manuscript_id",
+        "annotation_id"
+      ]
+    },
+    "manuscript_annotation_resolved": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Manuscript annotation addressed or dismissed.",
+      "required": [
+        "manuscript_id",
+        "annotation_id",
+        "status"
+      ]
+    },
     "manuscript_built": {
       "emitters": [
         "go"

@@ -30,7 +30,15 @@ function detail(over: Record<string, unknown> = {}) {
       ...over,
     },
     reviews: [{ id: 'r1', reviewer: 'automated_peer_review', recommendation: 'REVISE', acceptable: false, mean_score: 6.9, hygiene: 4, content_hash: 'abcdef1234567890', created_at: '2026-11-18T00:00:00Z' }],
+    annotations: [],
+    open_annotations: 0,
   };
+}
+
+function setInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function json(body: unknown, status = 200) {
@@ -46,6 +54,15 @@ function installFetch(overrides: {
   deposit?: () => unknown;
 } = {}) {
   const calls: Call[] = [];
+  let annotations: Array<Record<string, unknown>> = [];
+  const detailWithNotes = () => {
+    const base = (overrides.detail ?? detail()) as { manuscript: Record<string, unknown>; reviews: unknown[] };
+    return {
+      ...base,
+      annotations,
+      open_annotations: annotations.filter((a) => a.status === 'open').length,
+    };
+  };
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
     const parsed = new URL(String(url));
     const path = parsed.pathname;
@@ -57,7 +74,30 @@ function installFetch(overrides: {
       return json({ manuscripts: overrides.list ?? [] });
     }
     if (method === 'GET' && /^\/api\/sessions\/[^/]+\/manuscripts\/[^/]+$/.test(path)) {
-      return json(overrides.detail ?? detail());
+      return json(detailWithNotes());
+    }
+    if (method === 'GET' && /\/annotations$/.test(path)) {
+      return json({ annotations });
+    }
+    if (method === 'POST' && /\/annotations$/.test(path)) {
+      const annotation = {
+        id: `ann_${annotations.length + 1}`,
+        manuscript_id: 'ms_1',
+        author: 'operator',
+        anchor: body?.anchor ?? 'general',
+        body: body?.body ?? '',
+        status: 'open',
+        content_hash: 'abcdef1234567890',
+        created_at: '2026-11-18T00:00:00Z',
+        updated_at: '2026-11-18T00:00:00Z',
+      };
+      annotations = [annotation, ...annotations];
+      return json({ annotation }, 201);
+    }
+    if (method === 'PATCH' && /\/annotations\/[^/]+$/.test(path)) {
+      const id = path.split('/').pop();
+      annotations = annotations.map((a) => (a.id === id ? { ...a, status: body?.status } : a));
+      return json(detailWithNotes());
     }
     if (method === 'POST' && /^\/api\/sessions\/[^/]+\/manuscripts$/.test(path)) {
       return overrides.create ? overrides.create() : json(detail(), 201);
@@ -135,5 +175,41 @@ describe('PublicationPanel', () => {
     const deposit = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Stage deposit')) as HTMLButtonElement | undefined;
     expect(deposit?.disabled).toBe(true);
     expect(screen.container.textContent).toContain('requires a comparator-linked kernel proof');
+  });
+});
+
+
+describe('PublicationPanel review notes', () => {
+  it('persists a note and blocks signoff while it is open', async () => {
+    const calls = installFetch({ list: [SUMMARY], detail: detail() });
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
+
+    const input = screen.container.querySelector('input[aria-label="Review note"]') as HTMLInputElement;
+    setInputValue(input, 'Explain the 15 mHa gap.');
+    const add = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add note'));
+    add!.click();
+
+    await vi.waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.path.endsWith('/annotations'))).toBe(true));
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('1 open'));
+    const sign = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Sign off')) as HTMLButtonElement | undefined;
+    expect(sign?.disabled).toBe(true);
+  });
+
+  it('resolves a note and unblocks signoff', async () => {
+    const calls = installFetch({ list: [SUMMARY], detail: detail() });
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
+
+    const input = screen.container.querySelector('input[aria-label="Review note"]') as HTMLInputElement;
+    setInputValue(input, 'Check the anchor.');
+    Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add note'))!.click();
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('1 open'));
+
+    Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Mark addressed'))!.click();
+    await vi.waitFor(() => expect(calls.some((c) => c.method === 'PATCH' && c.path.includes('/annotations/'))).toBe(true));
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('0 open'));
+    const sign = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Sign off')) as HTMLButtonElement | undefined;
+    expect(sign?.disabled).toBe(false);
   });
 });

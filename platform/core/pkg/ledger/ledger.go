@@ -91,10 +91,11 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // binary refuses to open rather than being silently downgraded.
 //
 // History: 1 = baseline; 2 = publication tables (manuscripts/sections/
-// reviews/artifacts/signoffs/citations). The bump makes an existing ledger
-// take a verified pre-migration snapshot before the additive DDL, which is
-// the production upgrade invariant.
-const CurrentSchemaVersion = 2
+// reviews/artifacts/signoffs/citations); 3 = annotation table + idempotent
+// create column. Each bump makes an existing ledger take a verified
+// pre-migration snapshot before the additive DDL, which is the production
+// upgrade invariant.
+const CurrentSchemaVersion = 3
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -766,11 +767,19 @@ func migrateLegacySchema(db *sql.DB) error {
 		`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE loops ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE claim_records ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE manuscripts ADD COLUMN request_id TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, stmt := range addColumns {
 		if err := execMigration(db, stmt, "duplicate column name"); err != nil {
 			return err
 		}
+	}
+	// Idempotent create: one manuscript per (session, explicit request id).
+	// Created after the ALTER so an existing ledger without the column is
+	// migrated before the index is built.
+	if err := execMigration(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_manuscripts_request
+		ON manuscripts(session_id, request_id) WHERE request_id != ''`); err != nil {
+		return err
 	}
 
 	// One-time backfills only when the legacy REAL column is present. On a

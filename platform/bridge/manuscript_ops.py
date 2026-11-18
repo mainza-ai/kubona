@@ -549,6 +549,8 @@ def build_project(
                 cmd, cwd=project, env=env, capture_output=True, text=True, timeout=180,
             )
             log.append(f"$ {' '.join(cmd)} (exit {proc.returncode})")
+            if proc.stdout:
+                log.append(proc.stdout[-8000:])
             if proc.returncode != 0:
                 detail = (proc.stdout or "") + (proc.stderr or "")
                 raise ManuscriptError(
@@ -567,13 +569,19 @@ def build_project(
         if not pdf.startswith(b"%PDF-") or len(pdf) < 1024:
             raise ManuscriptError("build_failed", "main.pdf is not a plausible PDF")
 
+        # Keep a scrubbed build log: it is the diagnostic record for a
+        # successful build (the error path already returns the tail). The
+        # project temp path is replaced so the artifact carries no host paths.
+        (project / "build.log").write_text(
+            "\n".join(log).replace(str(project), "<project>"), encoding="utf-8")
+
         artifacts: List[Dict[str, Any]] = []
         total = 0
         for path in sorted(project.rglob("*")):
             if not path.is_file():
                 continue
             rel = path.relative_to(project).as_posix()
-            if rel.startswith(".") or rel.endswith((".aux", ".log", ".out", ".toc")):
+            if rel.startswith(".") or rel == "main.log" or rel.endswith((".aux", ".out", ".toc", ".blg")):
                 continue
             size = path.stat().st_size
             if size > _MAX_FIGURE_BYTES:

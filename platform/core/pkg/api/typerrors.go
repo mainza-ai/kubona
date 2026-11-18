@@ -85,6 +85,7 @@ var errorRegistry = map[string]errorSpec{
 	"build_unavailable":         {"upstream", 503, true, "install the TeX toolchain in the bridge image or retry when it is available; no PDF is produced without it"},
 	"build_failed":              {"upstream", 502, false, "read the build log in the response and fix the LaTeX source or figure; the build is deterministic and will not fix itself"},
 	"reviewer_key_unconfigured": {"internal", 503, false, "commission KUBONA_REVIEWER_PRIVKEY_HEX on the deployment host before signing manuscripts"},
+	"annotations_open":          {"state", 409, false, "resolve or dismiss every open manuscript annotation before signing off"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

@@ -86,6 +86,7 @@ type manuscriptRequest struct {
 }
 
 type manuscriptCreateBody struct {
+	RequestID    string               `json:"request_id"`
 	Title        string               `json:"title"`
 	Authors      []string             `json:"authors"`
 	Abstract     string               `json:"abstract"`
@@ -149,6 +150,16 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 	}
 	if strings.HasSuffix(rest, "/deposit") {
 		s.handleManuscriptDeposit(w, r, sessionID, strings.TrimSuffix(rest, "/deposit"))
+		return
+	}
+	if idx := strings.Index(rest, "/annotations"); idx > 0 {
+		mid := rest[:idx]
+		tail := strings.TrimPrefix(rest[idx:], "/annotations")
+		if strings.Contains(mid, "/") || (tail != "" && !strings.HasPrefix(tail, "/")) {
+			WriteAPIError(w, "not_found", "unknown manuscript route", nil)
+			return
+		}
+		s.handleManuscriptAnnotations(w, r, sessionID, mid, strings.TrimPrefix(tail, "/"))
 		return
 	}
 	if strings.Contains(rest, "/") {
@@ -240,6 +251,19 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid manuscript request: %v", err), nil)
 		return
 	}
+	if body.RequestID != "" {
+		if err := ValidateRequestID(body.RequestID); err != nil {
+			WriteAPIError(w, "bad_request", err.Error(), nil)
+			return
+		}
+		if existing, gerr := s.ledger.GetManuscriptByRequestID(sessionID, body.RequestID); gerr == nil {
+			s.writeManuscriptDetail(w, sessionID, existing.ID, http.StatusOK)
+			return
+		} else if !errors.Is(gerr, ledger.ErrManuscriptNotFound) {
+			WriteAPIError(w, "internal", "idempotency lookup failed", nil)
+			return
+		}
+	}
 	rawState, err := s.ledger.GetCampaignState(sessionID)
 	if err != nil || len(rawState) == 0 {
 		WriteAPIError(w, "campaign_missing", "no campaign projection exists for this session", nil)
@@ -323,6 +347,7 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		Title:           resp.Title,
 		Abstract:        resp.Abstract,
 		State:           ledger.ManuscriptStateDraft,
+		RequestID:       body.RequestID,
 		ContentHash:     hash,
 		ReviewJSON:      nonEmptyJSON(resp.Review),
 		CampaignJSON:    string(rawState),
@@ -335,13 +360,23 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		Citations:       storedCitations,
 	}
 	if err := s.ledger.CreateManuscript(ms); err != nil {
+		// A concurrent create may have won the unique request-id index.
+		if body.RequestID != "" {
+			if existing, gerr := s.ledger.GetManuscriptByRequestID(sessionID, body.RequestID); gerr == nil {
+				s.writeManuscriptDetail(w, sessionID, existing.ID, http.StatusOK)
+				return
+			}
+		}
 		WriteAPIError(w, "internal", "manuscript persistence failed: "+err.Error(), nil)
 		return
 	}
-	_ = s.ledger.AppendEvent(sessionID, "manuscript_drafted", map[string]any{
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_drafted", map[string]any{
 		"manuscript_id": id, "content_hash": hash,
 		"review": reviewRecommendation(ms.ReviewJSON),
-	})
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
 	s.recordManuscriptReview(sessionID, ms)
 
 	if body.Build {
@@ -368,7 +403,23 @@ func (s *Server) writeManuscriptDetail(w http.ResponseWriter, sessionID, id stri
 		WriteAPIError(w, "internal", "manuscript reviews read failed", nil)
 		return
 	}
-	writeJSON(w, status, map[string]any{"manuscript": manuscriptJSON(ms), "reviews": reviews})
+	annotations, err := s.ledger.ListManuscriptAnnotations(sessionID, id)
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript annotations read failed", nil)
+		return
+	}
+	open := 0
+	for _, a := range annotations {
+		if a.Status == ledger.AnnotationOpen {
+			open++
+		}
+	}
+	writeJSON(w, status, map[string]any{
+		"manuscript":       manuscriptJSON(ms),
+		"reviews":          reviews,
+		"annotations":      annotations,
+		"open_annotations": open,
+	})
 }
 
 func manuscriptJSON(ms *ledger.Manuscript) map[string]any {
@@ -472,7 +523,9 @@ func (s *Server) handleManuscriptBuild(w http.ResponseWriter, r *http.Request, s
 
 // buildStoredManuscript recomposes from the stored snapshot, refuses a
 // changed source, and installs the artifact set.
-func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscript) error {
+func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscript) (err error) {
+	started := time.Now()
+	defer func() { s.observeManuscriptBuild(err, time.Since(started)) }()
 	req, err := s.storedManuscriptRequest(ms, true)
 	if err != nil {
 		return err
@@ -494,9 +547,11 @@ func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscrip
 	if err := s.ledger.ReplaceManuscriptArtifacts(ms.SessionID, ms.ID, resp.Build.BuildHash, artifacts); err != nil {
 		return err
 	}
-	_ = s.ledger.AppendEvent(ms.SessionID, "manuscript_built", map[string]any{
+	if err := s.recordManuscriptEvent(ms.SessionID, "manuscript_built", map[string]any{
 		"manuscript_id": ms.ID, "build_hash": resp.Build.BuildHash,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -550,10 +605,13 @@ func (s *Server) handleManuscriptReviews(w http.ResponseWriter, r *http.Request,
 	}
 	ms.ReviewJSON = nonEmptyJSON(resp.Review)
 	s.recordManuscriptReview(sessionID, ms)
-	_ = s.ledger.AppendEvent(sessionID, "manuscript_reviewed", map[string]any{
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_reviewed", map[string]any{
 		"manuscript_id": id, "recommendation": reviewRecommendation(ms.ReviewJSON),
 		"content_hash": ms.ContentHash,
-	})
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
 	s.writeManuscriptDetail(w, sessionID, id, http.StatusOK)
 }
 
@@ -590,6 +648,16 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 	}
 	if body.ContentHash == "" || body.ContentHash != ms.ContentHash {
 		WriteAPIError(w, "content_hash_mismatch", "signoff must name the manuscript's current content hash", nil)
+		return
+	}
+	open, err := s.ledger.CountOpenAnnotations(sessionID, id)
+	if err != nil {
+		WriteAPIError(w, "internal", "annotation count failed", nil)
+		return
+	}
+	if open > 0 {
+		WriteAPIError(w, "annotations_open",
+			fmt.Sprintf("%d open annotation(s) must be resolved before signoff", open), nil)
 		return
 	}
 	expiry, err := normalizeExpiry(body.Expiry)
@@ -692,9 +760,16 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		WriteAPIError(w, "internal", "deposit artifact persistence failed: "+err.Error(), nil)
 		return
 	}
-	_ = s.ledger.AppendEvent(sessionID, "manuscript_deposit_staged", map[string]any{
+	if err := s.ledger.SetManuscriptState(sessionID, id, ledger.ManuscriptStateDepositReady); err != nil {
+		WriteAPIError(w, "internal", "deposit state failed: "+err.Error(), nil)
+		return
+	}
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_deposit_staged", map[string]any{
 		"manuscript_id": id, "content_hash": ms.ContentHash, "build_hash": ms.BuildHash,
-	})
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "manifest": manifest})
 }
 
@@ -1107,4 +1182,120 @@ func normalizeExpiry(raw string) (string, error) {
 		return "", fmt.Errorf("expiry must be within %s", maxManuscriptExpiry)
 	}
 	return t.UTC().Format(time.RFC3339), nil
+}
+
+// handleManuscriptAnnotations serves review notes. `tail` is "" for the
+// collection and the annotation id for a status change.
+func (s *Server) handleManuscriptAnnotations(w http.ResponseWriter, r *http.Request, sessionID, manuscriptID, tail string) {
+	if tail == "" {
+		switch r.Method {
+		case http.MethodGet:
+			annotations, err := s.ledger.ListManuscriptAnnotations(sessionID, manuscriptID)
+			if errors.Is(err, ledger.ErrManuscriptNotFound) {
+				WriteAPIError(w, "not_found", "unknown manuscript", nil)
+				return
+			}
+			if err != nil {
+				WriteAPIError(w, "internal", "annotation read failed", nil)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"annotations": annotations})
+		case http.MethodPost:
+			var body struct {
+				Anchor string `json:"anchor"`
+				Body   string `json:"body"`
+			}
+			if err := decodeStrict(r, &body); err != nil {
+				WriteAPIError(w, "bad_request", fmt.Sprintf("invalid annotation: %v", err), nil)
+				return
+			}
+			if strings.TrimSpace(body.Body) == "" {
+				WriteAPIError(w, "bad_request", "annotation body is required", nil)
+				return
+			}
+			annotation := ledger.ManuscriptAnnotation{
+				ID:     "ann_" + newManuscriptID()[3:],
+				Author: s.callerActor(r),
+				Anchor: strings.TrimSpace(body.Anchor),
+				Body:   strings.TrimSpace(body.Body),
+				Status: ledger.AnnotationOpen,
+			}
+			if err := s.ledger.AddManuscriptAnnotation(sessionID, manuscriptID, annotation); err != nil {
+				if errors.Is(err, ledger.ErrManuscriptNotFound) {
+					WriteAPIError(w, "not_found", "unknown manuscript", nil)
+					return
+				}
+				WriteAPIError(w, "internal", "annotation persistence failed: "+err.Error(), nil)
+				return
+			}
+			if err := s.recordManuscriptEvent(sessionID, "manuscript_annotated", map[string]any{
+				"manuscript_id": manuscriptID, "annotation_id": annotation.ID,
+				"anchor": annotation.Anchor,
+			}); err != nil {
+				WriteAPIError(w, "internal", "annotation event failed: "+err.Error(), nil)
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"annotation": annotation})
+		default:
+			WriteAPIError(w, "method_not_allowed", "annotations support GET and POST", nil)
+		}
+		return
+	}
+	if strings.Contains(tail, "/") {
+		WriteAPIError(w, "not_found", "unknown annotation route", nil)
+		return
+	}
+	if r.Method != http.MethodPatch && r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "annotation status is PATCH-only", nil)
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := decodeStrict(r, &body); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid status: %v", err), nil)
+		return
+	}
+	if err := s.ledger.SetManuscriptAnnotationStatus(sessionID, manuscriptID, tail, body.Status); err != nil {
+		if errors.Is(err, ledger.ErrManuscriptNotFound) {
+			WriteAPIError(w, "not_found", "unknown annotation", nil)
+			return
+		}
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_annotation_resolved", map[string]any{
+		"manuscript_id": manuscriptID, "annotation_id": tail, "status": body.Status,
+	}); err != nil {
+		WriteAPIError(w, "internal", "annotation event failed: "+err.Error(), nil)
+		return
+	}
+	s.writeManuscriptDetail(w, sessionID, manuscriptID, http.StatusOK)
+}
+
+// recordManuscriptEvent appends an informational publication event with the
+// durable spool fallback. A failure means neither the ledger nor the spool
+// accepted it, so the caller refuses instead of leaving silent state.
+func (s *Server) recordManuscriptEvent(sessionID, eventType string, payload map[string]any) error {
+	// A spooled event is durable and replays on the next open; only a failure
+	// of BOTH the ledger and the spool refuses the request.
+	_, err := s.ledger.AppendEventWithSpool(sessionID, eventType, payload)
+	return err
+}
+
+// observeManuscriptBuild records one build outcome. Metrics are observational:
+// they never change the build result.
+func (s *Server) observeManuscriptBuild(err error, elapsed time.Duration) {
+	result := "success"
+	if err != nil {
+		result = "failure"
+	}
+	s.manuscriptMu.Lock()
+	defer s.manuscriptMu.Unlock()
+	if s.manuscriptBuilds == nil {
+		s.manuscriptBuilds = map[string]int64{}
+	}
+	s.manuscriptBuilds[result]++
+	s.manuscriptBuildSeconds += elapsed.Seconds()
+	s.manuscriptBuildCount++
 }

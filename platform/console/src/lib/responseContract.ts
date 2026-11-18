@@ -755,6 +755,8 @@ export const RESPONSE_SCHEMAS = {
       updated_at: str,
     }),
     reviews: arr(any),
+    annotations: arr(any),
+    open_annotations: num,
   }),
   'manuscripts.create': obj({
     manuscript: any,
@@ -775,6 +777,12 @@ export const RESPONSE_SCHEMAS = {
   'manuscripts.deposit': obj({
     ok: bool,
     manifest: any,
+  }),
+  'manuscripts.annotations': obj({
+    annotations: arr(any),
+  }),
+  'manuscripts.annotation': obj({
+    annotation: any,
   }),
   'quantum.backends': obj({
     backends: arr(

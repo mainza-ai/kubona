@@ -30,3 +30,9 @@ func (l *Ledger) countBy(query string) (map[string]int64, error) {
 	}
 	return out, rows.Err()
 }
+
+func (l *Ledger) ManuscriptArtifactBytes() (int64, error) {
+	var n int64
+	err := l.DB().QueryRow(`SELECT COALESCE(SUM(LENGTH(content)), 0) FROM manuscript_artifacts`).Scan(&n)
+	return n, err
+}

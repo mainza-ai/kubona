@@ -87,6 +87,8 @@
     "loops.list",
     "mandate.sign",
     "mandate.verify",
+    "manuscripts.annotation",
+    "manuscripts.annotations",
     "manuscripts.build",
     "manuscripts.create",
     "manuscripts.deposit",
@@ -245,6 +247,8 @@
     "loops.list",
     "mandate.sign",
     "mandate.verify",
+    "manuscripts.annotation",
+    "manuscripts.annotations",
     "manuscripts.build",
     "manuscripts.create",
     "manuscripts.deposit",
@@ -442,6 +446,12 @@
       "path": "/api/sessions/:sessionId/manuscripts",
       "method": "POST",
       "contract": "manuscripts.create"
+    },
+    {
+      "function": "createManuscriptAnnotation",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/annotations",
+      "method": "POST",
+      "contract": "manuscripts.annotation"
     },
     {
       "function": "createSession",
@@ -724,6 +734,12 @@
       "path": "/api/sessions/:sessionId/manuscripts/:id",
       "method": "GET",
       "contract": "manuscripts.detail"
+    },
+    {
+      "function": "fetchManuscriptAnnotations",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/annotations",
+      "method": "GET",
+      "contract": "manuscripts.annotations"
     },
     {
       "function": "fetchManuscripts",
@@ -1258,6 +1274,12 @@
       "path": "/api/llm/settings",
       "method": "PATCH",
       "contract": "settings.update"
+    },
+    {
+      "function": "setManuscriptAnnotationStatus",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/annotations/:annotationId",
+      "method": "PATCH",
+      "contract": "manuscripts.detail"
     },
     {
       "function": "setTenantAutonomy",

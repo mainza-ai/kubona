@@ -10,7 +10,8 @@ Counts are source-derived and deliberately conservative:
 - routes: `s.route("...")` registrations in the Go API server.
 - Go packages: directories under platform/core that contain .go files.
 - Go test funcs: top-level `func Test...` declarations in *_test.go.
-- Python test files: test_*.py under platform/tests.
+- Python test files: test_*.py under platform/tests (bridge tests counted separately).
+- OpenAPI paths/operations: the generated console contract document.
 - console test files/cases: *.test.ts(x) and `it(`/`test(` declarations.
 - Rust tests: `#[test]` attributes.
 - MCP servers/tools: the reviewed catalog JSON.
@@ -65,6 +66,20 @@ def count_python_test_files() -> int:
     return len(list((ROOT / "platform/tests").rglob("test_*.py")))
 
 
+def count_bridge_test_files() -> int:
+    return len(list((ROOT / "platform/bridge").glob("test_*.py")))
+
+
+def count_openapi() -> tuple[int, int]:
+    data = json.loads(read(ROOT / "platform/contracts/console-openapi.json"))
+    paths = data.get("paths", {})
+    verbs = {"get", "post", "put", "patch", "delete", "head", "options"}
+    operations = sum(
+        1 for item in paths.values() for key in item if key.lower() in verbs
+    )
+    return len(paths), operations
+
+
 def count_console_tests() -> tuple[int, int]:
     files = list((ROOT / "platform/console/src").rglob("*.test.ts"))
     files += list((ROOT / "platform/console/src").rglob("*.test.tsx"))
@@ -95,11 +110,15 @@ def count_wiki_pages() -> int:
 def render() -> str:
     servers, tools = count_mcp()
     console_files, console_cases = count_console_tests()
+    openapi_paths, openapi_ops = count_openapi()
     rows = [
-        ("HTTP routes (Go API)", count_routes(), "s.route registrations in `platform/core/pkg/api/server.go`"),
+        ("HTTP route patterns (Go API)", count_routes(), "`s.route` registrations in `platform/core/pkg/api/server.go` (sub-paths share a pattern)"),
+        ("OpenAPI paths", openapi_paths, "generated `platform/contracts/console-openapi.json`"),
+        ("OpenAPI operations", openapi_ops, "method+path operations in the generated document"),
         ("Go packages", count_go_packages(), "directories under `platform/core` containing `.go` files"),
         ("Go test functions", count_go_test_funcs(), "top-level `func Test...` in `*_test.go`"),
-        ("Python test files", count_python_test_files(), "`test_*.py` under `platform/tests`"),
+        ("Python test files (tests/)", count_python_test_files(), "`test_*.py` under `platform/tests`"),
+        ("Bridge test files", count_bridge_test_files(), "`test_*.py` under `platform/bridge`"),
         ("Console test files", console_files, "`*.test.ts` / `*.test.tsx` under `platform/console/src`"),
         ("Console test cases", console_cases, "`it(` / `test(` declarations in console test files"),
         ("Rust tests", count_rust_tests(), "`#[test]` attributes under `platform/crates`"),

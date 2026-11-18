@@ -7,10 +7,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import {
   buildManuscript,
   createManuscript,
+  createManuscriptAnnotation,
   fetchManuscript,
   fetchManuscripts,
   manuscriptArtifactUrl,
   reviewManuscript,
+  setManuscriptAnnotationStatus,
   signoffManuscript,
   stageManuscriptDeposit,
   type ManuscriptDetail,
@@ -29,6 +31,7 @@ function recommendationOf(detail: ManuscriptDetail): string {
 function toneFor(state: string): 'neutral' | 'info' | 'success' | 'warning' {
   switch (state) {
     case 'signed':
+    case 'deposit_ready':
       return 'success';
     case 'built':
       return 'info';
@@ -51,6 +54,8 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [annotationAnchor, setAnnotationAnchor] = useState('general');
+  const [annotationBody, setAnnotationBody] = useState('');
 
   const load = useCallback(async (preferId?: string) => {
     if (!sessionId) {
@@ -127,6 +132,49 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
     setBusy(null);
   };
 
+  const reloadSelected = async (id: string) => {
+    if (!sessionId) return;
+    const opened = await fetchManuscript(sessionId, id);
+    if (opened.ok) setSelected(opened.data);
+    else setError(opened.error);
+  };
+
+  const addAnnotation = async () => {
+    const body = annotationBody.trim();
+    if (!body || !selected || !sessionId) return;
+    setBusy('annotate');
+    setError(null);
+    setNotice(null);
+    const created = await createManuscriptAnnotation(
+      sessionId, selected.manuscript.id, annotationAnchor, body,
+    );
+    if (!created.ok) {
+      setError(created.error);
+    } else {
+      setAnnotationBody('');
+      setNotice('Review note added.');
+      await reloadSelected(selected.manuscript.id);
+    }
+    setBusy(null);
+  };
+
+  const resolveAnnotation = async (annotationId: string, status: 'addressed' | 'dismissed') => {
+    if (!selected || !sessionId) return;
+    setBusy(`annot-${annotationId}`);
+    setError(null);
+    setNotice(null);
+    const updated = await setManuscriptAnnotationStatus(
+      sessionId, selected.manuscript.id, annotationId, status,
+    );
+    if (!updated.ok) {
+      setError(updated.error);
+    } else {
+      setSelected(updated.data);
+      setNotice(status === 'addressed' ? 'Note marked addressed.' : 'Note dismissed.');
+    }
+    setBusy(null);
+  };
+
   if (!sessionId) {
     return <EmptyState title="No session">Select a session to draft a manuscript.</EmptyState>;
   }
@@ -145,7 +193,11 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
           pending={busy === 'create'}
           onClick={() => void run('create', async () => {
             if (!sessionId) return { ok: false as const, error: 'no session' };
-            const created = await createManuscript(sessionId, {});
+            const created = await createManuscript(sessionId, {
+              request_id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `ms-${Date.now()}`,
+            });
             return created.ok ? created : { ok: false as const, error: created.error };
           }, 'Draft created from the stored campaign.')}
         >
@@ -235,6 +287,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             <Button
               size="compact"
               pending={busy === 'sign'}
+              disabled={selected.open_annotations > 0}
               onClick={() => void run('sign', async () => {
                 const res = await signoffManuscript(sessionId, selected.manuscript.id, selected.manuscript.content_hash);
                 return res.ok ? res : { ok: false as const, error: res.error };
@@ -252,13 +305,23 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 if (!res.ok) return { ok: false as const, error: res.error };
                 return {
                   ok: true as const,
-                  data: { manuscript: selected.manuscript, reviews: selected.reviews },
+                  data: {
+                    manuscript: selected.manuscript,
+                    reviews: selected.reviews,
+                    annotations: selected.annotations,
+                    open_annotations: selected.open_annotations,
+                  },
                 };
               }, 'Zenodo manifest staged for a human upload (not published).')}
             >
               Stage deposit
             </Button>
           </div>
+          {selected.open_annotations > 0 && (
+            <p className="text-caption text-muted">
+              Signoff is blocked while {selected.open_annotations} review note(s) are open.
+            </p>
+          )}
           {(!selected.manuscript.signoff || recommendationOf(selected) !== 'ACCEPT') && (
             <p className="text-caption text-muted">
               Deposit staging needs an ACCEPT review and a valid signoff. The review engine
@@ -266,6 +329,80 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               manuscript stays at REVISE.
             </p>
           )}
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <h5 className="text-label font-semibold">Review notes</h5>
+              <Badge tone={selected.open_annotations > 0 ? 'warning' : 'neutral'}>
+                {selected.open_annotations} open
+              </Badge>
+            </div>
+            {selected.annotations.length === 0 && (
+              <p className="text-caption text-muted">
+                No notes. A note anchors to a section and blocks signoff until resolved.
+              </p>
+            )}
+            <ul className="space-y-2 text-label">
+              {selected.annotations.map((a) => (
+                <li key={a.id} className="border border-border rounded-control px-3 py-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge tone={a.status === 'open' ? 'warning' : 'success'}>{a.status}</Badge>
+                    <span className="text-caption text-muted">{a.anchor} · {a.author}</span>
+                  </div>
+                  <p>{a.body}</p>
+                  {a.status === 'open' && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="compact"
+                        pending={busy === `annot-${a.id}`}
+                        onClick={() => void resolveAnnotation(a.id, 'addressed')}
+                      >
+                        Mark addressed
+                      </Button>
+                      <Button
+                        size="compact"
+                        variant="ghost"
+                        onClick={() => void resolveAnnotation(a.id, 'dismissed')}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void addAnnotation();
+              }}
+            >
+              <div className="flex gap-2">
+                <select
+                  aria-label="Annotation section"
+                  value={annotationAnchor}
+                  onChange={(e) => setAnnotationAnchor(e.target.value)}
+                  className="rounded-control border border-border bg-surface px-2 py-1 text-label"
+                >
+                  <option value="general">general</option>
+                  {selected.manuscript.sections.map((s) => (
+                    <option key={s.slug} value={s.slug}>{s.title}</option>
+                  ))}
+                </select>
+                <input
+                  aria-label="Review note"
+                  value={annotationBody}
+                  onChange={(e) => setAnnotationBody(e.target.value)}
+                  placeholder="What needs attention?"
+                  className="flex-1 rounded-control border border-border bg-surface px-2 py-1 text-label"
+                />
+                <Button size="compact" type="submit" pending={busy === 'annotate'} disabled={!annotationBody.trim()}>
+                  Add note
+                </Button>
+              </div>
+            </form>
+          </div>
 
           {selected.manuscript.artifacts.length > 0 && (
             <div>

@@ -128,3 +128,37 @@ func TestManuscriptArtifactsAreHashCheckedAndReplaced(t *testing.T) {
 		t.Fatalf("artifact set not replaced: %+v", arts)
 	}
 }
+
+func TestManuscriptAnnotationsLifecycle(t *testing.T) {
+	l := openManuscriptLedger(t)
+	if err := l.CreateManuscript(draft("ms1", "s1")); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	a := ledger.ManuscriptAnnotation{ID: "ann1", Author: "operator", Anchor: "results", Body: "Clarify the anchor."}
+	if err := l.AddManuscriptAnnotation("s1", "ms1", a); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	list, err := l.ListManuscriptAnnotations("s1", "ms1")
+	if err != nil || len(list) != 1 || list[0].Status != ledger.AnnotationOpen {
+		t.Fatalf("list: %v %+v", err, list)
+	}
+	if list[0].ContentHash != "hash-1" {
+		t.Fatalf("annotation must bind the draft content hash: %+v", list[0])
+	}
+	open, err := l.CountOpenAnnotations("s1", "ms1")
+	if err != nil || open != 1 {
+		t.Fatalf("open count = %d (%v)", open, err)
+	}
+	if err := l.SetManuscriptAnnotationStatus("s1", "ms1", "ann1", ledger.AnnotationAddressed); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if open, _ := l.CountOpenAnnotations("s1", "ms1"); open != 0 {
+		t.Fatalf("open after resolve = %d", open)
+	}
+	if err := l.SetManuscriptAnnotationStatus("s1", "ms1", "ann1", "bogus"); err == nil {
+		t.Fatal("invalid status accepted")
+	}
+	if _, err := l.ListManuscriptAnnotations("other", "ms1"); !errors.Is(err, ledger.ErrManuscriptNotFound) {
+		t.Fatalf("cross-session annotations = %v", err)
+	}
+}
