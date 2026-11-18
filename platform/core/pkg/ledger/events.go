@@ -69,6 +69,8 @@ var KnownEventTypes = map[string]bool{
 	"job_outcome_resolved":              true,
 	"job_outcome_unknown":               true,
 	"job_queued":                        true,
+	"knowledge_published":               true,
+	"knowledge_shared":                  true,
 	"job_cancelled":                     true,
 	"job_settled":                       true,
 	"job_started":                       true,

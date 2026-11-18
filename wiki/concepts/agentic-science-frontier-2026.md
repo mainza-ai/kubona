@@ -98,8 +98,12 @@ prove autonomy on a benchmark.
 - **AG-8b closed:** `/api/ops/science` stage taxonomy, cost per accepted claim,
   human intervention counts (minutes explicitly unmeasured), queue/loop health,
   plus matching Prometheus gauges.
-- **Open:** AG-9 registry.
-- Schema 10.
+- **AG-9 closed:** tenant-scoped cumulative lab-knowledge registry
+  (negative results, claims, reports) with fingerprint dedupe, a
+  prior-negative gate on plan creation, and owner-granted sharing (schema 11).
+- **Open:** none of the AG slices; residual items are operator chores and
+  re-verification on the pushed commit.
+- Schema 11.
 
 ## Cross-references
 

@@ -111,6 +111,9 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		BudgetUSD        float64         `json:"budget_usd"`
 		Executor         string          `json:"executor"`
 		Spec             json.RawMessage `json:"spec"`
+		// AcknowledgePriorNegative is the explicit override when the registry
+		// holds a strongly overlapping negative result.
+		AcknowledgePriorNegative bool `json:"acknowledge_prior_negative"`
 	}
 	if err := decodeStrict(r, &body); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid plan: %v", err), nil)
@@ -158,6 +161,27 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 	method := strings.ToLower(strings.TrimSpace(body.Method))
 	if _, ok := experimentJobType(method); !ok {
 		WriteAPIError(w, "bad_request", "unknown plan method: "+body.Method, nil)
+		return
+	}
+
+	// AG-9: a strongly overlapping prior negative result refuses the plan
+	// unless the caller acknowledges it. This is how a second campaign avoids
+	// repeating a known failure without being silently blocked.
+	prior, err := s.ledger.LookupKnowledge(tenantID, body.Statement, 5)
+	if err != nil {
+		WriteAPIError(w, "internal", "knowledge lookup failed", nil)
+		return
+	}
+	priorNegative := make([]ledger.KnowledgeMatch, 0, len(prior))
+	for _, m := range prior {
+		if m.Similarity >= priorNegativeThreshold {
+			priorNegative = append(priorNegative, m)
+		}
+	}
+	if len(priorNegative) > 0 && !body.AcknowledgePriorNegative {
+		WriteAPIError(w, "prior_negative_exists",
+			fmt.Sprintf("%d prior negative result(s) overlap this plan; acknowledge them or change the plan", len(priorNegative)),
+			map[string]any{"matches": priorNegative, "threshold": priorNegativeThreshold})
 		return
 	}
 
@@ -228,11 +252,15 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 	}
 	if err := s.recordManuscriptEvent(sessionID, "plan_created", map[string]any{
 		"plan_id": plan.ID, "hypothesis_id": plan.HypothesisID, "method": plan.Method,
+		"prior_negative_ack": body.AcknowledgePriorNegative, "prior_negative_matches": len(priorNegative),
 	}); err != nil {
 		WriteAPIError(w, "internal", "plan event failed: "+err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"plan": plan})
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"plan": plan, "prior_negative": priorNegative,
+		"prior_negative_ack": body.AcknowledgePriorNegative,
+	})
 }
 
 func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessionID, id string) {
@@ -330,6 +358,9 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	_ = s.recordManuscriptEvent(sessionID, "plan_executed", map[string]any{
 		"plan_id": id, "job_id": job.ID, "accepted": accepted, "status": status,
 	})
+	if status == ledger.PlanRejected || status == ledger.PlanFailed {
+		s.publishPlanNegative(sessionID, plan, status, string(payload))
+	}
 	updated, _ := s.ledger.GetPlan(sessionID, id)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"plan": updated, "accepted": accepted, "result": result,

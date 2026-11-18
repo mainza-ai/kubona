@@ -1563,6 +1563,27 @@
         "job_id"
       ]
     },
+    "knowledge_published": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A real outcome (negative result, claim, or report) published to the tenant knowledge registry.",
+      "required": [
+        "knowledge_id",
+        "kind"
+      ]
+    },
+    "knowledge_shared": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Owner tenant granted one grantee tenant read access to a knowledge entry.",
+      "required": [
+        "knowledge_id",
+        "owner_tenant",
+        "grantee_tenant"
+      ]
+    },
     "late_result_quarantined": {
       "emitters": [
         "go"

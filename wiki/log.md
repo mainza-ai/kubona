@@ -7228,3 +7228,24 @@ skipped is the exact failure this incident is about:
 - Runtime: bench session reported execute/success=1, hypothesize/open=10, a
   completed job, zero verified claims (null per-claim cost), and unmeasured
   human minutes; `/metrics` carried all new families.
+
+## [2026-11-18] implementation | AG-9 cumulative lab knowledge
+
+- `pkg/knowledge` + ledger `lab_knowledge` / `lab_knowledge_grants` (schema
+  11): real outcomes publish negative results (rejected/failed plans), claims
+  (collapsed hypotheses), and reports (signed manuscripts). Entries dedupe per
+  tenant + kind + normalized-statement fingerprint; repeats increment
+  confirmations.
+- `GET /lab-knowledge` lists the session tenant's entries plus granted ones;
+  `lookup` returns ranked matches with an `avoid` flag at similarity ≥ 0.8;
+  owner operators can share one entry with one grantee tenant.
+- Plan creation refuses a strongly overlapping prior negative
+  (`prior_negative_exists`) unless `acknowledge_prior_negative` is set; the
+  acknowledgment and matches are sealed on the event and returned.
+- Runtime: a rejected probe published one negative; a second campaign's repeat
+  was refused until acknowledged; a second rejection raised confirmations to 2
+  without duplicating; lookup returned avoid=true at similarity 1; sharing to
+  another tenant succeeded, sharing with the owner was refused.
+- All AG slices from the 2026-11-18 plan are now implemented. Residual items
+  are operator chores (Lean image build, backup key off-host, fresh-volume
+  reset) and re-verifying the gate on the pushed commit.

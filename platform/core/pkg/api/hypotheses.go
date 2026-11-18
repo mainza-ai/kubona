@@ -403,6 +403,9 @@ func (s *Server) handleHypothesisCollapse(w http.ResponseWriter, r *http.Request
 		WriteAPIError(w, "internal", "collapse event failed: "+err.Error(), nil)
 		return
 	}
+	s.publishKnowledge(sessionID, ledger.KnowledgeClaim,
+		"Claim: "+clipText(h.Statement, 160), h.Statement,
+		map[string]any{"claim_id": claimID, "hypothesis_id": id, "verdict": "verified"})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok": true, "id": id, "status": ledger.HypothesisCollapsed,
 		"claim_id": claimID, "evidence": evidence,

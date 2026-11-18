@@ -765,6 +765,12 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 		WriteAPIError(w, "internal", "signoff event failed: "+err.Error(), nil)
 		return
 	}
+	s.publishKnowledge(sessionID, ledger.KnowledgeReport,
+		"Report: "+clipText(ms.Title, 160), ms.Title,
+		map[string]any{
+			"manuscript_id": id, "content_hash": ms.ContentHash,
+			"verification": report.Summary.Status,
+		})
 	s.writeManuscriptDetail(w, sessionID, id, http.StatusOK)
 }
 

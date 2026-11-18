@@ -127,8 +127,9 @@ capability, not a demo.
       claim (actual-vs-reserved basis), human intervention counts with human
       minutes explicitly unmeasured, queue/loop health; matching Prometheus
       gauges.
-- [ ] AG-9: tenant-scoped cumulative lab knowledge registry (hypotheses,
-      negative results, reports) with A2A/tenant-grant access.
+- [x] AG-9: tenant-scoped `lab_knowledge` registry (negative results, claims,
+      reports) with fingerprint dedupe, provenance, a prior-negative gate on
+      plan creation, and owner-granted sharing. Schema 11.
 
 ## Follow-up audit slices (2026-11-18, second pass)
 

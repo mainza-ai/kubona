@@ -506,9 +506,55 @@ assert the crate and its artifact entries.
   claims (honest); human minutes stayed null with the unmeasured status; queue
   reported one completed job; `/metrics` carried the new families.
 
+### AG-9 — cumulative lab knowledge
+
+- `pkg/knowledge` + ledger `lab_knowledge` / `lab_knowledge_grants` (schema 11):
+  entries are published from real outcomes and are idempotent per tenant +
+  kind + normalized-statement fingerprint. A repeat increments `confirmations`
+  instead of duplicating.
+- Publication hooks:
+  - a rejected/failed plan → `negative_result` with plan/job/measured/target/
+    tolerance provenance;
+  - a collapsed hypothesis → `claim` with the claim id and verdict;
+  - a signed manuscript → `report` with its content hash and verification
+    status.
+- `GET /api/sessions/{sid}/lab-knowledge?kind=&q=&limit=` lists the session
+  tenant's entries plus entries granted to it; `…/lookup?statement=` returns
+  ranked `KnowledgeMatch` results with an `avoid` flag at similarity ≥ 0.8;
+  `POST …/{id}/share` (owner operator) grants one grantee tenant access.
+- Plan creation consults the registry: a strongly overlapping prior negative
+  result refuses with `prior_negative_exists` unless
+  `acknowledge_prior_negative` is true. The acknowledgment and match count are
+  sealed on the `plan_created` event, and the response always returns the
+  matches so the repeat is visible rather than silent.
+- Access is tenant-scoped: another tenant sees nothing until the owner shares
+  the entry; only the owning tenant may share. QPU/foreign-record authority
+  remains the UCAN grant rail, not this registry ACL.
+- Tests: normalization/fingerprint/similarity, publication dedupe and
+  confirmations, cross-campaign refusal + acknowledgment, tenant scoping,
+  sharing, owner-only sharing, and claim/report publication.
+- Runtime (schema 11): a rejected H2 probe published one negative result; a
+  second campaign's repeated plan returned 409 `prior_negative_exists` and
+  proceeded only with the acknowledgment; a second acknowledged rejection
+  incremented `confirmations` to 2 without duplicating; lookup returned
+  `avoid:true` at similarity 1; sharing to another tenant succeeded and
+  sharing with the owner was refused.
+
+### Residual work (not AG slices)
+
+- Lean comparator: the attestation boundary is implemented, but the pinned
+  `kubona-lean:4.34.1` image is operator-built (mathlib-scale), so no live
+  kernel proof has run here.
+- Operator-owned chores remain: copy `~/.kubona/backup-age.key` off-host,
+  execute a fresh-volume reset if desired, and set
+  `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1` if the deployment should require a fresh
+  backup.
+- Re-verify the full gate on the exact pushed commit before citing "green".
+
 ### Still open
 
-AG-9 (cumulative lab knowledge).
+No AG slices remain; the items above are operator/verification chores, not
+unimplemented design.
 
 ## 7. Source notes and limitations
 
