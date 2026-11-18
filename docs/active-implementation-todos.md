@@ -86,8 +86,9 @@ F-01…F-10 (nested artifacts, order-sensitive hash, citation collisions, target
 escaping, size checks, build limiter, schema v2, preflight env, figure-hash
 verification, receipt cap) are landed with tests.
 
-- [ ] A1: `manuscript_annotations` table + routes; annotations survive reload;
-      signoff refuses while any annotation is open. (closes G-03)
+- [x] A1: `manuscript_annotations` table + routes; annotations survive reload;
+      signoff refuses while any annotation is open; panel add/resolve UI and
+      browser tests. (closes G-03)
 - [ ] A2: citations gain `claim_id`/`source_id`/`verified`; literature
       selection feeds the draft; `citation_distance` measured or explicit.
       (closes G-05, G-13)
@@ -96,15 +97,17 @@ verification, receipt cap) are landed with tests.
       end to end. (closes G-04)
 - [ ] A4: artifact retention (keep N builds, per-tenant byte ceiling),
       session-delete semantics, artifact-bytes gauge. (closes G-06)
-- [ ] A5: `AppendEventWithSpool` for manuscript events; persist a scrubbed
-      build log; build success/failure + duration metrics. (closes G-07, G-08)
-- [ ] A6: create idempotency (`request_id`), draft edit before review,
-      delete/archive, list pagination, `deposit_ready` state.
-      (closes G-09, G-10)
+- [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
+      scrubbed `build.log` artifact; build success/failure + duration +
+      artifact-bytes metrics. (closes G-07, G-08)
+- [x] A6a: create idempotency (`request_id`, unique per session) and
+      `deposit_ready` state after staging. (part of G-09/G-10)
+- [ ] A6b: draft edit before review, delete/archive, list pagination.
+      (rest of G-09)
 - [ ] A7: authenticated blob artifact download; review-detail panel with
       measured/unmeasured novelty. (closes G-12, G-13)
-- [ ] A8: report route patterns vs OpenAPI operations separately; count bridge
-      tests explicitly. (closes G-11, G-15)
+- [x] A8: report route patterns vs OpenAPI paths/operations separately; count
+      bridge tests explicitly. (closes G-11, G-15)
 - [ ] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` (or a
       signed plaintext waiver) and `PREFLIGHT_REQUIRE_BACKUP=1`. (G-01)
 - [ ] Operator: execute the fresh-volume reset and re-run

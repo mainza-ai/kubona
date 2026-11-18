@@ -7008,3 +7008,18 @@ skipped is the exact failure this incident is about:
   `docs/publication-followup-audit-2026-11-18.md`, [[publication-pipeline]],
   and [[remaining-work]]. P0 operator items unchanged: backup encryption/waiver
   and the fresh-volume reset.
+
+## [2026-11-18] implementation | Review notes, durable events, idempotency
+
+- A1: `manuscript_annotations` (content-hash bound) + GET/POST/PATCH routes;
+  signoff refuses with `409 annotations_open`; panel adds/resolves notes;
+  browser tests cover persist → block → resolve → unblock.
+- A5: manuscript events use `AppendEventWithSpool` and refuse when neither the
+  ledger nor the spool accepts; the build ships a scrubbed `build.log`;
+  `/metrics` adds builds-by-outcome, build seconds, and artifact bytes.
+- A6a: `request_id` is unique per session (replay returns the same draft; a
+  race resolves to the winner); deposit staging sets `deposit_ready`.
+- A8: repo counts now separate route patterns (154), OpenAPI paths (159), and
+  operations (182), and count bridge tests separately.
+- Schema version 3 (annotation table + idempotency column).
+- Remaining A2/A3/A4/A6b/A7 and the two operator policy items are unchanged.

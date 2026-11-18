@@ -77,6 +77,21 @@ The register and plan that remain:
 - **P2/P3:** create idempotency, draft edit/delete, pagination, `deposit_ready`,
   authenticated blob download, review-detail UX, route-vs-operation counts.
 
+## Review notes, durability, and telemetry (third pass)
+
+- **Annotations are records.** `manuscript_annotations` binds a note to the
+  draft's content hash; signoff refuses with `409 annotations_open` while any
+  note is open. The panel adds/resolves notes; the older free-text annotation
+  prompt is separate.
+- **Events are spooled.** Manuscript events use the durable spool and refuse
+  if neither the ledger nor the spool accepts; a build ships a scrubbed
+  `build.log`.
+- **Create is idempotent.** `request_id` is unique per session; replay returns
+  the same draft. Deposit staging sets `deposit_ready`.
+- **Telemetry:** `/metrics` reports builds by outcome, build seconds, and
+  stored artifact bytes.
+- Schema version 3 covers the annotation table and the idempotency column.
+
 ## Known limits
 
 - No production comparator producer ⇒ no ACCEPT path today (gate tested with a

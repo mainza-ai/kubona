@@ -208,3 +208,24 @@ live /metrics                                        backup count/age present
   retention policy.
 - The operator items (encryption, require flags, reset) are the remaining
   blockers to calling the *deployment* production-ready, independent of code.
+
+
+## 8. Implementation update (2026-11-18, third pass)
+
+A1, A5, A6a, and A8 from §5 are landed; A2/A3/A4/A7 and the A6b remainder stay
+open.
+
+| Slice | State | What landed |
+|---|---|---|
+| A1 annotations | **done** | `manuscript_annotations` table (content-hash bound), GET/POST/PATCH routes, `manuscript_annotated` / `manuscript_annotation_resolved` events, signoff refuses with `409 annotations_open`, panel add/resolve UI + browser tests. |
+| A5 durability/telemetry | **done** | Manuscript events use `AppendEventWithSpool` and refuse if neither ledger nor spool accepts; the build ships a scrubbed `build.log`; `/metrics` adds builds-by-outcome, build seconds, and artifact bytes. |
+| A6a idempotency/state | **done** | `request_id` is unique per session (replay returns the same draft; a race resolves to the winner); deposit staging sets `deposit_ready`. |
+| A8 counts | **done** | `repo-counts` now separates route patterns (154), OpenAPI paths (159), and operations (182), and counts bridge tests separately. |
+| A2 citations | open | literature feed + `claim_id`/`source_id` + measured novelty. |
+| A3 comparator | open | no kernel-proof producer; ACCEPT remains unreachable. |
+| A4 retention | open | no build/byte ceiling; session-delete evidence semantics. |
+| A6b ergonomics | open | edit/delete/pagination. |
+| A7 console polish | open | authenticated blob download; review-detail panel. |
+
+Schema version is now **3** (annotation table + idempotent-create column), so an
+existing ledger takes a verified pre-migration snapshot on upgrade.

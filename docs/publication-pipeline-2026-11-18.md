@@ -34,12 +34,15 @@ session refuses before any body is read.
 | `POST` | `/api/sessions/{sid}/manuscripts/{mid}/build` | compile the stored source; refuses a changed source |
 | `POST` | `/api/sessions/{sid}/manuscripts/{mid}/signoff` | operator bearer only; signs the exact content hash |
 | `POST` | `/api/sessions/{sid}/manuscripts/{mid}/deposit` | stage a Zenodo manifest from built artifacts |
-| `GET` | `/api/sessions/{sid}/manuscripts/{mid}/artifacts/{name}` | artifact bytes (`main.pdf`, `main.tex`, `sections/*`, `references.bib`, `metadata.json`, `zenodo_deposit.json`) |
+| `GET` | `/api/sessions/{sid}/manuscripts/{mid}/artifacts/{name}` | artifact bytes (`main.pdf`, `main.tex`, `sections/*`, `references.bib`, `metadata.json`, `build.log`, `zenodo_deposit.json`) |
+| `GET` | `/api/sessions/{sid}/manuscripts/{mid}/annotations` | review notes |
+| `POST` | `/api/sessions/{sid}/manuscripts/{mid}/annotations` | add a note (`{anchor, body}`) |
+| `PATCH` | `/api/sessions/{sid}/manuscripts/{mid}/annotations/{aid}` | set `open`, `addressed`, or `dismissed` |
 
 ## States and invariants
 
 ```
-draft ──review──▶ reviewed ──signoff──▶ signed ──build──▶ built
+draft ──review──▶ reviewed ──signoff──▶ signed ──build──▶ built ──deposit──▶ deposit_ready
   │                  │                     │                 │
   └──── immutable after the first review; edits require a new draft ────┘
 ```
@@ -61,10 +64,17 @@ draft ──review──▶ reviewed ──signoff──▶ signed ──build�
   carrying `verdict:"live_kernel_proven"`, `sorry_ax_count:0`, and
   `axioms_clean:true`. No production producer exists yet, so a supplied hash
   stays unverified — review returns `REVISE`, and deposit refuses.
+- **Annotations** are human review notes bound to the draft's content hash.
+  They are not part of the rendered document and do not enter the content
+  hash, but an `open` note blocks signoff with `409 annotations_open`.
 - **Signoff**: requires the operator bearer, names the current content hash,
-  has a future RFC3339 expiry (default 30 d, maximum 365 d), and is signed by
-  the commissioned reviewer key. The signature payload is
-  `manuscript-signoff:<mid>:<content_hash>:<expiry>`.
+  has a future RFC3339 expiry (default 30 d, maximum 365 d), has no open
+  annotations, and is signed by the commissioned reviewer key. The signature
+  payload is `manuscript-signoff:<mid>:<content_hash>:<expiry>`.
+- **Idempotent create**: a non-empty `request_id` is unique per session; a
+  replay returns the existing draft (200) instead of creating a second one.
+- **Deposit** sets `deposit_ready`; re-depositing replaces the manifest and
+  keeps the same build hash.
 - **Deposit**: requires an ACCEPT review, a valid unexpired signoff, and a
   built artifact set. The manifest is `staged-needs-human-upload`,
   `auto_publish:false`, `doi:null`. There is no uploader and no token path.
@@ -84,6 +94,8 @@ draft ──review──▶ reviewed ──signoff──▶ signed ──build�
   by `compile_latex`; there are no decorative or fabricated figures.
 - Artifacts are stored as BLOBs in the ledger (bounded: 8 MiB per artifact,
   32 MiB per build), so `kubonad backup` remains a complete restore source.
+- A scrubbed `build.log` ships with the build; the project temp path is
+  replaced with `<project>`.
 
 ## Review scoring (fail-closed)
 
@@ -154,11 +166,13 @@ test unless noted:
 - **No production comparator producer** — so no manuscript can reach ACCEPT
   today. That is the honest state; the gate is wired and tested with a
   synthetic kernel-proof event.
-- **Annotations are not yet review notes.** Results Studio annotations still
-  go to the copilot as prompts. Persisting them as `manuscript_reviews`
-  comments is the remaining R4 item.
+- **Annotations are persisted** (table + routes + panel) and gate signoff.
+  Results Studio's older free-text annotation path still prompts the copilot;
+  the publication notes are the ones of record.
 - **Citations are caller-supplied.** Literature lookup does not yet feed the
   draft automatically, and claim→citation binding is manual.
+- **No retention policy yet** for builds/artifacts; the next slice bounds
+  per-session builds and bytes.
 - **No plot generation.** Figures are caller artifacts; convergence data is a
   table. A plotting dependency is deliberately not added yet.
 - **Server-side signoff** uses the commissioned reviewer key because this is

@@ -101,6 +101,14 @@ kept the ledger chain clean. The first build exposed a real composing defect
 (primary VQE point in `measurement`, not `experiments`), now fixed with a
 regression test.
 
+### Third pass (2026-11-18): annotations, durability, idempotency
+
+A1/A5/A6a/A8 from the follow-up plan landed: persisted review notes that gate
+signoff, spooled manuscript events, a scrubbed build log, build/artifact
+metrics, idempotent create, and `deposit_ready`. Schema version 3. Remaining:
+citations/novelty, comparator producer, retention, draft edit/delete/pagination,
+and authenticated blob download.
+
 ### Follow-up pass (2026-11-18, second)
 
 `docs/publication-followup-audit-2026-11-18.md` re-audited the shipped

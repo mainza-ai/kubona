@@ -107,19 +107,17 @@ pre-migration snapshot, preflight encryption env, and figure-hash verification.
 
 Still open (A-series in `docs/active-implementation-todos.md`):
 
-- **A1 annotations:** persist manuscript review notes; signoff refuses on open
-  notes.
+- **Landed (third pass):** A1 annotations (table/routes/panel + signoff gate),
+  A5 spooled events + build log + build metrics, A6a create idempotency +
+  `deposit_ready`, A8 counts honesty (patterns vs paths/operations).
 - **A2 citations:** literature selection + `claim_id`/`source_id` + measured
   novelty distance.
 - **A3 comparator producer:** no production event emits a kernel-proof verdict,
   so ACCEPT is wired but unreachable.
 - **A4 retention:** keep N builds / per-tenant byte ceiling; session-delete
   evidence semantics.
-- **A5 durability/telemetry:** spooled manuscript events, build log artifact,
-  build metrics.
-- **A6/A7 ergonomics:** idempotency, edit/delete, pagination, `deposit_ready`,
-  authenticated blob download, review detail.
-- **A8 counts honesty:** route patterns vs OpenAPI operations; bridge tests.
+- **A6b/A7 ergonomics:** draft edit/delete, pagination, authenticated blob
+  download, review-detail panel.
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
   the fresh-volume reset for the polluted host ledger.
 
