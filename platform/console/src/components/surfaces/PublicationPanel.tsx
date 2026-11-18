@@ -259,6 +259,13 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               Stage deposit
             </Button>
           </div>
+          {(!selected.manuscript.signoff || recommendationOf(selected) !== 'ACCEPT') && (
+            <p className="text-caption text-muted">
+              Deposit staging needs an ACCEPT review and a valid signoff. The review engine
+              requires a comparator-linked kernel proof; until one is recorded, an honest
+              manuscript stays at REVISE.
+            </p>
+          )}
 
           {selected.manuscript.artifacts.length > 0 && (
             <div>

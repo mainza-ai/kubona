@@ -32,9 +32,11 @@ import (
 // than the evidence it was given, which is the contract under test.
 type fakeManuscriptBridge struct {
 	pb.QuantumBridgeServiceClient
-	recommendation string
-	sectionLatex   string
-	buildCalls     int
+	recommendation  string
+	sectionLatex    string
+	citationKeys    []string
+	reverseSections bool
+	buildCalls      int
 }
 
 func (f *fakeManuscriptBridge) ComposeManuscript(_ context.Context, in *pb.ManuscriptRequest, _ ...grpc.CallOption) (*pb.ManuscriptResponse, error) {
@@ -74,15 +76,24 @@ func (f *fakeManuscriptBridge) compose(in *pb.ManuscriptRequest) (*pb.Manuscript
 	if latex == "" {
 		latex = "Measured rows only."
 	}
+	cites := make([]map[string]any, 0, len(f.citationKeys))
+	for _, key := range f.citationKeys {
+		cites = append(cites, map[string]any{"key": key, "title": key, "authors": "A", "year": "2024", "doi": ""})
+	}
+	sections := []map[string]any{
+		{"slug": "results", "title": "Results", "latex": latex},
+		{"slug": "methods", "title": "Methods", "latex": "Bridge-executed."},
+	}
+	if f.reverseSections {
+		sections[0], sections[1] = sections[1], sections[0]
+	}
 	out := map[string]any{
 		"ok":            true,
 		"manuscript_id": req.ManuscriptID,
+		"citations":     cites,
 		"title":         title,
 		"abstract":      abstract,
-		"sections": []map[string]any{
-			{"slug": "results", "title": "Results", "latex": latex},
-			{"slug": "methods", "title": "Methods", "latex": "Bridge-executed."},
-		},
+		"sections":      sections,
 		"figure_sha256": map[string]string{},
 		"review":        map[string]any{"recommendation": rec, "mean_score": 6.9, "hygiene": 4.0},
 	}
@@ -90,9 +101,15 @@ func (f *fakeManuscriptBridge) compose(in *pb.ManuscriptRequest) (*pb.Manuscript
 	if req.Build {
 		f.buildCalls++
 		out["build"] = map[string]any{"build_hash": "build-hash-1", "pdf_sha256": "pdf-hash"}
-		artifacts = append(artifacts, &pb.ManuscriptArtifact{
-			Name: "main.pdf", Content: []byte("%PDF-1.4 fake"), Sha256: sha256HexTest([]byte("%PDF-1.4 fake")),
-		})
+		artifacts = append(artifacts,
+			&pb.ManuscriptArtifact{
+				Name: "main.pdf", Content: []byte("%PDF-1.4 fake"), Sha256: sha256HexTest([]byte("%PDF-1.4 fake")),
+			},
+			&pb.ManuscriptArtifact{
+				Name: "sections/results.tex", Content: []byte("\\section{Results}"),
+				Sha256: sha256HexTest([]byte("\\section{Results}")),
+			},
+		)
 	}
 	raw, _ := json.Marshal(out)
 	return &pb.ManuscriptResponse{Ok: true, ResponseJson: string(raw), Artifacts: artifacts}, nil
@@ -273,8 +290,15 @@ func TestManuscriptBuildSignoffAndDeposit(t *testing.T) {
 		t.Fatal(err)
 	}
 	ms := detail.Manuscript
-	if ms.BuildHash != "build-hash-1" || len(ms.Artifacts) != 1 || ms.Artifacts[0].Name != "main.pdf" {
+	if ms.BuildHash != "build-hash-1" || len(ms.Artifacts) != 2 {
 		t.Fatalf("build not installed: %+v", ms)
+	}
+	names := map[string]bool{}
+	for _, a := range ms.Artifacts {
+		names[a.Name] = true
+	}
+	if !names["main.pdf"] || !names["sections/results.tex"] {
+		t.Fatalf("artifact set = %+v", names)
 	}
 
 	// Artifact download carries the bytes and their recorded hash.
@@ -428,5 +452,125 @@ func TestManuscriptSignoffRejectsPastExpiry(t *testing.T) {
 		map[string]any{"content_hash": detail.Manuscript.ContentHash, "expiry": "2020-01-01T00:00:00Z"})
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "future") {
 		t.Fatalf("past expiry = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestManuscriptArtifactDownloadAcceptsNestedProjectPaths(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"build": true})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+
+	for _, path := range []string{
+		"/api/sessions/" + sid + "/manuscripts/" + detail.Manuscript.ID + "/artifacts/sections/results.tex",
+		"/api/sessions/" + sid + "/manuscripts/" + detail.Manuscript.ID + "/artifacts/sections%2Fresults.tex",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Results") {
+			t.Fatalf("nested artifact %q = %d %q", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	for _, bad := range []string{"../secret", "sections/../secret", "/etc/passwd"} {
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/sessions/"+sid+"/manuscripts/"+detail.Manuscript.ID+"/artifacts/"+bad, nil)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		// net/http cleans the path before the handler (307/301); the cleaned
+		// path is no longer an artifact route, so the only requirement is that
+		// the traversal never yields artifact bytes.
+		if rec.Code == http.StatusOK {
+			t.Fatalf("traversal %q = 200 (%q)", bad, rec.Body.String())
+		}
+	}
+}
+
+func TestManuscriptStoresBridgeEffectiveCitationKeys(t *testing.T) {
+	bridge := &fakeManuscriptBridge{citationKeys: []string{"10_1_x"}}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{
+		"citations": []map[string]any{{"key": "10.1/x", "title": "T", "authors": "A", "year": "2024"}},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			Citations []struct {
+				Key string `json:"key"`
+			} `json:"citations"`
+			ContentHash string `json:"content_hash"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+	if len(detail.Manuscript.Citations) != 1 || detail.Manuscript.Citations[0].Key != "10_1_x" {
+		t.Fatalf("stored citations = %+v", detail.Manuscript.Citations)
+	}
+}
+
+func TestManuscriptWorkIsRateLimited(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	statuses := []int{}
+	for i := 0; i < 6; i++ {
+		w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{})
+		statuses = append(statuses, w.Code)
+		if w.Code == http.StatusTooManyRequests {
+			break
+		}
+	}
+	sawLimit := false
+	for _, code := range statuses {
+		if code == http.StatusTooManyRequests {
+			sawLimit = true
+		}
+	}
+	if !sawLimit {
+		t.Fatalf("no rate limit after %v", statuses)
+	}
+}
+
+func TestManuscriptHashCoversSectionOrder(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+
+	// Same text, same hashes, different order: the rendered document differs,
+	// so the signoff hash must differ (and the build must refuse).
+	bridge.reverseSections = true
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+detail.Manuscript.ID+"/build", "", nil)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "source_changed") {
+		t.Fatalf("reordered sections = %d %s", w.Code, w.Body.String())
 	}
 }

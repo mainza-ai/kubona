@@ -193,3 +193,44 @@ def test_build_without_measured_rows_still_compiles_and_says_so():
                                    source_date_epoch=1700000000))
     assert resp["ok"], resp
     assert resp["build"]["build_hash"]
+
+
+def test_citation_keys_that_collide_get_distinct_entries():
+    resp = manuscript_ops.run(_req(citations=[
+        {"key": "10.1/x", "title": "First", "authors": "A", "year": 2024},
+        {"key": "10.1_x", "title": "Second", "authors": "B", "year": 2024},
+    ]))
+    assert resp["ok"], resp
+    keys = [c["key"] for c in resp["citations"]]
+    assert keys == ["10_1_x", "10_1_x_2"]
+    intro = next(s for s in resp["sections"] if s["slug"] == "introduction")
+    assert r"\cite{10_1_x}" in intro["latex"]
+    assert r"\cite{10_1_x_2}" in intro["latex"]
+    assert "@misc{10_1_x," in resp["bibtex"]
+    assert "@misc{10_1_x_2," in resp["bibtex"]
+
+
+def test_target_markup_is_escaped_in_section_latex():
+    resp = manuscript_ops.run(_req(target_system="custom_H2 100%"))
+    assert resp["ok"], resp
+    intro = next(s for s in resp["sections"] if s["slug"] == "introduction")
+    assert r"custom\_H2 100\%" in intro["latex"]
+    assert "custom_H2 100%" not in intro["latex"]
+
+
+def test_provenance_list_is_bounded_and_says_so():
+    receipts = [f"job-{i}" for i in range(45)]
+    resp = manuscript_ops.run(_req(evidence={"resolved_receipts": receipts,
+                                             "unresolved_receipts": []}))
+    assert resp["ok"], resp
+    provenance = next(s for s in resp["sections"] if s["slug"] == "provenance")
+    assert "5 further resolved receipt(s) are omitted" in provenance["latex"]
+    assert "job-44" not in provenance["latex"]
+
+
+@requires_tex
+def test_build_accepts_a_hostile_target_without_breaking_latex():
+    resp = manuscript_ops.run(_req(target_system="custom_H2 100% & #1", build=True,
+                                   source_date_epoch=1700000000))
+    assert resp["ok"], resp
+    assert resp["build"]["build_hash"]

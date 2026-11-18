@@ -89,7 +89,12 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // CurrentSchemaVersion is the newest schema this binary understands. The
 // migration ledger records what has been applied; a database from a newer
 // binary refuses to open rather than being silently downgraded.
-const CurrentSchemaVersion = 1
+//
+// History: 1 = baseline; 2 = publication tables (manuscripts/sections/
+// reviews/artifacts/signoffs/citations). The bump makes an existing ledger
+// take a verified pre-migration snapshot before the additive DDL, which is
+// the production upgrade invariant.
+const CurrentSchemaVersion = 2
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,

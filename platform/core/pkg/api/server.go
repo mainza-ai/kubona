@@ -131,6 +131,10 @@ type Server struct {
 	// when cloud is explicitly enabled. Its own human-paced bucket so a
 	// spray cannot burn the global LLM budget or another rail's budget.
 	codesignLimiter *rateLimiter
+	// Manuscript compose/build/re-review are CPU-bound (pdflatex) and write
+	// multi-megabyte artifacts; human-paced so a lab admin cannot queue a
+	// build loop. Signoff/deposit are operator-authenticated and not limited.
+	manuscriptLimiter *rateLimiter
 	// Auth sessions: challenge-response login bound to lab admin keys.
 	// Set at construction (nil only in tests that never touch auth).
 	authSessions *AuthSessionStore
@@ -413,6 +417,7 @@ func NewServer(
 		abortLimiter:          namedRateFromEnv("abort", "KUBONA_RATE_ABORT", 5, 15),
 		authLimiter:           namedRateFromEnv("auth", "KUBONA_RATE_AUTH", 5, 15),
 		codesignLimiter:       namedRateFromEnv("codesign", "KUBONA_RATE_CODESIGN", 1, 3),
+		manuscriptLimiter:     namedRateFromEnv("manuscript", "KUBONA_RATE_MANUSCRIPT", 0.2, 3),
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}

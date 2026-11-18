@@ -19,7 +19,6 @@ Honesty contract:
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -225,9 +224,16 @@ def _figures_section(figures: List[Tuple[str, bytes]]) -> str:
     return "\n".join(out)
 
 
+_MAX_LISTED_RECEIPTS = 40
+
+
 def _evidence_section(evidence: Dict[str, Any]) -> str:
     resolved = [str(x) for x in evidence.get("resolved_receipts") or []]
     unresolved = [str(x) for x in evidence.get("unresolved_receipts") or []]
+    omitted = 0
+    if len(resolved) > _MAX_LISTED_RECEIPTS:
+        omitted = len(resolved) - _MAX_LISTED_RECEIPTS
+        resolved = resolved[:_MAX_LISTED_RECEIPTS]
     lines = []
     if resolved:
         lines.append(
@@ -236,6 +242,11 @@ def _evidence_section(evidence: Dict[str, Any]) -> str:
         )
     else:
         lines.append("No provenance receipt was resolved against the ledger for this draft.")
+    if omitted:
+        lines.append(
+            f"{omitted} further resolved receipt(s) are omitted here; the signed "
+            "experiment export carries the complete list."
+        )
     if unresolved:
         lines.append(
             "The following supplied references did NOT resolve and earn no credit: "
@@ -322,6 +333,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     abstract = str(req.get("abstract") or "").strip() or _abstract(campaign, point, target, claimable)
 
     citations: List[Dict[str, Any]] = []
+    used_keys: set[str] = set()
     for entry in req.get("citations") or []:
         if not isinstance(entry, dict):
             continue
@@ -329,6 +341,15 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         key = _CITE_KEY_RE.sub("_", raw_key).strip("_")[:64]
         if not key:
             continue
+        # Two distinct references can sanitize to the same BibTeX key
+        # ("10.1/x" and "10.1_x"). Silently reusing it makes the PDF cite the
+        # wrong entry; suffix deterministically instead.
+        base = key
+        n = 2
+        while key in used_keys:
+            key = f"{base}_{n}"[:64]
+            n += 1
+        used_keys.add(key)
         citations.append({**entry, "key": key})
     cite_keys = [c["key"] for c in citations]
 
@@ -345,7 +366,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     figure_sha = [_dig(raw) for _, raw in figures]
 
     intro = (
-        f"We report the measured state of {target}. The campaign objective recorded for this "
+        f"We report the measured state of {_latex_escape(target)}. The campaign objective recorded for this "
         f"session is: {_latex_escape(str(campaign.get('research_goal') or 'not recorded'))}. "
         "Every value in this manuscript comes from a settled job in the Kubona ledger; "
         "the provenance section names the receipts that were resolved."
@@ -451,6 +472,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         "main_tex": main_tex,
         "bibtex": bibtex,
         "figure_sha256": dict(zip([n for n, _ in figures], figure_sha)),
+        "citations": citations,
         "review": review_json,
         "build": None,
     }
@@ -536,6 +558,11 @@ def build_project(
         pdf_path = project / "main.pdf"
         if not pdf_path.exists():
             raise ManuscriptError("build_failed", "pdflatex produced no main.pdf")
+        if pdf_path.stat().st_size > _MAX_FIGURE_BYTES:
+            raise ManuscriptError(
+                "build_failed",
+                f"main.pdf exceeds {_MAX_FIGURE_BYTES} bytes; refusing to read it into memory",
+            )
         pdf = pdf_path.read_bytes()
         if not pdf.startswith(b"%PDF-") or len(pdf) < 1024:
             raise ManuscriptError("build_failed", "main.pdf is not a plausible PDF")
@@ -548,12 +575,13 @@ def build_project(
             rel = path.relative_to(project).as_posix()
             if rel.startswith(".") or rel.endswith((".aux", ".log", ".out", ".toc")):
                 continue
-            data = path.read_bytes()
-            if len(data) > _MAX_FIGURE_BYTES:
+            size = path.stat().st_size
+            if size > _MAX_FIGURE_BYTES:
                 raise ManuscriptError("build_failed", f"artifact {rel} exceeds the size cap")
-            total += len(data)
+            total += size
             if total > _MAX_TOTAL_ARTIFACT_BYTES:
                 raise ManuscriptError("build_failed", "artifact set exceeds the total size cap")
+            data = path.read_bytes()
             artifacts.append({"name": rel, "sha256": _dig(data), "content_b64": _b64(data)})
         return {
             "build_hash": _dig(pdf),

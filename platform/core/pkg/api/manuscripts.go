@@ -59,6 +59,7 @@ type manuscriptBridgeResponse struct {
 	Sections     []manuscriptBridgeSection  `json:"sections"`
 	Bibtex       string                     `json:"bibtex"`
 	FigureSHA    map[string]string          `json:"figure_sha256"`
+	Citations    []manuscriptCiteIn         `json:"citations"`
 	Review       json.RawMessage            `json:"review"`
 	Build        *manuscriptBridgeBuildMeta `json:"build"`
 }
@@ -166,18 +167,29 @@ type artifactPath struct {
 	artifact     string
 }
 
-// manuscriptArtifactPath recognises "<mid>/artifacts/<name>" without
-// accepting traversal or nested paths.
+// manuscriptArtifactPath recognises "<mid>/artifacts/<name>" where <name> may
+// be a nested project path such as "sections/results.tex" or
+// "figures/plot.png". Every segment is validated: no traversal, no absolute
+// path, no empty segment. A flat-only parser silently 404'd the section
+// sources the build advertises.
 func manuscriptArtifactPath(rest string) (artifactPath, bool) {
-	parts := strings.Split(rest, "/")
-	if len(parts) != 3 || parts[1] != "artifacts" || parts[0] == "" || parts[2] == "" {
+	parts := strings.SplitN(rest, "/artifacts/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return artifactPath{}, false
 	}
-	if strings.Contains(parts[0], ".") || strings.Contains(parts[2], "..") ||
-		strings.HasPrefix(parts[2], "/") || strings.Contains(parts[2], "/") {
+	mid, name := parts[0], parts[1]
+	if strings.Contains(mid, "/") || strings.Contains(mid, ".") {
 		return artifactPath{}, false
 	}
-	return artifactPath{manuscriptID: parts[0], artifact: parts[2]}, true
+	if strings.HasPrefix(name, "/") || strings.Contains(name, "\\") {
+		return artifactPath{}, false
+	}
+	for _, seg := range strings.Split(name, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return artifactPath{}, false
+		}
+	}
+	return artifactPath{manuscriptID: mid, artifact: name}, true
 }
 
 // manuscriptSubpath splits "<session>/manuscripts[/rest]" without matching a
@@ -204,7 +216,20 @@ func (s *Server) handleManuscriptList(w http.ResponseWriter, r *http.Request, se
 	writeJSON(w, http.StatusOK, map[string]any{"manuscripts": items})
 }
 
+// manuscriptWorkAllowed paces the CPU-bound manuscript operations (compose,
+// build, re-review). Reads and the operator's signoff/deposit are not paced.
+func (s *Server) manuscriptWorkAllowed(w http.ResponseWriter, r *http.Request) bool {
+	if s.manuscriptLimiter == nil || s.manuscriptLimiter.allow(clientKey(r)) {
+		return true
+	}
+	WriteAPIError(w, "rate_limited", "manuscript compose/build is CPU-bound: back off before retrying", nil)
+	return false
+}
+
 func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, sessionID, tenantID string) {
+	if !s.manuscriptWorkAllowed(w, r) {
+		return
+	}
 	if blocked, reason := s.diskBlocked(); blocked {
 		WriteAPIError(w, "storage_blocked", "storage is blocked: "+reason, nil)
 		return
@@ -261,8 +286,32 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	storedCitations := manuscriptCitations(body.Citations)
-	hash := manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, storedCitations, resp.FigureSHA)
+	// The compute plane reports figure hashes; recompute them here so the
+	// content hash never depends on an unverified bridge assertion.
+	for name, expected := range resp.FigureSHA {
+		var raw []byte
+		for _, f := range figures {
+			if f["name"] == name {
+				if b64, _ := f["content_b64"].(string); b64 != "" {
+					raw, _ = base64.StdEncoding.DecodeString(b64)
+				}
+				break
+			}
+		}
+		sum := sha256.Sum256(raw)
+		if len(raw) == 0 || expected != hex.EncodeToString(sum[:]) {
+			WriteAPIError(w, "bridge_unavailable", "bridge figure hash does not match the submitted bytes", nil)
+			return
+		}
+	}
+	// The bridge sanitizes and deduplicates BibTeX keys; store the effective
+	// keys the PDF actually cites, not the caller's raw string.
+	citationInput := body.Citations
+	if len(resp.Citations) > 0 {
+		citationInput = resp.Citations
+	}
+	storedCitations := manuscriptCitations(citationInput)
+	hash := manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, storedCitations, figures, resp.FigureSHA)
 	authorsJSON, _ := json.Marshal(authors)
 	figuresJSON, _ := json.Marshal(figures)
 	shaJSON, _ := json.Marshal(resp.FigureSHA)
@@ -394,6 +443,9 @@ func (s *Server) handleManuscriptBuild(w http.ResponseWriter, r *http.Request, s
 		WriteAPIError(w, "method_not_allowed", "build is POST-only", nil)
 		return
 	}
+	if !s.manuscriptWorkAllowed(w, r) {
+		return
+	}
 	if blocked, reason := s.diskBlocked(); blocked {
 		WriteAPIError(w, "storage_blocked", "storage is blocked: "+reason, nil)
 		return
@@ -432,7 +484,7 @@ func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscrip
 	if !resp.OK {
 		return &manuscriptRefusal{code: manuscriptErrorCode(resp.ErrorCode), message: resp.Error}
 	}
-	hash := manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, resp.FigureSHA)
+	hash := manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, req.Figures, resp.FigureSHA)
 	if hash != ms.ContentHash {
 		return errManuscriptSourceChanged
 	}
@@ -462,6 +514,9 @@ func (s *Server) handleManuscriptReviews(w http.ResponseWriter, r *http.Request,
 		WriteAPIError(w, "method_not_allowed", "reviews support GET and POST", nil)
 		return
 	}
+	if !s.manuscriptWorkAllowed(w, r) {
+		return
+	}
 	ms, err := s.ledger.GetManuscript(sessionID, id)
 	if errors.Is(err, ledger.ErrManuscriptNotFound) {
 		WriteAPIError(w, "not_found", "unknown manuscript", nil)
@@ -485,7 +540,7 @@ func (s *Server) handleManuscriptReviews(w http.ResponseWriter, r *http.Request,
 		WriteAPIError(w, manuscriptErrorCode(resp.ErrorCode), resp.Error, nil)
 		return
 	}
-	if manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, resp.FigureSHA) != ms.ContentHash {
+	if manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, req.Figures, resp.FigureSHA) != ms.ContentHash {
 		WriteAPIError(w, "source_changed", "the manuscript source changed; create a new draft", nil)
 		return
 	}
@@ -798,50 +853,28 @@ func manuscriptCitations(in []manuscriptCiteIn) []ledger.ManuscriptCitation {
 }
 
 // manuscriptContentHash is the Go-side canonical source hash. It deliberately
-// does not depend on Python formatting: the same stored fields hash the same
-// way on every read, so a signoff can never drift from its content.
+// does not depend on Python formatting, but it IS order-sensitive: section
+// order, citation order (the introduction cites in order), and figure order
+// all change the rendered document, so they must change the hash. Sorting
+// would let a reordered paper share a signoff hash.
 func manuscriptContentHash(title, abstract string, sections []manuscriptBridgeSection,
-	citations []ledger.ManuscriptCitation, figures map[string]string) string {
+	citations []ledger.ManuscriptCitation, figures []map[string]any, figureSHA map[string]string) string {
 	var b strings.Builder
-	b.WriteString("kubona-manuscript-v1\n")
+	b.WriteString("kubona-manuscript-v2\n")
 	b.WriteString(title)
 	b.WriteString("\n")
 	b.WriteString(abstract)
 	b.WriteString("\n")
-	sorted := append([]manuscriptBridgeSection(nil), sections...)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Slug < sorted[j].Slug })
-	for _, sec := range sorted {
-		b.WriteString(sec.Slug)
-		b.WriteString("\n")
-		b.WriteString(sec.Title)
-		b.WriteString("\n")
-		b.WriteString(sec.Latex)
-		b.WriteString("\n")
+	for i, sec := range sections {
+		fmt.Fprintf(&b, "section:%d\n%s\n%s\n%s\n", i, sec.Slug, sec.Title, sec.Latex)
 	}
-	cites := append([]ledger.ManuscriptCitation(nil), citations...)
-	sort.SliceStable(cites, func(i, j int) bool { return cites[i].Key < cites[j].Key })
-	for _, c := range cites {
-		b.WriteString(c.Key)
-		b.WriteString("\n")
-		b.WriteString(c.Title)
-		b.WriteString("\n")
-		b.WriteString(c.Authors)
-		b.WriteString("\n")
-		b.WriteString(c.Year)
-		b.WriteString("\n")
-		b.WriteString(c.DOI)
-		b.WriteString("\n")
+	for i, c := range citations {
+		fmt.Fprintf(&b, "cite:%d\n%s\n%s\n%s\n%s\n%s\n",
+			i, c.Key, c.Title, c.Authors, c.Year, c.DOI)
 	}
-	names := make([]string, 0, len(figures))
-	for name := range figures {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		b.WriteString(name)
-		b.WriteString(":")
-		b.WriteString(figures[name])
-		b.WriteString("\n")
+	for i, f := range figures {
+		name, _ := f["name"].(string)
+		fmt.Fprintf(&b, "figure:%d\n%s\n%s\n", i, name, figureSHA[name])
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return hex.EncodeToString(sum[:])

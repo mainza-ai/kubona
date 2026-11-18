@@ -4258,5 +4258,8 @@ export async function stageManuscriptDeposit(sessionId: string, id: string): Pro
 }
 
 export function manuscriptArtifactUrl(sessionId: string, id: string, name: string): string {
-  return `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(name)}`;
+  // Keep the project's path separators: "sections/results.tex" is a route,
+  // not a single encoded segment (pdfTeX project paths are nested).
+  const encodedName = name.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  return `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/artifacts/${encodedName}`;
 }

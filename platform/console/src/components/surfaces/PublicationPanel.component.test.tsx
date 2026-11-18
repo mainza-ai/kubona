@@ -134,5 +134,6 @@ describe('PublicationPanel', () => {
 
     const deposit = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Stage deposit')) as HTMLButtonElement | undefined;
     expect(deposit?.disabled).toBe(true);
+    expect(screen.container.textContent).toContain('requires a comparator-linked kernel proof');
   });
 });

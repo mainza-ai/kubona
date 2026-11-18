@@ -118,3 +118,33 @@ func legacyColumnExists(db *sql.DB, table, column string) (bool, error) {
 	}
 	return false, rows.Err()
 }
+
+func TestPublicationUpgradeTakesPreMigrationSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "upgrade.db")
+	l, err := ledger.OpenLedger(path)
+	if err != nil {
+		t.Fatalf("initial open: %v", err)
+	}
+	// Simulate a ledger created before the publication tables.
+	if _, err := l.DB().Exec(`DELETE FROM schema_migrations WHERE version = ?`, ledger.CurrentSchemaVersion); err != nil {
+		t.Fatalf("rewind version: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (1, '2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatalf("insert v1: %v", err)
+	}
+	l.Close()
+
+	upgraded, err := ledger.OpenLedgerWithOptions(path, ledger.Options{BackupBeforeMigration: true})
+	if err != nil {
+		t.Fatalf("upgrade open: %v", err)
+	}
+	defer upgraded.Close()
+	if upgraded.PreMigrationBackupPath() == "" {
+		t.Fatal("an older schema upgraded without a verified pre-migration snapshot")
+	}
+	version, err := upgraded.SchemaVersion()
+	if err != nil || version != ledger.CurrentSchemaVersion {
+		t.Fatalf("version = %d (%v), want %d", version, err, ledger.CurrentSchemaVersion)
+	}
+}
