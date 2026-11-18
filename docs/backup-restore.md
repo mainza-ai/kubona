@@ -34,6 +34,24 @@ using it for restore. FK quarantine can still proceed because it is
 transactional and preserves every row in `_fk_orphans`, but state the caveat
 in the operator log.
 
+## Prove the scheduled file restores
+
+`kubonad restore-drill` snapshots the live ledger and proves that round-trip;
+it does **not** read the backup volume. The acceptance check for the scheduled
+artifact is:
+
+```bash
+docker run --rm -v kubona-prod_kubona-backups:/backups:ro \
+  -v "$PWD/scripts:/scripts:ro" --entrypoint bash kubona/kubonad:prod \
+  -c 'KUBONAD_BIN=/usr/local/bin/kubonad bash /scripts/backup-restore-check.sh /backups'
+```
+
+It selects the newest `*.backup-*` artifact, runs `kubonad verify`, restores it
+into a scratch ledger with `restore --apply`, and verifies the restored chain.
+An encrypted artifact refuses unless `KUBONA_AGE_IDENTITY` is supplied (the
+script decrypts first). This proves the file an operator would actually reach
+for is readable; it is not a substitute for retention/off-host tests.
+
 ## Off-host copy
 
 Copy the verified file and its printed sha256 to storage outside the host.

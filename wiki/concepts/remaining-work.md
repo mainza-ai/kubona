@@ -76,33 +76,42 @@ status: tracked
 
 ## Local-private publication audit (2026-11-18)
 
-[[production-readiness-audit-2026-11-18]] audited `d9a0c1ab` against the
-"fully functional on one trusted host" bar. New queue items (none landed):
+[[production-readiness-audit-2026-11-18]] audited `d9a0c1ab`; the R0–R7 plan
+was then executed the same day. Landed (see [[publication-pipeline]]):
 
-- **R1/P0** Server-side manuscript/report persistence: tables + tenant-scoped
-  Go routes; drafts built from the campaign projection, not the browser.
-- **R2/P0** Evidence binding: resolve provenance receipts and Lean proof hashes
-  against the ledger; append `peer_review`/signoff events.
-- **R3/P0** Reproducible build: TeX toolchain in an isolated job, `\input`
-  sections, referenced figures, resolved `references.bib`, hashed artifacts,
-  compile test.
-- **R4/P1** Results Studio workflow: draft → review → signoff → build →
-  download, with persisted annotations (replaces the chat-prompt annotation
-  path).
-- **R5/P1** Deposit staging from built artifacts; human upload only.
-- **R6/P1** Encrypted off-host backups (`REQUIRE_ENCRYPTION=1`), require-backup
-  preflight, real restore-from-backup drill, job/queue/bridge/backup metrics.
-- **R7/P2** Bibliographic integrity: stored literature, stable BibTeX keys,
-  claim→citation binding.
-- **Operator** Fresh-volume reset to restore `local_private` on the live host
-  (21 E2E labs make `/api/access` report `multi_lab`; the ledger is append-only).
+- **R0** no fabricated/static figures; SVG refused; convergence is a table.
+- **R1** manuscript/section/review/artifact/signoff/citation tables and
+  tenant-scoped routes; drafts built from the stored campaign; immutable
+  after review; OpenAPI + console contracts updated.
+- **R2** signed-receipt resolution, comparator-event proof resolution,
+  `manuscript_drafted/reviewed/signed/built/deposit_staged` events,
+  hash-bound signoff.
+- **R3** pdfTeX in the bridge image, `\input` sections, included figures,
+  resolved BibTeX, artifact hashes, byte-identical rebuilds, source-change
+  refusal.
+- **R4 (partial)** Publications panel: draft/re-review/build/signoff/deposit
+  and download, with browser coverage.
+- **R5** staged Zenodo manifest from built artifacts; refuses without ACCEPT +
+  signoff; human upload only.
+- **R6** job/manuscript/bridge/backup gauges; read-only backup mount;
+  encryption requirement enforced by `backup-status`/preflight;
+  `scripts/backup-restore-check.sh` restores the real scheduled artifact.
+- **R7 (partial)** citations persist and become BibTeX; novelty distance is
+  measured or explicitly unmeasured.
 
-Also landed with the audit: `scripts/local-deployment-check.sh
---expect-single-lab` (CI docker smoke passes it), compose reset/preflight
-documentation in `docs/local-deployment.md`, and a truth correction in the
-`ReviewEvidence` docstring.
+Still open:
 
-## Phase-0/1/2 execution record (2026-10-28, `develop`)
+- **R4 annotations:** Results Studio annotations are chat prompts, not
+  persisted manuscript review notes.
+- **R7:** literature lookup does not auto-feed citations; claim→citation
+  binding is manual.
+- **Comparator producer:** no production event emits a kernel-proof verdict,
+  so the ACCEPT gate is wired and tested but unreachable.
+- **Operator:** `KUBONA_BACKUP_AGE_RECIPIENT` + `REQUIRE_ENCRYPTION=1` (or a
+  signed plaintext waiver), `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`, and the
+  fresh-volume reset for the polluted host ledger.
+
+## Phase-0/1/2 execution record (2026-10-28, `develop`)## Phase-0/1/2 execution record (2026-10-28, `develop`)
 
 - Phase-0 + Phase-1 hardening landed on `develop` with the full gate
   green (20 checks, run 40786519756): settlement, admission crypto, A2A

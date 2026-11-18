@@ -33,40 +33,49 @@ Audit: `docs/production-audit-2026-11-18.md` (K-01…K-14).
 
 ## Production audit slices (2026-11-18)
 
-Publication pipeline first; each slice closes only with executable acceptance.
+Executed 2026-11-18; each box is closed only by a test or a live run named in
+`docs/production-audit-2026-11-18.md` §11.
 
-- [ ] R0: remove publish/PDF affordances that do not exist; attach the
-      convergence figure only when energies exist; label or drop illustrative
-      figures; no manuscript metadata may claim unreferenced figures.
-- [ ] R1: `manuscripts`, `manuscript_sections`, `manuscript_reviews`,
-      `manuscript_artifacts` tables + tenant-scoped Go routes
-      (`/api/sessions/{id}/manuscripts…`); draft built server-side from the
-      campaign projection.
-- [ ] R1: OpenAPI + console contract entries for every new route; cross-tenant
-      refusal tests; content hash stable across reads.
-- [ ] R2: resolve provenance receipts and Lean proof hashes against the ledger;
-      append `peer_review` and `manuscript_signoff` events; forged receipt
-      cannot reach ACCEPT.
-- [ ] R3: TeX toolchain (Tectonic-class) in an isolated build job with a fixed
-      `SOURCE_DATE_EPOCH`; `\input` sections; `\includegraphics` for declared
-      figures; resolved `references.bib`; artifact SHA-256; compile test in CI.
-- [ ] R3: two builds of the same manuscript are byte-identical (or the
-      deterministic exception is documented).
-- [ ] R4: Results Studio draft → review → signoff → build → download; persist
-      annotations as `manuscript_reviews`; show build hash and signoff state.
-- [ ] R4: browser test covers reload persistence, signoff refusal after a
-      content change, and PDF download.
-- [ ] R5: Zenodo manifest generated from built artifacts with checksums;
-      refuses without ACCEPT + valid signoff; human upload only.
-- [ ] R6: `KUBONA_BACKUP_REQUIRE_ENCRYPTION=1` with an age recipient, or a
-      signed plaintext waiver; `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`.
-- [ ] R6: restore a real `kubona.db.backup-*` file into a scratch ledger (not
-      only `restore-drill`).
-- [ ] R6: metrics for job queue depth/age, bridge refusals, backup age, chain
-      faults, settlement skips; alert on backup staleness.
-- [ ] R7: persist literature used by a manuscript; emit stable BibTeX keys;
-      bind citations to claims; record novelty distance as measured or
-      unmeasured.
+- [x] R0: no fabricated/static figures; `compile_latex` refuses SVG; the
+      bilingual constructor takes real caller figures; convergence data is a
+      table (tests pin empty/no-figure behavior).
+- [x] R1: `manuscripts`, `manuscript_sections`, `manuscript_reviews`,
+      `manuscript_artifacts`, `manuscript_signoffs`, `manuscript_citations`
+      tables; tenant-scoped routes under `/api/sessions/{id}/manuscripts`;
+      drafts built server-side from the stored campaign snapshot; immutable
+      after review.
+- [x] R1: OpenAPI + console contract entries (180 modeled / 15 client-only /
+      0 unmodeled, 156 schemas, 157 paths); cross-tenant refusal tests;
+      content hash stable across reads.
+- [x] R2: receipts resolved against the campaign's signed receipts; proof
+      hashes resolved against comparator events (none exist yet, so a
+      supplied hash stays unverified); `manuscript_drafted/reviewed/signed/
+      built/deposit_staged` events; signoff binds the content hash; forged
+      references are named unresolved.
+- [x] R3: pdfTeX in the bridge image; `\input` sections; `\includegraphics`
+      for declared PNG/PDF/JPEG; `references.bib`; artifact SHA-256;
+      byte-identical rebuilds (test + live).
+- [x] R3: source-change refusal: a recomposition whose hash differs from the
+      signed content hash returns 409 `source_changed`.
+- [x] R4 (partial): Publications panel in Results Studio: create draft,
+      re-review, build, operator signoff, deposit staging, artifact download;
+      browser tests cover the empty/create/build/signoff-refusal/deposit-disabled
+      states. **Open:** annotations are still ephemeral chat prompts; persisting
+      them as manuscript review notes is the remaining R4 item.
+- [x] R5: Zenodo manifest generated from built artifacts with checksums;
+      refuses without an ACCEPT review and a valid signoff; human upload only
+      (`auto_publish:false`, `doi:null`).
+- [x] R6: `/metrics` adds job-status, manuscript-state, bridge-configured, and
+      backup count/age gauges; `kubonad` mounts `kubona-backups` read-only;
+      `backup-status`/preflight fail when encryption is declared but the newest
+      backup is plaintext; `scripts/backup-restore-check.sh` restores the real
+      scheduled artifact and re-verifies the chain.
+- [ ] R6 operator: set `KUBONA_BACKUP_AGE_RECIPIENT` + `REQUIRE_ENCRYPTION=1`,
+      or record a plaintext waiver; set `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`.
+- [x] R7 (partial): citations persist in `manuscript_citations` and become a
+      resolved BibTeX file with `\cite` keys; novelty distance is recorded as
+      measured or explicitly unmeasured. **Open:** literature lookup does not
+      yet feed citations automatically, and claim→citation binding is manual.
 - [ ] Operator: fresh-volume reset to restore the declared `local_private`
       posture (documented procedure; preserves a verified snapshot).
 

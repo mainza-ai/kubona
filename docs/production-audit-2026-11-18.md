@@ -413,3 +413,71 @@ passes on a fresh volume (CI's `docker-smoke` job now asserts it).
 | "Results Studio publishes with DOI/Zenodo" | The studio generates client-side exports and a draft LaTeX string. DOI minting is correctly refused; Zenodo staging is library-only. |
 | `ReviewEvidence` docstring: "the manuscripts endpoint records the review into the ledger" | No endpoint records it; the `console_api` handler does not append an event. Docstring corrected in `platform/kubona/science/manuscript.py`. |
 | "Acceptance check proves local-private posture" | It proved loopback/health/console only. It now also asserts `/api/access` when `--expect-single-lab` is passed, and CI passes the flag. |
+
+
+---
+
+## 11. Implementation record (2026-11-18, same session)
+
+The R0–R7 plan was executed against the audit findings. Every claim below is
+backed by a test or a live run.
+
+### Findings status
+
+| ID | Status | Evidence |
+|---|---|---|
+| K-01 pipeline not deployed | **Fixed** | Go routes + bridge RPC + publication panel; live draft/build on a disposable stack |
+| K-02 single-lab posture mismatch | **Gate added** | `--expect-single-lab` fails on the polluted host and passes on a fresh volume (live both ways) |
+| K-03 unbuildable manuscripts | **Fixed** | pdfTeX in the bridge image; `\input` sections; deterministic byte-identical rebuild; artifact hashes |
+| K-04 caller-attested review | **Fixed at the boundary** | receipts resolved against signed campaign receipts; proof hashes resolved against comparator events; unresolved named; signoff binds content hash |
+| K-05 backup trust | **Partly fixed** | real-backup restore check script; encryption requirement enforced by `backup-status`/preflight; actual encryption/waiver remains operator-owned |
+| K-06 observability | **Improved** | job/manuscript/bridge/backup gauges; `kubona-backups` mounted read-only in kubonad |
+| K-07 report persistence | **Fixed for manuscripts** | manuscript rows, sections, citations, reviews, artifacts, signoffs |
+| K-08 review split | **Partly fixed** | claim review unchanged; manuscript signoff is a first-class persisted action; annotation persistence still open |
+| K-09 bibliography/deposit | **Partly fixed** | citations persist + BibTeX; deposit manifest staged from built artifacts; no auto-upload by design |
+| K-10 compose lifecycle | **Fixed (docs + mounts)** | reset procedure, `down -v` warning, backup mount, preflight caveat |
+| K-11 citations display-only | **Partly fixed** | caller citations become BibTeX and are cited; literature auto-feed and claim binding remain |
+
+### Live verification (disposable stack, fresh volume)
+
+```
+GET /api/access                         -> mode:"local_private" single_lab:true
+POST /api/experiments (H2 VQE)          -> job 2a2ff5a4… completed
+campaign                                -> notebook delta 15.19 mHa, CONTESTED
+POST …/manuscripts {build:true}         -> 201, state built, 8 artifacts
+main.pdf                                -> %PDF-1.7, sha256 eb77c3db…,
+                                           X-Kubona-SHA256 matches bytes
+POST …/build (again)                    -> build hash eb77c3db… identical
+POST …/signoff (anonymous)              -> 403 forbidden
+POST …/signoff (operator)               -> 200, signature over
+                                           manuscript-signoff:<id>:<hash>:<expiry>
+POST …/deposit                          -> 409 review_not_accepted (REVISE)
+ledger events                           -> manuscript_drafted, manuscript_built,
+                                           manuscript_signed
+kubonad verify                          -> chain clean (new event types included)
+GET /metrics                            -> kubona_jobs{status=…},
+                                           kubona_manuscripts{state="built"},
+                                           kubona_bridge_configured 1
+```
+
+The first live build exposed a real defect: the primary VQE point lives in
+`campaign.measurement`/`notebook`, not `campaign.experiments`, so the results
+section said "no measured result" for a completed run. The composer now
+promotes the primary point exactly once; a regression test pins it.
+
+### Backup-file restore (live main stack)
+
+`scripts/backup-restore-check.sh` restored
+`kubona.db.backup-20261118T053638Z` into a scratch ledger, re-verified the
+chain, and reported `clean`. This is the check `restore-drill` cannot make: it
+reads the scheduled artifact, not a fresh snapshot of the live DB.
+
+### What is still open
+
+- Operator-only: age recipient + `KUBONA_BACKUP_REQUIRE_ENCRYPTION=1` (or a
+  signed plaintext waiver), `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`, and the
+  fresh-volume reset for the polluted host ledger.
+- R4 annotation persistence as manuscript review notes.
+- R7 literature auto-feed / claim→citation binding.
+- No production comparator producer, so no manuscript can honestly reach
+  ACCEPT yet; the gate is wired and tested with a synthetic event.

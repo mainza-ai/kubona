@@ -74,6 +74,33 @@ record, end to end".
 8. **R7 bibliographic integrity** — stored literature, stable BibTeX keys,
    measured or explicitly unmeasured novelty.
 
+## Implementation status (2026-11-18, same session)
+
+The R0–R7 plan was executed. The operational pipeline is now
+[[publication-pipeline]] (adopted), with the contract in
+`docs/publication-pipeline-2026-11-18.md`.
+
+| Finding | Status |
+|---|---|
+| K-01 not deployed | Fixed: Go routes + bridge RPC + console panel |
+| K-02 posture mismatch | Gate added (`--expect-single-lab`); operator reset remains |
+| K-03 unbuildable | Fixed: pdfTeX, `\input`, byte-identical rebuild |
+| K-04 caller-attested review | Fixed at the boundary: signed-receipt resolution, comparator-event binding, hash-bound signoff |
+| K-05 backup trust | Partly: real-backup restore check + encryption enforcement; key/waiver operator-owned |
+| K-06 observability | Improved: job/manuscript/bridge/backup gauges |
+| K-07 report persistence | Fixed for manuscripts |
+| K-08 review split | Partly: signoff persisted; annotations still chat prompts |
+| K-09 bibliography/deposit | Partly: persisted citations + staged manifest, no auto-upload |
+| K-10 compose lifecycle | Fixed in docs + mounts |
+| K-11 citations | Partly: caller citations become BibTeX; no auto-feed |
+
+Live proof: a fresh stack ran a real H2 VQE job, composed and built an 88 KB
+PDF (`eb77c3db…`), rebuilt it to the identical hash, refused anonymous
+signoff, accepted the operator signoff, refused deposit with `REVISE`, and
+kept the ledger chain clean. The first build exposed a real composing defect
+(primary VQE point in `measurement`, not `experiments`), now fixed with a
+regression test.
+
 ## What this audit changed
 
 - `scripts/local-deployment-check.sh` now asserts `/api/access` with

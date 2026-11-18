@@ -6954,3 +6954,38 @@ skipped is the exact failure this incident is about:
   items (encrypted off-host or signed waiver; real backup-file restore).
 - Corrected the `ReviewEvidence` docstring claim that a served endpoint records
   reviews into the ledger.
+
+## [2026-11-18] implementation | Publication pipeline (R0–R7)
+
+- R0: removed fabricated/static manuscript figures; `compile_latex` refuses
+  non-includable formats; convergence data is a table. Tests pin the absence.
+- R1: new ledger tables (manuscripts, sections, reviews, artifacts, signoffs,
+  citations) and tenant-scoped routes under `/api/sessions/{id}/manuscripts`.
+  Drafts are composed server-side from the stored campaign snapshot and are
+  immutable after review. Console contracts: 180 modeled / 15 client-only /
+  0 unmodeled, 156 schemas, 157 OpenAPI paths.
+- R2: receipts resolve only against the campaign's signed result receipts;
+  proof hashes resolve only against comparator events; unresolved references
+  are named and earn no credit. New events: `manuscript_drafted`,
+  `manuscript_reviewed`, `manuscript_signed` (commit-class),
+  `manuscript_built`, `manuscript_deposit_staged`.
+- R3: pdfTeX in the bridge image; `\input` sections; declared figures via
+  `\includegraphics`; resolved `references.bib`; artifacts hashed and stored in
+  the ledger; two builds are byte-identical; a changed source refuses with
+  `409 source_changed`.
+- R4: Publications panel in Results Studio (draft, re-review, build, operator
+  signoff, deposit, download) with browser tests. Annotation persistence is
+  the remaining R4 item.
+- R5: deposit manifest staged from built artifacts, `auto_publish:false`,
+  `doi:null`, refuses without ACCEPT + signoff. Live run refused `REVISE`
+  honestly.
+- R6: `/metrics` gauges for jobs/manuscripts/bridge/backup; `kubona-backups`
+  mounted read-only in kubonad; `backup-status`/preflight fail when encryption
+  is declared but the backup is plaintext; `scripts/backup-restore-check.sh`
+  restores the real scheduled artifact.
+- Live proof on a disposable fresh-volume stack: real H2 VQE job → manuscript
+  build (88 KB PDF, `eb77c3db…`), identical rebuild hash, anonymous signoff
+  403, operator signoff 200, deposit 409 `review_not_accepted`, chain clean.
+- The first live build exposed a real defect (primary VQE point lives in
+  `measurement`, not `experiments`); fixed with a regression test.
+- Filed [[publication-pipeline]] and `docs/publication-pipeline-2026-11-18.md`.

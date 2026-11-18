@@ -25,6 +25,13 @@ sources:
 > LaTeX/Markdown/CSV/JSON and a server-signed experiment bundle. Evidence:
 > [[production-readiness-audit-2026-11-18]] and
 > `docs/production-audit-2026-11-18.md` (K-01, K-03, K-04, K-08).
+>
+> **Update (2026-11-18, later the same day):** a server-owned pipeline now
+> exists — see [[publication-pipeline]]. Drafts are composed from the stored
+> campaign, receipts are resolved against signed ledger receipts, the review is
+> persisted, pdfTeX builds a byte-reproducible PDF in the bridge image, and
+> signoff/deposit are hash-bound. It still cannot reach ACCEPT because no
+> comparator producer exists, and annotations are not yet review notes.
 
 The automated bilingual publication and review engine (`platform/kubona/science/manuscript.py`) that transforms verified Lean 4 proofs, QIR circuit execution logs, and classical simulation telemetry into publication-grade, modular LaTeX manuscripts, validated by an automated adversarial peer-review tribunal.
 

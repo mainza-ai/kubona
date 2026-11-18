@@ -438,6 +438,16 @@ restore a backup over a running daemon.
       backup file (not only `restore-drill`) has been exercised into a scratch
       path. `restore-drill` proves the live ledger round-trips; it does not
       prove the scheduled backup file is readable.
+- [ ] `scripts/backup-restore-check.sh` restores the newest scheduled backup
+      file into a scratch ledger and re-verifies the chain (run it inside the
+      `backup` image/container; see `docs/backup-restore.md`).
+- [ ] Publishing works: a session with a measured result accepts
+      `POST /api/sessions/{id}/manuscripts {"build":true}`, the returned
+      `main.pdf` starts with `%PDF-` and its downloaded SHA-256 equals the
+      artifact's recorded hash, and a rebuild returns the same `build_hash`
+      (see `docs/publication-pipeline-2026-11-18.md`).
+- [ ] `/metrics` (operator bearer) shows `kubona_jobs`, `kubona_manuscripts`,
+      `kubona_bridge_configured`, and `kubona_backup_age_seconds`.
 - [ ] Backups are encrypted off-host (`KUBONA_BACKUP_AGE_RECIPIENT` set,
       `KUBONA_BACKUP_REQUIRE_ENCRYPTION=1`) **or** a signed residual-risk
       waiver records plaintext same-host backups.
