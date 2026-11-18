@@ -191,7 +191,9 @@ kubonad manuscript-export --db /abs/kubona.db --session <sid> --out /abs/export
 
 Read-only: writes metadata/sections/citations/reviews/annotations/signoff and
 every artifact (re-verified against its recorded SHA-256). Use it before
-session deletion or retention pruning.
+session deletion or retention pruning: deleting a session that holds
+signed/built evidence returns `409 publication_evidence_present` until the
+operator retries with `?acknowledge_publication_loss=1`.
 
 ## Known limits (intentional)
 

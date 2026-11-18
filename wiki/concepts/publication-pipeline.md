@@ -122,7 +122,9 @@ The register and plan that remain:
   deposit. The live Lean run still needs the pinned sandbox image.
 - **Export before delete:** `kubonad manuscript-export` writes metadata,
   sections, citations, reviews, annotations, signoff, and hash-checked
-  artifacts from a read-only ledger.
+  artifacts from a read-only ledger. Deleting a session with signed/built
+  evidence is refused (`409 publication_evidence_present`) until the operator
+  acknowledges the loss after exporting.
 - **Strict posture:** `preflight --strict` refuses an unacknowledged plaintext
   backup; `KUBONA_BACKUP_PLAINTEXT_ACK=1` is the explicit waiver.
 

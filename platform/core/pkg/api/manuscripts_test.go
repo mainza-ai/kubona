@@ -915,3 +915,28 @@ func canonicalTestJSON(v any) ([]byte, error) {
 	}
 	return bytes.TrimSpace(buf.Bytes()), nil
 }
+
+func TestSessionDeleteRequiresPublicationAcknowledgement(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"build": true})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doJSON(t, srv, http.MethodDelete, "/api/sessions/"+sid, "", nil)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("anonymous session delete = %d, want 403", w.Code)
+	}
+	w = doJSON(t, srv, http.MethodDelete, "/api/sessions/"+sid, "op-token", nil)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "publication_evidence_present") {
+		t.Fatalf("unacknowledged delete = %d %s", w.Code, w.Body.String())
+	}
+	w = doJSON(t, srv, http.MethodDelete, "/api/sessions/"+sid+"?acknowledge_publication_loss=1", "op-token", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("acknowledged delete = %d: %s", w.Code, w.Body.String())
+	}
+}

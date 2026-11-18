@@ -896,3 +896,14 @@ func (l *Ledger) ManuscriptArtifactBytesForManuscript(manuscriptID string) (int6
 		FROM manuscript_artifacts WHERE manuscript_id = ?`, manuscriptID).Scan(&n)
 	return n, err
 }
+
+// CountEvidenceManuscripts reports signed/built/deposit-ready manuscripts in a
+// session. Session deletion uses this to require an explicit acknowledgement
+// after an export, so publication evidence cannot vanish silently.
+func (l *Ledger) CountEvidenceManuscripts(sessionID string) (int, error) {
+	var n int
+	err := l.DB().QueryRow(`SELECT COUNT(*) FROM manuscripts
+		WHERE session_id = ? AND state IN (?, ?, ?)`,
+		sessionID, ManuscriptStateSigned, ManuscriptStateBuilt, ManuscriptStateDepositReady).Scan(&n)
+	return n, err
+}

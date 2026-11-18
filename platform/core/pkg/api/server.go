@@ -2720,6 +2720,21 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if _, ok := s.authorizeKnownSession(w, r, id); !ok {
 			return
 		}
+		if evidence, err := s.ledger.CountEvidenceManuscripts(id); err != nil {
+			WriteAPIError(w, "internal", "publication evidence check failed", nil)
+			return
+		} else if evidence > 0 {
+			tenant, _, code := s.checkAuth(r)
+			if code != http.StatusOK || tenant != "" {
+				WriteAPIError(w, "forbidden", "deleting a session with signed or built manuscripts requires the operator bearer", nil)
+				return
+			}
+			if r.URL.Query().Get("acknowledge_publication_loss") != "1" {
+				WriteAPIError(w, "publication_evidence_present",
+					fmt.Sprintf("%d signed/built manuscript(s) are publication evidence; export them with `kubonad manuscript-export` first, then retry with ?acknowledge_publication_loss=1", evidence), nil)
+				return
+			}
+		}
 		if err := s.sessionMgr.DeleteSession(id, s.signerPrivKey); err != nil {
 			var blocked *session.DeleteBlockedError
 			if errors.As(err, &blocked) {
