@@ -92,10 +92,11 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 //
 // History: 1 = baseline; 2 = publication tables (manuscripts/sections/
 // reviews/artifacts/signoffs/citations); 3 = annotation table + idempotent
-// create column; 4 = citation claim/source binding; 5 = hypotheses. Each bump
+// create column; 4 = citation claim/source binding; 5 = hypotheses;
+// 6 = experiment plans. Each bump
 // makes an existing ledger take a verified pre-migration snapshot before the
 // additive DDL, which is the production upgrade invariant.
-const CurrentSchemaVersion = 5
+const CurrentSchemaVersion = 6
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -656,7 +657,7 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (session_id, request_id)
 	);
-	` + obligationSchema + scoresSchema + manuscriptsSchema + hypothesesSchema
+	` + obligationSchema + scoresSchema + manuscriptsSchema + hypothesesSchema + plansSchema
 
 	if _, err := db.Exec(initSchema); err != nil {
 		db.Close()

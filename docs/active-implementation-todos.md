@@ -94,21 +94,26 @@ capability, not a demo.
       shortlist API + tests). 10 hypotheses on the H2 campaign.
 - [ ] AG-2b: LLM proposer, tournament evolution/meta-review, measured novelty;
       collapse a hypothesis into a claim.
-- [ ] AG-3: typed experiment protocol planner (hypothesis id, method,
-      observable, acceptance metric, budget, stop rule, falsifier, executor);
-      no plan → no execution.
-- [ ] AG-4: structured research graph (goal → hypothesis → plan → run →
-      evidence → decision → negative) with context-budgeted summaries and
-      restart resume.
+- [x] AG-3a: `experiment_plans` table/API; plan requires acceptance metric +
+      stop rule + spec; approval gate; execute through the job rail and score
+      the observable against the acceptance target.
+- [ ] AG-3b: synthesize the spec from the hypothesis/method automatically
+      (execution is implemented; the spec is caller-supplied today).
+- [x] AG-4a: `GET /research-graph` projects campaign, hypotheses, plans, jobs,
+      claims, and manuscripts from the ledger.
+- [ ] AG-4b: context-budgeted summaries and restart resume for the graph.
 - [ ] AG-5: numeric/citation claim verification against results/logs and
       DOI/OpenAlex; block signoff on unsupported claims; calibrate the
       reviewer against a human-labeled set.
-- [ ] AG-6: RO-Crate/PROV export with agent decisions and prompts/responses;
-      CRediT-style human/agent attribution.
+- [x] AG-6a: RO-Crate 1.1 metadata in `manuscript-export` (files, hashes,
+      content hash, signoff).
+- [ ] AG-6b: PROV/PROV-AGENT export and CRediT-style attribution.
 - [ ] AG-7: stage-level autonomy modes (suggest/approve/act), dual-use/risk
       screening, and human signoff for flagged directions.
-- [ ] AG-8: stage success/failure taxonomy, cost per accepted claim, human
-      minutes, queue/loop health dashboard.
+- [x] AG-8a: `kubona_hypotheses{status}` + `kubona_experiment_plans{status}`
+      gauges.
+- [ ] AG-8b: stage/failure taxonomy, cost per accepted claim, human minutes,
+      dashboard.
 - [ ] AG-9: tenant-scoped cumulative lab knowledge registry (hypotheses,
       negative results, reports) with A2A/tenant-grant access.
 

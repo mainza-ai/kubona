@@ -949,6 +949,48 @@
         "comparator_signature_hex"
       ]
     },
+    "plan_created": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Pre-registered experiment plan created from a hypothesis.",
+      "required": [
+        "plan_id",
+        "method"
+      ]
+    },
+    "plan_status_changed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Plan approved, rejected, or returned to proposed.",
+      "required": [
+        "plan_id",
+        "status"
+      ]
+    },
+    "plan_started": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Approved plan submitted to the job rail.",
+      "required": [
+        "plan_id",
+        "job_id"
+      ]
+    },
+    "plan_executed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Plan execution scored against its registered tolerance.",
+      "required": [
+        "plan_id",
+        "job_id",
+        "accepted",
+        "status"
+      ]
+    },
     "hypotheses_generated": {
       "emitters": [
         "go"

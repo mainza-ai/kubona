@@ -7098,3 +7098,19 @@ skipped is the exact failure this incident is about:
   ranked hypotheses on the H2 campaign, literature refs attached when the
   bridge answers, novelty explicitly unmeasured.
 - Open: AG-1b nightly job, AG-2b tournament/LLM/measured novelty, AG-3…AG-9.
+
+## [2026-11-18] implementation | AG-3 plans, AG-4 graph, AG-6 RO-Crate, AG-8 gauges
+
+- AG-3a: `experiment_plans` (schema 6) + approve/execute API; execution submits
+  through the job rail and scores the observable against the acceptance target;
+  tests cover missing acceptance, unapproved refusal, and a completed plan.
+- AG-4a: `GET /research-graph` projects campaign, hypotheses, plans, jobs,
+  claims, and manuscripts from the ledger.
+- AG-6a: `manuscript-export` writes RO-Crate 1.1 metadata with per-file hashes
+  and the signoff entity.
+- AG-8a: `/metrics` adds hypothesis and plan status gauges.
+- Runtime: approved H2 plan executed a real VQE job (`accepted:true`); the
+  research graph reported plans=1, jobs=1, hypotheses=10, claims=1.
+- Remaining: AG-1b nightly job, AG-2b tournament/LLM/novelty, AG-3b auto-spec,
+  AG-4b compaction/resume, AG-5 verification, AG-6b PROV, AG-7 autonomy/safety,
+  AG-8b dashboards, AG-9 registry.

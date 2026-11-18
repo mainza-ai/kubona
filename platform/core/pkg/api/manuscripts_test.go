@@ -137,10 +137,12 @@ func setupManuscriptServer(t *testing.T, bridge pb.QuantumBridgeServiceClient) (
 	}
 	sm := session.NewManager(l)
 	jr := jobs.NewRunner(l, bridge, 1)
+	jr.Start()
 	sup := supervisor.NewSupervisor(l)
 	wd := watchdog.NewTaskWatchdog(l, sup)
 	srv := api.NewServer(l, sm, jr, sup, wd)
 	return srv, func() {
+		jr.Stop()
 		l.Close()
 		os.Remove(dbPath)
 	}

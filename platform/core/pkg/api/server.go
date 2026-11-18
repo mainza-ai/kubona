@@ -2368,6 +2368,14 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleHypothesisRoute(w, r, sid, rest)
 		return
 	}
+	if sid, rest, ok := planSubpath(id); ok {
+		s.handlePlanRoute(w, r, sid, rest)
+		return
+	}
+	if sid, ok := researchGraphSubpath(id); ok {
+		s.handleResearchGraph(w, r, sid)
+		return
+	}
 	if strings.HasSuffix(id, "/formal-verifications") {
 		s.handleFormalVerification(w, r, strings.TrimSuffix(id, "/formal-verifications"))
 		return

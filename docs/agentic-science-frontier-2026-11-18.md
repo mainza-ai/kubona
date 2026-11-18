@@ -256,11 +256,46 @@ ranked above prior-art checks, every candidate has a falsifier, shortlist
 transition returns 200. AG-2b (LLM proposer, tournament evolution, meta-review,
 measured novelty) remains open; the API and storage are the substrate for it.
 
+### AG-3a — typed plan and execution
+
+- Ledger `experiment_plans` (schema 6) + session API:
+  `POST/GET /api/sessions/{sid}/plans`, `PATCH …/{id}` (approve/reject),
+  `POST …/{id}/execute`.
+- A plan requires a statement/hypothesis, method, observable, acceptance
+  metric, tolerance, stop rule, and a concrete spec. Execution refuses unless
+  approved, submits through the job rail, waits for terminal state, and scores
+  the observable against the acceptance target.
+- Tests: missing acceptance, unapproved execution, and an executed spin-chain
+  plan accepted against its exact anchor.
+- Runtime on a disposable stack: the approved H2 plan executed a real VQE job
+  and scored `accepted:true` (`completed`); the research graph then reported
+  `{plans:1, jobs:1, hypotheses:10, claims:1}`.
+
+### AG-4a — research graph
+
+`GET /api/sessions/{sid}/research-graph` projects the campaign, hypotheses,
+plans, jobs/results, claims, and manuscripts from the ledger in one read-only
+view (no second store). Tests assert the assembled counts.
+
+### AG-6a — RO-Crate export
+
+`kubonad manuscript-export` now writes `ro-crate-metadata.json` (RO-Crate 1.1)
+with the dataset, per-file SHA-256, content hash, and signoff entity. Tests
+assert the crate and its artifact entries.
+
+### AG-8a — telemetry
+
+`/metrics` adds `kubona_hypotheses{status}` and
+`kubona_experiment_plans{status}` gauges.
+
 ### Still open
 
-AG-1b, AG-2b, AG-3 (protocol planner), AG-4 (structured research state),
-AG-5 (claim/citation verification), AG-6 (RO-Crate/PROV export), AG-7
-(autonomy/safety), AG-8 (telemetry), AG-9 (cumulative lab knowledge).
+AG-1b (nightly benchmark job), AG-2b (LLM/tournament/evolution/measured
+novelty), AG-3b (automatic spec synthesis from a hypothesis; execution is
+implemented but the spec is caller-supplied), AG-4b (context-budgeted
+compaction and restart resume of the graph), AG-5 (claim/citation verification),
+AG-6b (PROV/PROV-AGENT export), AG-7 (stage autonomy + safety screening),
+AG-8b (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations
 

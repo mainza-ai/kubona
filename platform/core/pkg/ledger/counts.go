@@ -13,6 +13,14 @@ func (l *Ledger) ManuscriptStateCounts() (map[string]int64, error) {
 	return l.countBy(`SELECT state, COUNT(*) FROM manuscripts GROUP BY state`)
 }
 
+func (l *Ledger) HypothesisStatusCounts() (map[string]int64, error) {
+	return l.countBy(`SELECT status, COUNT(*) FROM hypotheses GROUP BY status`)
+}
+
+func (l *Ledger) PlanStatusCounts() (map[string]int64, error) {
+	return l.countBy(`SELECT status, COUNT(*) FROM experiment_plans GROUP BY status`)
+}
+
 func (l *Ledger) countBy(query string) (map[string]int64, error) {
 	rows, err := l.DB().Query(query)
 	if err != nil {

@@ -31,6 +31,8 @@ func TestMetricsExposeOperationsGauges(t *testing.T) {
 	for _, want := range []string{
 		"# HELP kubona_jobs",
 		"# HELP kubona_manuscripts",
+		"# HELP kubona_hypotheses",
+		"# HELP kubona_experiment_plans",
 		"kubona_bridge_configured ",
 		"kubona_backup_count 1",
 		"kubona_backup_age_seconds ",

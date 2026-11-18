@@ -10,11 +10,14 @@ package main
 // and never mutates the database.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -140,6 +143,7 @@ func exportManuscript(l *ledger.Ledger, sessionID, id, outDir string) error {
 		return err
 	}
 
+	written := map[string]string{} // crate-relative path -> sha256
 	for _, a := range ms.Artifacts {
 		if a.Name == "" || strings.HasPrefix(a.Name, "/") || strings.Contains(a.Name, "..") {
 			return fmt.Errorf("unsafe artifact name %q", a.Name)
@@ -151,15 +155,82 @@ func exportManuscript(l *ledger.Ledger, sessionID, id, outDir string) error {
 		if a.SHA256 != "" && sum != a.SHA256 {
 			return fmt.Errorf("artifact %s hash mismatch", a.Name)
 		}
-		target := filepath.Join(dir, "artifacts", filepath.FromSlash(a.Name))
+		rel := "artifacts/" + strings.TrimPrefix(filepath.ToSlash(a.Name), "/")
+		target := filepath.Join(dir, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
 		if err := os.WriteFile(target, raw, 0o600); err != nil {
 			return err
 		}
+		written[rel] = sum
 	}
-	return nil
+	// AG-6a: ship an RO-Crate 1.1 metadata document next to the artefacts so
+	// an external consumer can reconstruct the research object and hashes.
+	for _, rel := range []string{"metadata.json", "sections.json", "citations.json",
+		"reviews.json", "annotations.json"} {
+		raw, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(raw)
+		written[rel] = hex.EncodeToString(sum[:])
+	}
+	return writeROCrate(dir, ms, written)
+}
+
+// writeROCrate writes a minimal RO-Crate 1.1 metadata graph: the dataset, its
+// files with sha256, the signoff/review as entities, and the content hash that
+// binds them. It is intentionally small and stable rather than a full profile.
+func writeROCrate(dir string, ms *ledger.Manuscript, files map[string]string) error {
+	graph := []map[string]any{{
+		"@id":        "ro-crate-metadata.json",
+		"@type":      "CreativeWork",
+		"conformsTo": map[string]any{"@id": "https://w3id.org/ro/crate/1.1"},
+		"about":      map[string]any{"@id": "./"},
+	}, {
+		"@id":           "./",
+		"@type":         "Dataset",
+		"name":          ms.Title,
+		"description":   ms.Abstract,
+		"datePublished": ms.CreatedAt,
+		"identifier":    ms.ID,
+		"contentHash":   ms.ContentHash,
+	}}
+	if ms.Signoff != nil {
+		graph = append(graph, map[string]any{
+			"@id": "#signoff", "@type": "EndorsementRating",
+			"signer": ms.Signoff.SignerPubKey, "signature": ms.Signoff.Signature,
+			"contentHash": ms.Signoff.ContentHash, "expiry": ms.Signoff.Expiry,
+			"datePublished": ms.Signoff.SignedAt,
+		})
+	}
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	hasPart := make([]map[string]any, 0, len(names)+1)
+	for _, name := range names {
+		hasPart = append(hasPart, map[string]any{"@id": name})
+		graph = append(graph, map[string]any{
+			"@id": name, "@type": "File", "name": filepath.Base(name),
+			"sha256": files[name],
+		})
+	}
+	if ms.Signoff != nil {
+		hasPart = append(hasPart, map[string]any{"@id": "#signoff"})
+	}
+	graph[1]["hasPart"] = hasPart
+	doc := map[string]any{
+		"@context": "https://w3id.org/ro/crate/1.1/context",
+		"@graph":   graph,
+	}
+	raw, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "ro-crate-metadata.json"), append(raw, '\n'), 0o600)
 }
 
 func writeJSONFile(path string, v any) error {

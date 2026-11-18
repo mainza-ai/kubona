@@ -90,6 +90,7 @@ var errorRegistry = map[string]errorSpec{
 	"artifact_ceiling_exceeded":    {"resource", 413, false, "delete old drafts or raise KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES; the session artifact ceiling was reached"},
 	"comparator_unconfigured":      {"internal", 503, false, "set KUBONA_COMPARATOR_PUBKEY_HEX from the operator-run comparator key before attesting a kernel proof"},
 	"publication_evidence_present": {"state", 409, false, "export the session's manuscripts with kubonad manuscript-export, then retry with ?acknowledge_publication_loss=1"},
+	"plan_not_approved":            {"state", 409, false, "approve the experiment plan before executing it"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

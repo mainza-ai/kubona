@@ -22,6 +22,10 @@ func (s *Server) renderOpsMetrics(w io.Writer) {
 		"status", s.ledger.JobStatusCounts)
 	writeGaugeMap(w, "kubona_manuscripts", "Manuscripts by state (ledger).",
 		"state", s.ledger.ManuscriptStateCounts)
+	writeGaugeMap(w, "kubona_hypotheses", "Hypotheses by status (ledger).",
+		"status", s.ledger.HypothesisStatusCounts)
+	writeGaugeMap(w, "kubona_experiment_plans", "Experiment plans by status (ledger).",
+		"status", s.ledger.PlanStatusCounts)
 
 	fmt.Fprintln(w, "# HELP kubona_bridge_configured Whether a bridge client is wired into this process.")
 	fmt.Fprintln(w, "# TYPE kubona_bridge_configured gauge")

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -57,6 +58,7 @@ func TestManuscriptExportWritesVerifiableEvidence(t *testing.T) {
 		"ms1/metadata.json", "ms1/sections.json", "ms1/citations.json",
 		"ms1/reviews.json", "ms1/annotations.json",
 		"ms1/artifacts/main.pdf", "ms1/artifacts/sections/results.tex",
+		"ms1/ro-crate-metadata.json",
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
@@ -65,5 +67,14 @@ func TestManuscriptExportWritesVerifiableEvidence(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(out, "ms1", "artifacts", "main.pdf"))
 	if err != nil || string(raw) != "%PDF-1.4 evidence" {
 		t.Fatalf("artifact bytes = %q (%v)", raw, err)
+	}
+	crate, err := os.ReadFile(filepath.Join(out, "ms1", "ro-crate-metadata.json"))
+	if err != nil {
+		t.Fatalf("ro-crate: %v", err)
+	}
+	for _, want := range []string{"https://w3id.org/ro/crate/1.1/context", "ms1", "artifacts/main.pdf", "sha256"} {
+		if !strings.Contains(string(crate), want) {
+			t.Fatalf("ro-crate missing %q: %s", want, crate)
+		}
 	}
 }

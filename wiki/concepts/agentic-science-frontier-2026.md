@@ -69,8 +69,15 @@ prove autonomy on a benchmark.
   stack baseline 2/3 pass@1 (H2 VQE 4.5 mHa; anchor exact; TFIM 1.227 Ha off).
 - **AG-2a closed:** `pkg/hypotheses` + ledger table + session API; 10 ranked
   falsifiable hypotheses from the H2 campaign, literature refs, shortlist.
-- **Open:** AG-1b nightly job; AG-2b LLM/tournament/evolution; AG-3…AG-9.
-- Schema 5.
+- **AG-3a closed:** typed plans (schema 6), approval, execution through the
+  job rail, observable-vs-acceptance scoring.
+- **AG-4a closed:** `/research-graph` ledger projection.
+- **AG-6a closed:** RO-Crate 1.1 metadata in `manuscript-export`.
+- **AG-8a closed:** hypothesis/plan status gauges.
+- **Open:** AG-1b nightly job; AG-2b LLM/tournament/evolution; AG-3b automatic
+  spec synthesis; AG-4b compaction/resume; AG-5 verification; AG-6b PROV;
+  AG-7 autonomy/safety; AG-8b dashboards; AG-9 registry.
+- Schema 6.
 
 ## Cross-references
 
