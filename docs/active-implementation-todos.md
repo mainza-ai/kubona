@@ -108,9 +108,11 @@ capability, not a demo.
 - [x] AG-4b: `pkg/researchgraph` priority summary inside a byte budget with a
       truncation report; `Budget_bytes` validation; `since_seq`/`event_limit`
       resume cursor over the ledger chain.
-- [ ] AG-5: numeric/citation claim verification against results/logs and
-      DOI/OpenAlex; block signoff on unsupported claims; calibrate the
-      reviewer against a human-labeled set.
+- [x] AG-5: `pkg/verify` numeric + citation verification; `POST/GET /verify`
+      with a content-hash-bound report; signoff blocks fabricated numbers and
+      dead citations (an unavailable resolver requires an explicit, sealed
+      acknowledgment); `kubonad verify-calibration` reports 12/12 against
+      maintainer labels. Schema 9.
 - [x] AG-6a: RO-Crate 1.1 metadata in `manuscript-export` (files, hashes,
       content hash, signoff).
 - [ ] AG-6b: PROV/PROV-AGENT export and CRediT-style attribution.

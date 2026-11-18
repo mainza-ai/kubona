@@ -35,6 +35,8 @@ type fakeManuscriptBridge struct {
 	recommendation  string
 	sectionLatex    string
 	citationKeys    []string
+	literature      []*pb.LiteratureRecord
+	literatureErr   error
 	reverseSections bool
 	lastEvidence    map[string]any
 	buildCalls      int

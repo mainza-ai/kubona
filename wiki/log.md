@@ -7163,3 +7163,24 @@ skipped is the exact failure this incident is about:
 - Runtime: 1223-byte summary in a 4096 budget; 597 bytes at a 600 budget with
   `truncated:true`; resume pages advanced without overlap; an invalid budget
   returned 400.
+
+## [2026-11-18] implementation | AG-5 claim and citation verification
+
+- `pkg/verify` extracts measurement-like numbers (unit-bearing, percentages,
+  decimals with ≥3 fractional digits; years/enumerations excluded) and matches
+  them within the written rounding tolerance against job results, claim
+  evidence, plan results, the live campaign, and manuscript evidence snapshots.
+  A negative never matches its magnitude.
+- Citations require a DOI match (a different resolving work is a dead citation)
+  or, without a DOI, a close lexical title match; a resolver failure is
+  `unverified`, never `verified`.
+- `POST/GET /manuscripts/{id}/verify` persists a content-hash-bound report.
+  Signoff recomputes it and refuses `evidence_verification_failed`; an
+  unavailable resolver refuses `verification_unavailable` unless
+  `acknowledge_unverified` is passed, and that acknowledgment is sealed in the
+  signed event. Schema 9.
+- `kubonad verify-calibration` reports 12/12 agreement with maintainer-authored
+  labels and discloses that they are not an independent human study.
+- Runtime: composed H2 manuscript 6/6 matched and signed; fabricated −1.9000 Ha
+  blocked signoff even with the acknowledgment. The live run caught a bare
+  table decimal losing its minus; fixed with a regression test.

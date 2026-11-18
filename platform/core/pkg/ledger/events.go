@@ -111,6 +111,7 @@ var KnownEventTypes = map[string]bool{
 	"manuscript_deposit_staged":         true,
 	"manuscript_drafted":                true,
 	"manuscript_reviewed":               true,
+	"manuscript_verified":               true,
 	"manuscript_signed":                 true,
 	"memory_retracted":                  true,
 	"metasearch_applied":                true,

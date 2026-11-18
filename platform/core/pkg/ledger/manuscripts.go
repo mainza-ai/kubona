@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS manuscripts (
 	authors_json TEXT NOT NULL DEFAULT '[]',
 	figures_json TEXT NOT NULL DEFAULT '[]',
 	figure_sha_json TEXT NOT NULL DEFAULT '{}',
+	verification_json TEXT NOT NULL DEFAULT '',
 	source_date_epoch INTEGER NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
@@ -178,28 +179,29 @@ type ManuscriptSignoff struct {
 }
 
 type Manuscript struct {
-	ID              string
-	SessionID       string
-	TenantID        string
-	Title           string
-	Abstract        string
-	State           string
-	RequestID       string
-	ContentHash     string
-	BuildHash       string
-	ReviewJSON      string
-	CampaignJSON    string
-	EvidenceJSON    string
-	AuthorsJSON     string
-	FiguresJSON     string
-	FigureSHAJSON   string
-	SourceDateEpoch int64
-	CreatedAt       string
-	UpdatedAt       string
-	Sections        []ManuscriptSection
-	Citations       []ManuscriptCitation
-	Artifacts       []ManuscriptArtifact
-	Signoff         *ManuscriptSignoff
+	ID               string
+	SessionID        string
+	TenantID         string
+	Title            string
+	Abstract         string
+	State            string
+	RequestID        string
+	ContentHash      string
+	BuildHash        string
+	ReviewJSON       string
+	CampaignJSON     string
+	EvidenceJSON     string
+	AuthorsJSON      string
+	FiguresJSON      string
+	FigureSHAJSON    string
+	VerificationJSON string
+	SourceDateEpoch  int64
+	CreatedAt        string
+	UpdatedAt        string
+	Sections         []ManuscriptSection
+	Citations        []ManuscriptCitation
+	Artifacts        []ManuscriptArtifact
+	Signoff          *ManuscriptSignoff
 }
 
 type ManuscriptSummary struct {
@@ -238,11 +240,12 @@ func (l *Ledger) CreateManuscript(m *Manuscript) error {
 	if _, err := tx.Exec(`INSERT INTO manuscripts
 		(id, session_id, tenant_id, title, abstract, state, request_id, content_hash, build_hash,
 		 review_json, campaign_json, evidence_json, authors_json, figures_json,
-		 figure_sha_json, source_date_epoch, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 figure_sha_json, verification_json, source_date_epoch, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.SessionID, m.TenantID, m.Title, m.Abstract, m.State, m.RequestID, m.ContentHash,
 		m.BuildHash, m.ReviewJSON, m.CampaignJSON, m.EvidenceJSON, m.AuthorsJSON,
-		m.FiguresJSON, m.FigureSHAJSON, m.SourceDateEpoch, m.CreatedAt, m.UpdatedAt); err != nil {
+		m.FiguresJSON, m.FigureSHAJSON, m.VerificationJSON, m.SourceDateEpoch,
+		m.CreatedAt, m.UpdatedAt); err != nil {
 		return fmt.Errorf("insert manuscript: %w", err)
 	}
 	for i, sec := range m.Sections {
@@ -290,12 +293,12 @@ func (l *Ledger) GetManuscript(sessionID, id string) (*Manuscript, error) {
 	var m Manuscript
 	err := l.DB().QueryRow(`SELECT id, session_id, tenant_id, title, abstract, state,
 		request_id, content_hash, build_hash, review_json, campaign_json, evidence_json, authors_json,
-		figures_json, figure_sha_json, source_date_epoch, created_at, updated_at
+		figures_json, figure_sha_json, verification_json, source_date_epoch, created_at, updated_at
 		FROM manuscripts WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&m.ID, &m.SessionID, &m.TenantID, &m.Title, &m.Abstract, &m.State,
 		&m.RequestID, &m.ContentHash, &m.BuildHash, &m.ReviewJSON, &m.CampaignJSON, &m.EvidenceJSON,
-		&m.AuthorsJSON, &m.FiguresJSON, &m.FigureSHAJSON, &m.SourceDateEpoch,
-		&m.CreatedAt, &m.UpdatedAt)
+		&m.AuthorsJSON, &m.FiguresJSON, &m.FigureSHAJSON, &m.VerificationJSON,
+		&m.SourceDateEpoch, &m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrManuscriptNotFound
 	}
@@ -386,9 +389,12 @@ func (l *Ledger) UpdateManuscriptDraft(m *Manuscript) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	// A content change invalidates any stored verification report: it was
+	// bound to the old content hash, so it is cleared rather than left to be
+	// mistaken for the current draft's report.
 	if _, err := tx.Exec(`UPDATE manuscripts SET title = ?, abstract = ?, content_hash = ?,
 		review_json = ?, campaign_json = ?, evidence_json = ?, authors_json = ?,
-		figures_json = ?, figure_sha_json = ?, updated_at = ?
+		figures_json = ?, figure_sha_json = ?, verification_json = '', updated_at = ?
 		WHERE session_id = ? AND id = ?`,
 		m.Title, m.Abstract, m.ContentHash, m.ReviewJSON, m.CampaignJSON, m.EvidenceJSON,
 		m.AuthorsJSON, m.FiguresJSON, m.FigureSHAJSON, nowUTC(), m.SessionID, m.ID); err != nil {
@@ -592,6 +598,21 @@ func (l *Ledger) GetManuscriptArtifact(sessionID, manuscriptID, name string) ([]
 // SetManuscriptSignoff records a verified signoff. The API verifies the
 // signature and the content hash before calling this; the ledger still
 // refuses a signoff for a manuscript whose stored hash differs.
+// SetManuscriptVerification stores the verification report for the manuscript's
+// current content. Callers must bind the report to the content hash they
+// verified; a later content change clears it.
+func (l *Ledger) SetManuscriptVerification(sessionID, id, reportJSON string) error {
+	res, err := l.DB().Exec(`UPDATE manuscripts SET verification_json = ?, updated_at = ?
+		WHERE session_id = ? AND id = ?`, reportJSON, nowUTC(), sessionID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrManuscriptNotFound
+	}
+	return nil
+}
+
 func (l *Ledger) SetManuscriptSignoff(sessionID, manuscriptID string, s ManuscriptSignoff) error {
 	if s.SignerPubKey == "" || s.Signature == "" || s.ContentHash == "" || s.Expiry == "" {
 		return fmt.Errorf("signoff needs signer, signature, content hash, and expiry")

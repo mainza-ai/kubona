@@ -146,6 +146,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "eval-llm" {
 		os.Exit(runEvalLLM(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "verify-calibration" {
+		os.Exit(runVerifyCalibration(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "verify" {
 		os.Exit(runVerify(os.Args[2:]))
 	}

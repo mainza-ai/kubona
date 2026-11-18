@@ -903,6 +903,17 @@
         "content_hash"
       ]
     },
+    "manuscript_verified": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Numeric and citation verification report bound to the manuscript content hash.",
+      "required": [
+        "manuscript_id",
+        "content_hash",
+        "status"
+      ]
+    },
     "manuscript_signed": {
       "emitters": [
         "go"

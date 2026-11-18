@@ -1,0 +1,125 @@
+{
+  "version": "verification-calibration-v1",
+  "labeler": "maintainer-v1 (regression labels, not an independent human annotation)",
+  "cases": [
+    {
+      "id": "supported-energy",
+      "note": "A measured energy rounded to four decimals matches the recorded value.",
+      "text": "The measured energy was -1.1373 Ha against the FCI anchor.",
+      "evidence": [
+        {"id": "job-1", "json": "{\"energy\": -1.13727, \"fci_exact_energy\": -1.13727}"}
+      ],
+      "expected_numbers": ["matched"]
+    },
+    {
+      "id": "fabricated-energy",
+      "note": "A number absent from every recorded result must be flagged.",
+      "text": "The measured energy was -1.9000 Ha.",
+      "evidence": [
+        {"id": "job-1", "json": "{\"energy\": -1.13727, \"fci_exact_energy\": -1.13727}"}
+      ],
+      "expected_numbers": ["unmatched"]
+    },
+    {
+      "id": "no-evidence",
+      "note": "With no recorded evidence nothing can be confirmed or refuted.",
+      "text": "The energy was -1.1373 Ha.",
+      "evidence": [],
+      "expected_numbers": ["unverifiable"]
+    },
+    {
+      "id": "year-is-not-a-claim",
+      "note": "A year is not a measurement claim.",
+      "text": "Since 2024 the method has been standard.",
+      "evidence": [],
+      "expected_numbers": []
+    },
+    {
+      "id": "percentage-matches",
+      "note": "Percentages are checked like any other recorded number.",
+      "text": "The error fell by 12.5%.",
+      "evidence": [
+        {"id": "claim-1", "json": "{\"improvement_percent\": 12.5}"}
+      ],
+      "expected_numbers": ["matched"]
+    },
+    {
+      "id": "bare-decimal-geometry",
+      "note": "A geometry decimal without a unit is still a claim.",
+      "text": "The bond distance 0.7414 was used.",
+      "evidence": [
+        {"id": "campaign", "json": "{\"quantum_factors\": {\"bond_distance\": 0.7414}}"}
+      ],
+      "expected_numbers": ["matched"]
+    },
+    {
+      "id": "multi-number-partial",
+      "note": "Each number is classified independently.",
+      "text": "The run used 4096 shots and reached -1.9000 Ha.",
+      "evidence": [
+        {"id": "job-1", "json": "{\"shots\": 4096, \"energy\": -1.13727}"}
+      ],
+      "expected_numbers": ["matched", "unmatched"]
+    },
+    {
+      "id": "doi-resolves",
+      "note": "A DOI that resolves to the same work is verified.",
+      "text": "The protocol follows the published ansatz.",
+      "citations": [
+        {"key": "ansatz2024", "title": "Hardware-efficient ansatz for H2", "doi": "https://doi.org/10.1/ABC"}
+      ],
+      "resolved": [
+        {"id": "https://doi.org/10.1/abc", "title": "Hardware-efficient ansatz for H2 ground states"}
+      ],
+      "expected_numbers": [],
+      "expected_citations": ["verified_doi"]
+    },
+    {
+      "id": "doi-points-elsewhere",
+      "note": "A title that matches at the wrong DOI is still a dead citation.",
+      "text": "The protocol follows the published ansatz.",
+      "citations": [
+        {"key": "ansatz2024", "title": "Hardware-efficient ansatz for H2", "doi": "10.1/wrong"}
+      ],
+      "resolved": [
+        {"id": "10.1/other", "title": "Hardware-efficient ansatz for H2 ground states"}
+      ],
+      "expected_numbers": [],
+      "expected_citations": ["doi_mismatch"]
+    },
+    {
+      "id": "title-only-resolves",
+      "note": "Without a DOI, a close title match is the strongest available evidence.",
+      "text": "The protocol follows the published ansatz.",
+      "citations": [
+        {"key": "ansatz2024", "title": "Hardware-efficient ansatz for H2", "doi": ""}
+      ],
+      "resolved": [
+        {"id": "W123", "title": "A hardware-efficient ansatz for the H2 ground state"}
+      ],
+      "expected_numbers": [],
+      "expected_citations": ["verified_title"]
+    },
+    {
+      "id": "citation-without-identifier",
+      "note": "A reference with neither DOI nor title cannot be checked.",
+      "text": "The protocol follows the published ansatz.",
+      "citations": [
+        {"key": "anon", "title": "", "doi": ""}
+      ],
+      "expected_numbers": [],
+      "expected_citations": ["missing_identifier"]
+    },
+    {
+      "id": "resolver-unavailable",
+      "note": "A resolver failure is unverified, never verified.",
+      "text": "The protocol follows the published ansatz.",
+      "citations": [
+        {"key": "ansatz2024", "title": "Hardware-efficient ansatz for H2", "doi": "10.1/abc"}
+      ],
+      "resolver_error": true,
+      "expected_numbers": [],
+      "expected_citations": ["unverified"]
+    }
+  ]
+}

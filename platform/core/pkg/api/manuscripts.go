@@ -161,6 +161,10 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 		s.handleManuscriptCitations(w, r, sessionID, strings.TrimSuffix(rest, "/citations"))
 		return
 	}
+	if strings.HasSuffix(rest, "/verify") {
+		s.handleManuscriptVerification(w, r, sessionID, strings.TrimSuffix(rest, "/verify"))
+		return
+	}
 	if idx := strings.Index(rest, "/annotations"); idx > 0 {
 		mid := rest[:idx]
 		tail := strings.TrimPrefix(rest[idx:], "/annotations")
@@ -500,6 +504,11 @@ func manuscriptJSON(ms *ledger.Manuscript) map[string]any {
 	} else {
 		out["signoff"] = nil
 	}
+	if strings.TrimSpace(ms.VerificationJSON) != "" {
+		out["verification"] = json.RawMessage(ms.VerificationJSON)
+	} else {
+		out["verification"] = nil
+	}
 	return out
 }
 
@@ -677,8 +686,9 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	var body struct {
-		ContentHash string `json:"content_hash"`
-		Expiry      string `json:"expiry"`
+		ContentHash           string `json:"content_hash"`
+		Expiry                string `json:"expiry"`
+		AcknowledgeUnverified bool   `json:"acknowledge_unverified"`
 	}
 	if err := decodeStrict(r, &body); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid signoff request: %v", err), nil)
@@ -707,6 +717,29 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 			fmt.Sprintf("%d open annotation(s) must be resolved before signoff", open), nil)
 		return
 	}
+	// AG-5: verify against recorded evidence at the moment of signing. The
+	// report is bound to this content hash and persisted before the gate.
+	report, err := s.verifyManuscript(r.Context(), sessionID, ms)
+	if err != nil {
+		WriteAPIError(w, "internal", "verification failed: "+err.Error(), nil)
+		return
+	}
+	if err := s.ledger.SetManuscriptVerification(sessionID, id, report.JSON()); err != nil {
+		WriteAPIError(w, "internal", "verification persistence failed: "+err.Error(), nil)
+		return
+	}
+	if report.Summary.Status == "blocked" {
+		WriteAPIError(w, "evidence_verification_failed",
+			fmt.Sprintf("%d finding(s) are unsupported by recorded evidence", report.Summary.Blocking),
+			map[string]any{"summary": report.Summary, "findings": report.BlockingDetails()})
+		return
+	}
+	if report.Summary.Status == "unverified" && !body.AcknowledgeUnverified {
+		WriteAPIError(w, "verification_unavailable",
+			"verification could not confirm every claim; pass acknowledge_unverified to sign anyway",
+			map[string]any{"summary": report.Summary})
+		return
+	}
 	expiry, err := normalizeExpiry(body.Expiry)
 	if err != nil {
 		WriteAPIError(w, "bad_request", err.Error(), nil)
@@ -726,6 +759,8 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 	}
 	if _, err := s.ledger.AppendSignedEvent(sessionID, "manuscript_signed", map[string]any{
 		"manuscript_id": id, "content_hash": ms.ContentHash, "signer_pubkey_hex": pub,
+		"verification":            report.Summary.Status,
+		"acknowledged_unverified": body.AcknowledgeUnverified && report.Summary.Status == "unverified",
 	}, s.signerPrivKey); err != nil {
 		WriteAPIError(w, "internal", "signoff event failed: "+err.Error(), nil)
 		return

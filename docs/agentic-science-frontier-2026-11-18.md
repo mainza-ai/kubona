@@ -364,6 +364,45 @@ view (no second store). Tests assert the assembled counts.
   597 bytes with `truncated:true`; resume pages advanced the cursor without
   overlap (`next_seq` 3 → ids 4,5); `budget_bytes=nope` returned 400.
 
+### AG-5 — claim and citation verification
+
+- `pkg/verify` checks a manuscript against recorded state, never against
+  itself:
+  - **Numbers.** Unit-bearing values, percentages, and decimals with ≥3
+    fractional digits are extracted (years, enumerations, and reference
+    markers are excluded) and matched against job results, claim evidence,
+    plan results, the live campaign, and the manuscript's evidence/campaign
+    snapshots within the rounding tolerance implied by how the number was
+    written. A negative value never matches its magnitude.
+  - **Citations.** A DOI must resolve to the same work; a DOI that resolves to
+    a different work is `doi_mismatch` even when the title looks right. Without
+    a DOI, a close lexical title match is the strongest available evidence. A
+    resolver failure is `unverified`, never `verified`.
+- `POST /api/sessions/{sid}/manuscripts/{id}/verify` computes and persists a
+  report bound to the content hash; `GET` returns it (or `not_verified`). The
+  manuscript detail carries the report.
+- Signoff recomputes the report and refuses with `evidence_verification_failed`
+  for an unsupported number/dead citation. `verification_unavailable` refuses
+  when the resolver could not run unless the operator passes
+  `acknowledge_unverified`; the acknowledgment is sealed in the signed event
+  and never overrides a fabricated number.
+- Calibration: `kubonad verify-calibration [--json] [--min-accuracy]` runs the
+  shipped labelled set (12 cases: supported/fabricated/no-evidence numbers,
+  year exclusion, percentage, geometry decimal, multi-number, DOI/title/
+  missing-identifier/resolver-down citations) and reports agreement plus the
+  labeler and a disclosure that the labels are maintainer-authored, not an
+  independent human study.
+- Schema 9 adds `manuscripts.verification_json`; a content change clears it.
+- Tests: extraction/sign handling, rounding tolerance, unverifiable evidence,
+  every citation status, report blocking details, calibration 12/12, API
+  fabricated-number and citation gates, acknowledgment behavior.
+- Runtime: the composed H2 manuscript matched 6/6 numbers and signed; a draft
+  with a fabricated −1.9000 Ha was flagged, signoff returned 409
+  `evidence_verification_failed`, and `acknowledge_unverified` did not bypass
+  it; calibration reported 12/12. The live run caught a real extractor bug —
+  a bare table decimal lost its leading minus and was falsely flagged — fixed
+  and pinned by `TestExtractNumbersKeepsSignsInTables`.
+
 ### AG-6a — RO-Crate export
 
 `kubonad manuscript-export` now writes `ro-crate-metadata.json` (RO-Crate 1.1)
@@ -377,9 +416,9 @@ assert the crate and its artifact entries.
 
 ### Still open
 
-AG-5 (claim/citation verification), AG-6b (PROV/PROV-AGENT export and CRediT
-attribution), AG-7 (stage autonomy + safety screening), AG-8b
-(dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
+AG-6b (PROV/PROV-AGENT export and CRediT attribution), AG-7 (stage autonomy +
+safety screening), AG-8b (dashboards/human-minute metrics), AG-9 (cumulative
+lab knowledge).
 
 ## 7. Source notes and limitations
 

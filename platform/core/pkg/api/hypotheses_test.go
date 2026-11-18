@@ -12,7 +12,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-func (f *fakeManuscriptBridge) GroundLiterature(_ context.Context, in *pb.LiteratureGroundingRequest, _ ...grpc.CallOption) (*pb.LiteratureGroundingResponse, error) {
+func (f *fakeManuscriptBridge) GroundLiterature(_ context.Context, _ *pb.LiteratureGroundingRequest, _ ...grpc.CallOption) (*pb.LiteratureGroundingResponse, error) {
+	if f.literatureErr != nil {
+		return nil, f.literatureErr
+	}
+	if f.literature != nil {
+		return &pb.LiteratureGroundingResponse{Records: f.literature}, nil
+	}
 	return &pb.LiteratureGroundingResponse{
 		Records: []*pb.LiteratureRecord{{Id: "W123", Title: "Prior H2 work", Authors: "Doe", PublicationYear: 2024}},
 	}, nil

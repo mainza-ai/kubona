@@ -101,8 +101,8 @@ func TestErrorCatalogShape(t *testing.T) {
 			lines++
 		}
 	}
-	if lines != 57 { // header + 56 codes (trailing newline is uncounted)
-		t.Fatalf("catalog must carry header + 56 codes, got %d lines", lines)
+	if lines != 59 { // header + 58 codes (trailing newline is uncounted)
+		t.Fatalf("catalog must carry header + 58 codes, got %d lines", lines)
 	}
 	_ = http.StatusOK
 }
