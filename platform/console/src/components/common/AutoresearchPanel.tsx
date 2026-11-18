@@ -18,6 +18,7 @@ import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
 import { needSentence, remedyFor } from '@/lib/need';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
+import { Toggle } from '@/components/ui/Forms';
 
 export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [harnesses, setHarnesses] = useState<AutoresearchHarness[]>([]);
@@ -109,19 +110,14 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
           <p className="text-[12px] text-faint">Sandboxed harness stepping; each transition re-reads server state.</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wide text-faint">Auto agent</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={agentic?.enabled === true}
+          <Toggle
+            label="Auto agent"
             aria-label="Auto agent mode"
+            checked={agentic?.enabled === true}
             disabled={agentic === null || agentic.locked || busy !== null}
             title={agentic === null ? 'Agentic mode unavailable' : agentic.locked ? 'Locked by an operator halt' : agentic.enabled ? 'Turn agentic workflow off' : 'Turn agentic workflow on'}
-            onClick={() => void toggleAgentic()}
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-[background-color,border-color,opacity] ${agentic?.enabled ? 'bg-success-wash border-success-edge' : 'bg-fill border-border'} disabled:opacity-40`}
-          >
-            <span aria-hidden className={`inline-block h-3.5 w-3.5 rounded-full bg-text transition-transform ${agentic?.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-          </button>
+            onChange={() => void toggleAgentic()}
+          />
           <span className="text-[11px] font-semibold text-label-secondary">
             {agentic === null ? '—' : agentic.locked ? 'Locked' : agentic.enabled ? 'On' : 'Off'}
           </span>

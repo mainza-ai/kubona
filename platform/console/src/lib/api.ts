@@ -1387,9 +1387,40 @@ export type ApprovalPlan = {
   method?: string;
   observable?: string;
   acceptance_metric?: string;
+  tolerance?: number;
+  stop_rule?: string;
+  budget_usd?: number;
+  spec?: string;
   created_at?: string;
   deferred_until?: string;
   defer_reason?: string;
+  review_feedback?: string;
+  reviewed_at?: string;
+};
+
+export type PlanEdits = {
+  statement?: string;
+  method?: string;
+  observable?: string;
+  acceptance_metric?: string;
+  tolerance?: number;
+  stop_rule?: string;
+  budget_usd?: number;
+  spec?: Record<string, unknown>;
+};
+
+export type ToolApproval = {
+  id: string;
+  tool: string;
+  args: string;
+  args_truncated?: boolean;
+  status: 'pending' | 'approved' | 'denied' | 'used' | string;
+  reason?: string;
+  requested_at: string;
+  decided_at?: string;
+  expires_at?: string;
+  used_at?: string;
+  expired?: boolean;
 };
 
 export async function fetchApprovals(sessionId: string): Promise<{ pending: ApprovalPlan[]; deferred: ApprovalPlan[] } | null> {
@@ -1413,12 +1444,14 @@ export async function decideApproval(
   sessionId: string,
   planId: string,
   decision: 'approve' | 'reject' | 'defer',
-  options: { reason?: string; deferredUntil?: string } = {},
+  options: { reason?: string; deferredUntil?: string; feedback?: string; edits?: PlanEdits } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const body: Record<string, unknown> = { decision };
     if (options.reason) body.reason = options.reason;
     if (options.deferredUntil) body.deferred_until = options.deferredUntil;
+    if (options.feedback) body.feedback = options.feedback;
+    if (options.edits && Object.keys(options.edits).length > 0) body.edits = options.edits;
     const res = await apiFetch(
       `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/approvals/${encodeURIComponent(planId)}`,
       {
@@ -1441,6 +1474,85 @@ export async function decideApproval(
     return { ok: true };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function fetchToolApprovals(sessionId: string): Promise<{ pending: ToolApproval[]; recent: ToolApproval[] } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/tool-approvals`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const body = contract('tool_approval.inbox', (await res.json()) as Record<string, unknown>) as unknown as {
+      pending: ToolApproval[];
+      recent: ToolApproval[];
+    };
+    return { pending: body.pending || [], recent: body.recent || [] };
+  } catch {
+    return null;
+  }
+}
+
+export async function decideToolApproval(
+  sessionId: string,
+  approvalId: string,
+  decision: 'approve' | 'deny',
+  reason?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/tool-approvals/${encodeURIComponent(approvalId)}`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+      },
+    );
+    const raw = await res.text();
+    if (!res.ok) {
+      let detail = raw;
+      try {
+        const parsed = JSON.parse(raw) as { message?: string; error?: string };
+        detail = parsed.message || parsed.error || raw;
+      } catch { /* raw */ }
+      return { ok: false, error: String(detail || `tool approval refused (${res.status})`).slice(0, 280) };
+    }
+    contract('tool_approval.decision', raw ? (JSON.parse(raw) as Record<string, unknown>) : {});
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export type AgenticDigestEntry = {
+  plan_id: string;
+  job_id?: string;
+  accepted?: boolean;
+  status?: string;
+  auto_approved?: boolean;
+  notify?: boolean;
+  risk?: string;
+  at?: string;
+};
+
+export type AgenticDigest = {
+  hours: number;
+  entries: AgenticDigestEntry[];
+  counts: { total: number; accepted: number; notify: number };
+};
+
+export async function fetchAgenticDigest(sessionId: string, hours = 24): Promise<AgenticDigest | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/agentic/digest?hours=${Math.max(1, Math.min(168, Math.round(hours)))}`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    return contract('agentic.digest', (await res.json()) as Record<string, unknown>) as unknown as AgenticDigest;
+  } catch {
+    return null;
   }
 }
 

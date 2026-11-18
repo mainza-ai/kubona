@@ -11,6 +11,7 @@ import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
 import { ObligationsPanel } from '@/components/common/ObligationsPanel';
+import { AgenticDigestPanel } from '@/components/common/AgenticDigestPanel';
 import { ApprovalInbox } from '@/components/common/ApprovalInbox';
 import { AutoresearchPanel } from '@/components/common/AutoresearchPanel';
 import { WorkflowPanel } from '@/components/common/WorkflowPanel';
@@ -454,6 +455,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             of the autonomy loop. Approve/reject/apply are bearer-gated;
             refusals render with the backend reason. */}
         <MetasearchPanel />
+        <AgenticDigestPanel sessionId={session?.id ?? ''} />
         <ApprovalInbox sessionId={session?.id ?? ''} />
         <AutoresearchPanel sessionId={session?.id ?? ''} />
         <WorkflowPanel sessionId={session?.id ?? ''} />

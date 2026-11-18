@@ -20,7 +20,10 @@ Audit: `docs/production-audit-2026-11-18.md` (K-01…K-14).
 - [x] Skill authoring/installer UI.
 - [x] Live `eval-llm` model invocation (explicit provider/model).
 - [x] General ledger-write secret screening.
-- [ ] Proposal pricing rule for plans without a numeric bound.
+- [x] Proposal pricing rule for plans without a numeric bound: the mint
+      refuses a metered backend with no numeric `max_cost_usd` (text estimates
+      are not a spend bound); covered by
+      `TestProposalMintRefusesUnpriceablePlans`.
 
 ## Copilot drawer containment (2026-11-17)
 
@@ -143,13 +146,16 @@ Research/design report: `docs/agentic-mode-toggle-2026-11-18.md`.
       rehydration; Autoresearch panel switch/status; Go and browser tests.
 - [x] AG-18: global Manual/Auto/Locked indicator (status bar / command palette).
 - [x] AG-19: durable approval inbox (`/approvals`, approve/reject/defer,
-      restart-safe) with a console panel and browser tests. Edit-arguments and
-      reject-with-feedback remain follow-ups.
+      restart-safe) with a console panel and browser tests. Reviewer edits are
+      validated and risk-reclassified; rejection feedback persists on the plan;
+      undo restores the pre-decision protocol.
 - [x] AG-20: `notify` stage mode executes low/medium risk and seals
-      `notify:true` receipts; `/agentic/digest` batches them. A console digest
-      view remains a follow-up.
-- [x] AG-21: per-tool `allow|ask|block` policy enforced at copilot dispatch;
-      `ask` refuses with the exact remedy (no per-call approval queue yet).
+      `notify:true` receipts; `/agentic/digest` batches them and the console
+      digest panel renders them (empty/unavailable states included).
+- [x] AG-21: per-tool `allow|ask|block` policy enforced at copilot dispatch.
+      `ask` records a durable one-time approval bound to the tool and the
+      canonical argument digest; grants are spent once within a 15-minute TTL,
+      and deny/spend/expiry all refuse. Schema 14.
 - [x] AG-22: approval-fatigue telemetry (queue depth, latency percentiles,
       rubber-stamp proxy).
 - [x] AG-23: `/receipts` + `/receipts/{id}/undo` for mode flips, unrun plan

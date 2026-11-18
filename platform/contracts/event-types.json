@@ -1487,6 +1487,38 @@
         "session_id"
       ]
     },
+    "tool_approval_consumed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A one-time tool approval was spent by the exact approved call.",
+      "required": [
+        "approval_id",
+        "tool"
+      ]
+    },
+    "tool_approval_decided": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A human approved or denied a one-time tool call.",
+      "required": [
+        "approval_id",
+        "tool",
+        "decision"
+      ]
+    },
+    "tool_approval_requested": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A tool call marked ask was held for a one-time human approval.",
+      "required": [
+        "approval_id",
+        "tool",
+        "args_hash"
+      ]
+    },
     "tool_permission_refused": {
       "emitters": [
         "go"

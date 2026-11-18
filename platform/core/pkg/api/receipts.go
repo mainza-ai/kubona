@@ -201,7 +201,8 @@ func (s *Server) undoReceipt(w http.ResponseWriter, sessionID string, id int64) 
 		action = fmt.Sprintf("agentic mode %t", policy.Agentic())
 	case "plan_approval_decided":
 		var p struct {
-			PlanID string `json:"plan_id"`
+			PlanID   string          `json:"plan_id"`
+			Previous json.RawMessage `json:"previous"`
 		}
 		if json.Unmarshal(target.Payload, &p) != nil || p.PlanID == "" {
 			WriteAPIError(w, "undo_not_reversible", "receipt has no plan id", nil)
@@ -216,11 +217,18 @@ func (s *Server) undoReceipt(w http.ResponseWriter, sessionID string, id int64) 
 			WriteAPIError(w, "undo_not_reversible", "plan has already run", nil)
 			return
 		}
-		if err := s.ledger.SetPlanStatus(sessionID, p.PlanID, ledger.PlanProposed); err != nil {
-			WriteAPIError(w, "internal", "undo plan decision failed: "+err.Error(), nil)
+		restored, rerr := s.restorePlanReview(sessionID, p.PlanID, p.Previous)
+		if rerr != nil {
+			WriteAPIError(w, "internal", "undo plan review failed: "+rerr.Error(), nil)
 			return
 		}
-		action = "plan returned to proposed"
+		if !restored {
+			if err := s.ledger.SetPlanStatus(sessionID, p.PlanID, ledger.PlanProposed); err != nil {
+				WriteAPIError(w, "internal", "undo plan decision failed: "+err.Error(), nil)
+				return
+			}
+		}
+		action = "plan returned to proposed (reviewer edits reverted)"
 	case "plan_deferred":
 		var p struct {
 			PlanID string `json:"plan_id"`

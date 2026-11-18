@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Field, Select } from '@/components/ui/Forms';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   buildManuscript,
@@ -19,7 +20,7 @@ import {
   stageManuscriptDeposit,
   type ManuscriptDetail,
   type ManuscriptSummary,
-} from '@/lib/api';
+} from '@/domain/publication';
 import type { LiteratureRecord } from '@/types';
 
 interface PublicationPanelProps {
@@ -293,11 +294,11 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
         <ul className="space-y-1" aria-label="Manuscripts">
           {items.map((m) => (
             <li key={m.id}>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 aria-current={selected?.manuscript.id === m.id ? 'true' : undefined}
                 onClick={() => void load(m.id)}
-                className={`w-full text-left px-3 py-2 rounded-control border ${
+                className={`w-full justify-start text-left px-3 py-2 rounded-control border ${
                   selected?.manuscript.id === m.id ? 'border-accent bg-surface-elev' : 'border-border hover:bg-surface-elev'
                 }`}
               >
@@ -308,7 +309,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 <span className="block text-caption text-muted">
                   {m.content_hash.slice(0, 12)}… · updated {m.updated_at}
                 </span>
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
@@ -424,12 +425,12 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             {selected.manuscript.state === 'draft' && (
               <div className="space-y-1">
                 <div className="flex gap-2">
-                  <input
-                    aria-label="Literature search"
+                  <Field
+                    label="Literature search"
                     value={litQuery}
                     onChange={(e) => setLitQuery(e.target.value)}
                     placeholder="Search literature (OpenAlex)"
-                    className="flex-1 rounded-control border border-border bg-surface px-2 py-1 text-label"
+                    className="flex-1"
                   />
                   <Button size="compact" pending={litBusy} onClick={() => void searchReferences()}>
                     Search
@@ -500,23 +501,21 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               }}
             >
               <div className="flex gap-2">
-                <select
-                  aria-label="Annotation section"
+                <Select
+                  label="Annotation section"
                   value={annotationAnchor}
                   onChange={(e) => setAnnotationAnchor(e.target.value)}
-                  className="rounded-control border border-border bg-surface px-2 py-1 text-label"
-                >
-                  <option value="general">general</option>
-                  {selected.manuscript.sections.map((s) => (
-                    <option key={s.slug} value={s.slug}>{s.title}</option>
-                  ))}
-                </select>
-                <input
-                  aria-label="Review note"
+                  options={[
+                    { value: 'general', label: 'general' },
+                    ...selected.manuscript.sections.map((s) => ({ value: s.slug, label: s.title })),
+                  ]}
+                />
+                <Field
+                  label="Review note"
                   value={annotationBody}
                   onChange={(e) => setAnnotationBody(e.target.value)}
                   placeholder="What needs attention?"
-                  className="flex-1 rounded-control border border-border bg-surface px-2 py-1 text-label"
+                  className="flex-1"
                 />
                 <Button size="compact" type="submit" pending={busy === 'annotate'} disabled={!annotationBody.trim()}>
                   Add note

@@ -121,14 +121,16 @@ prove autonomy on a benchmark.
 - The Autoresearch panel shows the switch, the current stage mode, and a clear
   Manual/Auto/Locked status; every change is an `agentic_mode_changed` event.
 - Oversight slices AG-18…AG-24 are implemented: a composer Manual/Auto/Locked
-  chip; a durable approval inbox with approve/reject/defer and a browser-tested
-  console panel; a `notify` rung with `/agentic/digest` receipts; per-tool
-  `allow|ask|block` enforcement; queue/fatigue metrics; `/receipts` undo for
-  mode flips, unrun plan decisions, and deferrals; and an operator-owned tenant
+  chip; a durable approval inbox with approve/reject/defer, validated reviewer
+  edits (risk reclassified, previous values sealed for undo), and durable
+  rejection feedback; a `notify` rung with `/agentic/digest` receipts and a
+  console digest panel; per-tool `allow|ask|block` enforcement where `ask` holds
+  the exact call for a one-time approval bound to its canonical argument digest
+  (15-minute TTL, spent once); queue/fatigue metrics; `/receipts` undo for mode
+  flips, unrun plan decisions, and deferrals; and an operator-owned tenant
   default with policy history/rollback and strict unreadable-policy refusal.
-  Research and the remaining refinements (per-call “ask” queue, digest UI,
-  edit/feedback approvals, protocol taxonomy) are in
-  `docs/agentic-mode-toggle-2026-11-18.md`.
+  Ledger schema is 14. The remaining refinement is the protocol-level risk
+  taxonomy; see `docs/agentic-mode-toggle-2026-11-18.md`.
 
 ## Known accuracy gaps (2026-11-18 investigation)
 

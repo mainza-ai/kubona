@@ -103,6 +103,7 @@ var errorRegistry = map[string]errorSpec{
 	"agentic_locked":               {"state", 409, false, "an operator halted agentic work; only an operator can clear the lock"},
 	"plan_not_pending":             {"state", 409, false, "only a proposed plan can be approved, rejected, or deferred; refresh the inbox"},
 	"autonomy_policy_unreadable":   {"internal", 500, false, "repair or roll back the session autonomy policy; enforcement never silently enables agentic work"},
+	"tool_approval_not_pending":    {"state", 409, false, "this tool call was already decided or spent; a new call creates a new request"},
 	"undo_not_reversible":          {"state", 409, false, "only an agentic mode flip, an unrun plan decision, or a deferral can be undone"},
 }
 

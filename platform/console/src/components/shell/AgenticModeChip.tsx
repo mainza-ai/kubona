@@ -7,7 +7,8 @@
 // A locked policy (operator halt) is visible but not toggleable here.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { fetchSessionAgentic, setSessionAgentic } from '@/lib/api';
+import { fetchSessionAgentic, setSessionAgentic } from '@/domain/oversight';
+import { Button } from '@/components/ui/Button';
 
 type AgenticState = { enabled: boolean; locked: boolean; stages: Record<string, string> };
 
@@ -76,19 +77,20 @@ export function AgenticModeChip({ sessionId }: { sessionId?: string | null }) {
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <button
-        type="button"
+      <Button
         role="switch"
         aria-checked={state?.enabled === true}
         aria-label="Auto agent mode"
         disabled={state === null || state.locked}
         title={title}
         onClick={() => void toggle()}
-        className={`mb-0.5 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-row border px-2 text-[11px] font-semibold transition-colors disabled:opacity-70 ${tone}`}
+        variant="ghost"
+        size="compact"
+        className={`mb-0.5 h-8 shrink-0 gap-1.5 rounded-row border px-2 text-[11px] font-semibold ${tone}`}
       >
         <span aria-hidden className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
         <span>{label}</span>
-      </button>
+      </Button>
       {notice && (
         <span role="status" className="max-w-40 truncate text-[11px] text-warning" title={notice}>
           {notice}

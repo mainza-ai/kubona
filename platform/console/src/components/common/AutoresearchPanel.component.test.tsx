@@ -141,7 +141,9 @@ describe('AutoresearchPanel agentic master switch', () => {
     const screen = await render(<AutoresearchPanel sessionId="s1" />);
     await harnessReady(screen);
     const toggle = screen.getByRole('switch', { name: 'Auto agent mode' });
-    expect(toggle.element().getAttribute('aria-checked')).toBe('true');
+    // The shared Toggle renders a native checkbox with role=switch: the
+    // checked property is the state screen readers compute.
+    expect((toggle.element() as HTMLInputElement).checked).toBe(true);
     await toggle.click();
     await expect.poll(() => puts).toEqual(['{"enabled":false}']);
     await expect.poll(() => screen.container.textContent).toContain('Manual mode');
@@ -157,7 +159,7 @@ describe('AutoresearchPanel agentic master switch', () => {
     const screen = await render(<AutoresearchPanel sessionId="s1" />);
     await harnessReady(screen);
     await expect.poll(() => screen.container.textContent).toContain('Locked by an operator halt');
-    expect((screen.getByRole('switch', { name: 'Auto agent mode' }).element() as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('switch', { name: 'Auto agent mode' }).element() as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Start loop' }).element() as HTMLButtonElement).disabled).toBe(true);
   });
 });

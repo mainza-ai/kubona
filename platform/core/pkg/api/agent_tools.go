@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
-	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
@@ -517,20 +516,6 @@ func jobBackend(j *jobs.Job) string {
 	return "—"
 }
 
-// toolPermissionRefusal maps the session's per-tool policy to a dispatch
-// refusal. "ask" has no per-call approval queue yet, so it refuses with the
-// exact remedy (set the tool to allow); that is explicit, not a silent allow.
-func toolPermissionRefusal(policy autonomy.Policy, name string) error {
-	switch policy.ToolPermission(name) {
-	case "allow":
-		return nil
-	case "ask":
-		return fmt.Errorf("tool %q requires approval by the session policy; set tool_permissions.%s=allow to run it", name, name)
-	default:
-		return fmt.Errorf("tool %q is blocked by the session policy", name)
-	}
-}
-
 // resolveWithTools runs the plan→tool→observe loop over a base history and
 // returns the augmented history for the final answer call. Tool rounds use
 // non-streamed completions; the visible answer still streams afterwards.
@@ -611,16 +596,10 @@ loop:
 					_ = s.ledger.AppendEvent(sessionID, "tool_taint_refused", map[string]any{"tool": c.Name})
 				}
 			}
-			// AG-21: tool-level permission gate (allow/ask/block).
+			// AG-21/AG-21b: tool-level permission gate (allow/ask/block). The
+			// ask rung spends a one-time approval for this exact argument set.
 			if derr == nil {
-				if policyErr != nil {
-					derr = fmt.Errorf("session autonomy policy is unreadable: refusing tool %q", c.Name)
-				} else if perr := toolPermissionRefusal(policy, c.Name); perr != nil {
-					derr = perr
-					_ = s.ledger.AppendEvent(sessionID, "tool_permission_refused", map[string]any{
-						"tool": c.Name, "permission": policy.ToolPermission(c.Name),
-					})
-				}
+				derr = s.gateToolDispatch(sessionID, policy, policyErr, c.Name, c.Arguments)
 			}
 			// Per-turn write bound: at most one simulator dispatch per
 			// turn. Further submit calls refuse with the bound stated —

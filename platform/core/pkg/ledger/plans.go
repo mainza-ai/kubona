@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS experiment_plans (
 	risk_reasons_json TEXT NOT NULL DEFAULT '[]',
 	deferred_until TEXT NOT NULL DEFAULT '',
 	defer_reason TEXT NOT NULL DEFAULT '',
+	review_feedback TEXT NOT NULL DEFAULT '',
+	reviewed_at TEXT NOT NULL DEFAULT '',
 	status TEXT NOT NULL DEFAULT 'proposed',
 	job_id TEXT NOT NULL DEFAULT '',
 	result_json TEXT NOT NULL DEFAULT '{}',
@@ -68,6 +70,8 @@ type ExperimentPlan struct {
 	RiskReasons      []string `json:"risk_reasons,omitempty"`
 	DeferredUntil    string   `json:"deferred_until,omitempty"`
 	DeferReason      string   `json:"defer_reason,omitempty"`
+	ReviewFeedback   string   `json:"review_feedback,omitempty"`
+	ReviewedAt       string   `json:"reviewed_at,omitempty"`
 	Status           string   `json:"status"`
 	JobID            string   `json:"job_id,omitempty"`
 	ResultJSON       string   `json:"result,omitempty"`
@@ -76,6 +80,10 @@ type ExperimentPlan struct {
 }
 
 var ErrPlanNotFound = errors.New("experiment plan not found")
+
+// ErrPlanNotPending refuses an edit to a plan that is no longer awaiting a
+// decision; the reviewer's copy is stale.
+var ErrPlanNotPending = errors.New("experiment plan is no longer proposed")
 
 func validPlanStatus(v string) bool {
 	switch v {
@@ -143,7 +151,8 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 	rows, err := l.DB().Query(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
 		spec_basis_json, risk, risk_reasons_json, deferred_until, defer_reason,
-		status, job_id, result_json, created_at, updated_at
+		review_feedback, reviewed_at, status, job_id, result_json, created_at,
+		updated_at
 		FROM experiment_plans WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`, sessionID, limit)
 	if err != nil {
 		return nil, err
@@ -156,8 +165,8 @@ func (l *Ledger) ListPlans(sessionID string, limit int) ([]ExperimentPlan, error
 		if err := rows.Scan(&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method,
 			&p.Observable, &p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD,
 			&p.Executor, &p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.DeferredUntil,
-			&p.DeferReason, &p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt,
-			&p.UpdatedAt); err != nil {
+			&p.DeferReason, &p.ReviewFeedback, &p.ReviewedAt, &p.Status, &p.JobID,
+			&p.ResultJSON, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		_ = jsonUnmarshalStrings(basis, &p.SpecBasis)
@@ -173,12 +182,14 @@ func (l *Ledger) GetPlan(sessionID, id string) (*ExperimentPlan, error) {
 	err := l.DB().QueryRow(`SELECT id, session_id, hypothesis_id, statement, method, observable,
 		acceptance_metric, tolerance, stop_rule, budget_usd, executor, spec_json,
 		spec_basis_json, risk, risk_reasons_json, deferred_until, defer_reason,
-		status, job_id, result_json, created_at, updated_at
+		review_feedback, reviewed_at, status, job_id, result_json, created_at,
+		updated_at
 		FROM experiment_plans WHERE session_id = ? AND id = ?`, sessionID, id).Scan(
 		&p.ID, &p.SessionID, &p.HypothesisID, &p.Statement, &p.Method, &p.Observable,
 		&p.AcceptanceMetric, &p.Tolerance, &p.StopRule, &p.BudgetUSD, &p.Executor,
 		&p.SpecJSON, &basis, &p.Risk, &riskReasons, &p.DeferredUntil, &p.DeferReason,
-		&p.Status, &p.JobID, &p.ResultJSON, &p.CreatedAt, &p.UpdatedAt)
+		&p.ReviewFeedback, &p.ReviewedAt, &p.Status, &p.JobID, &p.ResultJSON,
+		&p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrPlanNotFound
 	}
@@ -218,6 +229,43 @@ func (l *Ledger) SetPlanDeferral(sessionID, id, until, reason string) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrPlanNotFound
+	}
+	return nil
+}
+
+// UpdatePlanReview persists reviewer-editable plan fields plus the decision
+// metadata. Status is deliberately separate: a decision and an edit land in one
+// request but remain individually auditable. The caller has already validated
+// the fields; this only writes them.
+func (l *Ledger) UpdatePlanReview(sessionID string, p *ExperimentPlan) error {
+	if p == nil {
+		return fmt.Errorf("plan review needs a plan")
+	}
+	if strings.TrimSpace(p.Statement) == "" || strings.TrimSpace(p.Method) == "" ||
+		strings.TrimSpace(p.Observable) == "" || strings.TrimSpace(p.AcceptanceMetric) == "" ||
+		strings.TrimSpace(p.StopRule) == "" {
+		return fmt.Errorf("reviewed plan needs statement, method, observable, acceptance metric, and stop rule")
+	}
+	if strings.TrimSpace(p.SpecJSON) == "" {
+		p.SpecJSON = "{}"
+	}
+	riskReasons, err := jsonStrings(p.RiskReasons)
+	if err != nil {
+		return err
+	}
+	res, err := l.DB().Exec(`UPDATE experiment_plans SET statement = ?, method = ?,
+		observable = ?, acceptance_metric = ?, tolerance = ?, stop_rule = ?,
+		budget_usd = ?, spec_json = ?, risk = ?, risk_reasons_json = ?,
+		review_feedback = ?, reviewed_at = ?, updated_at = ?
+		WHERE session_id = ? AND id = ? AND status = 'proposed'`,
+		p.Statement, p.Method, p.Observable, p.AcceptanceMetric, p.Tolerance,
+		p.StopRule, p.BudgetUSD, p.SpecJSON, p.Risk, riskReasons,
+		p.ReviewFeedback, p.ReviewedAt, nowUTC(), sessionID, p.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrPlanNotPending
 	}
 	return nil
 }

@@ -2382,6 +2382,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleApprovalsRoute(w, r, sid, planID)
 		return
 	}
+	if sid, approvalID, ok := toolApprovalSubpath(id); ok {
+		s.handleToolApprovalsRoute(w, r, sid, approvalID)
+		return
+	}
 	if sid, rest, ok := autonomySubpath(id); ok {
 		s.handleAutonomyRoute(w, r, sid, rest)
 		return

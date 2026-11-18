@@ -34,6 +34,34 @@ export type ApprovalDecision = {
   "plan": unknown;
 };
 
+export type ToolApprovalInbox = {
+  "session_id": string;
+  "pending": unknown[];
+  "recent": unknown[];
+  "counts": {
+  "pending": number;
+  "approved": number;
+  "denied": number;
+  "used": number;
+  "expired": number;
+};
+};
+
+export type ToolApprovalDecision = {
+  "approval": unknown;
+};
+
+export type AgenticDigest = {
+  "session_id": string;
+  "hours": number;
+  "entries": unknown[];
+  "counts": {
+  "total": number;
+  "accepted": number;
+  "notify": number;
+};
+};
+
 export type SessionAgentic = {
   "session_id": string;
   "agentic_enabled": boolean;
@@ -1264,6 +1292,7 @@ export type ApiOperationResponse = {
   createTask: Task;
   createTasksBatch: TasksBatch;
   decideApproval: ApprovalDecision;
+  decideToolApproval: ToolApprovalDecision;
   deleteCustomAgent: AgentsCustomDelete;
   deleteSession: SessionDelete;
   discoverLocalLLMProviders: LlmDiscover;
@@ -1276,6 +1305,7 @@ export type ApiOperationResponse = {
   exportLedger: LedgerExportDocument;
   exportSession: SessionExport;
   fetchAccess: Access;
+  fetchAgenticDigest: AgenticDigest;
   fetchApprovals: ApprovalInbox;
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
@@ -1335,6 +1365,7 @@ export type ApiOperationResponse = {
   fetchSkills: Skills;
   fetchSystemAgents: AgentsSystem;
   fetchTasksResult: TasksList;
+  fetchToolApprovals: ToolApprovalInbox;
   fetchWorkbenchLayout: WorkbenchLayout;
   fetchWorkbenchView: WorkbenchView;
   getHFModelDetails: HfDetails;
@@ -1455,6 +1486,7 @@ export const API_OPERATIONS = {
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
   decideApproval: { method: "post", path: "/api/sessions/{sessionId}/approvals/{planId}", response: "approval.decision" },
+  decideToolApproval: { method: "post", path: "/api/sessions/{sessionId}/tool-approvals/{approvalId}", response: "tool_approval.decision" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   discoverLocalLLMProviders: { method: "get", path: "/api/llm/discover", response: "llm.discover" },
@@ -1467,6 +1499,7 @@ export const API_OPERATIONS = {
   exportLedger: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   exportSession: { method: "post", path: "/api/sessions/export", response: "session.export" },
   fetchAccess: { method: "get", path: "/api/access", response: "access" },
+  fetchAgenticDigest: { method: "get", path: "/api/sessions/{sessionId}/agentic/digest", response: "agentic.digest" },
   fetchApprovals: { method: "get", path: "/api/sessions/{sessionId}/approvals", response: "approval.inbox" },
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
@@ -1526,6 +1559,7 @@ export const API_OPERATIONS = {
   fetchSkills: { method: "get", path: "/api/skills", response: "skills" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchTasksResult: { method: "get", path: "/api/tasks", response: "tasks.list" },
+  fetchToolApprovals: { method: "get", path: "/api/sessions/{sessionId}/tool-approvals", response: "tool_approval.inbox" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   fetchWorkbenchView: { method: "get", path: "/api/workbench/view", response: "workbench.view" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },

@@ -136,11 +136,12 @@ development — re-verify the gate on the exact commit before citing
 > (`agentic_enabled`, with an operator `agentic_locked` halt): off pauses loops
 > and blocks agent execution while the manual experiment rail stays open.
 > Research and the oversight plan (AG-17…AG-24) are in
-> `docs/agentic-mode-toggle-2026-11-18.md`; AG-18…AG-24 are implemented
-> (global mode chip, approval inbox, notify digest, per-tool permissions,
-> fatigue metrics, receipts/undo, tenant default/history/rollback). Ledger
-> schema is **13**. Re-verify the full gate on the exact pushed commit before
-> citing "green".
+> `docs/agentic-mode-toggle-2026-11-18.md`; AG-18…AG-24 and the oversight
+> follow-ups are implemented (global mode chip, approval inbox with reviewer
+> edits and durable rejection feedback, notify digest with a console panel,
+> one-time per-tool approvals bound to the argument digest, fatigue metrics,
+> receipts/undo, tenant default/history/rollback). Ledger schema is **14**.
+> Re-verify the full gate on the exact pushed commit before citing "green".
 
 ## Three layers
 

@@ -65,6 +65,19 @@ export const RESPONSE_SCHEMAS = {
     counts: obj({ pending: num, deferred: num }),
   }),
   'approval.decision': obj({ decision: str, plan: any }),
+  'tool_approval.inbox': obj({
+    session_id: str,
+    pending: arr(any),
+    recent: arr(any),
+    counts: obj({ pending: num, approved: num, denied: num, used: num, expired: num }),
+  }),
+  'tool_approval.decision': obj({ approval: any }),
+  'agentic.digest': obj({
+    session_id: str,
+    hours: num,
+    entries: arr(any),
+    counts: obj({ total: num, accepted: num, notify: num }),
+  }),
   'session.agentic': obj({
     session_id: str,
     agentic_enabled: bool,

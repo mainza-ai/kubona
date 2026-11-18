@@ -201,7 +201,7 @@ describe('PublicationPanel review notes', () => {
     const screen = await render(<PublicationPanel sessionId="s1" />);
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
 
-    const input = screen.container.querySelector('input[aria-label="Review note"]') as HTMLInputElement;
+    const input = screen.getByRole('textbox', { name: 'Review note' }).element() as HTMLInputElement;
     setInputValue(input, 'Explain the 15 mHa gap.');
     const add = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add note'));
     add!.click();
@@ -217,7 +217,7 @@ describe('PublicationPanel review notes', () => {
     const screen = await render(<PublicationPanel sessionId="s1" />);
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
 
-    const input = screen.container.querySelector('input[aria-label="Review note"]') as HTMLInputElement;
+    const input = screen.getByRole('textbox', { name: 'Review note' }).element() as HTMLInputElement;
     setInputValue(input, 'Check the anchor.');
     Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Add note'))!.click();
     await vi.waitFor(() => expect(screen.container.textContent).toContain('1 open'));
@@ -269,7 +269,7 @@ describe('PublicationPanel references', () => {
     const screen = await render(<PublicationPanel sessionId="s1" />);
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
 
-    const search = screen.container.querySelector('input[aria-label="Literature search"]') as HTMLInputElement;
+    const search = screen.getByRole('textbox', { name: 'Literature search' }).element() as HTMLInputElement;
     setInputValue(search, 'H2 ground state');
     Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Search'))!.click();
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Prior H2 study'));

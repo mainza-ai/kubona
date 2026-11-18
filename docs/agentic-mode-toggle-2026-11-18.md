@@ -264,9 +264,9 @@ Go suite / ESLint                      → green
 | Area | Gap | Impact | Plan |
 |---|---|---|---|
 | Global visibility | Mode is visible only in the Autoresearch panel | Users can forget the mode | **AG-18 done**: composer chip; panel remains the detailed control |
-| Approvals | Plan status is the approval, no inbox with edit/reject-feedback/defer/remember | Approval fatigue; no durable queue | **AG-19 done** for approve/reject/defer; edit-arguments/feedback remain |
-| Notify rung | No batched “do it and tell me later” | Long runs still require a person at the end | **AG-20 done** (mode + digest); console digest view remains |
-| Tool permissions | No per-tool allow/ask/block for agent tools | Future write tools would be coarse | **AG-21 done** (ask refuses with remedy; per-call queue remains) |
+| Approvals | Plan status is the approval, no inbox with edit/reject-feedback/defer/remember | Approval fatigue; no durable queue | **AG-19 done**: approve/reject/defer, reviewer edits, durable rejection feedback |
+| Notify rung | No batched “do it and tell me later” | Long runs still require a person at the end | **AG-20 done**: mode, digest endpoint, and the console digest panel |
+| Tool permissions | No per-tool allow/ask/block for agent tools | Future write tools would be coarse | **AG-21 done**: durable one-time approvals for the exact argument digest |
 | Fatigue metrics | Plan latency exists; no queue depth/rubber-stamp signal | Cannot detect oversight decay | **AG-22 done**: queue depth, p50/p90, rejection rate |
 | Undo | Jobs/claims immutable; no reversal receipt | Higher-stakes actions lack recovery | **AG-23 done** for mode/plan/defer; jobs/claims stay immutable |
 | Org default | No tenant-level default switch or policy revision/rollback | New sessions inherit a hardcoded default | **AG-24 done**: operator-owned tenant default + history/rollback |
@@ -341,19 +341,27 @@ Go suite / ESLint                      → green
 
 **AG-19 (done): durable approval inbox**
 - `/approvals` projects proposed plans; approve/reject/defer are sealed events;
-  deferrals persist and are excluded from pending until their time. The console
-  inbox is browser-tested. Edit-arguments and reject-with-feedback remain a
-  follow-up.
+  deferrals persist and are excluded from pending until their time. Reviewers can
+  edit the pre-registered protocol (statement, method, observable, acceptance
+  metric, tolerance, stop rule, budget, spec) before approving: edits are
+  validated, the risk classifier re-runs on the edited plan, and the sealed event
+  carries `edited_fields` plus a `previous` snapshot so undo restores the reviewed
+  baseline. Rejections carry durable `review_feedback` on the plan row. Schema 14.
 
 **AG-20 (done): notify rung**
 - `notify` executes low/medium-risk work and seals `notify:true` receipts;
-  `/agentic/digest` batches them. High risk still requires approval. A console digest
-  view remains a follow-up.
+  `/agentic/digest` batches them. High risk still requires approval. The console
+  digest panel renders the counts and the last eight sealed executions, and states
+  an empty window or an unavailable digest explicitly.
 
 **AG-21 (done): per-tool permissions**
 - The session policy maps tool names to `allow|ask|block`; copilot dispatch refuses
-  before the tool body and seals `tool_permission_refused`. `ask` refuses with the
-  exact remedy; a per-call approval queue is a follow-up.
+  before the tool body and seals `tool_permission_refused`. `ask` is a real
+  one-time rail: the exact call (tool + canonical SHA-256 of its arguments) becomes
+  a durable request, a human approves or denies it in the inbox, and an approval
+  is spent once within a 15-minute TTL. A different argument shape, a spent grant,
+  or an expired grant cannot pass; retrying the same call reuses the pending
+  request instead of flooding the queue.
 
 **AG-22 (done): approval-fatigue telemetry**
 - `/api/ops/science` and Prometheus expose pending/deferred queue depth, p50/p90

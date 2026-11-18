@@ -3,6 +3,7 @@ package api_test
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -118,5 +119,159 @@ func TestApprovalInboxDefersAndDecidesOnce(t *testing.T) {
 	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+other+"/approvals", "op-token", nil)
 	if !strings.Contains(w.Body.String(), `"pending":[]`) {
 		t.Fatalf("approvals leaked across sessions: %s", w.Body.String())
+	}
+}
+
+func TestApprovalEditsRevalidateAndUndoRestores(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedMeasuredH2(t, srv, sid)
+
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/plans", "", map[string]any{
+		"statement": "original protocol", "method": "vqe", "observable": "energy",
+		"acceptance_metric": "energy_exact", "tolerance": 0.05, "stop_rule": "one run",
+		"spec": map[string]any{"kind": "vqe", "molecule": "H2", "bond_distance": 0.7414, "layers": 1},
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("plan create = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Plan struct {
+			ID string `json:"id"`
+		} `json:"plan"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	pid := created.Plan.ID
+
+	// Invalid edits refuse and leave the plan untouched.
+	for name, edits := range map[string]any{
+		"blank statement": map[string]any{"statement": "  "},
+		"negative tol":    map[string]any{"tolerance": -1.0},
+		"zero budget":     map[string]any{"budget_usd": 0},
+		"non-object spec": map[string]any{"spec": []int{1, 2}},
+	} {
+		w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+			map[string]any{"decision": "approve", "edits": edits})
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s: edits = %d: %s", name, w.Code, w.Body.String())
+		}
+	}
+	plan, _ := srv.Ledger().GetPlan(sid, pid)
+	if plan.Statement != "original protocol" || plan.Status != "proposed" {
+		t.Fatalf("invalid edits mutated the plan: %+v", plan)
+	}
+
+	// Edits on a rejection are refused (feedback belongs there).
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+		map[string]any{"decision": "reject", "edits": map[string]any{"tolerance": 0.01}})
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("reject + edits = %d: %s", w.Code, w.Body.String())
+	}
+
+	// Valid edits apply, are reclassified, and are sealed with the previous
+	// values used by undo.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+		map[string]any{"decision": "approve", "reason": "tightened",
+			"edits": map[string]any{"statement": "reviewed protocol", "tolerance": 0.02}})
+	if w.Code != http.StatusOK {
+		t.Fatalf("edited approve = %d: %s", w.Code, w.Body.String())
+	}
+	plan, _ = srv.Ledger().GetPlan(sid, pid)
+	if plan.Statement != "reviewed protocol" || plan.Tolerance != 0.02 || plan.Status != "approved" {
+		t.Fatalf("edits not applied: %+v", plan)
+	}
+	if plan.ReviewedAt == "" {
+		t.Fatalf("review timestamp not persisted: %+v", plan)
+	}
+	events, _ := srv.Ledger().GetRecentEvents(sid, 100)
+	var decided map[string]any
+	for _, e := range events {
+		if e.EventType != "plan_approval_decided" {
+			continue
+		}
+		var body map[string]any
+		_ = json.Unmarshal(e.Payload, &body)
+		if body["plan_id"] == pid {
+			decided = body
+		}
+	}
+	if decided == nil {
+		t.Fatal("approval decision event missing")
+	}
+	editedFields, _ := decided["edited_fields"].([]any)
+	if len(editedFields) < 2 {
+		t.Fatalf("edited fields not sealed: %+v", decided)
+	}
+	prev, _ := decided["previous"].(map[string]any)
+	if prev["statement"] != "original protocol" {
+		t.Fatalf("previous statement not sealed: %+v", prev)
+	}
+
+	// Undo restores the pre-decision protocol and clears the review state.
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/receipts", "", nil)
+	var receipts receiptList
+	json.Unmarshal(w.Body.Bytes(), &receipts)
+	var approvalReceipt int64
+	for _, r := range receipts.Receipts {
+		if r.EventType == "plan_approval_decided" && r.Undoable {
+			approvalReceipt = r.ID
+		}
+	}
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/receipts/"+strconv.FormatInt(approvalReceipt, 10)+"/undo", "", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("undo edited approval = %d: %s", w.Code, w.Body.String())
+	}
+	plan, _ = srv.Ledger().GetPlan(sid, pid)
+	if plan.Status != "proposed" || plan.Statement != "original protocol" ||
+		plan.Tolerance != 0.05 || plan.ReviewedAt != "" {
+		t.Fatalf("undo did not restore the review snapshot: %+v", plan)
+	}
+}
+
+func TestApprovalRejectionCarriesDurableFeedback(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedMeasuredH2(t, srv, sid)
+
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/plans", "", map[string]any{
+		"statement": "feedback probe", "method": "vqe", "observable": "energy",
+		"acceptance_metric": "energy_exact", "tolerance": 0.05, "stop_rule": "one run",
+		"spec": map[string]any{"kind": "vqe", "molecule": "H2", "bond_distance": 0.7414, "layers": 1},
+	})
+	var created struct {
+		Plan struct {
+			ID string `json:"id"`
+		} `json:"plan"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	pid := created.Plan.ID
+	feedback := "Tighten the tolerance to 5 mHa and pre-register the shots."
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+		map[string]any{"decision": "reject", "feedback": feedback})
+	if w.Code != http.StatusOK {
+		t.Fatalf("reject = %d: %s", w.Code, w.Body.String())
+	}
+	plan, _ := srv.Ledger().GetPlan(sid, pid)
+	if plan.Status != "rejected" || plan.ReviewFeedback != feedback || plan.ReviewedAt == "" {
+		t.Fatalf("feedback not durable: %+v", plan)
+	}
+	if len(feedback) > 2000 {
+		t.Fatal("test feedback must fit the limit")
+	}
+
+	// The rejection is visible on the plan list the agent and UI read.
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/plans", "", nil)
+	if !strings.Contains(w.Body.String(), "Tighten the tolerance") {
+		t.Fatalf("plan list omits rejection feedback: %s", w.Body.String())
+	}
+
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/approvals/"+pid, "",
+		map[string]any{"decision": "reject", "feedback": strings.Repeat("x", 2001)})
+	if w.Code != http.StatusConflict {
+		t.Fatalf("oversize feedback on a decided plan = %d", w.Code)
 	}
 }

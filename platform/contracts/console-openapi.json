@@ -858,6 +858,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/tool-approvals/{approvalId}": {
+      "post": {
+        "operationId": "decideToolApproval",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tool_approval.decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tool_approval.decision"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents/custom/{id}": {
       "delete": {
         "operationId": "deleteCustomAgent",
@@ -1149,6 +1187,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/access"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/agentic/digest": {
+      "get": {
+        "operationId": "fetchAgenticDigest",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agentic.digest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentic.digest"
                 }
               }
             }
@@ -2519,6 +2587,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/agents.system"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/tool-approvals": {
+      "get": {
+        "operationId": "fetchToolApprovals",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tool_approval.inbox",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tool_approval.inbox"
                 }
               }
             }
@@ -4470,6 +4568,104 @@
             "type": "string"
           },
           "plan": {}
+        }
+      },
+      "tool_approval.inbox": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "pending",
+          "recent",
+          "counts"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "pending": {
+            "type": "array",
+            "items": {}
+          },
+          "recent": {
+            "type": "array",
+            "items": {}
+          },
+          "counts": {
+            "type": "object",
+            "required": [
+              "pending",
+              "approved",
+              "denied",
+              "used",
+              "expired"
+            ],
+            "properties": {
+              "pending": {
+                "type": "number"
+              },
+              "approved": {
+                "type": "number"
+              },
+              "denied": {
+                "type": "number"
+              },
+              "used": {
+                "type": "number"
+              },
+              "expired": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "tool_approval.decision": {
+        "type": "object",
+        "required": [
+          "approval"
+        ],
+        "properties": {
+          "approval": {}
+        }
+      },
+      "agentic.digest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "hours",
+          "entries",
+          "counts"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "hours": {
+            "type": "number"
+          },
+          "entries": {
+            "type": "array",
+            "items": {}
+          },
+          "counts": {
+            "type": "object",
+            "required": [
+              "total",
+              "accepted",
+              "notify"
+            ],
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "accepted": {
+                "type": "number"
+              },
+              "notify": {
+                "type": "number"
+              }
+            }
+          }
         }
       },
       "session.agentic": {

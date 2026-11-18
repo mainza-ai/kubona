@@ -7335,3 +7335,23 @@ skipped is the exact failure this incident is about:
 - AG-24: operator-owned tenant default, strict unreadable-policy refusal,
   policy history/rollback, and an expanded dual-use list. Schema 13.
 - Final benchmark: 13 tasks, 11/13 pass (only the 8/6-site HEA TFIM tasks fail).
+
+## [2026-11-18] implementation | AG-19b/AG-20b/AG-21b oversight follow-ups
+
+- Approvals: reviewer edits (statement, method, observable, acceptance metric,
+  tolerance, stop rule, budget, spec) are validated, the risk classifier re-runs,
+  and the sealed event carries `edited_fields` + a `previous` snapshot; undo
+  restores the pre-decision protocol. Rejections keep durable
+  `review_feedback` on the plan. Schema 14.
+- Tool permissions: the `ask` rung is a durable one-time approval bound to the
+  tool and a canonical SHA-256 of its arguments; grants are spent once within a
+  15-minute TTL, a denied/expired/spent grant never passes, and an identical
+  retry reuses the pending request. `GET/POST /tool-approvals` + console panel.
+- Notify: the console digest panel renders `/agentic/digest` counts and sealed
+  entries, with explicit empty and unavailable states.
+- Console hygiene: shared `Button`/`Field`/`Select`/`Toggle` primitives in the
+  new surfaces; button, form, coupling, token, boundary, scale, colour-utility,
+  and theme ratchets all at baseline. Console contracts 191 modeled / 16
+  client-only / 0 unmodeled across 166 paths / 165 schemas.
+- Housekeeping: the stale "proposal pricing rule" TODO is confirmed closed by
+  `TestProposalMintRefusesUnpriceablePlans`.

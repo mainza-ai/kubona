@@ -5,6 +5,7 @@
     "access",
     "admet",
     "agent.one",
+    "agentic.digest",
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
@@ -149,6 +150,8 @@
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
+    "tool_approval.decision",
+    "tool_approval.inbox",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
@@ -169,6 +172,7 @@
     "access",
     "admet",
     "agent.one",
+    "agentic.digest",
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
@@ -313,6 +317,8 @@
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
+    "tool_approval.decision",
+    "tool_approval.inbox",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
@@ -486,6 +492,12 @@
       "contract": "approval.decision"
     },
     {
+      "function": "decideToolApproval",
+      "path": "/api/sessions/:sessionId/tool-approvals/:approvalId",
+      "method": "POST",
+      "contract": "tool_approval.decision"
+    },
+    {
       "function": "deleteCustomAgent",
       "path": "/api/agents/custom/:id",
       "method": "DELETE",
@@ -556,6 +568,12 @@
       "path": "/api/access",
       "method": "GET",
       "contract": "access"
+    },
+    {
+      "function": "fetchAgenticDigest",
+      "path": "/api/sessions/:sessionId/agentic/digest",
+      "method": "GET",
+      "contract": "agentic.digest"
     },
     {
       "function": "fetchApprovals",
@@ -910,6 +928,12 @@
       "path": "/api/tasks",
       "method": "GET",
       "contract": "tasks.list"
+    },
+    {
+      "function": "fetchToolApprovals",
+      "path": "/api/sessions/:sessionId/tool-approvals",
+      "method": "GET",
+      "contract": "tool_approval.inbox"
     },
     {
       "function": "fetchWorkbenchLayout",
