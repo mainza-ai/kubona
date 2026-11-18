@@ -21,6 +21,15 @@ Baseline: `37103aad` on `develop`.
 - [x] General ledger-write secret screening.
 - [ ] Proposal pricing rule for plans without a numeric bound.
 
+## Copilot drawer containment (2026-11-17)
+
+- [ ] C1: constrain MathText prose/table min-content width; add browser regression.
+- [ ] C2: Copilot-specific visible splitter, width persistence, reset, and viewport clamp.
+- [ ] C3: table semantics, numeric alignment/formatting, sticky header, scroll cue.
+- [ ] C4: full target label/wrap and separate Δ badge.
+- [ ] C5: mobile/desktop width and resize E2E coverage.
+- [ ] C6: table copy/expand and fit presets after C1–C5.
+
 ## Later
 
 - [x] Hardware parent allowance rails.

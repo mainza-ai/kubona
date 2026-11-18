@@ -640,6 +640,8 @@ hardening. None blocks the supported local-private deployment.
 
 ## B · Queued programs (unblocked, beyond a single slice)
 
+- Copilot drawer containment and horizontal resizing — see
+  [[copilot-drawer-layout-audit-2026-11-17]]; C1–C6 queued.
 - UI/Docker production program (report 2026-10-17: U0 → D1 → U1 → U2 → U3 → D2).
   > ✅ U0 LANDED: console tests + lint in CI (19 lint errors fixed:
   > 6 render-phase key-change resets — no stale-session bleed — + 13

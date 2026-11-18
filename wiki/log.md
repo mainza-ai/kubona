@@ -6899,3 +6899,13 @@ skipped is the exact failure this incident is about:
 - Added an owner+reason+expiry exception in
   `platform/contracts/dependency-audit-exceptions.json`, expiring 2027-03-17.
   The audit gate still fails on any other advisory or on an expired waiver.
+
+## [2026-11-17] audit | Copilot drawer containment
+
+- Live screenshot showed long prose and the FCI/RHF table clipped at the
+  drawer edge, with the target line truncated.
+- Root cause: Inspector's 320–420 px normal width plus MathText's inline-block
+  shrink-to-fit table content and missing min-w-0 containment on the message
+  bubble/feed.
+- Filed [[copilot-drawer-layout-audit-2026-11-17]] with C1–C6 implementation
+  slices; no production code changed in this audit.
