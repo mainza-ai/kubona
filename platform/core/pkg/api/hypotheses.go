@@ -25,6 +25,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/hypotheses"
+	"github.com/mainza-ai/kubona/core/pkg/knowledge"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -188,6 +189,38 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 			c.NoveltyStatus, c.NoveltyMethod, c.NoveltyDistance = "unmeasured", "", nil
 		}
 	}
+	// Dedupe across generations: a repeat call must not accumulate identical
+	// diagnostic rows (the live Strata retries exposed this). Model proposals
+	// with distinct statements still land.
+	existing, err := s.ledger.ListHypotheses(sessionID, 200)
+	if err != nil {
+		WriteAPIError(w, "internal", "hypothesis read failed", nil)
+		return
+	}
+	seen := map[string]bool{}
+	for _, h := range existing {
+		seen[knowledge.Fingerprint(h.Statement)] = true
+	}
+	fresh := make([]hypotheses.Candidate, 0, len(candidates))
+	duplicates := 0
+	for _, c := range candidates {
+		fp := knowledge.Fingerprint(c.Statement)
+		if seen[fp] {
+			duplicates++
+			continue
+		}
+		seen[fp] = true
+		fresh = append(fresh, c)
+	}
+	candidates = fresh
+	if len(candidates) == 0 {
+		writeJSON(w, http.StatusCreated, map[string]any{
+			"hypotheses": []ledger.Hypothesis{}, "llm": llmInfo,
+			"deduplicated": duplicates,
+			"message":      "every candidate already exists in this session",
+		})
+		return
+	}
 	stored := make([]ledger.Hypothesis, 0, len(candidates))
 	for i, c := range candidates {
 		h := &ledger.Hypothesis{
@@ -215,11 +248,14 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 	if err := s.recordManuscriptEvent(sessionID, "hypotheses_generated", map[string]any{
 		"count": len(stored), "goal": strings.TrimSpace(body.Goal),
 		"target": campaign.TargetSystem, "llm_used": llmInfo["used"],
+		"deduplicated": duplicates,
 	}); err != nil {
 		WriteAPIError(w, "internal", "hypothesis event failed: "+err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"hypotheses": stored, "llm": llmInfo})
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"hypotheses": stored, "llm": llmInfo, "deduplicated": duplicates,
+	})
 }
 
 func campaignDeltaMHa(c *agents.CampaignState) float64 {

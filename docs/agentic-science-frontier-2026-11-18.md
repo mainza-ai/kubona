@@ -299,9 +299,13 @@ transition returns 200.
 - Planning is gated: a hypothesis must be `shortlisted` (or `collapsed`) before
   a plan may reference it, so only admitted probes spend experiment budget.
 - New error codes: `hypothesis_not_evidenced`, `hypothesis_not_shortlisted`.
+- Cross-generation dedupe: hypotheses are fingerprinted by their normalized
+  statement, so a repeated generation reports `deduplicated` and does not
+  accumulate duplicate rows; distinct model proposals still land.
 - Tests: proposer contract/fallback/merge, novelty measurement, tournament
   ranking/determinism/symmetry, LLM API path, tournament persistence, collapse
-  evidence rules (plan and claim paths), shortlist-before-plan gate.
+  evidence rules (plan and claim paths), shortlist-before-plan gate, and
+  cross-generation dedupe.
 - Runtime on a disposable stack (schema 7): `use_llm:true` hit a real provider
   error (`Choose a loaded model ID`), returned `llm.used=false` with the error
   surfaced, and still produced 10 diagnostics — the fallback is honest, not a

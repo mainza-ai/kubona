@@ -7261,7 +7261,13 @@ skipped is the exact failure this incident is about:
   bounded to 4 candidates, and Merge reserves up to half the slots for model
   proposals so a diagnostic set cannot silently drop them. Live result: 4 LLM
   candidates, 3 merged alongside 3 diagnostics in ~94 s, all falsifiable with
-  concrete experiment kinds/hints.
+  concrete experiment kinds/hints. A live 3-round tournament over the
+  accumulated rows (25 hypotheses, 36 matches) ranked diagnostics first and
+  model rows present, confirming the chain works end to end.
+- Cross-generation dedupe: repeated generation previously accumulated identical
+  diagnostic rows (the Strata retries exposed it). Hypotheses are now
+  fingerprinted by normalized statement; a repeat reports `deduplicated` and
+  the ledger does not grow. Distinct model proposals still land.
 - AG-1 catalog expanded from 3 to 10 real tasks (H2 VQE 2/3 layers, anchor,
   repeats, excited gap, reaction, TFIM 4/6/8, QAOA MaxCut). Disposable-stack
   baseline 6/10: the four failures are real accuracy gaps (TFIM 0.17/0.47/1.23

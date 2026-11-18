@@ -126,3 +126,45 @@ func TestHypothesesFromEmptyCampaignStillProposeBaselines(t *testing.T) {
 		t.Fatalf("empty-state hypotheses = %+v", out.Hypotheses)
 	}
 }
+
+func TestHypothesesDoNotDuplicateAcrossGenerations(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedMeasuredH2(t, srv, sid)
+
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/hypotheses", "", map[string]any{"count": 10})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("first generate = %d: %s", w.Code, w.Body.String())
+	}
+	var first struct {
+		Hypotheses []struct {
+			ID string `json:"id"`
+		} `json:"hypotheses"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &first)
+	firstCount := len(first.Hypotheses)
+
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/hypotheses", "", map[string]any{"count": 10})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("second generate = %d: %s", w.Code, w.Body.String())
+	}
+	var second struct {
+		Hypotheses   []any `json:"hypotheses"`
+		Deduplicated int   `json:"deduplicated"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &second)
+	if len(second.Hypotheses) != 0 || second.Deduplicated < firstCount {
+		t.Fatalf("second generation = %d new / %d duplicates", len(second.Hypotheses), second.Deduplicated)
+	}
+
+	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sid+"/hypotheses?limit=200", "", nil)
+	var listed struct {
+		Hypotheses []any `json:"hypotheses"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &listed)
+	if len(listed.Hypotheses) != firstCount {
+		t.Fatalf("ledger grew on a duplicate generation: %d -> %d", firstCount, len(listed.Hypotheses))
+	}
+}
