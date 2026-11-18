@@ -179,6 +179,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "backup-status" {
 		os.Exit(runBackupStatus(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "manuscript-export" {
+		os.Exit(runManuscriptExport(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "preflight" {
 		os.Exit(runPreflight(os.Args[2:]))
 	}

@@ -88,6 +88,7 @@ var errorRegistry = map[string]errorSpec{
 	"annotations_open":          {"state", 409, false, "resolve or dismiss every open manuscript annotation before signing off"},
 	"manuscript_immutable":      {"state", 409, false, "only a draft can be edited; create a new draft for changed content"},
 	"artifact_ceiling_exceeded": {"resource", 413, false, "delete old drafts or raise KUBONA_MANUSCRIPT_ARTIFACT_CEILING_BYTES; the session artifact ceiling was reached"},
+	"comparator_unconfigured":   {"internal", 503, false, "set KUBONA_COMPARATOR_PUBKEY_HEX from the operator-run comparator key before attesting a kernel proof"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

@@ -4111,7 +4111,16 @@ export interface Manuscript {
   created_at: string;
   updated_at: string;
   sections: ManuscriptSection[];
-  citations: Array<{ key: string; title: string; authors: string; year: string; doi: string }>;
+  citations: Array<{
+    key: string;
+    title: string;
+    authors: string;
+    year: string;
+    doi: string;
+    claim_id?: string;
+    source_id?: string;
+    verified?: boolean;
+  }>;
   artifacts: ManuscriptArtifact[];
   signoff: ManuscriptSignoff | null;
 }
@@ -4380,5 +4389,40 @@ export async function downloadManuscriptArtifact(
     return { ok: true };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+
+export interface ManuscriptCitationInput {
+  key: string;
+  title: string;
+  authors: string;
+  year: string;
+  doi?: string;
+  claim_id?: string;
+  source_id?: string;
+}
+
+/** Replace a draft's reference list; the server recomposes the document. */
+export async function replaceManuscriptCitations(
+  sessionId: string,
+  id: string,
+  citations: ManuscriptCitationInput[],
+): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/citations`,
+      {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ citations }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.detail', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
   }
 }

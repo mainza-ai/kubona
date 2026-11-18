@@ -237,3 +237,17 @@ def test_build_accepts_a_hostile_target_without_breaking_latex():
                                    source_date_epoch=1700000000))
     assert resp["ok"], resp
     assert resp["build"]["build_hash"]
+
+
+def test_verified_kernel_proof_can_reach_accept():
+    resp = manuscript_ops.run(_req(evidence={
+        "resolved_receipts": ["job-vqe-1"],
+        "unresolved_receipts": [],
+        "lean_proof_hash": "a" * 64,
+        "lean_proof_verified": True,
+        "comparator_verdict": "live_kernel_proven",
+        "sorry_ax_count": 0,
+    }))
+    assert resp["ok"], resp
+    assert resp["review"]["recommendation"] == "ACCEPT"
+    assert resp["review"]["hygiene"] == 10.0

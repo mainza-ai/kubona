@@ -420,6 +420,10 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         bibtex_entries=bibtex_entries,
         figures=figures,
     )
+    # Attach the proof hash only when the comparator attestation is verified;
+    # a supplied-but-unverified hash must not earn reproducibility credit.
+    if evidence.get("lean_proof_verified") and evidence.get("lean_proof_hash"):
+        manuscript.lean4_proof_hash = str(evidence["lean_proof_hash"])
 
     review_evidence = ReviewEvidence(
         comparator_verdict=(

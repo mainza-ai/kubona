@@ -157,6 +157,10 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 		s.handleManuscriptDeposit(w, r, sessionID, strings.TrimSuffix(rest, "/deposit"))
 		return
 	}
+	if strings.HasSuffix(rest, "/citations") {
+		s.handleManuscriptCitations(w, r, sessionID, strings.TrimSuffix(rest, "/citations"))
+		return
+	}
 	if idx := strings.Index(rest, "/annotations"); idx > 0 {
 		mid := rest[:idx]
 		tail := strings.TrimPrefix(rest[idx:], "/annotations")
@@ -234,6 +238,9 @@ func (s *Server) handleManuscriptList(w http.ResponseWriter, r *http.Request, se
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
 			limit = n
 		}
+	}
+	if limit > 200 {
+		limit = 200
 	}
 	if raw := r.URL.Query().Get("offset"); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
@@ -353,26 +360,16 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// The compute plane reports figure hashes; recompute them here so the
-	// content hash never depends on an unverified bridge assertion.
-	for name, expected := range resp.FigureSHA {
-		var raw []byte
-		for _, f := range figures {
-			if f["name"] == name {
-				if b64, _ := f["content_b64"].(string); b64 != "" {
-					raw, _ = base64.StdEncoding.DecodeString(b64)
-				}
-				break
-			}
-		}
-		sum := sha256.Sum256(raw)
-		if len(raw) == 0 || expected != hex.EncodeToString(sum[:]) {
-			WriteAPIError(w, "bridge_unavailable", "bridge figure hash does not match the submitted bytes", nil)
-			return
-		}
+	if err := verifyBridgeFigureHashes(figures, resp.FigureSHA); err != nil {
+		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
+		return
 	}
 	// The bridge sanitizes and deduplicates BibTeX keys; store the effective
 	// keys the PDF actually cites, not the caller's raw string.
+	if err := verifyBridgeFigureHashes(req.Figures, resp.FigureSHA); err != nil {
+		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
+		return
+	}
 	citationInput := body.Citations
 	if len(resp.Citations) > 0 {
 		citationInput = resp.Citations
@@ -1468,6 +1465,27 @@ func manuscriptArtifactCeiling() int64 {
 	return defaultManuscriptArtifactCeiling
 }
 
+// verifyBridgeFigureHashes recomputes submitted figure hashes so the content
+// hash never depends on an unverified compute-plane assertion.
+func verifyBridgeFigureHashes(figures []map[string]any, hashes map[string]string) error {
+	for name, expected := range hashes {
+		var raw []byte
+		for _, f := range figures {
+			if f["name"] == name {
+				if b64, _ := f["content_b64"].(string); b64 != "" {
+					raw, _ = base64.StdEncoding.DecodeString(b64)
+				}
+				break
+			}
+		}
+		sum := sha256.Sum256(raw)
+		if len(raw) == 0 || expected != hex.EncodeToString(sum[:]) {
+			return fmt.Errorf("bridge figure hash does not match the submitted bytes")
+		}
+	}
+	return nil
+}
+
 func artifactSetBytes(artifacts map[string][]byte) int64 {
 	var total int64
 	for _, raw := range artifacts {
@@ -1497,4 +1515,95 @@ func (s *Server) checkArtifactCeiling(ms *ledger.Manuscript, artifacts map[strin
 		}
 	}
 	return nil
+}
+
+// handleManuscriptCitations replaces a draft's reference list and recomposes
+// the document (the introduction cites in order). Only drafts are editable;
+// a claim-bound citation must resolve in this session.
+func (s *Server) handleManuscriptCitations(w http.ResponseWriter, r *http.Request, sessionID, id string) {
+	if r.Method != http.MethodPut {
+		WriteAPIError(w, "method_not_allowed", "citations are PUT-only (replace the list)", nil)
+		return
+	}
+	if !s.manuscriptWorkAllowed(w, r) {
+		return
+	}
+	var body struct {
+		Citations []manuscriptCiteIn `json:"citations"`
+	}
+	if err := decodeStrict(r, &body); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid citations: %v", err), nil)
+		return
+	}
+	ms, err := s.ledger.GetManuscript(sessionID, id)
+	if errors.Is(err, ledger.ErrManuscriptNotFound) {
+		WriteAPIError(w, "not_found", "unknown manuscript", nil)
+		return
+	}
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript read failed", nil)
+		return
+	}
+	if ms.State != ledger.ManuscriptStateDraft {
+		WriteAPIError(w, "manuscript_immutable",
+			"only a draft can change references; create a new draft for changed content", nil)
+		return
+	}
+	verifiedClaims := map[string]bool{}
+	for _, c := range body.Citations {
+		if c.ClaimID == "" {
+			continue
+		}
+		claim, _, _, cerr := s.ledger.ClaimProvenance(sessionID, c.ClaimID)
+		if cerr != nil || claim == nil {
+			WriteAPIError(w, "bad_request",
+				fmt.Sprintf("citation claim %q was not found in this session", c.ClaimID), nil)
+			return
+		}
+		verifiedClaims[c.ClaimID] = true
+	}
+	req, err := s.storedManuscriptRequest(ms, false)
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript snapshot is unreadable", nil)
+		return
+	}
+	req.Citations = citePayload(body.Citations)
+	resp, _, err := s.callManuscriptBridge(r.Context(), req)
+	if err != nil {
+		writeBridgeUnavailable(w, "manuscript_citations", err.Error())
+		return
+	}
+	if !resp.OK {
+		WriteAPIError(w, manuscriptErrorCode(resp.ErrorCode), resp.Error, nil)
+		return
+	}
+	if err := verifyBridgeFigureHashes(req.Figures, resp.FigureSHA); err != nil {
+		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
+		return
+	}
+	citationInput := body.Citations
+	if len(resp.Citations) > 0 {
+		citationInput = resp.Citations
+	}
+	storedCitations := manuscriptCitations(citationInput)
+	for i := range storedCitations {
+		storedCitations[i].Verified = storedCitations[i].ClaimID != "" && verifiedClaims[storedCitations[i].ClaimID]
+	}
+	ms.Title = resp.Title
+	ms.Abstract = resp.Abstract
+	ms.Sections = manuscriptSections(resp.Sections)
+	ms.Citations = storedCitations
+	ms.ContentHash = manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, storedCitations, req.Figures, resp.FigureSHA)
+	ms.ReviewJSON = nonEmptyJSON(resp.Review)
+	if err := s.ledger.UpdateManuscriptDraft(ms); err != nil {
+		WriteAPIError(w, "internal", "citation update failed: "+err.Error(), nil)
+		return
+	}
+	if err := s.recordManuscriptEvent(sessionID, "manuscript_updated", map[string]any{
+		"manuscript_id": id, "content_hash": ms.ContentHash, "citations": len(storedCitations),
+	}); err != nil {
+		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
+		return
+	}
+	s.writeManuscriptDetail(w, sessionID, id, http.StatusOK)
 }

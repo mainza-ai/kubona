@@ -130,6 +130,7 @@ services:
       KUBONA_ALERT_WEBHOOK_URL: ${KUBONA_ALERT_WEBHOOK_URL:-}
       KUBONA_PREFLIGHT_REQUIRE_BACKUP: ${KUBONA_PREFLIGHT_REQUIRE_BACKUP:-0}
       KUBONA_BACKUP_REQUIRE_ENCRYPTION: ${KUBONA_BACKUP_REQUIRE_ENCRYPTION:-0}
+      KUBONA_BACKUP_PLAINTEXT_ACK: ${KUBONA_BACKUP_PLAINTEXT_ACK:-0}
       KUBONA_RATE_CARD_PATH: ${KUBONA_RATE_CARD_PATH:-}
       KUBONA_RATE_CARD_URL: ${KUBONA_RATE_CARD_URL:-}
       KUBONA_LLM_CLOUD: ${KUBONA_LLM_CLOUD:-}
@@ -250,6 +251,10 @@ services:
       # and an in-daemon preflight sees the same backups the preflight
       # container does (it previously reported a false "no backup files").
       KUBONA_BACKUP_DIR: /backups
+      # Operator-run Lean comparator public key. Unset = attestation refused
+      # (no kernel proof can be recorded). The private key never enters a
+      # container: it lives with the CLI on the operator host.
+      KUBONA_COMPARATOR_PUBKEY_HEX: ${KUBONA_COMPARATOR_PUBKEY_HEX:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -304,6 +309,7 @@ services:
       KUBONA_BACKUP_KEEP: ${KUBONA_BACKUP_KEEP:-7}
       KUBONA_BACKUP_AGE_RECIPIENT: ${KUBONA_BACKUP_AGE_RECIPIENT:-}
       KUBONA_BACKUP_REQUIRE_ENCRYPTION: ${KUBONA_BACKUP_REQUIRE_ENCRYPTION:-0}
+      KUBONA_BACKUP_PLAINTEXT_ACK: ${KUBONA_BACKUP_PLAINTEXT_ACK:-0}
       KUBONA_BACKUP_MAX_AGE: ${KUBONA_BACKUP_MAX_AGE:-26h}
     volumes:
       - kubona-state:/home/kubona/.kubona

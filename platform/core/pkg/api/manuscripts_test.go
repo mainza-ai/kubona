@@ -36,6 +36,7 @@ type fakeManuscriptBridge struct {
 	sectionLatex    string
 	citationKeys    []string
 	reverseSections bool
+	lastEvidence    map[string]any
 	buildCalls      int
 }
 
@@ -60,6 +61,11 @@ func (f *fakeManuscriptBridge) compose(in *pb.ManuscriptRequest) (*pb.Manuscript
 	if err := json.Unmarshal([]byte(in.RequestJson), &req); err != nil {
 		return &pb.ManuscriptResponse{Ok: false, ErrorCode: "invalid_request", ErrorMessage: err.Error()}, nil
 	}
+	var envelope struct {
+		Evidence map[string]any `json:"evidence"`
+	}
+	_ = json.Unmarshal([]byte(in.RequestJson), &envelope)
+	f.lastEvidence = envelope.Evidence
 	title := req.Title
 	if title == "" {
 		title = "Composed manuscript"
@@ -823,4 +829,89 @@ func TestManuscriptCitationClaimMustExist(t *testing.T) {
 	if !strings.Contains(w.Body.String(), `"verified":true`) {
 		t.Fatalf("claim-bound citation not marked verified: %s", w.Body.String())
 	}
+}
+
+func TestFormalVerificationRequiresKeyAndSignature(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+
+	payload := map[string]any{
+		"kind": "formal_verification", "session_id": sid, "challenge": "Heisenberg",
+		"proof_hash": strings.Repeat("a", 64), "verdict": "live_kernel_proven",
+		"sorry_ax_count": 0, "axioms_clean": true,
+		"axioms_used": []any{"propext", "Quot.sound"}, "theorem_names": []any{"Demo.theorem"},
+		"lean_toolchain": "4.34.1", "challenge_digest": "digest",
+	}
+	// Unconfigured: refuse before any verification.
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/formal-verifications", "", map[string]any{
+		"payload": payload, "signature_hex": strings.Repeat("0", 128), "pubkey_hex": strings.Repeat("0", 64),
+	})
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "comparator_unconfigured") {
+		t.Fatalf("unconfigured = %d %s", w.Code, w.Body.String())
+	}
+
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KUBONA_COMPARATOR_PUBKEY_HEX", hex.EncodeToString(pub))
+	canonical, err := canonicalTestJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := ed25519.Sign(priv, canonical)
+
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/formal-verifications", "", map[string]any{
+		"payload": payload, "signature_hex": hex.EncodeToString(sig), "pubkey_hex": hex.EncodeToString(pub),
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("attestation = %d %s", w.Code, w.Body.String())
+	}
+	events, err := srv.Ledger().GetRecentEvents(sid, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range events {
+		if e.EventType == "formal_verification" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("formal_verification event missing")
+	}
+
+	// A tampered signature refuses.
+	bad := append([]byte(nil), sig...)
+	bad[0] ^= 0xff
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/formal-verifications", "", map[string]any{
+		"payload": payload, "signature_hex": hex.EncodeToString(bad), "pubkey_hex": hex.EncodeToString(pub),
+	})
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("tampered = %d %s", w.Code, w.Body.String())
+	}
+
+	// The manuscript resolver sees the attested proof.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{
+		"proof_hash": payload["proof_hash"],
+	})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create with proof = %d: %s", w.Code, w.Body.String())
+	}
+	if bridge.lastEvidence == nil || bridge.lastEvidence["lean_proof_verified"] != true {
+		t.Fatalf("proof was not resolved into the bridge evidence: %+v", bridge.lastEvidence)
+	}
+}
+
+func canonicalTestJSON(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSpace(buf.Bytes()), nil
 }

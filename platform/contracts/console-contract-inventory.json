@@ -1072,6 +1072,12 @@
       "contract": "skills.remove"
     },
     {
+      "function": "replaceManuscriptCitations",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/citations",
+      "method": "PUT",
+      "contract": "manuscripts.detail"
+    },
+    {
       "function": "requestObservatoryLens",
       "path": "/api/observatory/lens",
       "method": "POST",

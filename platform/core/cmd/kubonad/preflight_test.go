@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
@@ -124,5 +125,34 @@ func TestPreflightRefusesPlaintextProviderKeyInProduction(t *testing.T) {
 	t.Setenv("KUBONA_SECRET_KEY", "")
 	if code := runPreflight([]string{"--db", dbPath, "--backup-dir", filepath.Join(dir, "backups"), "--rate-card=false"}); code == 0 {
 		t.Fatal("production preflight accepted a plaintext stored provider key")
+	}
+}
+
+func TestPreflightStrictRefusesUnacknowledgedPlaintextBackup(t *testing.T) {
+	dir := t.TempDir()
+	backups := filepath.Join(dir, "backups")
+	if err := os.Mkdir(backups, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	touchBackup(t, backups, "kubona.db.backup-"+time.Now().UTC().Format("20060102T150405Z"))
+
+	t.Setenv("KUBONA_BACKUP_PLAINTEXT_ACK", "")
+	if code := runPreflight([]string{
+		"--db", filepath.Join(dir, "fresh.db"),
+		"--backup-dir", backups,
+		"--rate-card=false",
+		"--strict",
+	}); code == 0 {
+		t.Fatal("strict preflight accepted an unacknowledged plaintext backup")
+	}
+
+	t.Setenv("KUBONA_BACKUP_PLAINTEXT_ACK", "1")
+	if code := runPreflight([]string{
+		"--db", filepath.Join(dir, "fresh.db"),
+		"--backup-dir", backups,
+		"--rate-card=false",
+		"--strict",
+	}); code != 0 {
+		t.Fatalf("acknowledged plaintext backup failed strict preflight: exit %d", code)
 	}
 }

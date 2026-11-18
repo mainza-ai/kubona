@@ -29,6 +29,7 @@ func runPreflight(args []string) int {
 	maxAge := fs.Duration("max-backup-age", 26*time.Hour, "maximum backup age when checking a configured directory")
 	checkRate := fs.Bool("rate-card", true, "validate the configured/embedded rate card")
 	checkChain := fs.Bool("verify-chain", true, "verify the ledger hash chain")
+	strict := fs.Bool("strict", false, "treat posture warnings (plaintext backups) as failures")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -122,6 +123,8 @@ func runPreflight(args []string) int {
 		st := inspectBackups(dir, *maxAge)
 		if st.Fresh && requireEncryption && !st.Encrypted {
 			report("backups", false, "newest backup is plaintext but KUBONA_BACKUP_REQUIRE_ENCRYPTION=1")
+		} else if st.Fresh && !st.Encrypted && *strict && os.Getenv("KUBONA_BACKUP_PLAINTEXT_ACK") != "1" {
+			report("backups", false, "newest backup is plaintext: set KUBONA_BACKUP_AGE_RECIPIENT + KUBONA_BACKUP_REQUIRE_ENCRYPTION=1, or acknowledge with KUBONA_BACKUP_PLAINTEXT_ACK=1")
 		} else if st.Fresh {
 			report("backups", true, fmt.Sprintf("newest %s old", time.Duration(st.AgeSeconds)*time.Second))
 		} else if requireBackup {

@@ -11,13 +11,16 @@ import {
   downloadManuscriptArtifact,
   fetchManuscript,
   fetchManuscripts,
+  replaceManuscriptCitations,
   reviewManuscript,
+  searchLiterature,
   setManuscriptAnnotationStatus,
   signoffManuscript,
   stageManuscriptDeposit,
   type ManuscriptDetail,
   type ManuscriptSummary,
 } from '@/lib/api';
+import type { LiteratureRecord } from '@/types';
 
 interface PublicationPanelProps {
   sessionId: string | null;
@@ -56,6 +59,9 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [annotationAnchor, setAnnotationAnchor] = useState('general');
   const [annotationBody, setAnnotationBody] = useState('');
+  const [litQuery, setLitQuery] = useState('');
+  const [litResults, setLitResults] = useState<LiteratureRecord[]>([]);
+  const [litBusy, setLitBusy] = useState(false);
 
   const load = useCallback(async (preferId?: string) => {
     if (!sessionId) {
@@ -156,6 +162,61 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
       await reloadSelected(selected.manuscript.id);
     }
     setBusy(null);
+  };
+
+  const saveCitations = async (next: Array<Record<string, unknown>>) => {
+    if (!sessionId || !selected) return;
+    setBusy('citations');
+    setError(null);
+    setNotice(null);
+    const res = await replaceManuscriptCitations(sessionId, selected.manuscript.id, next as never);
+    if (!res.ok) setError(res.error);
+    else {
+      setSelected(res.data);
+      setNotice('References updated; review reset for the draft.');
+    }
+    setBusy(null);
+  };
+
+  const addReference = async (record: LiteratureRecord) => {
+    if (!selected) return;
+    const existing = selected.manuscript.citations.map((c) => ({
+      key: c.key, title: c.title, authors: c.authors, year: c.year, doi: c.doi,
+      ...(c.claim_id ? { claim_id: c.claim_id } : {}),
+      ...(c.source_id ? { source_id: c.source_id } : {}),
+    }));
+    const next = [...existing, {
+      key: record.id,
+      title: record.title,
+      authors: record.authors,
+      year: String(record.publication_year ?? ''),
+      source_id: record.id,
+    }];
+    setLitResults([]);
+    setLitQuery('');
+    await saveCitations(next);
+  };
+
+  const removeReference = async (key: string) => {
+    if (!selected) return;
+    const next = selected.manuscript.citations
+      .filter((c) => c.key !== key)
+      .map((c) => ({
+        key: c.key, title: c.title, authors: c.authors, year: c.year, doi: c.doi,
+        ...(c.claim_id ? { claim_id: c.claim_id } : {}),
+        ...(c.source_id ? { source_id: c.source_id } : {}),
+      }));
+    await saveCitations(next);
+  };
+
+  const searchReferences = async () => {
+    if (!litQuery.trim()) return;
+    setLitBusy(true);
+    setError(null);
+    const res = await searchLiterature(litQuery.trim(), 5);
+    setLitResults(res.records);
+    if (res.records.length === 0) setError('No literature records found (the bridge may be offline).');
+    setLitBusy(false);
   };
 
   const downloadArtifact = async (name: string) => {
@@ -338,6 +399,57 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               manuscript stays at REVISE.
             </p>
           )}
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <h5 className="text-label font-semibold">References</h5>
+            {selected.manuscript.citations.length === 0 && (
+              <p className="text-caption text-muted">No references. Search OpenAlex and add one; the draft is recomposed.</p>
+            )}
+            <ul className="space-y-1 text-label">
+              {selected.manuscript.citations.map((c) => (
+                <li key={c.key} className="flex items-center justify-between gap-2">
+                  <span>
+                    {c.title}
+                    <span className="text-caption text-muted"> · {c.authors} {c.year}</span>
+                    {c.verified && <Badge tone="success">claim</Badge>}
+                  </span>
+                  {selected.manuscript.state === 'draft' && (
+                    <Button size="compact" variant="ghost" onClick={() => void removeReference(c.key)}>
+                      remove
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {selected.manuscript.state === 'draft' && (
+              <div className="space-y-1">
+                <div className="flex gap-2">
+                  <input
+                    aria-label="Literature search"
+                    value={litQuery}
+                    onChange={(e) => setLitQuery(e.target.value)}
+                    placeholder="Search literature (OpenAlex)"
+                    className="flex-1 rounded-control border border-border bg-surface px-2 py-1 text-label"
+                  />
+                  <Button size="compact" pending={litBusy} onClick={() => void searchReferences()}>
+                    Search
+                  </Button>
+                </div>
+                {litResults.length > 0 && (
+                  <ul className="space-y-1 text-label border border-border rounded-control p-2">
+                    {litResults.map((record) => (
+                      <li key={record.id} className="flex items-center justify-between gap-2">
+                        <span>{record.title} <span className="text-caption text-muted">· {record.publication_year}</span></span>
+                        <Button size="compact" pending={busy === 'citations'} onClick={() => void addReference(record)}>
+                          Add
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2 border-t border-border pt-3">
             <div className="flex items-center justify-between gap-2">

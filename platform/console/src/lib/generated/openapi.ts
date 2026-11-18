@@ -1318,6 +1318,7 @@ export type ApiOperationResponse = {
   registerTenantAdminKey: TenantWrite;
   rejectMetasearchProposal: MetasearchChange;
   removeSkill: SkillsRemove;
+  replaceManuscriptCitations: ManuscriptsDetail;
   requestObservatoryLens: LensRequest;
   requestServerSignedMandate: MandateSign;
   rerunCodesignProposal: CodesignRerun;
@@ -1504,6 +1505,7 @@ export const API_OPERATIONS = {
   registerTenantAdminKey: { method: "post", path: "/api/tenants/admin-key", response: "tenant.write" },
   rejectMetasearchProposal: { method: "post", path: "/api/metasearch/reject", response: "metasearch.change" },
   removeSkill: { method: "delete", path: "/api/skills/{name}", response: "skills.remove" },
+  replaceManuscriptCitations: { method: "put", path: "/api/sessions/{sessionId}/manuscripts/{id}/citations", response: "manuscripts.detail" },
   requestObservatoryLens: { method: "post", path: "/api/observatory/lens", response: "lens.request" },
   requestServerSignedMandate: { method: "post", path: "/api/mandates/sign", response: "mandate.sign" },
   rerunCodesignProposal: { method: "post", path: "/api/codesign/rerun", response: "codesign.rerun" },

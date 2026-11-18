@@ -55,12 +55,14 @@ function installFetch(overrides: {
 } = {}) {
   const calls: Call[] = [];
   let annotations: Array<Record<string, unknown>> = [];
+  let citations: Array<Record<string, unknown>> = [];
   const detailWithNotes = () => {
     const base = (overrides.detail ?? detail()) as { manuscript: Record<string, unknown>; reviews: unknown[] };
     return {
       ...base,
       annotations,
       open_annotations: annotations.filter((a) => a.status === 'open').length,
+      manuscript: { ...base.manuscript, citations },
     };
   };
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
@@ -97,6 +99,15 @@ function installFetch(overrides: {
     if (method === 'PATCH' && /\/annotations\/[^/]+$/.test(path)) {
       const id = path.split('/').pop();
       annotations = annotations.map((a) => (a.id === id ? { ...a, status: body?.status } : a));
+      return json(detailWithNotes());
+    }
+    if (method === 'GET' && path === '/api/literature') {
+      return json({ cached: false, records: [
+        { id: 'W123', title: 'Prior H2 study', authors: 'Doe, J.', abstract: '', url: '', publication_year: 2024, citation_count: 3 },
+      ] });
+    }
+    if (method === 'PUT' && /\/citations$/.test(path)) {
+      citations = (body?.citations as Array<Record<string, unknown>>) ?? [];
       return json(detailWithNotes());
     }
     if (method === 'GET' && path.includes('/artifacts/')) {
@@ -248,5 +259,23 @@ describe('PublicationPanel artifacts and review', () => {
     summary!.click();
     await vi.waitFor(() => expect(screen.container.textContent).toContain('6.90'));
     expect(screen.container.textContent).toContain('unmeasured');
+  });
+});
+
+
+describe('PublicationPanel references', () => {
+  it('searches literature and adds a reference to a draft', async () => {
+    const calls = installFetch({ list: [SUMMARY], detail: detail() });
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
+
+    const search = screen.container.querySelector('input[aria-label="Literature search"]') as HTMLInputElement;
+    setInputValue(search, 'H2 ground state');
+    Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Search'))!.click();
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Prior H2 study'));
+
+    Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Add')!.click();
+    await vi.waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.path.endsWith('/citations'))).toBe(true));
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('References updated'));
   });
 });

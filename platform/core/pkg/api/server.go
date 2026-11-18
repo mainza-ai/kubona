@@ -2364,6 +2364,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleManuscriptRoute(w, r, sid, rest)
 		return
 	}
+	if strings.HasSuffix(id, "/formal-verifications") {
+		s.handleFormalVerification(w, r, strings.TrimSuffix(id, "/formal-verifications"))
+		return
+	}
 	if strings.HasSuffix(id, "/messages") {
 		sessionID := strings.TrimSuffix(id, "/messages")
 		// T-09b: known session — bind caller to session tenant. Ghosts

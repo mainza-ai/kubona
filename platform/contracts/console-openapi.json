@@ -3052,6 +3052,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/manuscripts/{id}/citations": {
+      "put": {
+        "operationId": "replaceManuscriptCitations",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.detail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mandates/sign": {
       "post": {
         "operationId": "requestServerSignedMandate",

@@ -934,6 +934,21 @@
         "content_hash"
       ]
     },
+    "formal_verification": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Signed comparator attestation of a live Lean kernel proof.",
+      "required": [
+        "challenge",
+        "proof_hash",
+        "verdict",
+        "sorry_ax_count",
+        "axioms_clean",
+        "comparator_pubkey_hex",
+        "comparator_signature_hex"
+      ]
+    },
     "manuscript_annotated": {
       "emitters": [
         "go"
