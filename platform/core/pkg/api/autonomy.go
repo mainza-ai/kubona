@@ -58,29 +58,64 @@ func (s *Server) handleAutonomyRoute(w http.ResponseWriter, r *http.Request, ses
 		if !s.requireOperator(w, r) {
 			return
 		}
-		var body autonomy.Policy
+		// The body's switch fields are optional: an omitted field preserves
+		// the stored value, so a stage-only edit cannot silently re-enable a
+		// session or clear an operator halt lock.
+		var body struct {
+			Stages          map[autonomy.Stage]autonomy.Mode `json:"stages"`
+			MaxActBudgetUSD float64                          `json:"max_act_budget_usd"`
+			AgenticEnabled  *bool                            `json:"agentic_enabled"`
+			AgenticLocked   *bool                            `json:"agentic_locked"`
+		}
 		if err := decodeStrict(r, &body); err != nil {
 			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid autonomy policy: %v", err), nil)
 			return
 		}
-		policy, err := autonomy.Normalize(body)
+		previous, _ := s.loadAutonomyPolicy(sessionID)
+		enabled, locked := previous.AgenticEnabled, previous.AgenticLocked
+		if body.AgenticEnabled != nil {
+			enabled = body.AgenticEnabled
+		}
+		if body.AgenticLocked != nil {
+			locked = *body.AgenticLocked
+		}
+		next, err := autonomy.Normalize(autonomy.Policy{
+			Stages: body.Stages, MaxActBudgetUSD: body.MaxActBudgetUSD,
+			AgenticEnabled: enabled, AgenticLocked: locked,
+		})
 		if err != nil {
 			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
-		policy.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		raw, _ := json.Marshal(policy)
+		next.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		raw, _ := json.Marshal(next)
 		if err := s.ledger.SetAutonomyPolicy(sessionID, string(raw)); err != nil {
 			WriteAPIError(w, "internal", "autonomy policy save failed: "+err.Error(), nil)
 			return
 		}
+		paused := 0
+		if !next.Agentic() {
+			paused = s.pauseSessionLoops(sessionID)
+		}
 		if err := s.recordManuscriptEvent(sessionID, "autonomy_policy_updated", map[string]any{
-			"stages": policy.Stages, "max_act_budget_usd": policy.MaxActBudgetUSD,
+			"stages": next.Stages, "max_act_budget_usd": next.MaxActBudgetUSD,
+			"agentic_enabled": next.Agentic(), "agentic_locked": next.AgenticLocked,
 		}); err != nil {
 			WriteAPIError(w, "internal", "autonomy event failed: "+err.Error(), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"policy": policy, "source": "session"})
+		if next.Agentic() != previous.Agentic() || next.AgenticLocked != previous.AgenticLocked {
+			if err := s.recordManuscriptEvent(sessionID, "agentic_mode_changed", map[string]any{
+				"enabled": next.Agentic(), "locked": next.AgenticLocked,
+				"actor": "operator", "paused_loops": paused,
+			}); err != nil {
+				WriteAPIError(w, "internal", "agentic event failed: "+err.Error(), nil)
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"policy": next, "source": "session", "paused_loops": paused,
+		})
 	default:
 		WriteAPIError(w, "method_not_allowed", "autonomy supports GET and PUT; use /autonomy/halt to stop", nil)
 	}
@@ -95,9 +130,13 @@ func (s *Server) handleAutonomyHalt(w http.ResponseWriter, r *http.Request, sess
 		return
 	}
 	policy, _ := s.loadAutonomyPolicy(sessionID)
+	disabled := false
 	halted := autonomy.Policy{
 		Stages:          map[autonomy.Stage]autonomy.Mode{},
-		MaxActBudgetUSD: policy.MaxActBudgetUSD, UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+		MaxActBudgetUSD: policy.MaxActBudgetUSD,
+		AgenticEnabled:  &disabled,
+		AgenticLocked:   true,
+		UpdatedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 	for _, stage := range autonomy.Stages {
 		halted.Stages[stage] = autonomy.ModeSuggest
@@ -107,6 +146,7 @@ func (s *Server) handleAutonomyHalt(w http.ResponseWriter, r *http.Request, sess
 		WriteAPIError(w, "internal", "autonomy halt save failed: "+err.Error(), nil)
 		return
 	}
+	paused := s.pauseSessionLoops(sessionID)
 	cancelled := 0
 	if s.jobRunner != nil {
 		n, err := s.jobRunner.CancelSessionJobs(sessionID, "autonomy halt")
@@ -117,13 +157,16 @@ func (s *Server) handleAutonomyHalt(w http.ResponseWriter, r *http.Request, sess
 		cancelled = n
 	}
 	if err := s.recordManuscriptEvent(sessionID, "autonomy_halted", map[string]any{
-		"cancelled_jobs": cancelled, "max_act_budget_usd": halted.MaxActBudgetUSD,
+		"cancelled_jobs": cancelled, "paused_loops": paused,
+		"max_act_budget_usd": halted.MaxActBudgetUSD,
+		"agentic_enabled":    false, "agentic_locked": true,
 	}); err != nil {
 		WriteAPIError(w, "internal", "halt event failed: "+err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"policy": halted, "source": "session", "cancelled_jobs": cancelled,
+		"paused_loops": paused,
 	})
 }
 

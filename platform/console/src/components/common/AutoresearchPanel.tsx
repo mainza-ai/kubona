@@ -6,6 +6,8 @@ import {
   fetchAutoresearchLoops,
   startAutoresearchLoop,
   stepAutoresearchLoop,
+  fetchSessionAgentic,
+  setSessionAgentic,
   pauseAutoresearchLoop,
   resumeAutoresearchLoop,
   wakeAutoresearchLoop,
@@ -25,27 +27,59 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [maxIterations, setMaxIterations] = useState('10');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Session master switch: null until the policy read resolves. The switch is
+  // session-scoped; an operator halt locks it (session callers cannot clear it).
+  const [agentic, setAgentic] = useState<{ enabled: boolean; locked: boolean; stages: Record<string, string> } | null>(null);
   const [steerDrafts, setSteerDrafts] = useState<Record<string, string>>({});
   const settlement = useWriteSettlement();
 
   const load = useCallback(async () => {
-    const [h, l] = await Promise.all([fetchAutoresearchHarnesses(), fetchAutoresearchLoops()]);
+    const [h, l, a] = await Promise.all([
+      fetchAutoresearchHarnesses(),
+      fetchAutoresearchLoops(),
+      sessionId ? fetchSessionAgentic(sessionId) : Promise.resolve(null),
+    ]);
     setHarnesses(h.harnesses);
     setLoops(l);
     setHarnessId((cur) => cur || h.harnesses[0]?.id || '');
-  }, []);
+    if (a) setAgentic({ enabled: a.agentic_enabled, locked: a.agentic_locked, stages: a.stages });
+  }, [sessionId]);
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetchAutoresearchHarnesses(), fetchAutoresearchLoops()]).then(([h, l]) => {
+    Promise.all([
+      fetchAutoresearchHarnesses(),
+      fetchAutoresearchLoops(),
+      sessionId ? fetchSessionAgentic(sessionId) : Promise.resolve(null),
+    ]).then(([h, l, a]) => {
       if (!live) return;
       setHarnesses(h.harnesses);
       setRunner(h.docker_runner);
       setLoops(l);
       setHarnessId((cur) => cur || h.harnesses[0]?.id || '');
+      if (a) setAgentic({ enabled: a.agentic_enabled, locked: a.agentic_locked, stages: a.stages });
     });
     return () => { live = false; };
-  }, []);
+  }, [sessionId]);
+
+  const toggleAgentic = async () => {
+    if (!sessionId || !agentic || agentic.locked) return;
+    setBusy('agentic');
+    setNotice(null);
+    const next = !agentic.enabled;
+    const out = await setSessionAgentic(sessionId, next);
+    if (out.ok) {
+      setAgentic({ enabled: out.state.agentic_enabled, locked: out.state.agentic_locked, stages: out.state.stages });
+      setNotice(next
+        ? 'Auto agent on — loops may run under the session policy.'
+        : `Manual mode — agent loops and plan execution are blocked${out.paused_loops ? `; ${out.paused_loops} loop(s) paused` : ''}.`);
+      await load();
+    } else {
+      setNotice(out.error);
+      await load();
+    }
+    setBusy(null);
+  };
 
   const run = async (kind: string, fn: () => Promise<unknown>, success: string) => {
     setBusy(kind);
@@ -68,13 +102,40 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="w-full rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Autoresearch loops">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <span className="text-label font-semibold text-text">Autoresearch loops</span>
           <p className="text-[12px] text-faint">Sandboxed harness stepping; each transition re-reads server state.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-control-compact bg-fill border border-border text-[12px] text-label-secondary">Refresh</button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wide text-faint">Auto agent</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={agentic?.enabled === true}
+            aria-label="Auto agent mode"
+            disabled={agentic === null || agentic.locked || busy !== null}
+            title={agentic === null ? 'Agentic mode unavailable' : agentic.locked ? 'Locked by an operator halt' : agentic.enabled ? 'Turn agentic workflow off' : 'Turn agentic workflow on'}
+            onClick={() => void toggleAgentic()}
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-[background-color,border-color,opacity] ${agentic?.enabled ? 'bg-success-wash border-success-edge' : 'bg-fill border-border'} disabled:opacity-40`}
+          >
+            <span aria-hidden className={`inline-block h-3.5 w-3.5 rounded-full bg-text transition-transform ${agentic?.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+          </button>
+          <span className="text-[11px] font-semibold text-label-secondary">
+            {agentic === null ? '—' : agentic.locked ? 'Locked' : agentic.enabled ? 'On' : 'Off'}
+          </span>
+          <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-control-compact bg-fill border border-border text-[12px] text-label-secondary">Refresh</button>
+        </div>
       </div>
+      {agentic && (
+        <p role="status" className={`text-[12px] ${agentic.locked || !agentic.enabled ? 'text-warning' : 'text-muted'}`}>
+          {agentic.locked
+            ? 'Locked by an operator halt — only an operator can unlock agentic work.'
+            : agentic.enabled
+              ? `Agentic workflow is on — execute stage: ${agentic.stages.execute ?? '—'}.`
+              : 'Manual mode — agent loops and plan execution are blocked; manual experiments remain available.'}
+        </p>
+      )}
       {runner && runner.available !== true && (
         <p role="status" className="text-[12px] text-warning">
           Sandbox unavailable — autoresearch is fail-closed by default. {String(runner.reason || '')}
@@ -89,7 +150,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
           {harnesses.map((h) => <option key={h.id} value={h.id}>{h.id}</option>)}
         </select>
         <input aria-label="Max iterations" value={maxIterations} onChange={(e) => setMaxIterations(e.target.value)} inputMode="numeric" className="w-16 bg-field border border-border rounded-control-compact px-2 py-1 text-text font-mono" />
-        <button type="button" disabled={busy !== null || !harnessId || !sessionId} onClick={() => {
+        <button type="button" disabled={busy !== null || !harnessId || !sessionId || !agentic?.enabled || agentic.locked} title={!agentic?.enabled ? 'Turn auto agent on to start loops' : agentic?.locked ? 'Locked by an operator halt' : 'Start loop'} onClick={() => {
           const n = Number(maxIterations);
           if (!Number.isInteger(n) || n < 1 || n > 1000) { setNotice('max iterations must be an integer 1..1000.'); return; }
           void run('start', () => startAutoresearchLoop(harnessId, n, undefined, sessionId), 'Loop started.');

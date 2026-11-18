@@ -2381,6 +2381,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleAutonomyRoute(w, r, sid, rest)
 		return
 	}
+	if sid, ok := agenticModeSubpath(id); ok {
+		s.handleAgenticModeRoute(w, r, sid)
+		return
+	}
 	if sid, rest, ok := labKnowledgeSubpath(id); ok {
 		s.handleLabKnowledgeRoute(w, r, sid, rest)
 		return
@@ -6333,6 +6337,11 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
+	// AG-17: the session master switch gates agentic loops. Off means manual;
+	// the operator lock (set by a halt) cannot be cleared from this rail.
+	if !s.requireAgentic(w, req.SessionID) {
+		return
+	}
 	if req.MaxIterations <= 0 {
 		req.MaxIterations = 25
 	}
@@ -6567,6 +6576,14 @@ func (s *Server) rehydrateAutoloops() {
 		engine.SetSteersApplied(func(id string, ids []string) {
 			s.supervisor.MarkSteersApplied(id, p.SessionID, ids)
 		})
+		// AG-17: a restart must not silently resume work the user turned off.
+		// Rehydrate the engine so it stays visible, but force it paused and
+		// persist that state; the user resumes explicitly after enabling.
+		policy, _ := s.loadAutonomyPolicy(p.SessionID)
+		if policy.AgenticLocked || !policy.Agentic() {
+			engine.Pause()
+			s.persistLoopRow(engine)
+		}
 		s.activeAutoloops[p.ID] = engine
 	}
 }
@@ -6839,6 +6856,14 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 	}
 
 	action := parts[1]
+	// AG-17: resume/wake/step are agentic transitions. Pause/stop/steer stay
+	// available so a human can always interrupt or redirect.
+	switch action {
+	case "step", "resume", "wake":
+		if !s.requireAgentic(w, engine.State().SessionID) {
+			return
+		}
+	}
 	switch action {
 	case "step":
 		rec, err := engine.Step(r.Context())

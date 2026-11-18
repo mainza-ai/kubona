@@ -127,6 +127,8 @@
     "runAllowance.revoke",
     "runAllowances.list",
     "session",
+    "session.agentic",
+    "session.agentic.update",
     "session.context",
     "session.create",
     "session.delete",
@@ -287,6 +289,8 @@
     "runAllowance.revoke",
     "runAllowances.list",
     "session",
+    "session.agentic",
+    "session.agentic.update",
     "session.context",
     "session.create",
     "session.delete",
@@ -856,6 +860,12 @@
       "contract": "session"
     },
     {
+      "function": "fetchSessionAgentic",
+      "path": "/api/sessions/:sessionId/agentic",
+      "method": "GET",
+      "contract": "session.agentic"
+    },
+    {
       "function": "fetchSessionContext",
       "path": "/api/sessions/context",
       "method": "GET",
@@ -1286,6 +1296,12 @@
       "path": "/api/sessions/:sessionId/manuscripts/:id/annotations/:annotationId",
       "method": "PATCH",
       "contract": "manuscripts.detail"
+    },
+    {
+      "function": "setSessionAgentic",
+      "path": "/api/sessions/:sessionId/agentic",
+      "method": "PUT",
+      "contract": "session.agentic.update"
     },
     {
       "function": "setTenantAutonomy",

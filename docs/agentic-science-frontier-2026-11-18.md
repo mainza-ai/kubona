@@ -569,6 +569,27 @@ assert the crate and its artifact entries.
   `avoid:true` at similarity 1; sharing to another tenant succeeded and
   sharing with the owner was refused.
 
+### Agentic mode and oversight follow-ups (AG-17…AG-24)
+
+`docs/agentic-mode-toggle-2026-11-18.md` records the research synthesis and the
+design. The session master switch is implemented; the rest is planned.
+
+- **AG-17 (done):** `agentic_enabled`/`agentic_locked` in the session policy;
+  `PUT /api/sessions/{sid}/agentic` (session caller), operator full-policy
+  merge, halt lock, enforcement at loop start/resume/wake/step, plan
+  execution, and restart rehydration; Autoresearch panel switch + status.
+- **AG-18:** global Manual/Auto/Locked indicator (status bar / command palette).
+- **AG-19:** durable approval inbox (approve/edit/reject-feedback/defer/
+  remember, resume from the exact payload).
+- **AG-20:** `notify` rung (execute and batch receipts into an auditable
+  digest).
+- **AG-21:** per-tool allow/ask/block permissions for agent tools.
+- **AG-22:** approval-fatigue telemetry (queue depth, latency percentiles,
+  rubber-stamp proxy).
+- **AG-23:** undo/receipts for reversible side effects.
+- **AG-24:** tenant default switch, policy revision/rollback, strict policy
+  read, extended risk taxonomy.
+
 ### Accuracy-gap follow-ups (AG-10…AG-16)
 
 - **AG-10 (done):** QAOA bit order + tests; benchmark shot/target fairness;
@@ -582,6 +603,18 @@ assert the crate and its artifact entries.
 - **AG-15:** console container-query/width-aware panel controls; layout audit.
 - **AG-16:** telemetry semantics (`optimizer_status`, `execution_time_ms`,
   QAOA `energy` naming).
+
+### Agentic mode (AG-17, implemented)
+
+- Users can turn the auto AI agentic workflow on or off per session
+  (`PUT /api/sessions/{sid}/agentic`); the switch is visible and auditable.
+- Off blocks agent loop start/resume/wake/step and plan execution, pauses
+  running loops, and leaves the manual experiment rail open.
+- An operator `POST /autonomy/halt` sets the switch off and locks it; only an
+  operator policy write can clear the lock. Restart rehydration respects the
+  switch (loops come back paused).
+- Research and the remaining oversight plan are in
+  `docs/agentic-mode-toggle-2026-11-18.md`.
 
 ### Residual work (not AG slices)
 

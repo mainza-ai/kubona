@@ -133,6 +133,25 @@ capability, not a demo.
       reports) with fingerprint dedupe, provenance, a prior-negative gate on
       plan creation, and owner-granted sharing. Schema 11.
 
+## Agentic mode and oversight (2026-11-18)
+
+Research/design report: `docs/agentic-mode-toggle-2026-11-18.md`.
+
+- [x] AG-17: session agentic master switch (`agentic_enabled`) + operator lock
+      (`agentic_locked`); session `PUT /agentic`; operator policy merge; halt
+      lock; gates on loop start/resume/wake/step, plan execution, and restart
+      rehydration; Autoresearch panel switch/status; Go and browser tests.
+- [ ] AG-18: global Manual/Auto/Locked indicator (status bar / command palette).
+- [ ] AG-19: durable approval inbox (edit/reject-feedback/defer/remember;
+      resume from the exact payload after restart).
+- [ ] AG-20: `notify` rung with batched receipts/digest.
+- [ ] AG-21: per-tool allow/ask/block permissions for agent tools.
+- [ ] AG-22: approval-fatigue telemetry (queue depth, latency percentiles,
+      rubber-stamp proxy).
+- [ ] AG-23: undo/receipts for reversible side effects.
+- [ ] AG-24: tenant default switch, policy revision/rollback, strict policy
+      read, extended risk taxonomy.
+
 ## Accuracy-gap follow-ups (2026-11-18)
 
 Root-cause report: `docs/accuracy-gap-investigation-2026-11-18.md`.

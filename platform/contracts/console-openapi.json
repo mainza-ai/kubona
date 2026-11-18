@@ -2322,6 +2322,64 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/agentic": {
+      "get": {
+        "operationId": "fetchSessionAgentic",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.agentic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.agentic"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setSessionAgentic",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.agentic.update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.agentic.update"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/context": {
       "get": {
         "operationId": "fetchSessionContext",
@@ -4293,6 +4351,116 @@
           },
           "updated_at": {
             "type": "string"
+          }
+        }
+      },
+      "session.agentic": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "agentic_enabled",
+          "agentic_locked",
+          "stages",
+          "max_act_budget_usd"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "agentic_enabled": {
+            "type": "boolean"
+          },
+          "agentic_locked": {
+            "type": "boolean"
+          },
+          "stages": {
+            "type": "object",
+            "required": [
+              "hypothesize",
+              "plan",
+              "execute",
+              "collapse"
+            ],
+            "properties": {
+              "hypothesize": {
+                "type": "string"
+              },
+              "plan": {
+                "type": "string"
+              },
+              "execute": {
+                "type": "string"
+              },
+              "collapse": {
+                "type": "string"
+              }
+            }
+          },
+          "max_act_budget_usd": {
+            "type": "number"
+          }
+        }
+      },
+      "session.agentic.update": {
+        "type": "object",
+        "required": [
+          "agentic_enabled",
+          "agentic_locked",
+          "paused_loops",
+          "policy"
+        ],
+        "properties": {
+          "agentic_enabled": {
+            "type": "boolean"
+          },
+          "agentic_locked": {
+            "type": "boolean"
+          },
+          "paused_loops": {
+            "type": "number"
+          },
+          "policy": {
+            "type": "object",
+            "required": [
+              "stages",
+              "max_act_budget_usd",
+              "agentic_enabled",
+              "agentic_locked"
+            ],
+            "properties": {
+              "stages": {
+                "type": "object",
+                "required": [
+                  "hypothesize",
+                  "plan",
+                  "execute",
+                  "collapse"
+                ],
+                "properties": {
+                  "hypothesize": {
+                    "type": "string"
+                  },
+                  "plan": {
+                    "type": "string"
+                  },
+                  "execute": {
+                    "type": "string"
+                  },
+                  "collapse": {
+                    "type": "string"
+                  }
+                }
+              },
+              "max_act_budget_usd": {
+                "type": "number"
+              },
+              "agentic_enabled": {
+                "type": "boolean"
+              },
+              "agentic_locked": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },

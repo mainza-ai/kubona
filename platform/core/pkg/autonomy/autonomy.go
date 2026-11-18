@@ -48,7 +48,25 @@ var Stages = []Stage{StageHypothesize, StagePlan, StageExecute, StageCollapse}
 type Policy struct {
 	Stages          map[Stage]Mode `json:"stages"`
 	MaxActBudgetUSD float64        `json:"max_act_budget_usd"`
-	UpdatedAt       string         `json:"updated_at,omitempty"`
+	// AgenticEnabled is the session master switch. Nil means "unset" and
+	// normalizes to true so a pre-switch policy keeps its existing behavior;
+	// an explicit false blocks agent loops and autonomous plan execution while
+	// leaving the manual experiment rail available.
+	AgenticEnabled *bool `json:"agentic_enabled,omitempty"`
+	// AgenticLocked is set by an operator halt. Session callers may toggle the
+	// switch but cannot clear the lock; only the operator policy write can.
+	AgenticLocked bool   `json:"agentic_locked"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+// Agentic reports the effective master switch (default true).
+func (p Policy) Agentic() bool {
+	if p.AgenticEnabled == nil {
+		return true
+	}
+	return *p.AgenticEnabled
 }
 
 // DefaultPolicy approximates the platform's existing posture: free stages are
@@ -62,6 +80,7 @@ func DefaultPolicy() Policy {
 			StageCollapse:    ModeAct,
 		},
 		MaxActBudgetUSD: 1.0,
+		AgenticEnabled:  boolPtr(true),
 	}
 }
 
@@ -86,7 +105,14 @@ func ValidStage(s Stage) bool {
 // bounds the act budget. Unknown stages are refused rather than ignored.
 func Normalize(p Policy) (Policy, error) {
 	def := DefaultPolicy()
-	out := Policy{Stages: map[Stage]Mode{}, MaxActBudgetUSD: p.MaxActBudgetUSD, UpdatedAt: p.UpdatedAt}
+	out := Policy{
+		Stages: map[Stage]Mode{}, MaxActBudgetUSD: p.MaxActBudgetUSD,
+		AgenticEnabled: p.AgenticEnabled, AgenticLocked: p.AgenticLocked,
+		UpdatedAt: p.UpdatedAt,
+	}
+	if out.AgenticEnabled == nil {
+		out.AgenticEnabled = boolPtr(true)
+	}
 	if out.MaxActBudgetUSD == 0 {
 		out.MaxActBudgetUSD = def.MaxActBudgetUSD
 	}

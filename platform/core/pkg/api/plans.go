@@ -292,6 +292,9 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		_ = json.Unmarshal(raw, &campaign)
 	}
+	if !s.requireAgentic(w, sessionID) {
+		return
+	}
 	policy, _ := s.loadAutonomyPolicy(sessionID)
 	decision := autonomy.DecideExecute(policy, plan.Status, autonomy.RiskInput{
 		Method: plan.Method, Spec: spec, BudgetUSD: plan.BudgetUSD,

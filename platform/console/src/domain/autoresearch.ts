@@ -1,6 +1,8 @@
 export {
   fetchAutoresearchHarnesses,
   fetchAutoresearchLoops,
+  fetchSessionAgentic,
+  setSessionAgentic,
   startAutoresearchLoop,
   stepAutoresearchLoop,
   pauseAutoresearchLoop,

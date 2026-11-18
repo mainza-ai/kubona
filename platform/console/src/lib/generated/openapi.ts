@@ -19,6 +19,36 @@ export type Session = {
   "updated_at": string;
 };
 
+export type SessionAgentic = {
+  "session_id": string;
+  "agentic_enabled": boolean;
+  "agentic_locked": boolean;
+  "stages": {
+  "hypothesize": string;
+  "plan": string;
+  "execute": string;
+  "collapse": string;
+};
+  "max_act_budget_usd": number;
+};
+
+export type SessionAgenticUpdate = {
+  "agentic_enabled": boolean;
+  "agentic_locked": boolean;
+  "paused_loops": number;
+  "policy": {
+  "stages": {
+  "hypothesize": string;
+  "plan": string;
+  "execute": string;
+  "collapse": string;
+};
+  "max_act_budget_usd": number;
+  "agentic_enabled": boolean;
+  "agentic_locked": boolean;
+};
+};
+
 export type LoopsList = {
   "loops": {
   "id": string;
@@ -1282,6 +1312,7 @@ export type ApiOperationResponse = {
   fetchRadar: Radar;
   fetchRunAllowances: RunAllowancesList;
   fetchSession: Session;
+  fetchSessionAgentic: SessionAgentic;
   fetchSessionContext: SessionContext;
   fetchSessionsResult: SessionsList;
   fetchSkills: Skills;
@@ -1354,6 +1385,7 @@ export type ApiOperationResponse = {
   sendFeedback: ChatFeedback;
   setLLMAirGap: SettingsUpdate;
   setManuscriptAnnotationStatus: ManuscriptsDetail;
+  setSessionAgentic: SessionAgenticUpdate;
   setTenantAutonomy: TenantWrite;
   setTenantCeiling: TenantWrite;
   setTenantStatus: TenantWrite;
@@ -1469,6 +1501,7 @@ export const API_OPERATIONS = {
   fetchRadar: { method: "get", path: "/api/radar", response: "radar" },
   fetchRunAllowances: { method: "get", path: "/api/run-allowances", response: "runAllowances.list" },
   fetchSession: { method: "get", path: "/api/sessions/{id}", response: "session" },
+  fetchSessionAgentic: { method: "get", path: "/api/sessions/{sessionId}/agentic", response: "session.agentic" },
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
   fetchSessionsResult: { method: "get", path: "/api/sessions", response: "sessions.list" },
   fetchSkills: { method: "get", path: "/api/skills", response: "skills" },
@@ -1541,6 +1574,7 @@ export const API_OPERATIONS = {
   sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
   setLLMAirGap: { method: "patch", path: "/api/llm/settings", response: "settings.update" },
   setManuscriptAnnotationStatus: { method: "patch", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations/{annotationId}", response: "manuscripts.detail" },
+  setSessionAgentic: { method: "put", path: "/api/sessions/{sessionId}/agentic", response: "session.agentic.update" },
   setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
   setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },

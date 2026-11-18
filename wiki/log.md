@@ -7298,3 +7298,22 @@ skipped is the exact failure this incident is about:
   CSS, pins 1280×720 and a 360 px panel, and fails on the old layout.
 - Report: `docs/accuracy-gap-investigation-2026-11-18.md`; plan slices
   AG-10…AG-16.
+
+## [2026-11-18] implementation | user-controlled agentic mode and oversight research
+
+- Added the session agentic master switch (`agentic_enabled`) and operator lock
+  (`agentic_locked`) to the autonomy policy. `PUT /api/sessions/{sid}/agentic`
+  is session-scoped; the operator full-policy write can clear a halt lock.
+- Enforcement: loop start/resume/wake/step, plan execution, and restart
+  rehydration. Off pauses running loops and keeps the manual experiment rail
+  open; a halt sets the switch off, locks it, pauses loops, and cancels jobs.
+- The Autoresearch panel gained a role=switch control, Manual/Auto/Locked
+  status, and a Start-loop gate; browser tests cover the on/off and locked
+  paths. Go tests cover the session/operator powers, the lock, the manual
+  fallback, and the audit event.
+- Research synthesis (autonomy ladders, visible permission modes, durable
+  approvals, tiered oversight, approval fatigue, HVA/multi-start, QAOA p=2/p=3
+  bounds) and the plan (AG-18…AG-24) are in
+  `docs/agentic-mode-toggle-2026-11-18.md`.
+- Runtime: off → loop start 403, plan execute 403, manual experiment 201; halt
+  → session unlock 409; operator unlock 200; restart rehydration pauses loops.

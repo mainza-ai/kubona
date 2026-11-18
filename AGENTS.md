@@ -132,8 +132,12 @@ development — re-verify the gate on the exact commit before citing
 > (`docs/accuracy-gap-investigation-2026-11-18.md`) fixed a QAOA simulator
 > bit-order bug (p=2 0.788 → 0.891) and an Inspector header overlap, and
 > separated the TFIM gap into optimizer and depth causes; AG-11…AG-16 carry the
-> remaining work. Re-verify the full gate on the exact pushed commit before
-> citing "green".
+> remaining work. The agentic workflow is now a user-controlled session mode
+> (`agentic_enabled`, with an operator `agentic_locked` halt): off pauses loops
+> and blocks agent execution while the manual experiment rail stays open.
+> Research and the oversight plan (AG-17…AG-24) are in
+> `docs/agentic-mode-toggle-2026-11-18.md`. Re-verify the full gate on the exact
+> pushed commit before citing "green".
 
 ## Three layers
 

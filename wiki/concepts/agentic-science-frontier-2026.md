@@ -109,6 +109,24 @@ prove autonomy on a benchmark.
   re-verification on the pushed commit.
 - Schema 11.
 
+## Agentic mode and oversight (2026-11-18)
+
+- The auto AI agentic workflow is a session mode the user can turn on or off
+  (`agentic_enabled` in the session policy; `PUT /api/sessions/{sid}/agentic`).
+  Off blocks agent loop start/resume/wake/step and plan execution, pauses
+  running loops, and keeps the manual experiment rail available.
+- An operator halt sets the switch off and locks it (`agentic_locked`); a
+  session caller cannot re-enable it. Only an operator policy write clears the
+  lock. Restart rehydration brings loops back paused when the switch is off.
+- The Autoresearch panel shows the switch, the current stage mode, and a clear
+  Manual/Auto/Locked status; every change is an `agentic_mode_changed` event.
+- Research synthesis (framework-level autonomy ladders, visible permission
+  modes, durable approvals, tiered oversight, approval fatigue, HVA/multi-start
+  and QAOA p=2/p=3 bounds) and the remaining plan (AG-18…AG-24: global
+  indicator, durable approval inbox, notify rung, per-tool permissions,
+  fatigue telemetry, undo, tenant defaults) are in
+  `docs/agentic-mode-toggle-2026-11-18.md`.
+
 ## Known accuracy gaps (2026-11-18 investigation)
 
 - **TFIM VQE:** readout is correct (exact-state control measures −10.249 ±

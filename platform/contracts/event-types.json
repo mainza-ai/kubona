@@ -127,6 +127,17 @@
         "detail"
       ]
     },
+    "agentic_mode_changed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session agentic master switch flipped or operator lock changed.",
+      "required": [
+        "enabled",
+        "locked",
+        "actor"
+      ]
+    },
     "autonomy_halted": {
       "emitters": [
         "go"

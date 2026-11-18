@@ -1380,6 +1380,82 @@ export async function steerAutoresearchLoop(
   }
 }
 
+export type SessionAgenticState = {
+  session_id: string;
+  agentic_enabled: boolean;
+  agentic_locked: boolean;
+  stages: Record<string, string>;
+  max_act_budget_usd: number;
+  source?: string;
+};
+
+/** Session-level agentic master switch (not the operator stage policy). */
+export async function fetchSessionAgentic(sessionId: string): Promise<SessionAgenticState | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/agentic`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const raw = (await res.json()) as Record<string, unknown>;
+    contract('session.agentic', raw);
+    const body = raw as Partial<SessionAgenticState>;
+    return {
+      session_id: sessionId,
+      agentic_enabled: body.agentic_enabled === true,
+      agentic_locked: body.agentic_locked === true,
+      stages: (body.stages || {}) as Record<string, string>,
+      max_act_budget_usd: Number(body.max_act_budget_usd || 0),
+      source: body.source,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function setSessionAgentic(
+  sessionId: string,
+  enabled: boolean,
+): Promise<{ ok: true; state: SessionAgenticState; paused_loops: number } | { ok: false; error: string; code?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/agentic`, {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ enabled }),
+    });
+    const raw = await res.text();
+    let body: Record<string, unknown> = {};
+    try {
+      body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    } catch {
+      /* non-JSON refusal */
+    }
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: String(body.message || body.error || raw || `agentic update refused (${res.status})`).slice(0, 280),
+        code: typeof body.code === 'string' ? body.code : undefined,
+      };
+    }
+    contract('session.agentic.update', body);
+    const policy = (body.policy || {}) as Record<string, unknown>;
+    return {
+      ok: true,
+      state: {
+        session_id: sessionId,
+        agentic_enabled: body.agentic_enabled === true,
+        agentic_locked: body.agentic_locked === true,
+        stages: (policy.stages || {}) as Record<string, string>,
+        max_act_budget_usd: Number(policy.max_act_budget_usd || 0),
+      },
+      paused_loops: Number(body.paused_loops || 0),
+    };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
 export async function fetchAutoresearchLoops(): Promise<import('@/types').AutoresearchLoop[]> {
   try {
     const data = await requestOperation('fetchAutoresearchLoops');

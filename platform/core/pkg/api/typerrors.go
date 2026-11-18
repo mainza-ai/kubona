@@ -99,6 +99,8 @@ var errorRegistry = map[string]errorSpec{
 	"autonomy_suggest_only":        {"state", 403, false, "the session execute stage is suggest: a human must execute through the manual experiment rail or set the stage to approve/act"},
 	"risk_approval_required":       {"state", 409, false, "approve the plan explicitly: high risk or over the act budget requires human approval in every mode"},
 	"prior_negative_exists":        {"state", 409, false, "acknowledge the prior negative result or change the plan: the registry already records this experiment failing"},
+	"agentic_disabled":             {"state", 403, false, "turn auto agent on for this session in the console, or run the experiment manually"},
+	"agentic_locked":               {"state", 409, false, "an operator halted agentic work; only an operator can clear the lock"},
 }
 
 // NewAPIError builds a typed refusal. Unknown codes refuse construction:

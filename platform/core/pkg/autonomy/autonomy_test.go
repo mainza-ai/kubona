@@ -31,6 +31,32 @@ func TestDefaultPolicyAndNormalize(t *testing.T) {
 	}
 }
 
+func TestAgenticMasterSwitchDefaultsAndNormalize(t *testing.T) {
+	def := DefaultPolicy()
+	if !def.Agentic() || def.AgenticEnabled == nil {
+		t.Fatalf("default agentic = %+v", def)
+	}
+	// A pre-switch policy (field absent) normalizes to enabled, never silently
+	// off.
+	legacy := Policy{Stages: map[Stage]Mode{StageExecute: ModeApprove}}
+	got, err := Normalize(legacy)
+	if err != nil {
+		t.Fatalf("normalize legacy: %v", err)
+	}
+	if !got.Agentic() || got.AgenticEnabled == nil {
+		t.Fatalf("legacy policy normalized off: %+v", got)
+	}
+	off := false
+	disabled := Policy{Stages: map[Stage]Mode{StageExecute: ModeApprove}, AgenticEnabled: &off, AgenticLocked: true}
+	got, err = Normalize(disabled)
+	if err != nil {
+		t.Fatalf("normalize disabled: %v", err)
+	}
+	if got.Agentic() || !got.AgenticLocked {
+		t.Fatalf("explicit off/lock lost: %+v", got)
+	}
+}
+
 func TestClassifyRisk(t *testing.T) {
 	low := Classify(RiskInput{Method: "vqe", Spec: map[string]any{"molecule": "H2"}, BudgetUSD: 1, MaxActBudgetUSD: 1})
 	if low.Level != RiskLow || len(low.Reasons) == 0 {

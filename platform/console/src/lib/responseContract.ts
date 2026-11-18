@@ -58,6 +58,24 @@ export const RESPONSE_SCHEMAS = {
     created_at: str,
     updated_at: str,
   }),
+  'session.agentic': obj({
+    session_id: str,
+    agentic_enabled: bool,
+    agentic_locked: bool,
+    stages: obj({ hypothesize: str, plan: str, execute: str, collapse: str }),
+    max_act_budget_usd: num,
+  }),
+  'session.agentic.update': obj({
+    agentic_enabled: bool,
+    agentic_locked: bool,
+    paused_loops: num,
+    policy: obj({
+      stages: obj({ hypothesize: str, plan: str, execute: str, collapse: str }),
+      max_act_budget_usd: num,
+      agentic_enabled: bool,
+      agentic_locked: bool,
+    }),
+  }),
   'loops.list': obj({
     loops: arr(obj({ id: str, session_id: str, status: str, step_count: num, max_steps: num })),
   }),
