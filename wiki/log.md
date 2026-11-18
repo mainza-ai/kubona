@@ -6919,3 +6919,38 @@ skipped is the exact failure this incident is about:
   table copy action.
 - C4: wrapped target identity and separate Δ badge.
 - C5: component + a11y/E2E coverage for 320px tables, resize, and mobile width.
+
+## [2026-11-18] audit | Local-private production audit (publication pipeline)
+
+- Audited `d9a0c1ab` against the local-private production bar with a live stack:
+  health/ready green, ledger chain clean, backup fresh (7 copies), restore drill
+  clean (24 sessions / 54 jobs / 659 events / 4 claims), preflight and FK clean.
+- P0: no production route serves manuscripts/peer review/reports (`404`); the
+  Python engine is reachable only through the unserved `console_api.py`.
+- P0: `KUBONA_SINGLE_LAB=1` but `/api/access` reports `multi_lab` — 21 E2E labs
+  and `mk-labs` make `singleTenantStore()` false; the ledger is append-only, so
+  the repair is a fresh volume.
+- P0: manuscript artifacts unbuildable — no TeX toolchain, figures never
+  included, sections duplicated instead of `\input`, no compile test.
+- P0: peer review/signoff caller-attested; receipts not resolved against the
+  ledger; no `peer_review` event for a manuscript.
+- P1/P2: plaintext same-host backups, HTTP-only metrics, reports not persisted,
+  annotations ephemeral, no bibliography/deposit path, compose lifecycle gaps.
+- Filed [[production-readiness-audit-2026-11-18]] and
+  `docs/production-audit-2026-11-18.md`; R0–R7 slices added to
+  `docs/active-implementation-todos.md` and [[remaining-work]].
+
+## [2026-11-18] implementation | Acceptance gate for the declared access mode
+
+- `scripts/local-deployment-check.sh` now reads `/api/access` and fails under
+  `--expect-single-lab` when the daemon reports `multi_lab`; the flag explains
+  the tenant-count cause and points at the reset procedure.
+- `.github/workflows/ci.yml` docker smoke passes `--expect-single-lab`; a fresh
+  volume reports `local_private`, so the gate is meaningful rather than trivially
+  green.
+- `docs/local-deployment.md`: compose-aware reset (backup → stop → remove
+  ledger/WAL/SHM → up), `down -v` warning (it deletes `kubona-backups`), the
+  `kubonad`-does-not-mount-`/backups` preflight caveat, and backup acceptance
+  items (encrypted off-host or signed waiver; real backup-file restore).
+- Corrected the `ReviewEvidence` docstring claim that a served endpoint records
+  reviews into the ledger.

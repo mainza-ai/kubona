@@ -29,8 +29,9 @@ class ReviewEvidence:
     Every score derives from these fields; nothing is inferred from prose or
     from mere presence of a hash string. Missing (None) fields falsify the
     corresponding dimension (fail-closed). Ledger receipts are content hashes
-    the caller attests exist; the manuscripts endpoint records the review
-    itself back into the ledger.
+    the caller attests exist; this module does not verify them against the
+    ledger, and no served endpoint records the review (the console_api handler
+    is not part of the deployed stack).
     """
 
     comparator_verdict: Optional[str] = None  # "live_kernel_proven" | "static_ast_containment" | "failed"

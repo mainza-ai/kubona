@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-17
+updated: 2026-11-18
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -73,6 +73,34 @@ status: tracked
 >   Lean toolchain container; `gho_…` provider revocation confirmation; OpenAlex
 >   `KUBONA_CONTACT_EMAIL` / HF token rotation; vendor invoice runtime rate
 >   card; and optional [[optional-enhancement-plan-2026-11-01]] (E1–E4).
+
+## Local-private publication audit (2026-11-18)
+
+[[production-readiness-audit-2026-11-18]] audited `d9a0c1ab` against the
+"fully functional on one trusted host" bar. New queue items (none landed):
+
+- **R1/P0** Server-side manuscript/report persistence: tables + tenant-scoped
+  Go routes; drafts built from the campaign projection, not the browser.
+- **R2/P0** Evidence binding: resolve provenance receipts and Lean proof hashes
+  against the ledger; append `peer_review`/signoff events.
+- **R3/P0** Reproducible build: TeX toolchain in an isolated job, `\input`
+  sections, referenced figures, resolved `references.bib`, hashed artifacts,
+  compile test.
+- **R4/P1** Results Studio workflow: draft → review → signoff → build →
+  download, with persisted annotations (replaces the chat-prompt annotation
+  path).
+- **R5/P1** Deposit staging from built artifacts; human upload only.
+- **R6/P1** Encrypted off-host backups (`REQUIRE_ENCRYPTION=1`), require-backup
+  preflight, real restore-from-backup drill, job/queue/bridge/backup metrics.
+- **R7/P2** Bibliographic integrity: stored literature, stable BibTeX keys,
+  claim→citation binding.
+- **Operator** Fresh-volume reset to restore `local_private` on the live host
+  (21 E2E labs make `/api/access` report `multi_lab`; the ledger is append-only).
+
+Also landed with the audit: `scripts/local-deployment-check.sh
+--expect-single-lab` (CI docker smoke passes it), compose reset/preflight
+documentation in `docs/local-deployment.md`, and a truth correction in the
+`ReviewEvidence` docstring.
 
 ## Phase-0/1/2 execution record (2026-10-28, `develop`)
 

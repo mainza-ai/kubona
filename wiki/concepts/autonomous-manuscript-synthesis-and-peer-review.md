@@ -2,7 +2,7 @@
 type: concept
 tags: [manuscript-generation, peer-review, latex, lean4, bilingual-pipeline, results-studio]
 date: 2026-10-07
-updated: 2026-10-07
+updated: 2026-11-18
 status: adopted
 sources:
   - source-architecture-paper
@@ -11,6 +11,20 @@ sources:
 ---
 
 # Autonomous Manuscript Synthesis & Peer Review
+
+> ⚑ **Correction (2026-11-18).** This page describes an **adopted design**, not
+> a deployed capability. The 2026-11-18 local-private audit found that
+> `platform/kubona/science/manuscript.py` is library code: no Go/bridge/console
+> route serves manuscripts, peer review, signoff, builds, or deposits, so the
+> PDF/DOI/Zenodo workflow below is **not reachable in the product**. The
+> implemented peer review is a deterministic rule engine over caller-attested
+> fields (receipts are not resolved against the ledger), not an adversarial LLM
+> tribunal; the bilingual path is a title/abstract stub; figures are generated
+> but never included in the LaTeX; and no TeX engine exists in any image. The
+> Results Studio section describes intent — its actual exports are client-side
+> LaTeX/Markdown/CSV/JSON and a server-signed experiment bundle. Evidence:
+> [[production-readiness-audit-2026-11-18]] and
+> `docs/production-audit-2026-11-18.md` (K-01, K-03, K-04, K-08).
 
 The automated bilingual publication and review engine (`platform/kubona/science/manuscript.py`) that transforms verified Lean 4 proofs, QIR circuit execution logs, and classical simulation telemetry into publication-grade, modular LaTeX manuscripts, validated by an automated adversarial peer-review tribunal.
 

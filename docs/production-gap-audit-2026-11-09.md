@@ -16,6 +16,13 @@ corrects them explicitly.
 > hardware admission drift, source status/type/binding checks, and UI/result
 > projection gaps) and the remaining science/operations residuals. This page's
 > earlier "closed" rows remain valid only for the baseline it audited.
+>
+> ⚑ **Superseding audit (2026-11-18):**
+> [`production-audit-2026-11-18.md`](production-audit-2026-11-18.md) re-audits
+> the live local-private stack at `d9a0c1ab`. It does not reopen the closure
+> rows below; it adds the publication pipeline (K-01/K-03/K-04), effective
+> access-mode (K-02), backup/restore (K-05), observability (K-06), and
+> report-persistence (K-07…K-11) findings those rows did not cover.
 
 ## 1. Executive verdict
 

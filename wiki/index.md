@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (161 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (162 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -73,8 +73,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 10 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (161 pages = 48 entities · 98 concepts · 10 sources · 5 meta), 2026-11-17:**
-`settled` 6 · `adopted` 64 · `open-question` 0 pages · `candidate` 13 · `tracked` 52 ·
+**Census (162 pages = 48 entities · 99 concepts · 10 sources · 5 meta), 2026-11-18:**
+`settled` 6 · `adopted` 64 · `open-question` 0 pages · `candidate` 13 · `tracked` 53 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
@@ -230,6 +230,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[quantum-hardware-gaps-2026-10-24]] | QPU provisioning, provider wiring, frontend config gaps G1–G11 with dispositions; R-32/R-33/R-34 proposals (`tracked`) |
 | [[production-readiness-audit-2026-10-26]] | Round-2 full-source production audit: 10 P0 blockers (bridge auth, import forgery, sandbox escape, money rail, CI, anchors, comparator, claim theater), claim ledger, phased plan (`tracked`) |
 | [[production-readiness-audit-2026-10-26-details]] | Round-2 audit appendix: P2/P3 register by domain, exact coverage and verification log (`tracked`) |
+| [[production-readiness-audit-2026-11-18]] | Local-private audit at `d9a0c1ab`: publication pipeline not deployed, single-lab posture contradicted by the ledger, unbuildable manuscripts, caller-attested review; R0–R7 plan (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
