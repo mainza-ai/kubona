@@ -55,6 +55,28 @@ the signoff. It requires an ACCEPT review and a valid, unexpired signoff, and
 is explicitly `staged-needs-human-upload` / `auto_publish:false` / `doi:null`.
 There is no uploader and no token path; DOI minting happens at the repository.
 
+## Follow-up audit (2026-11-18, second pass)
+
+A self-audit found ten defects in this slice and fixed them with tests:
+nested artifacts were not downloadable; the content hash ignored order (a
+reordered paper could share a signoff hash — now `kubona-manuscript-v2`);
+citation keys could collide and cite the wrong reference; `target_system` was
+unescaped LaTeX; provenance lists were unbounded; artifact size caps were
+checked after reading; compose/build had no limiter; the schema version was
+not bumped (now 2, with a live pre-migration snapshot); preflight never received
+the encryption requirement; and figure hashes were trusted from the bridge.
+See `docs/publication-followup-audit-2026-11-18.md` (F-01…F-10).
+
+The register and plan that remain:
+
+- **P0 operator:** backup encryption/waiver + require flags; fresh-volume reset
+  for the polluted host ledger.
+- **P1:** annotation persistence; comparator producer (no ACCEPT path yet);
+  literature→citation binding + novelty; artifact retention; durable audit
+  events/build telemetry.
+- **P2/P3:** create idempotency, draft edit/delete, pagination, `deposit_ready`,
+  authenticated blob download, review-detail UX, route-vs-operation counts.
+
 ## Known limits
 
 - No production comparator producer ⇒ no ACCEPT path today (gate tested with a

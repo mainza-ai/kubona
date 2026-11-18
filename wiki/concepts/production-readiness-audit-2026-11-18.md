@@ -101,6 +101,15 @@ kept the ledger chain clean. The first build exposed a real composing defect
 (primary VQE point in `measurement`, not `experiments`), now fixed with a
 regression test.
 
+### Follow-up pass (2026-11-18, second)
+
+`docs/publication-followup-audit-2026-11-18.md` re-audited the shipped
+pipeline and fixed ten edge defects (F-01…F-10), including an
+order-insensitive content hash, unreachable section artifacts, citation-key
+collisions, and a missing schema bump. The remaining work is product depth
+(annotations, comparator, citations, retention) plus the two operator policy
+items; it is tracked in [[publication-pipeline]] and [[remaining-work]].
+
 ## What this audit changed
 
 - `scripts/local-deployment-check.sh` now asserts `/api/access` with

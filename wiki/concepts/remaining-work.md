@@ -99,17 +99,29 @@ was then executed the same day. Landed (see [[publication-pipeline]]):
 - **R7 (partial)** citations persist and become BibTeX; novelty distance is
   measured or explicitly unmeasured.
 
-Still open:
+Follow-up pass (2026-11-18): ten edge defects were fixed with tests
+(`docs/publication-followup-audit-2026-11-18.md`, F-01…F-10) — nested artifact
+downloads, order-sensitive hash v2, citation collisions, target escaping,
+bounded provenance, pre-read size checks, build limiter, schema v2 with a live
+pre-migration snapshot, preflight encryption env, and figure-hash verification.
 
-- **R4 annotations:** Results Studio annotations are chat prompts, not
-  persisted manuscript review notes.
-- **R7:** literature lookup does not auto-feed citations; claim→citation
-  binding is manual.
-- **Comparator producer:** no production event emits a kernel-proof verdict,
-  so the ACCEPT gate is wired and tested but unreachable.
-- **Operator:** `KUBONA_BACKUP_AGE_RECIPIENT` + `REQUIRE_ENCRYPTION=1` (or a
-  signed plaintext waiver), `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`, and the
-  fresh-volume reset for the polluted host ledger.
+Still open (A-series in `docs/active-implementation-todos.md`):
+
+- **A1 annotations:** persist manuscript review notes; signoff refuses on open
+  notes.
+- **A2 citations:** literature selection + `claim_id`/`source_id` + measured
+  novelty distance.
+- **A3 comparator producer:** no production event emits a kernel-proof verdict,
+  so ACCEPT is wired but unreachable.
+- **A4 retention:** keep N builds / per-tenant byte ceiling; session-delete
+  evidence semantics.
+- **A5 durability/telemetry:** spooled manuscript events, build log artifact,
+  build metrics.
+- **A6/A7 ergonomics:** idempotency, edit/delete, pagination, `deposit_ready`,
+  authenticated blob download, review detail.
+- **A8 counts honesty:** route patterns vs OpenAPI operations; bridge tests.
+- **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
+  the fresh-volume reset for the polluted host ledger.
 
 ## Phase-0/1/2 execution record (2026-10-28, `develop`)## Phase-0/1/2 execution record (2026-10-28, `develop`)
 

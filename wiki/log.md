@@ -6989,3 +6989,22 @@ skipped is the exact failure this incident is about:
 - The first live build exposed a real defect (primary VQE point lives in
   `measurement`, not `experiments`); fixed with a regression test.
 - Filed [[publication-pipeline]] and `docs/publication-pipeline-2026-11-18.md`.
+
+## [2026-11-18] audit | Publication follow-up: ten edge defects fixed
+
+- Re-audited the shipped R0–R7 slice. Fixed, with regression tests: nested
+  section artifacts were 404 on download; the content hash sorted sections/
+  citations and dropped figure order (now order-sensitive `v2`, reorder →
+  `source_changed`); citation keys could collide and cite the wrong entry;
+  `target_system` was unescaped LaTeX; the provenance list was unbounded;
+  PDF/artifact size caps were checked after reading; compose/build had no edge
+  limiter (`KUBONA_RATE_MANUSCRIPT`); the schema version was not bumped (now 2,
+  live pre-migration snapshot verified); preflight did not receive the
+  encryption requirement; figure hashes were trusted from the bridge.
+- Live: main ledger upgraded to schema=2 with a verified
+  `kubona.db.pre-migration-…`; both chains clean; preflight sees the backup
+  volume; `/metrics` shows backup count/age.
+- Registered the remaining gaps and A1–A8 plan in
+  `docs/publication-followup-audit-2026-11-18.md`, [[publication-pipeline]],
+  and [[remaining-work]]. P0 operator items unchanged: backup encryption/waiver
+  and the fresh-volume reset.

@@ -79,6 +79,37 @@ Executed 2026-11-18; each box is closed only by a test or a live run named in
 - [ ] Operator: fresh-volume reset to restore the declared `local_private`
       posture (documented procedure; preserves a verified snapshot).
 
+## Follow-up audit slices (2026-11-18, second pass)
+
+Findings and evidence: `docs/publication-followup-audit-2026-11-18.md`.
+F-01…F-10 (nested artifacts, order-sensitive hash, citation collisions, target
+escaping, size checks, build limiter, schema v2, preflight env, figure-hash
+verification, receipt cap) are landed with tests.
+
+- [ ] A1: `manuscript_annotations` table + routes; annotations survive reload;
+      signoff refuses while any annotation is open. (closes G-03)
+- [ ] A2: citations gain `claim_id`/`source_id`/`verified`; literature
+      selection feeds the draft; `citation_distance` measured or explicit.
+      (closes G-05, G-13)
+- [ ] A3: comparator producer (Lean job/bridge RPC) emits
+      `formal_verification`; an ACCEPT + signoff + deposit path is exercised
+      end to end. (closes G-04)
+- [ ] A4: artifact retention (keep N builds, per-tenant byte ceiling),
+      session-delete semantics, artifact-bytes gauge. (closes G-06)
+- [ ] A5: `AppendEventWithSpool` for manuscript events; persist a scrubbed
+      build log; build success/failure + duration metrics. (closes G-07, G-08)
+- [ ] A6: create idempotency (`request_id`), draft edit before review,
+      delete/archive, list pagination, `deposit_ready` state.
+      (closes G-09, G-10)
+- [ ] A7: authenticated blob artifact download; review-detail panel with
+      measured/unmeasured novelty. (closes G-12, G-13)
+- [ ] A8: report route patterns vs OpenAPI operations separately; count bridge
+      tests explicitly. (closes G-11, G-15)
+- [ ] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` (or a
+      signed plaintext waiver) and `PREFLIGHT_REQUIRE_BACKUP=1`. (G-01)
+- [ ] Operator: execute the fresh-volume reset and re-run
+      `local-deployment-check.sh --expect-single-lab`. (G-02)
+
 ## Later
 
 - [x] Hardware parent allowance rails.

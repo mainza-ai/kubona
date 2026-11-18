@@ -110,6 +110,45 @@ docker run --rm -v kubona-prod_kubona-backups:/backups:ro \
 KUBONA_BACKUP_REQUIRE_ENCRYPTION=1 kubonad backup-status --dir /backups
 ```
 
+## Follow-up corrections (2026-11-18, second pass)
+
+A self-audit of this slice found and fixed ten defects; each has a regression
+test unless noted:
+
+1. **Nested artifacts were unreachable.** The download parser accepted only
+   `mid/artifacts/<flat-name>`, so `sections/results.tex` and
+   `figures/*.png` were listed but 404'd. Nested project paths are now served
+   with per-segment traversal checks.
+2. **The content hash was order-insensitive.** Sections and citations were
+   sorted and figure order was dropped, so a reordered document could share a
+   signoff hash. The hash is now `kubona-manuscript-v2`: section order,
+   citation order, and figure order all contribute. A reordered source
+   refuses with `409 source_changed`.
+3. **Preflight never received the encryption requirement.** The compose
+   preflight service now forwards `KUBONA_BACKUP_REQUIRE_ENCRYPTION`, so a
+   declared requirement is actually enforced at startup.
+4. **Target markup could break the build.** `target_system` was interpolated
+   raw into section LaTeX (the abstract was already escaped). It is escaped
+   now; a hostile target compiles.
+5. **Citation key collisions produced the wrong reference.** Two keys that
+   sanitize to the same BibTeX key (`10.1/x`, `10.1_x`) now get deterministic
+   suffixes; the API stores the effective keys the PDF cites.
+6. **Provenance lists were unbounded.** A large campaign produced a huge
+   section; the list is capped at 40 with a pointer to the signed export.
+7. **Artifact size caps were checked after reading.** Both the PDF and each
+   project file are now `stat`-checked before `read_bytes`, so a runaway build
+   cannot exhaust bridge memory.
+8. **Compose/build had no edge limiter.** `KUBONA_RATE_MANUSCRIPT`
+   (default `0.2,3`) paces the CPU-bound operations; signoff/deposit stay
+   human-paced and operator-authenticated.
+9. **The schema version was not bumped.** `CurrentSchemaVersion` is now `2`,
+   so an existing ledger takes a verified pre-migration snapshot before the
+   additive publication DDL. Verified live: the main ledger upgraded to
+   `schema=2` with `kubona.db.pre-migration-…` and both chains clean.
+10. **Figure hashes were trusted from the bridge.** The API recomputes each
+    submitted figure's SHA-256 and refuses a mismatch, so the content hash
+    never depends on an unverified compute-plane assertion.
+
 ## Known limits (intentional)
 
 - **No production comparator producer** — so no manuscript can reach ACCEPT
