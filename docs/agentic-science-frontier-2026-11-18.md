@@ -474,9 +474,41 @@ assert the crate and its artifact entries.
 `/metrics` adds `kubona_hypotheses{status}` and
 `kubona_experiment_plans{status}` gauges.
 
+### AG-8b — science telemetry
+
+- `GET /api/ops/science` (bearer, like `/metrics`) returns:
+  - **stage taxonomy** — ledger rows by stage and outcome
+    (`hypothesize` open/success/negative, `plan` pending/running/success/
+    failure, `execute` success/failure/running, `verify`
+    success/failure/unverified, `signoff` success);
+  - **cost per accepted claim** — settled `actual_usd` when the result carries
+    it, else the reserved amount, divided by verified claims; the per-claim
+    value is `null` when there are no verified claims, and the basis states
+    how many verified claims lack a job link;
+  - **human interventions** — plan approvals, signoffs, autonomy updates,
+    halts, and claim reviews. Human minutes are **not recorded** by the
+    platform, so `human_minutes` is `null` with an explicit status; median
+    plan-created→approved latency is reported as a measured proxy and labelled
+    as latency, not effort;
+  - **queue/loop health** — jobs by status, live jobs, oldest live age, loops
+    by status, active (non-terminal) loops, oldest active age.
+- Prometheus gains `kubona_science_stage{stage,outcome}`,
+  `kubona_verified_claims`, `kubona_cost_per_accepted_claim_usd` (omitted when
+  undefined), `kubona_human_interventions{kind}`,
+  `kubona_plan_approval_latency_minutes`, `kubona_live_jobs`,
+  `kubona_oldest_live_job_age_seconds`, `kubona_active_loops`, and
+  `kubona_oldest_active_loop_age_seconds`.
+- Tests: stage mapping, actual-vs-reserved cost, null cost with no verified
+  claims, unmeasured human minutes + latency, queue counts, bearer refusal,
+  and the rendered Prometheus families.
+- Runtime: the H2 bench session produced `execute/success=1`,
+  `hypothesize/open=10`; cost stayed `null` per claim with zero verified
+  claims (honest); human minutes stayed null with the unmeasured status; queue
+  reported one completed job; `/metrics` carried the new families.
+
 ### Still open
 
-AG-8b (dashboards/human-minute metrics), AG-9 (cumulative lab knowledge).
+AG-9 (cumulative lab knowledge).
 
 ## 7. Source notes and limitations
 

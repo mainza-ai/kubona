@@ -27,6 +27,57 @@ func (s *Server) renderOpsMetrics(w io.Writer) {
 	writeGaugeMap(w, "kubona_experiment_plans", "Experiment plans by status (ledger).",
 		"status", s.ledger.PlanStatusCounts)
 
+	// AG-8b: science-stage taxonomy, cost, human actions, and queue health.
+	if stages, err := s.scienceStageOutcomes(); err == nil {
+		fmt.Fprintln(w, "# HELP kubona_science_stage Research-stage rows by stage and outcome.")
+		fmt.Fprintln(w, "# TYPE kubona_science_stage gauge")
+		for _, st := range stages {
+			fmt.Fprintf(w, "kubona_science_stage{stage=%q,outcome=%q} %d\n", st.Stage, st.Outcome, st.Count)
+		}
+	}
+	if cost, err := s.scienceCostPerAcceptedClaim(); err == nil {
+		fmt.Fprintln(w, "# HELP kubona_verified_claims Claims with a verified verdict.")
+		fmt.Fprintln(w, "# TYPE kubona_verified_claims gauge")
+		fmt.Fprintf(w, "kubona_verified_claims %d\n", cost.VerifiedClaims)
+		if cost.CostPerClaimUSD != nil {
+			fmt.Fprintln(w, "# HELP kubona_cost_per_accepted_claim_usd Recorded cost divided by verified claims (null when none).")
+			fmt.Fprintln(w, "# TYPE kubona_cost_per_accepted_claim_usd gauge")
+			fmt.Fprintf(w, "kubona_cost_per_accepted_claim_usd %f\n", *cost.CostPerClaimUSD)
+		}
+	}
+	if human, err := s.scienceHumanInterventions(); err == nil {
+		fmt.Fprintln(w, "# HELP kubona_human_interventions Operator actions by kind.")
+		fmt.Fprintln(w, "# TYPE kubona_human_interventions gauge")
+		fmt.Fprintf(w, "kubona_human_interventions{kind=%q} %d\n", "plan_approvals", human.PlanApprovals)
+		fmt.Fprintf(w, "kubona_human_interventions{kind=%q} %d\n", "signoffs", human.Signoffs)
+		fmt.Fprintf(w, "kubona_human_interventions{kind=%q} %d\n", "autonomy_updates", human.AutonomyUpdates)
+		fmt.Fprintf(w, "kubona_human_interventions{kind=%q} %d\n", "halts", human.Halts)
+		fmt.Fprintf(w, "kubona_human_interventions{kind=%q} %d\n", "claim_reviews", human.ClaimReviews)
+		if human.ApprovalLatencyMinutes != nil {
+			fmt.Fprintln(w, "# HELP kubona_plan_approval_latency_minutes Median plan-created to approved latency.")
+			fmt.Fprintln(w, "# TYPE kubona_plan_approval_latency_minutes gauge")
+			fmt.Fprintf(w, "kubona_plan_approval_latency_minutes %f\n", *human.ApprovalLatencyMinutes)
+		}
+	}
+	if queue, err := s.scienceQueueHealth(); err == nil {
+		fmt.Fprintln(w, "# HELP kubona_live_jobs Jobs in queued/running state.")
+		fmt.Fprintln(w, "# TYPE kubona_live_jobs gauge")
+		fmt.Fprintf(w, "kubona_live_jobs %d\n", queue.LiveJobs)
+		if queue.OldestLiveJobAgeSeconds != nil {
+			fmt.Fprintln(w, "# HELP kubona_oldest_live_job_age_seconds Age of the oldest live job.")
+			fmt.Fprintln(w, "# TYPE kubona_oldest_live_job_age_seconds gauge")
+			fmt.Fprintf(w, "kubona_oldest_live_job_age_seconds %.0f\n", *queue.OldestLiveJobAgeSeconds)
+		}
+		fmt.Fprintln(w, "# HELP kubona_active_loops Autoresearch loops not in a terminal state.")
+		fmt.Fprintln(w, "# TYPE kubona_active_loops gauge")
+		fmt.Fprintf(w, "kubona_active_loops %d\n", queue.ActiveLoops)
+		if queue.OldestActiveLoopAgeSeconds != nil {
+			fmt.Fprintln(w, "# HELP kubona_oldest_active_loop_age_seconds Age of the oldest active loop.")
+			fmt.Fprintln(w, "# TYPE kubona_oldest_active_loop_age_seconds gauge")
+			fmt.Fprintf(w, "kubona_oldest_active_loop_age_seconds %.0f\n", *queue.OldestActiveLoopAgeSeconds)
+		}
+	}
+
 	fmt.Fprintln(w, "# HELP kubona_bridge_configured Whether a bridge client is wired into this process.")
 	fmt.Fprintln(w, "# TYPE kubona_bridge_configured gauge")
 	fmt.Fprintf(w, "kubona_bridge_configured %d\n", boolGauge(s.bridgeClient() != nil))

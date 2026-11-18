@@ -635,6 +635,7 @@ func (s *Server) RegisteredRoutes() []string {
 func (s *Server) registerRoutes() {
 	s.route("/api/health", s.handleHealth)
 	s.route("/metrics", s.requireBearer(s.handleMetrics))
+	s.route("/api/ops/science", s.requireBearer(s.handleScienceMetrics))
 	s.route("/api/ready", s.handleReady)
 	s.route("/api/capabilities", s.handleCapabilities)
 	// B11: body-free skill catalogue + closed loader faults for Settings.

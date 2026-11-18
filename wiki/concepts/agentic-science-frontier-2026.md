@@ -95,7 +95,10 @@ prove autonomy on a benchmark.
   classifier enforced at plan execution, and an operator halt that cancels live
   jobs (schema 10).
 - **AG-8a closed:** hypothesis/plan status gauges.
-- **Open:** AG-8b dashboards; AG-9 registry.
+- **AG-8b closed:** `/api/ops/science` stage taxonomy, cost per accepted claim,
+  human intervention counts (minutes explicitly unmeasured), queue/loop health,
+  plus matching Prometheus gauges.
+- **Open:** AG-9 registry.
 - Schema 10.
 
 ## Cross-references

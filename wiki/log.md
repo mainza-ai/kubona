@@ -7214,3 +7214,17 @@ skipped is the exact failure this incident is about:
   every stage to suggest and cancels live jobs.
 - Runtime: act auto-approved a low-risk plan; a hardware plan was refused until
   approved; suggest refused an approved plan; halt zeroed every stage.
+
+## [2026-11-18] implementation | AG-8b science telemetry
+
+- `GET /api/ops/science` (bearer) reports the research-stage taxonomy
+  (hypothesize/plan/execute/verify/signoff by outcome), cost per accepted claim
+  (settled actual_usd when present, else reserved; null with no verified
+  claims), human intervention counts with human minutes explicitly unmeasured
+  and plan-approval latency as a labelled proxy, and queue/loop health.
+- Prometheus gains stage, verified-claim, cost-per-claim, human-intervention,
+  approval-latency, live-job, and active-loop gauges; undefined values are
+  omitted rather than fabricated.
+- Runtime: bench session reported execute/success=1, hypothesize/open=10, a
+  completed job, zero verified claims (null per-claim cost), and unmeasured
+  human minutes; `/metrics` carried all new families.

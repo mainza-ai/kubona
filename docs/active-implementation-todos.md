@@ -123,8 +123,10 @@ capability, not a demo.
       jobs. Schema 10.
 - [x] AG-8a: `kubona_hypotheses{status}` + `kubona_experiment_plans{status}`
       gauges.
-- [ ] AG-8b: stage/failure taxonomy, cost per accepted claim, human minutes,
-      dashboard.
+- [x] AG-8b: `GET /api/ops/science` with stage taxonomy, cost per accepted
+      claim (actual-vs-reserved basis), human intervention counts with human
+      minutes explicitly unmeasured, queue/loop health; matching Prometheus
+      gauges.
 - [ ] AG-9: tenant-scoped cumulative lab knowledge registry (hypotheses,
       negative results, reports) with A2A/tenant-grant access.
 

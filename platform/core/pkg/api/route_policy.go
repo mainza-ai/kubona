@@ -78,6 +78,7 @@ func (p RoutePolicy) ServesWrites() bool {
 var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/health", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "liveness probe, no state, no data."},
 	{Pattern: "/metrics", Methods: "GET", Class: RouteAuthBearer},
+	{Pattern: "/api/ops/science", Methods: "GET", Class: RouteAuthBearer, Rationale: "Operator science telemetry: stage outcomes, cost per accepted claim, human interventions, queue/loop health. Bearer-gated like /metrics; reads only."},
 	{Pattern: "/api/ready", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "readiness probe, no state, no data."},
 	{Pattern: "/api/capabilities", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "static capability advertisement, no state."},
 	{Pattern: "/api/skills", Methods: "GET,POST", Class: RouteAuthBearerWrites, Rationale: "GET is the body-free skill catalogue; POST installs one validated user SKILL.md. Bodies are only reachable through the tool-gated load_skill rail."},
