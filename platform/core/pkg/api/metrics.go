@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -151,6 +153,13 @@ func (s *Server) renderProcessMetrics(w io.Writer) {
 	fmt.Fprintln(w, "# HELP kubona_process_gc_goal_bytes Heap goal for the next GC cycle.")
 	fmt.Fprintln(w, "# TYPE kubona_process_gc_goal_bytes gauge")
 	fmt.Fprintf(w, "kubona_process_gc_goal_bytes %d\n", m.NextGC)
+	if s.ledger != nil {
+		if rss := readBridgeRSS(s.ledger.Path()); rss > 0 {
+			fmt.Fprintln(w, "# HELP kubona_bridge_rss_bytes Bridge process RSS (reported file, fresh within 60s).")
+			fmt.Fprintln(w, "# TYPE kubona_bridge_rss_bytes gauge")
+			fmt.Fprintf(w, "kubona_bridge_rss_bytes %d\n", rss)
+		}
+	}
 	if rss, limit := processMemory(); rss > 0 {
 		fmt.Fprintln(w, "# HELP kubona_process_rss_bytes Resident set size (Linux /proc).")
 		fmt.Fprintln(w, "# TYPE kubona_process_rss_bytes gauge")
@@ -191,6 +200,34 @@ func processMemory() (rss, limit int64) {
 		}
 	}
 	return rss, limit
+}
+
+// readBridgeRSS reads the bridge's atomic RSS report from the shared state
+// directory. A value older than 60s is not emitted: a stale gauge is worse
+// than no gauge.
+func readBridgeRSS(dbPath string) int64 {
+	if dbPath == "" {
+		return 0
+	}
+	path := filepath.Join(filepath.Dir(dbPath), "bridge-rss.json")
+	st, err := os.Stat(path)
+	if err != nil || time.Since(st.ModTime()) > 60*time.Second {
+		return 0
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var payload struct {
+		RSSBytes int64 `json:"rss_bytes"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return 0
+	}
+	if payload.RSSBytes < 0 {
+		return 0
+	}
+	return payload.RSSBytes
 }
 
 // renderMemoryStoreMetrics exposes the agentic store's cardinality and vector

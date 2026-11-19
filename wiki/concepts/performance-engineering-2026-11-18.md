@@ -112,10 +112,11 @@ anchors are cached (benzene 3.04 s cold → <1 ms warm); transpile level is
 configurable; the Streamable-HTTP MCP gateway runs in compose; read-only tool
 calls overlap; `scripts/perf-gate.sh` is in CI.
 
-Deferred with evidence: **PERF-11** React Compiler grew first load by
-**94.4 KiB raw / 37.1 KiB gzip** (1,227.3 / 373.3 KiB, chunk 315.7 KiB > 300
-KiB), so it was reverted. **PERF-15** JSON v2 decode was not adopted: encode is
-at parity and no decode path justified the migration.
+**PERF-11** is enabled in **annotation mode** (MathText opted in) after the
+default `infer` mode measured **+94.4 KiB raw / +37.1 KiB gzip** and was
+reverted; first load stays 1,154.6 / 340.4 KiB. **PERF-15** is an explicit
+no-adoption decision: encode is at parity and no decode path justified the
+migration.
 
 ## Anti-findings (do not do)
 

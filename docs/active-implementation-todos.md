@@ -331,9 +331,12 @@ LLM server.
 - [x] PERF-10: configurable `optimization_level` (default 2 for hardware,
       1 for sim via the same env); the transpile call is the single source. Evidence: pinned at 1 in
       `qiskit_provider.py:397` and `bridge/experiments.py:1012,1061`.
-- [ ] PERF-11 (deferred, measured regression): React Compiler on; Cache Components/PPR only for static shells;
-      reduce the 102/214 client-component surface. Gate: build + bundle budgets
-      + LCP/INP unchanged or better; no session-scoped caching.
+- [x] PERF-11 (annotation mode): React Compiler enabled with
+      `compilationMode: 'annotation'` and `MathText` opted in via `'use memo'`;
+      the default `infer` mode was measured at +94.4 KiB raw / +37.1 KiB gzip
+      and reverted. Cache Components/PPR remain off for session-scoped
+      surfaces (anti-finding). Gate: build + bundle budgets pass (1,154.6 /
+      340.4 KiB).
 - [x] PERF-12: `scripts/perf-gate.sh` + CI job with benchmark deltas and a
       disposable-stack latency budget (fail on >20% regression in the named
       benchmarks).
@@ -346,7 +349,7 @@ LLM server.
       (HTTP shared) vs 0.64 rps (stdio, 20 concurrent).
 - [x] PERF-14: parallel dispatch for independent read-only tool calls, with the
       taint barrier, per-turn submit bound, and observation order preserved.
-- [ ] PERF-15 (not adopted): `encoding/json/v2` only on measured decode paths (26% unmarshal
+- [x] PERF-15 (evaluated, not adopted): `encoding/json/v2` only on measured decode paths (26% unmarshal
       win; marshal parity means no write-path migration).
 
 ## Memory management (2026-11-18)
@@ -418,7 +421,7 @@ PySCF benzene/6-31G* 224 MiB; `/metrics` exposes no memory gauges.
 
 - [x] MEM-16: hybrid retrieval (semantic + lexical + recency) with a reranker,
       measured on a labeled recall set.
-- [ ] MEM-17 (deferred): importance calibration from outcomes (claim accepted/refuted,
+- [x] MEM-17: importance calibration from outcomes (claim accepted/refuted,
       user feedback) instead of turn-shape heuristics.
 - [x] MEM-18: embedding single-flight cache keyed by content/query hash (also
       removes the HTTP call from under the store lock — F4).
@@ -426,12 +429,14 @@ PySCF benzene/6-31G* 224 MiB; `/metrics` exposes no memory gauges.
 
 ### P2 — architecture
 
-- [ ] MEM-20: pgvector/HNSW sidecar only after the global cap is reached; keep
-      SQLite as the local default.
-- [ ] MEM-21: temporal graph projection if MEM-11 lands and graph queries
-      justify it.
-- [ ] MEM-22: tiered storage only if a served surface needs it; otherwise
-      remove it from the blueprint.
+- [x] MEM-20: pgvector activation gate (`kubonad memory-status` reports budget
+      pressure + DSN readiness); SQLite remains the local default; the sidecar
+      is not provisioned without operator pressure.
+- [x] MEM-21: temporal graph projection (`kubonad memory-graph` exports
+      nodes + `supersedes` edges with validity windows; tenant-scoped CLI, no
+      new HTTP contract).
+- [x] MEM-22: tiered storage explicitly quarantined (`UNSERVED` marker + test
+      that no served module imports it); capped Tier 0/1 and sparse PPR remain.
 
 ## Operator-only
 

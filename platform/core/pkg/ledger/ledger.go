@@ -106,6 +106,15 @@ const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	applied_at TEXT NOT NULL
 )`
 
+// Path returns the ledger file path (for adjacent state files such as the
+// bridge RSS reporter). It is read-only metadata, never a handle.
+func (l *Ledger) Path() string {
+	if l == nil {
+		return ""
+	}
+	return l.dbPath
+}
+
 // SchemaVersion reports the highest applied migration version.
 func (l *Ledger) SchemaVersion() (int, error) {
 	var version int

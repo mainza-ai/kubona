@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
   // (Dockerfile.console copies .next/standalone + .next/static).
   output: 'standalone',
 
+  // PERF-11: opt-in React Compiler (annotation mode). The default `infer`
+  // mode compiled the whole client surface and added ~94 KiB raw / ~37 KiB
+  // gzip to first load, over the budget. Annotation mode only compiles
+  // components marked with 'use memo', so the win is targeted and measured.
+  reactCompiler: { compilationMode: 'annotation' },
+
   // Security headers (2026-10-26 audit UI-04). CSP keeps the script/style
   // allowances Next needs while blocking framing, object embedding, and
   // cross-origin form posts. connect-src stays scheme-wide because the Go

@@ -45,6 +45,10 @@ type MemoryItem struct {
 	ValidFrom    time.Time  `json:"valid_from,omitempty"`
 	ValidTo      *time.Time `json:"valid_to,omitempty"`
 	SupersededBy string     `json:"superseded_by,omitempty"`
+	// Outcome calibration: explicit useful/not-useful feedback adjusts
+	// importance instead of leaving it frozen at turn-shape heuristics.
+	HelpfulCount int `json:"helpful_count,omitempty"`
+	HarmfulCount int `json:"harmful_count,omitempty"`
 }
 
 type StoreConfig struct {
@@ -240,6 +244,8 @@ func (s *HindsightStore) initTable() {
 			valid_from TIMESTAMP,
 			valid_to TIMESTAMP,
 			superseded_by TEXT NOT NULL DEFAULT '',
+			helpful_count INTEGER NOT NULL DEFAULT 0,
+			harmful_count INTEGER NOT NULL DEFAULT 0,
 			embedding_int8 BLOB,
 			embedding_scale REAL NOT NULL DEFAULT 0
 		);
@@ -268,6 +274,8 @@ func (s *HindsightStore) initTable() {
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN valid_from TIMESTAMP`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN valid_to TIMESTAMP`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN superseded_by TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN helpful_count INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN harmful_count INTEGER NOT NULL DEFAULT 0`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN embedding_int8 BLOB`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN embedding_scale REAL NOT NULL DEFAULT 0`)
 }
@@ -283,7 +291,7 @@ func (s *HindsightStore) loadFromDB() {
 	// Bounded startup: the global budget is the only total cap, so do not
 	// materialize an unbounded table just to evict it afterwards. The
 	// highest-scoring rows win; low-value rows remain on disk for retention.
-	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason, valid_from, valid_to, superseded_by FROM hindsight_memories ORDER BY effective_score DESC LIMIT ?`, limit)
+	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason, valid_from, valid_to, superseded_by, helpful_count, harmful_count FROM hindsight_memories ORDER BY effective_score DESC LIMIT ?`, limit)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -291,7 +299,7 @@ func (s *HindsightStore) loadFromDB() {
 			var bankStr string
 			var retracted, validFrom, validTo sql.NullTime
 			var superseded sql.NullString
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason, &validFrom, &validTo, &superseded); err == nil {
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason, &validFrom, &validTo, &superseded, &item.HelpfulCount, &item.HarmfulCount); err == nil {
 				item.Bank = MemoryBank(bankStr)
 				if retracted.Valid {
 					t := retracted.Time
@@ -906,6 +914,117 @@ func (s *HindsightStore) SupersedeScoped(tenantID, oldID, newID string) error {
 		_, _ = s.db.Exec(`UPDATE hindsight_memories SET valid_to = ?, superseded_by = ? WHERE id = ?`, now, newID, oldID)
 	}
 	return nil
+}
+
+// FeedbackScoped records an explicit outcome for one memory and recalibrates
+// importance. The beta(1,1) prior keeps a single vote from swinging the score;
+// the 50/50 blend preserves the original heuristic signal.
+func (s *HindsightStore) FeedbackScoped(tenantID, id string, helpful bool) error {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[id]
+	if !ok {
+		return ErrMemoryNotFound
+	}
+	itemTenant := item.TenantID
+	if itemTenant == "" {
+		itemTenant = "default"
+	}
+	if itemTenant != tenantID {
+		return ErrMemoryNotFound
+	}
+	if helpful {
+		item.HelpfulCount++
+	} else {
+		item.HarmfulCount++
+	}
+	posterior := float64(item.HelpfulCount+1) / float64(item.HelpfulCount+item.HarmfulCount+2)
+	item.Importance = 0.5*item.Importance + 0.5*posterior
+	if item.Importance > 1 {
+		item.Importance = 1
+	}
+	item.EffectiveScore = item.Importance
+	if s.db != nil {
+		_, _ = s.db.Exec(`UPDATE hindsight_memories SET importance = ?, effective_score = ?, helpful_count = ?, harmful_count = ? WHERE id = ?`,
+			item.Importance, item.EffectiveScore, item.HelpfulCount, item.HarmfulCount, item.ID)
+	}
+	return nil
+}
+
+// TemporalNode/Edge are the memory supersession projection: history is kept,
+// current facts are the nodes with no ValidTo.
+type TemporalNode struct {
+	ID           string     `json:"id"`
+	Bank         string     `json:"bank"`
+	Content      string     `json:"content"`
+	ValidFrom    time.Time  `json:"valid_from,omitempty"`
+	ValidTo      *time.Time `json:"valid_to,omitempty"`
+	SupersededBy string     `json:"superseded_by,omitempty"`
+}
+
+type TemporalEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Kind string `json:"kind"`
+}
+
+type TemporalGraph struct {
+	Tenant string         `json:"tenant"`
+	Nodes  []TemporalNode `json:"nodes"`
+	Edges  []TemporalEdge `json:"edges"`
+}
+
+// TemporalGraph projects a tenant's memories and supersession links from the
+// ledger. It is tenant-scoped and read-only; the console does not consume it
+// yet, so it is exposed through the operator CLI, not a new HTTP contract.
+func (s *HindsightStore) TemporalGraph(tenantID string) (TemporalGraph, error) {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	out := TemporalGraph{Tenant: tenantID, Nodes: []TemporalNode{}, Edges: []TemporalEdge{}}
+	if s.db == nil {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		for _, item := range s.items {
+			if item.TenantID != tenantID {
+				continue
+			}
+			out.Nodes = append(out.Nodes, TemporalNode{ID: item.ID, Bank: string(item.Bank), Content: item.Content, ValidFrom: item.ValidFrom, ValidTo: item.ValidTo, SupersededBy: item.SupersededBy})
+			if item.SupersededBy != "" {
+				out.Edges = append(out.Edges, TemporalEdge{From: item.ID, To: item.SupersededBy, Kind: "supersedes"})
+			}
+		}
+		return out, nil
+	}
+	rows, err := s.db.Query(`SELECT id, bank, content, valid_from, valid_to, superseded_by FROM hindsight_memories WHERE tenant_id = ? ORDER BY created_at`, tenantID)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var node TemporalNode
+		var validFrom, validTo sql.NullTime
+		var superseded sql.NullString
+		if err := rows.Scan(&node.ID, &node.Bank, &node.Content, &validFrom, &validTo, &superseded); err != nil {
+			return out, err
+		}
+		if validFrom.Valid {
+			node.ValidFrom = validFrom.Time
+		}
+		if validTo.Valid {
+			t := validTo.Time
+			node.ValidTo = &t
+		}
+		node.SupersededBy = superseded.String
+		out.Nodes = append(out.Nodes, node)
+		if node.SupersededBy != "" {
+			out.Edges = append(out.Edges, TemporalEdge{From: node.ID, To: node.SupersededBy, Kind: "supersedes"})
+		}
+	}
+	return out, rows.Err()
 }
 
 // SetEmbedder configures the neural TextEmbedder used for Retain and Recall.

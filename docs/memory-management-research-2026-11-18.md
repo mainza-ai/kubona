@@ -25,10 +25,15 @@ for export; tombstone purge + terminal-loop eviction; hybrid semantic/lexical/
 recency ranking; single-flight embedding cache; sparse PPR (5k entities no
 longer allocates a 200 MB dense matrix).
 
-Deferred/gated: **MEM-17** outcome-based importance calibration, **MEM-20**
-pgvector/HNSW (no global-cap pressure yet), **MEM-21** temporal graph
-projection, **MEM-22** tiered storage (capped/quarantined instead of promoted);
-bridge RSS has no health field, so that observability sub-item is deferred.
+Landed after the first pass: **MEM-17** `FeedbackScoped` calibrates importance
+from explicit useful/harmful outcomes (beta prior, 50/50 blend), with a
+`kubonad memory-feedback` operator path; **MEM-20** `kubonad memory-status`
+reports budget pressure and pgvector readiness (sidecar still operator-
+provisioned, never silently activated); **MEM-21** `kubonad memory-graph`
+exports tenant-scoped temporal nodes and `supersedes` edges; **MEM-22** tiered
+storage is explicitly quarantined (`UNSERVED` + import test). Bridge RSS is
+published to `bridge-rss.json` and surfaced as `kubona_bridge_rss_bytes` when
+fresh (<60 s).
 
 ## 1. Verdict
 

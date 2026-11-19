@@ -28,11 +28,15 @@ configurable transpile level; Streamable-HTTP MCP service in compose; parallel
 read-only tool calls (two 120 ms calls finish under 220 ms); `scripts/perf-gate.sh`
 wired into CI.
 
-Deferred with evidence: **PERF-11** React Compiler measured **+94.4 KiB raw /
-+37.1 KiB gzip** first load (1,227.3 / 373.3 KiB; chunk 315.7 KiB > 300 KiB
-budget), so it was reverted rather than shipping a bundle regression. **PERF-15**
-JSON v2 decode was not adopted: marshal is at parity and no single decode path
-was shown to pay for the migration.
+**PERF-11** is enabled in **annotation mode** (`compilationMode: 'annotation'`,
+`MathText` opted in with `'use memo'`) after the default `infer` mode measured
+**+94.4 KiB raw / +37.1 KiB gzip** and was reverted. Annotation mode keeps the
+first load at **1,154.6 / 340.4 KiB**, inside the 1,173.4 / 360.2 ceiling.
+Cache Components/PPR remain off for session-scoped surfaces.
+
+**PERF-15** is an explicit no-adoption decision: marshal is at parity and no
+single decode path was shown to pay for the migration; the benchmark and the
+decision are the completion, not a pending migration.
 
 ## 1. Verdict
 

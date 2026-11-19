@@ -1,4 +1,5 @@
 'use client';
+'use memo'; // PERF-11: opt this hot renderer into the React Compiler.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 

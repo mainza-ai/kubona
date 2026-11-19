@@ -7510,3 +7510,20 @@ skipped is the exact failure this incident is about:
 - Verification: full `go test ./...`; race tests for SSE/parallel tools/memory;
   bridge 161 passed/1 skipped; targeted Python 41 passed; console build +
   bundle budgets; `scripts/perf-gate.sh`; MCP `/health` HTTP 200.
+
+## [2026-11-18] verification | remaining PERF/MEM slices closed
+
+- PERF-11 completed in annotation mode: React Compiler enabled with
+  `compilationMode: 'annotation'` and `MathText` opted in; default `infer` mode
+  was measured at +94.4 KiB raw / +37.1 KiB gzip and reverted. First load stays
+  1,154.6 / 340.4 KiB, inside budget.
+- PERF-15 resolved as an explicit no-adoption decision (encode parity, no
+  decode path pays for the migration).
+- MEM-17 outcome feedback (`FeedbackScoped`, beta prior, CLI), MEM-20 pgvector
+  readiness gate (`memory-status`), MEM-21 temporal graph export
+  (`memory-graph`), MEM-22 explicit quarantine (`UNSERVED` + import test), and
+  MEM-02 bridge RSS (`bridge-rss.json` → freshness-checked
+  `kubona_bridge_rss_bytes`) landed.
+- Verification: full core suite, race tests, bridge suite, targeted browser
+  test, Python quarantine test, console build/bundle budgets, perf-gate,
+  wiki-lint/repo-counts.

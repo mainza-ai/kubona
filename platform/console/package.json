@@ -33,6 +33,7 @@
     "@types/react-dom": "^19",
     "@vitest/browser-playwright": "5.1.0",
     "@vitest/coverage-v8": "5.1.0",
+    "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "istanbul-lib-coverage": "^3.2.2",

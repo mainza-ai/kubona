@@ -158,6 +158,15 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "vacuum" {
 		os.Exit(runVacuum(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "memory-status" {
+		os.Exit(runMemoryStatus(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "memory-feedback" {
+		os.Exit(runMemoryFeedback(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "memory-graph" {
+		os.Exit(runMemoryGraph(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "restore" {
 		os.Exit(runRestore(os.Args[2:]))
 	}

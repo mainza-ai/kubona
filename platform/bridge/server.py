@@ -10,6 +10,7 @@ import hmac
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from concurrent import futures
 import grpc
@@ -1431,8 +1432,52 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             )
 
 
+def _bridge_rss_bytes() -> int:
+    try:
+        fields = Path("/proc/self/statm").read_text().split()
+        return int(fields[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        import resource
+        import sys as _sys
+        rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        # ru_maxrss is bytes on Darwin, KiB on Linux.
+        return rss if _sys.platform == "darwin" else rss * 1024
+    except Exception:
+        return 0
+
+
+def start_rss_reporter(interval: float = 15.0) -> None:
+    """Publish the bridge RSS for the Go /metrics gauge (no proto field)."""
+    import json as _json
+    import threading
+
+    state = Path(os.environ.get("KUBONA_STATE_DIR", str(Path.home() / ".kubona")))
+    try:
+        state.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return
+    target = state / "bridge-rss.json"
+
+    def loop() -> None:
+        while True:
+            rss = _bridge_rss_bytes()
+            if rss > 0:
+                tmp = target.with_suffix(".tmp")
+                try:
+                    tmp.write_text(_json.dumps({"rss_bytes": rss, "at": time.time()}))
+                    os.replace(tmp, target)
+                except OSError:
+                    pass
+            time.sleep(interval)
+
+    threading.Thread(target=loop, name="bridge-rss", daemon=True).start()
+
+
 def serve(port: int = 50051, socket_path: str | None = None,
           bind: str | None = None, token: str | None = None):
+    start_rss_reporter()
     bind = bind if bind is not None else os.getenv("KUBONA_BRIDGE_BIND", "127.0.0.1")
     token = token if token is not None else os.getenv("KUBONA_BRIDGE_TOKEN", "")
     sock = socket_path or os.getenv("KUBONA_BRIDGE_SOCKET")

@@ -122,9 +122,11 @@ read; dedupe; temporal validity + `supersedes`; int8 vectors (384 B vs 1,536 B
 per 384-dim vector) with f32 retained for export; tombstone/loop eviction;
 hybrid retrieval; embedding cache; sparse PPR.
 
-Deferred/gated: MEM-17 outcome calibration, MEM-20 pgvector/HNSW (no cap
-pressure yet), MEM-21 temporal graph, MEM-22 tiered promotion (capped instead);
-bridge RSS has no health field.
+Completed after the first pass: MEM-17 outcome calibration (feedback CLI),
+MEM-20 pgvector readiness gate (`kubonad memory-status`; sidecar still
+operator-provisioned), MEM-21 temporal graph export (`kubonad memory-graph`),
+MEM-22 explicit quarantine (`UNSERVED` + import test), and bridge RSS via a
+freshness-checked `bridge-rss.json` gauge.
 
 ## Anti-findings
 

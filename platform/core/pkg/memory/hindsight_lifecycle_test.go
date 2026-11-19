@@ -134,3 +134,26 @@ func TestSupersedeHidesOldMemoryFromRecall(t *testing.T) {
 		t.Fatal("superseded row lost its validity end")
 	}
 }
+
+func TestFeedbackCalibratesImportanceAndTemporalGraph(t *testing.T) {
+	s, _ := testStore(t, DefaultStoreConfig())
+	old := s.RetainScoped("lab-a", "lab-a", BankExperiences, "old fact", 0.5, nil)
+	newer := s.RetainScoped("lab-a", "lab-a", BankExperiences, "new fact", 0.5, nil)
+	if err := s.SupersedeScoped("lab-a", old.ID, newer.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FeedbackScoped("lab-a", newer.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	updated := s.items[newer.ID]
+	if updated.HelpfulCount != 1 || updated.Importance <= 0.5 {
+		t.Fatalf("feedback not applied: %+v", updated)
+	}
+	graph, err := s.TemporalGraph("lab-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 || graph.Edges[0].Kind != "supersedes" {
+		t.Fatalf("temporal graph=%+v", graph)
+	}
+}

@@ -17,6 +17,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 import numpy as np
 
+#: UNSERVED BY DESIGN (MEM-22, 2026-11-18): this module has real caps and a
+#: sparse PPR implementation, but no served surface imports it. The only
+#: production reference is the unserved `console_api.py`; wiring it into a
+#: live route is a separate product decision, not an implicit promotion.
+UNSERVED = True
+UNSERVED_REASON = "no served surface imports tiered storage; capped and quarantined"
+
 from kubona.science.memory import EpistemicKnowledgeGraph, KnowledgeEntity, KnowledgeRelation
 
 #: Bound on the Tier-3 reflective strategy bank (W2.8). The bank is keyed by
