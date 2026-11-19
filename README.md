@@ -33,6 +33,8 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 > [!IMPORTANT]
 > **Deployment Target — Local-Private Production:** Kubona is engineered for single-host local-private operation (`127.0.0.1` bindings for API `:8080` and Console `:3000`, Unix Domain Socket bridge transport, Ed25519 mandate/session signing, and fail-closed budget/fidelity gates). All simulators, classical anchors, and local LLMs run offline at `$0.00`; cloud QPU dispatch and cloud LLMs (BYOK) are explicit opt-ins. See [`docs/local-deployment.md`](docs/local-deployment.md).
 
+> **Status:** generated counts live in [`docs/repo-counts.md`](docs/repo-counts.md); run the gates below on the exact commit. Hosted CI is the authority for a pushed commit — do not cite a green state from a local run.
+
 ---
 
 ## Architecture Overview
@@ -45,6 +47,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
+- **Measured engineering reports:** [`docs/performance-research-2026-11-18.md`](docs/performance-research-2026-11-18.md) · [`docs/memory-management-research-2026-11-18.md`](docs/memory-management-research-2026-11-18.md)
 
 ---
 
@@ -72,14 +75,14 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 - **Closed-Loop Research Campaigns:** Plan, dispatch, evaluate, and automatically replan multi-step scientific campaigns from natural-language research goals (`then` / `->` / `;` pipelines via `/api/discovery/{plan,run}`).
 - **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) — never claiming quantum advantage by assertion.
-- **Persistent Scientific Memory:** Hybrid full-text and structured memory graph linking hypotheses, OpenAlex/literature citations, artifacts, and experimental lineage across sessions.
+- **Persistent Scientific Memory:** Tenant-scoped associative memory with semantic + lexical recall, automatic pre-turn recall, decay/consolidation, temporal supersession, dedupe, and an operator-exportable temporal graph. Hypotheses, citations, artifacts, and lineage stay linked through the ledger.
 - **Runtime Skills & Recorded Decision Evals:** Operator and seed `SKILL.md` instructions are advertised to the copilot by name/description only and read on demand through a read-only tool, with closed loader faults shown in Settings. Sha-pinned copilot decision fixtures produce Brier/ECE reports, surfaced in the model picker; an opt-in gate can require an evaluated model before a copilot change.
 
 ### 3. Cryptographic Provenance & Spend Settlement
 
 - **Signed, Hash-Chained Receipts:** Every run emits a schema-validated `experiment-result-v1` payload sealed into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger.
 - **Pre-Dispatch Fidelity Gate:** Evaluates hardware `T₁`/`T₂`, two-qubit gate error, and calibration freshness (<24h) before a circuit is admitted to a QPU.
-- **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement across IBM Quantum, IonQ, AWS Braket, and local private runtimes.
+- **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement for IBM Quantum, with credential-gated Quantinuum dispatch and local/simulator runtimes. IonQ, AWS Braket, Rigetti, and neutral-atom providers are catalogued capability rows that **fail closed** until a reviewed adapter lands.
 - **Machine-Checked Proofs:** 405 pre-registered Lean 4 challenges run inside a pinned, offline sandbox (Lean 4.34.1, comparator v4.34.0, `lean4export`, landrun). Only a kernel-accepted solution is attested as `live_kernel_proven`; signed attestations are verified against the configured comparator key. See [`docs/lean-comparator-runbook-2026-11-18.md`](docs/lean-comparator-runbook-2026-11-18.md).
 
 ### 4. Polyglot Core & MCP-Native Architecture
@@ -102,7 +105,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 ## Governed Experiment Matrix
 
-All 19 `experiment-result-v1` kinds execute through the governed Go job rail (the matrix below groups them into 13 capabilities), validate against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), fold into campaign state, and render in the Console's **Experiment & Discovery Lab** and **Results Studio**:
+All 19 `experiment-result-v1` kinds execute through the governed Go job rail; the matrix below shows the principal capability families (13 rows, not one row per kind). Each result validates against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), folds into campaign state, and renders in the Console's **Experiment & Discovery Lab** and **Results Studio**:
 
 | Capability | Kind | Measurement | Classical Anchor |
 | --- | --- | --- | --- |
@@ -138,7 +141,9 @@ All 19 `experiment-result-v1` kinds execute through the governed Go job rail (th
 
 ## Quickstart: Local-Private Docker Stack (Recommended)
 
-The production stack binds strictly to `127.0.0.1:8080` (API) and `127.0.0.1:3000` (Console), communicating with the Python bridge over an internal Unix Domain Socket volume.
+**Prerequisites:** Docker Compose v2, Go 1.27+, Node 22 + pnpm 11, Python 3.11 + `uv` (native development); the Docker path carries its own toolchain.
+
+The production stack binds strictly to `127.0.0.1:8080` (API), `127.0.0.1:3000` (Console), and `127.0.0.1:8123` (MCP Streamable HTTP gateway), communicating with the Python bridge over an internal Unix Domain Socket volume.
 
 ```bash
 # 1. Configure environment & keys
@@ -147,7 +152,7 @@ chmod 600 .env
 # Populate KUBONA_API_TOKEN and KUBONA_SECRET_KEY in .env (e.g. openssl rand -hex 32)
 # Optional: generate a reviewer mandate key via (cd platform/core && go run ./cmd/kubonad keygen)
 
-# 2. Build and start bridge, preflight gate, kubonad, and console
+# 2. Build and start preflight, bridge, kubonad, console, backup loop, and MCP HTTP gateway
 docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
 
 # 3. Verify health, readiness, and loopback-only exposure
@@ -185,8 +190,9 @@ cd platform/bridge
 cd platform/core
 go run ./cmd/kubonad --port 8080
 
-# 3. Start the Next.js Sovereign Console (:3000)
+# 3. Install and start the Next.js Sovereign Console (:3000)
 cd platform/console
+pnpm install --frozen-lockfile
 pnpm dev --port 3000
 ```
 
@@ -240,17 +246,20 @@ python3 scripts/wiki-lint.py --strict
 ### Operations: memory, retention, and profiling
 
 ```bash
+# Build the CLI once (from the repo root)
+(cd platform/core && go build -o kubonad ./cmd/kubonad)
+CLI=./platform/core/kubonad
+
 # One-time incremental auto-vacuum migration (takes a verified snapshot first)
-kubonad vacuum --db "$HOME/.kubona/kubona.db"
+$CLI vacuum --db "$HOME/.kubona/kubona.db"
 
 # Memory pressure / pgvector readiness, temporal graph, outcome feedback
-kubonad memory-status --db "$HOME/.kubona/kubona.db" --json
-kubonad memory-graph --db "$HOME/.kubona/kubona.db" --tenant default
-kubonad memory-feedback --db "$HOME/.kubona/kubona.db" --id <memory-id> --useful
+$CLI memory-status --db "$HOME/.kubona/kubona.db" --json
+$CLI memory-graph --db "$HOME/.kubona/kubona.db" --tenant default
+$CLI memory-feedback --db "$HOME/.kubona/kubona.db" --id <memory-id> --useful
 
 # Bearer-only profiler (never enabled in the default stack)
-KUBONA_PPROF=1 kubonad --db "$HOME/.kubona/kubona.db" --port 8080
-
+KUBONA_PPROF=1 $CLI --db "$HOME/.kubona/kubona.db" --port 8080
 ```
 
 ---
