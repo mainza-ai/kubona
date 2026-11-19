@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (165 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (166 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -73,7 +73,7 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 11 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (165 pages = 48 entities · 101 concepts · 11 sources · 5 meta), 2026-11-18:**
+**Census (166 pages = 48 entities · 102 concepts · 11 sources · 5 meta), 2026-11-18:**
 `settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 54 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
@@ -224,6 +224,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[forensic-audit-2026]] | Comprehensive forensic code audit and empirical verification matrix across all 89 pages & platform tiers |
 | [[full-wiki-audit-2026-10-12]] | Full 113-page read + plan-vs-code audit: hygiene findings, gaps, ranked improvements, G/H/I plan |
 | [[deep-implementation-audit-2026-10-12]] | Line-by-line code verification: completed/partial/absent/poor lists with file:line + J/K/L plan |
+| [[wiki-current-state-audit-2026-11-18]] | Current-state reconciliation: stale counts/status corrected, 405 challenges, live Lean proof, 166-page census | [[index]], [[overview]], [[remaining-work]] |
 | [[full-system-audit-2026-10-26]] | Round-1 live audit findings register: fixed items with pins + open items with evidence (`tracked`) |
 | [[audit-remediation-plan]] | Fix plan for open audit findings: Now/Next/Gated sequencing with acceptance tests (`tracked`) |
 | [[audit-remediation-todos]] | Sequenced execution list for the remediation plan: Phase-0 decisions, file-anchored slices, pins, landing checklist (`tracked`) |

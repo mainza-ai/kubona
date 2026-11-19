@@ -107,7 +107,7 @@ prove autonomy on a benchmark.
   prior-negative gate on plan creation, and owner-granted sharing (schema 11).
 - **Open:** none of the AG slices; residual items are operator chores and
   re-verification on the pushed commit.
-- Schema 11.
+- Schema was 11 at AG-9; the current ledger schema is **15**.
 
 ## Agentic mode and oversight (2026-11-18)
 
@@ -138,14 +138,18 @@ prove autonomy on a benchmark.
 
 - **TFIM VQE:** readout is correct (exact-state control measures −10.249 ±
   0.022 vs −10.2517 at 20k shots). The gap is single-start optimization
-  (2 layers 1.202 → 0.244 Ha with restarts) plus depth/expressivity (4 layers
-  0.062, 6 layers 0.030 Ha at n=8). Shot noise is second-order.
+  (2-layer HEA, 8 sites: 1.202 → 0.246 Ha with three restarts) plus
+  depth/expressivity (HEA 4 layers 0.062, 6 layers 0.030 Ha). The 6-layer
+  Hamiltonian-variational ansatz reaches **0.0027 Ha** (HVA-4 is 0.125 Ha).
+  Shot noise is second-order.
 - **QAOA:** a simulator shot bit-order bug under-reported the 2-layer ratio
-  (0.788 → 0.891 after the fix); p=3 reaches 0.932. The p=2 ceiling is ~0.90,
-  so the benchmark now uses 0.85 at p=2 and 0.90 at p=3.
+  (0.788 → 0.891 after the fix, single start). Multi-start reaches **0.899 at
+  p=2** and **0.948 at p=3**. The p=2 ceiling is ~0.90, so the benchmark uses
+  0.85 at p=2 and 0.90 at p=3.
 - **H2 chemical accuracy:** the statevector optimizer reaches FCI; the 4.5 mHa
-  flag at 4096 shots was shot noise. At 20k shots the measured error is
-  0.256 mHa.
+  flag at 4096 shots was shot noise. At 20k shots the ground-state task measures
+  **0.256 mHa** and the separate chemical-accuracy task **0.640 mHa** — both
+  inside the 1.6 mHa gate.
 - **Frontend:** the Inspector header overlapped the “Narrow” preset with the
   active Copilot tab at 360 px; fixed with a wrapping header and a real-browser
   non-overlap test (old layout fails, fix passes).

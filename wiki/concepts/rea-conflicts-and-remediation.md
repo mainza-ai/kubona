@@ -2,7 +2,7 @@
 type: concept
 name: REA conflicts and remediation
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-18
 tags: [plan, rea, conflicts, remediation, production, taxonomy]
 sources: [source-frontier-repo-audit-2026]
 status: candidate
@@ -34,7 +34,7 @@ against — `platform/contracts/event-types.json` (single source; Go
 unknown kinds like the Go chokes. Cross-rail conformance test asserts the
 two taxonomies are identical.
 **Slice R1a (S, first — R1 dependency):**
-> ✅ LANDED 2026-10-17 (`7fc6a7a`, extended by A1–A4 to 121 rows: 80 go-emitter + 41 python-emitter, one shared
+> ✅ LANDED 2026-10-17 (`7fc6a7a`, extended by A1–A4 to 121 rows (now 188 shared types, 2026-11-18): one shared
 > `job_cancelled` row; initially 114 rows at `7fc6a7a`). Go keeps `events.go` as the embedded mirror with
 > `TestEventTypesMatchContract` asserting set-identity (drift = red);
 > Python loads the file at import and `append` refuses unknown kinds

@@ -79,7 +79,7 @@ sources: [source-frontier-repo-audit-2026]
 > - **Console (`:3000`):** `144` modeled / `14` client-only / `0` unmodeled
 >   contracts (`123` schemas, `131` OpenAPI paths); warm-graphite (`Dark graphite`)
 >   / `Light paper` semantic theme & density/contrast/reduced-motion axes cutting
->   `console-token-lint.mjs` to `14` baseline occurrences; Spatial Workbench
+>   `console-token-lint.mjs` to **0** occurrences; Spatial Workbench
 >   repeatable-job folding + Web Worker DAG (`proof-dag.worker.ts`) + hover-gated
 >   handles + minimap toggle; non-blocking **Experiment & Discovery Lab** right
 >   drawer (`Cmd+E`), in-Arena `Hardware QPU` view, direct `SpatialCanvas`
@@ -288,7 +288,7 @@ flowchart TB
   **127** console test files (**667** test cases), **32** Rust tests, **6**
   MCP servers (**38** tools), **156** wiki pages; console contracts **144
   modeled / 14 client-only / 0 unmodeled** (`123` schemas, `131` OpenAPI paths);
-  token-lint raw-palette debt **14** baseline occurrences.
+  token-lint raw-palette debt **0** occurrences.
 - Counts at `2026-11-10` (`119749e`, `docs/repo-counts.md`): **140** HTTP routes,
   **37** Go packages (**862** Go test funcs), **183** Python test files,
   **120** console test files (**610** test cases), **32** Rust tests, **6**

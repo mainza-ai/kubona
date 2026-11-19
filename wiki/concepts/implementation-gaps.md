@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-11-16
+updated: 2026-11-18
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -108,7 +108,9 @@ unimplemented, stubbed, or disguised behind static UI facades:
 >   (`/usr/local/bin/qir-core`), and the Console adds the `Cmd+E` **Experiment &
 >   Discovery Lab** modal, `ResultsStudio` SVG `<Chart>` series plots, native
 >   `<dialog>` dismissal, `startViewTransition`, and IME guards (`142` modeled /
->   `14` client-only / `0` unmodeled contracts). Live `kubona-live` Docker stack
+>   `14` client-only / `0` unmodeled contracts; **2026-11-18: 191 modeled / 16
+>   client-only / 0 unmodeled across 166 paths / 165 schemas**). Live `kubona-live`
+>   Docker stack
 >   running healthy on `127.0.0.1:8080` / `:3000`.
 
 ## Critical (structural)
@@ -151,7 +153,8 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Loop sleep + drain + mid-run budget (S3)** | 🟢 landed 2026-10-17 | `loops` table finally has a writer (`SaveLoopState` + `harness_id/last_activity/drain/reserved_amount` cols; `ReconcileLoopsOnBoot` sleeps non-terminal rows — proven live: 20+1 rows). Engines: `sleeping` status, activity clock, `SetDrained` latch (Step refuses), `SetBudgetCheck` hook pausing on mid-run breach (never abort). API: `sleep`/`wake` (S1-keyed replay)/`drain` actions + `SweepIdleLoops` (10 min, 60 s poll) + sweeper goroutine in `kubonad`. Chat/tribunal deliberately excluded (no harness held — sleeping them would be theater). |
 | **Vault lease session/tenant binding (S4)** | 🟢 landed 2026-10-17 | Portable `session_id` + `tenant_id` + `scope` binding on vault leases plus `/api/vault/leases/revoke` and canary test coverage. |
 | **Session migration + delete cascade (S5 + S5b)** | 🟢 landed 2026-10-17 | `POST /api/sessions/export|import` with manifest v1 (per-section digests across 9 sections including `python_ledger`, 64 MB / 50-version / 256 KB caps, validation-before-replay, ONE `session_imported` record, event IDs preserved). `DeleteSession` refuses live/non-terminal/reserved work, else cascades all 9 tables (receipt survives). `ledger.CanonicalHash` unified (I1). |
-| **Redaction by construction & shared event taxonomy (S6 + R1a)** | 🟢 landed 2026-10-17 | `sandbox.BoundOutput` (16 KiB, UTF-8-safe, flagged) at the harness-parse choke (incl. failure reasons); job results refuse above 1 MB (`result_too_large`); closed 121-row `platform/contracts/event-types.json` (80 Go + 41 Python) enforced at all Go and Python append chokes + cross-rail conformance tests. |
+| **Redaction by construction & shared event taxonomy (S6 + R1a)** | 🟢 landed 2026-10-17 | `sandbox.BoundOutput` (16 KiB, UTF-8-safe, flagged) at the harness-parse choke (incl. failure reasons); job results refuse above 1 MB (`result_too_large`); 188 shared `platform/contracts/event-types.json` types (2026-11-18) enforced at
+Go and Python append chokes + cross-rail conformance tests. |
 | **Queue ops reframed + shipped (S7)** | 🟢 landed 2026-10-17 | No prompt queue exists (synchronous model) — shipped the real gaps: `POST /api/jobs/{id}/cancel` (CAS unwind, terminal replay, ungated by disk by design) + rewrite CAS/session-404/disk-gate. Steer N/A documented (no background turn). |
 | **Console context + progress + operator visibility (S8 + S8a + U0–U3 + D1–D2)** | 🟢 landed 2026-10-17 | `GET /api/sessions/context` (measured transcript vs BudgetHistory caps — no vendor window) + composer readout + pressure-gated overflow card + `JobProgress` in-flight polling + `OperatorBar` disk/drain/loops/bundle controls + runtime `/api/config` + digest-pinned Docker production stack (`platform/docker/`). |
 | **REA contracts & leanrea skill/catalog (R0–R6, C1–C6, L1–L5)** | 🟢 landed 2026-10-17 | Cross-rail `EvidenceEnvelope` vectors, `platform/contracts/obligation-rules.json` (7 rules), coverage declarations (`CoverageMap`), bounded tribunal context + provenance markers, 22-code `platform/contracts/error-codes.json` + `/api/capabilities`, 5-dimension transcript rubric, `skills/kubona/SKILL.md` (≤12 KB), `bench/` harness, and 29-tool `platform/contracts/mcp-catalog.json`. |

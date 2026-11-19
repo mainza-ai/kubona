@@ -2,7 +2,7 @@
 type: concept
 name: Runtime Honesty & Commit Policy (outcome-unknown jobs, settings tiers, run allowances, palette provenance)
 date: 2026-11-12
-updated: 2026-11-14
+updated: 2026-11-18
 tags: [governance, settlement, jobs, settings, mandates, ux, licence, decision]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -90,10 +90,12 @@ a vendor and neither result nor usage can be confirmed.
       reason `outcome_unknown_written_off`.
 - **No timer resolves it.** Elapsed time is not evidence. Attention routes it
   to the shell "Needs you" tray with its age, escalating after 1 h.
-  *Prototype note (2026-11-14):* the tray now renders open obligations with
-  their real age; the 1 h escalation is not implemented yet, and
-  `OUTCOME_UNKNOWN` jobs are not yet projected into that tray — they surface
-  through job state and the operation reconcile path.
+  *Prototype note (2026-11-18):* the tray renders open obligations with their
+  real age and marks rows **escalated** once they have waited at least one hour
+  (`platform/console/src/lib/needs-you.ts`, `needsEscalation`, unit-tested;
+  `NeedsYouTray.tsx` renders the marker). `OUTCOME_UNKNOWN` jobs are still not
+  projected into that tray — they surface through job state and the operation
+  reconcile path.
 - **Answer to the original fork:** it is not "terminal for deletion", and not
   "blocking until a button press". It blocks until resolved **by evidence**.
   Operator acknowledgement exists only as a signed resolution that states its

@@ -2,7 +2,7 @@
 type: concept
 name: Audit Topology & Live Verification Map
 date: 2026-10-21
-updated: 2026-11-11
+updated: 2026-11-18
 tags: [architecture, diagram, deployment, verification, audit]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-llm-circuit-codesign-2026]
 status: living
@@ -74,7 +74,7 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>141 routes (docs/repo-counts.md)<br/>bearer|session edge auth, shared FidelityGate"]
+        KUBONAD["kubonad :8080<br/>156 routes (docs/repo-counts.md, 2026-11-18)<br/>bearer|session edge auth, shared FidelityGate"]
         BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
         VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end

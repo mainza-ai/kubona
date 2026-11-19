@@ -16,6 +16,19 @@ status: tracked
 > questions live in [[questions]] — this page tracks execution leftovers
 > only. Screened-out items name their reason; nothing rots silently.
 >
+> ⚑ **State update (2026-11-18):** `docs/repo-counts.md` records **156** HTTP
+> route patterns, **48** Go packages (**1142** Go tests), **188** Python test
+> files, **159** console test files (**850** cases), **32** Rust tests, **6**
+> MCP servers (**38** tools), and **166** wiki pages; console contracts are
+> **191 modeled / 16 client-only / 0 unmodeled** (**166** OpenAPI paths, **165**
+> schemas). Ledger schema is **15**. Console ratchets: raw palette **0**,
+> buttons **368**, forms **44/195**, coupling **50/51**. The agentic benchmark
+> is **11/13** (HVA-6 0.0027 Ha; QAOA p2/p3 0.899/0.948; H2 chemical 0.640 mHa).
+> Oversight follow-ups (reviewer edits, rejection feedback, one-time tool
+> approvals, digest notifications, persisted risk taxonomy) are landed, and the
+> Lean comparator has run a live kernel proof. Entries below dated 2026-11-10 /
+> 2026-11-11 / 2026-11-14 are historical snapshots.
+
 > ⚑ **State update (2026-11-10, `119749e` / `de3428c`):** Since `2026-11-01`:
 > - **Science engine & contracts closed:** all 19 `experiment-result-v1` kinds
 >   decode in `pkg/experimentresult`, fold into `CampaignExperiment` state
@@ -68,9 +81,7 @@ status: tracked
 >   third-party security review (P3); external provider sidecar (P4); QPU
 >   chemical/spin accuracy & live `hardware_pes` run; general SMILES/open-shell/
 >   periodic chemistry; single unified `ExperimentResult` model replacing
->   remaining UI projections; retiring the final `14` raw-palette baseline
->   occurrences (`console-token-lint.mjs`, down from `865`);
->   Lean toolchain container; `gho_…` provider revocation confirmation; OpenAlex
+>   remaining UI projections; `gho_…` provider revocation confirmation; OpenAlex
 >   `KUBONA_CONTACT_EMAIL` / HF token rotation; vendor invoice runtime rate
 >   card; and optional [[optional-enhancement-plan-2026-11-01]] (E1–E4).
 
@@ -105,7 +116,7 @@ downloads, order-sensitive hash v2, citation collisions, target escaping,
 bounded provenance, pre-read size checks, build limiter, schema v2 with a live
 pre-migration snapshot, preflight encryption env, and figure-hash verification.
 
-Still open (A-series in `docs/active-implementation-todos.md`):
+A-series follow-up (all landed; kept as the closure record):
 
 - **Landed (third pass):** A1 annotations (table/routes/panel + signoff gate),
   A5 spooled events + build log + build metrics, A6a create idempotency +
@@ -227,10 +238,10 @@ Landed in later slices:
   (`ModeRail` badge + `NeedsYouTray`) with verbatim blocking reasons, a
   decidable/blocked state from the server's close rules, and a real waiting
   age; `Review` routes to the owning surface. Obligation rows now expose
-  `created_at`/`updated_at`/`unknowns_detail`. Remaining: ledger
-  session-owned obligations now emit `obligation_opened`/`obligation_closed`
-  for push invalidation; key-owned (bearer) rows still poll. The 1 h ageing
-  escalation is rendered from the server-recorded waiting clock.
+  `created_at`/`updated_at`/`unknowns_detail`. Session-owned obligations emit
+  `obligation_opened`/`obligation_closed` for push invalidation; key-owned
+  (bearer) rows still poll. The 1 h ageing escalation is rendered from the
+  server-recorded waiting clock and marked in the tray.
 - **Role-named scales (D1, 2026-11-14):** tokens are now exposed through
   Tailwind `@theme inline` (runtime aliases avoid custom-property cycles), and
   the default radius/text scales are reset, so a size-named radius or text
@@ -255,7 +266,7 @@ Landed in later slices:
 - **Import boundaries (D6, 2026-11-14):** deterministic layer check in CI
   (`types < lib < domain < components < app`); upward type imports moved to
   `types`, and three domain stores moved to `lib` with re-export shims.
-  A coupling ratchet now holds **54 component files / 55 direct imports** and
+  A coupling ratchet now holds **50 component files / 51 direct imports** and
   may only shrink; the proposal-history, autoresearch, and skills surfaces use
   domain projections. Remaining: continue migrating the rest.
 - **Bundle budgets (D7, 2026-11-14):** `console-bundle-budgets.mjs` enforces
@@ -266,8 +277,9 @@ Landed in later slices:
   records failing. The check found KaTeX in first-load; `MathText` now
   lazy-loads it only for `$…$` prose (−257 KiB raw / −75 KiB gzip). The
   Workbench is now lazy-loaded with Suspense; the largest first-load chunk
-  fell from ~400 KiB to ~277 KiB. Remaining: no other route has a budget yet
-  (the console is single-route).
+  fell from ~400 KiB to ~277 KiB. Per-route first-load raw/gzip budgets,
+  forbidden-first-load libraries, and recorded lazy chunks now gate in
+  `scripts/console-bundle-budgets.mjs` (`platform/contracts/console-bundle-budgets.json`).
 - **Browser component tests (D8, 2026-11-14):** a separate Vitest browser
   project (`vitest.browser.config.ts`, Playwright provider, Chromium,
   `vitest-browser-react`) runs every `*.component.test.tsx` against a real
@@ -293,8 +305,8 @@ Landed in later slices:
   source (112 utilities replaced with an explicit property list; the source
   scan is part of the token gate). Programmatic smooth scrolling now falls
   back to `auto` when either reduced-motion signal is set. Remaining: the
-  per-component motion review (only the workbench glide consumes the hook;
-  everything else relies on the global CSS collapse).
+  per-component motion review is complete; arbitrary `duration-[…]`,
+  `ease-[…]`, and `animate-[…]` values are banned alongside `transition-all`.
 - **Recorded decision evals (B12, 2026-11-14):** 12 copilot fixtures
   (10 scored + 2 `unscored`) with exact labels `supported|refuted|unverified`,
   `measured|inferred` trust, and per-fixture SHA-256 pins; editing a prompt
@@ -492,7 +504,7 @@ Landed in later slices:
   Typed operation errors carry the backend refusal body. Layout and
   obligation-close writes render accepted/applied/refused/unknown settlement.
 
-> **Update (2026-11-10):** Console contract inventory expanded to **142 modeled /
+> **Update (2026-11-10; superseded 2026-11-18 → 191/16):** Console contract inventory expanded to **142 modeled /
 > 14 client-only / 0 unmodeled** (`121` schemas, `130` OpenAPI paths) with the
 > addition of science experiment, discovery protocol, calibration refresh,
 > claim review, and signed experiment-export endpoints. Additionally,
@@ -532,7 +544,7 @@ Still open (as of 2026-11-10):
 
 > **Update (2026-11-11):** Semantic tokens and appearance axes (`tokens.css`,
 > `axes.css`, `appearance.ts`, `AppearanceSettings.tsx`) cut `console-token-lint.mjs`
-> raw-palette debt from **865** to **14** baseline occurrences (ratchet held in
+> raw-palette debt from **865** to **14** baseline occurrences (now **0**; ratchet held in
 > `platform/contracts/console-token-baseline.json`); `Experiment & Discovery Lab`
 > (`Cmd+E`) moved from a blocking modal to a non-blocking right drawer;
 > `SpatialCanvas` is now directly promoted from the `Molecule` card and HUD
@@ -833,7 +845,7 @@ hardening. None blocks the supported local-private deployment.
   > immediately revokes active tenant sessions; `AuthPanel.tsx` mounted in
   > `LabsView.tsx` with WebCrypto Ed25519 signing + Vitest coverage; 7 missing Go
   > ledger event types registered in `platform/contracts/event-types.json` +
-  > `pkg/ledger/events.go` (121 total rows: 80 Go + 41 Python).
+  > `pkg/ledger/events.go` (188 shared event types as of 2026-11-18).
   > ✅ LocalModelRegistry `ports=[]` fix DONE 2026-10-17: `registry.py` now uses
   > `DEFAULT_PORTS if ports is None else list(ports)` (and skips `_lms_endpoint()`
   > when `self.ports` is empty), so `test_llm_registry_has_no_stale_cache` passes

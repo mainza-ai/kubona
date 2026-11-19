@@ -2,7 +2,7 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-11-11
+updated: 2026-11-18
 tags: [ux, ui, control-plane, console, report]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-openai-math-corpus]
 status: adopted
@@ -376,9 +376,9 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   conjecture holdouts.
 - **Native Shell Polish & Contract Parity:** Native HTML `<dialog>` Escape/backdrop
   dismissal (`Overlays.tsx`), `startViewTransition`, `IME` composition guards (`Composer.tsx`),
-  canvas camera/orbit-target restoration, **142 modeled / 14 client-only / 0 unmodeled**
-  contracts (`121` schemas, `130` OpenAPI paths), and **610** Console tests across
-  `120` test files (`docs/repo-counts.md`). Automated WCAG 2 A/AA axe, keyboard,
+  canvas camera/orbit-target restoration, **191 modeled / 16 client-only / 0 unmodeled**
+  contracts (`165` schemas, `166` OpenAPI paths), and **850** Console tests across
+  `159` test files (`docs/repo-counts.md`, 2026-11-18). Automated WCAG 2 A/AA axe, keyboard,
   reduced-motion, and 200%-zoom checks pass; manual VoiceOver/NVDA walkthrough and
   generalized non-chemistry manuscript paper templates remain open.
 
@@ -388,7 +388,7 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   Introduces `Dark graphite` (`data-theme="dark"`) and `Light paper` (`data-theme="light"`)
   surface ladders paired with contrast, density, and reduced-motion axes and
   pre-paint initialization; raw-palette/typography lint debt measured by
-  `scripts/console-token-lint.mjs` is driven down to the **14**-occurrence
+  `scripts/console-token-lint.mjs` is at **0** occurrences (was a 14-
   baseline (`platform/contracts/console-token-baseline.json`).
 - **Spatial Workbench & Worker DAG Ergonomics (`Workbench.tsx`, `workbench-model.ts`, `ConfirmCard.tsx`, `proof-dag.worker.ts`, `proof-dag-layout.ts`):**
   Folds repeatable jobs canonically across pinned cards (`REPEATABLE_JOB_TYPES`),

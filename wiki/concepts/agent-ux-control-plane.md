@@ -52,7 +52,7 @@ No existing tool (quantum or agentic) covers both.
 > removed), `Hardware QPU` renders directly inside the Arena, `SpatialCanvas` is
 > promoted directly from the `Molecule` card and HUD (`Open molecule object view`),
 > semantic `Dark graphite` / `Light paper` plus contrast/density/reduced-motion
-> axes drive `console-token-lint.mjs` down to `14` baseline occurrences,
+> axes drive `console-token-lint.mjs` to **0** occurrences,
 > Workbench viewports persist via session-scoped `GET/PUT /api/workbench/view`,
 > and concurrent SSE invalidations queue via `pendingRefresh` (`resource-store.ts`).
 

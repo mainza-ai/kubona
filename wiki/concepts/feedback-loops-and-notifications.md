@@ -2,7 +2,7 @@
 type: concept
 name: Feedback Loops & Notifications
 date: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-18
 tags: [ux, feedback, notifications, attention, governance, audit]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -39,9 +39,9 @@ few closed loops:
 
 > ⚑ Correction (2026-11-15): the Verdict and inventories below record the
 > **pre-implementation audit state**. The P0 contracts and notification
-> foundation have since landed; see “Implementation status”. Remaining open
-> items are the reason/proposal UIs, the claim-review policy, preferences,
-> Attention Director wiring, and the P2 learning/metrics consumer.
+> foundation have since landed; see “Implementation status”. The reason/proposal
+> UIs, the claim-review policy, preferences, and Attention Director wiring all
+> landed by 2026-11-18; the P2 learning/metrics consumer remains.
 
 ## Feedback-loop inventory
 
@@ -74,7 +74,7 @@ few closed loops:
 | `BannerStack` | Expired session only | Session/event | Dismiss once | Reserved for blocking states |
 | Inline `role=alert/status` | Form/surface-local errors | Component state | Usually none | 51 alerts, 70 statuses, 6 `aria-live` in source |
 | Local component toasts | HuggingFace model hub | 5s, one local slot | New replaces old | Duplicates the global toast pattern |
-| Attention Director | Anomalies/summons routed to CheckInStrip | In-memory alert + precision tracker | Duplicate collapse by source+level | Only `SpatialCanvas3D` calls `notify` |
+| Attention Director | Anomalies/summons routed to CheckInStrip | In-memory alert + precision tracker | Duplicate collapse by source+level | `NotificationAttentionBridge` routes the inbox; `SpatialCanvas3D` also calls it |
 | Write settlement labels | Per surface | Component state | Replaced by next write | Not user-inbox history |
 
 ## Gaps and improvements

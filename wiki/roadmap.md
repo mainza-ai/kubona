@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -19,9 +19,9 @@ status: living
 > [[questions]] §"Surface, ecosystem, operations".
 >
 > **Prototype state** (evidence, not decisions): `platform/` — 159 Python + 3 Rust +
-> 1 Flutter widget test green locally as of 2026-09-27. Repo `github.com/mainza-ai/kubona`,
-> **private by decision** until the blueprint is legible enough to direct contributors
-> ([[questions]] Q-25, closed; residual history work in Q-27). **M0 hardened:** single non-`/tmp`
+> 1 Flutter widget test green locally as of 2026-09-27. Repo
+> `github.com/mainza-ai/kubona` is **public since 2026-10-26** (Q-27 closed; it was
+> private by decision before the flip — the dated test counts above are historical). **M0 hardened:** single non-`/tmp`
 > state root, production fail-closed auth, `kubona serve`/`doctor` entrypoints, CI scaffold,
 > x402 fail-closed. The hosted `ci.yml` push pipeline had **never been green (all 17 recorded
 > runs failed)** while `scripts/ci.sh` passed locally; fixed 2026-09-27. The earlier diagnosis
@@ -121,6 +121,25 @@ layer** (maintainer synthesis).
 > - **P2 / Human Console surface:** Expanded through the **Experiment & Discovery Lab** modal (`Cmd+E` / `Ctrl+E`), `HardwareLaunchPanel`, `DiscoveryProtocolPanel`, `ResultsStudio` SVG series `<Chart>` plots and pre-claim reports, native `<dialog>` dismissal, `startViewTransition`, IME guards, and SSE invalidation across **142 modeled / 14 client-only / 0 unmodeled** contracts (`121` schemas, `130` OpenAPI paths).
 > - **P6 (Science Discovery & Collaboration):** All **19** `experiment-result-v1` kinds decode and fold into campaign state (`pkg/experimentresult`, `replan.go`), adding multidimensional RHF/STO-3G BFGS `geometry_optimization`, `vqe_repeats`, `LiH`/`BeH2`/`H2O` active-space `excited_state` & atomization `reaction`, `quimb` `thermodynamic_limit` DMRG (verified through `N=16`), 2D TFIM quench `lattice_dynamics`, opt-in OpenAlex external novelty check (`external_novelty`), Ed25519 `/api/sessions/{id}/experiment-export`, and multi-step `DiscoveryProtocol` (`then` / `->` / `;`). Remains `PARTIAL` until general chemistry (SMILES/open-shell/reaction networks), live QPU accuracy, and manual VoiceOver/NVDA sign-off close.
 > - **P3 (`OPEN`), P4 (`PARTIAL`), P5 (`OPEN`):** Unchanged — still require external third-party security review, a merged third-party provider sidecar, and a live monetization rail respectively. Current counts live in `docs/repo-counts.md` (`140` HTTP routes, `37` Go pkgs / `862` Go tests, `183` Python test files, `120` console files / `610` cases, `32` Rust tests, `6` MCP servers / `38` tools, `156` wiki pages).
+
+> ⚑ Gate-status update (2026-11-18):
+> - **Counts & contracts:** `docs/repo-counts.md` records **156** HTTP route
+>   patterns, **48** Go packages (**1142** Go tests), **188** Python test files,
+>   **159** console test files (**850** cases), **32** Rust tests, **6** MCP
+>   servers (**38** tools), and **166** wiki pages; the console inventory is
+>   **191 modeled / 16 client-only / 0 unmodeled** across **166** OpenAPI paths /
+>   **165** schemas. Ledger schema is **15**.
+> - **Agentic benchmark:** 13 tasks at **11/13 pass@1** (HVA-6 0.0027 Ha; QAOA
+>   p2/p3 0.899/0.948; H2 chemical accuracy 0.640 mHa; 8/6-site HEA TFIM still
+>   fail). The oversight follow-ups (reviewer edits, rejection feedback,
+>   one-time tool approvals, digest notifications, risk taxonomy) are landed.
+> - **Formal verification:** a live Lean kernel proof ran
+>   (`ThreeStateSupercritical`, `live_kernel_proven`, 0 `sorryAx`) and the signed
+>   attestation was accepted by the API (event 780); see
+>   `docs/lean-comparator-runbook-2026-11-18.md`.
+> - **Still open:** P3 third-party review, P4 merged outside provider, P5 live
+>   monetization, and the P6 general-chemistry/hardware-accuracy residuals from
+>   the table above. The 2026-11-10 counts in this section are historical.
 
 ## Phase 0 — Foundations (Weeks 1–4) → gate P0
 

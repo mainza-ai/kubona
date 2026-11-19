@@ -2,7 +2,7 @@
 type: concept
 name: Frontend–Backend–UI/UX Audit
 date: 2026-10-20
-updated: 2026-11-11
+updated: 2026-11-18
 tags: [ux, console, api, wiring, audit, planning, security]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-llm-circuit-codesign-2026]
 status: tracked
@@ -23,13 +23,14 @@ status: tracked
 > Standing rule: console stays **read/approve-only** ([[ui-ux-vision]] §3.1,
 > hard rule #1). Nothing here proposes job submission from the browser.
 >
-> > ⚑ Resolution update (2026-11-11): Historical findings in this audit are
-> > retained below; contract coverage is now **144 modeled / 14 client-only / 0
-> > unmodeled** (`131` OpenAPI paths, `123` schemas, `141` Go HTTP routes),
+> > ⚑ Resolution update (2026-11-18): Historical findings in this audit are
+> > retained below; contract coverage is now **191 modeled / 16 client-only / 0
+> > unmodeled** (`166` OpenAPI paths, `165` schemas, `156` Go HTTP route
+> > patterns),
 > > governed operator experiment submission enters strictly via the Go
 > > admission/Ed25519 mandate rail (`Cmd+E` **Experiment & Discovery Lab**
 > > non-blocking right drawer), semantic dark/light theme & appearance axes
-> > hold `console-token-lint.mjs` at `14` baseline occurrences, Spatial
+> > hold `console-token-lint.mjs` at **0** occurrences, Spatial
 > > Workbench viewports persist via `GET/PUT /api/workbench/view`, SSE
 > > `pendingRefresh` queuing prevents dropped refreshes, mount-only bootstrap
 > > prevents stream-state resets, `SpatialCanvas` promotes directly from

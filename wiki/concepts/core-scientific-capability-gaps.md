@@ -2,7 +2,7 @@
 type: concept
 name: Core Scientific Capability Gaps
 date: 2026-11-09
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [science-discovery, quantum-chemistry, mathematical-physics, production, gaps]
 sources: [source-gap-analysis-plan, source-openai-math-corpus, source-architecture-paper]
 status: tracked
@@ -171,7 +171,8 @@ S1–S4 and the S5b/S5c first slices are implemented in the tree:
   **Experiment & Discovery Lab** modal and `ResultsStudio` SVG `<Chart>` plots.
   What remains open is QPU accuracy (`claimable:false` on `ibm_fez` runs),
   live `hardware_pes` execution, general SMILES/open-shell/periodic chemistry,
-  anisotropic XXZ thermodynamic limits, formal Lean proof synthesis, and manual
+  anisotropic XXZ thermodynamic limits, formal Lean proof **synthesis** (the
+  comparator verification path itself now has a live kernel proof), and manual
   screen-reader sign-off.
 
 ## Implementation order (acceptance criteria)

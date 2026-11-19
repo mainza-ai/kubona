@@ -7427,3 +7427,25 @@ skipped is the exact failure this incident is about:
 - Count correction: the pinned checkout has **405** challenge JSON files, not
   the source document's 811 (recorded in [[comparator]] and
   [[openai-math]]).
+
+## [2026-11-18] cleanup | wiki current-state audit
+
+- Reconciled every current-state claim with the implementation: new 2026-11-18
+  snapshots in [[overview]], [[roadmap]], and [[kubona]] (156 routes, 48 Go
+  packages/1142 tests, 188 Python files, 159 console files/850 cases, 32 Rust,
+  6/38 MCP, 191/16 contracts across 166 paths/165 schemas, schema 15, 11/13
+  benchmark, live Lean proof).
+- Closed or corrected stale backlog/status items: steer consumption and
+  update/cancel APIs, feedback reason + dismiss UI, notification preferences,
+  Attention Director bridge, memory retraction/secret screening, claim
+  provenance, proposal history/pricing, hardware parent rails, plan drafts,
+  obligation events + 1 h escalation, chart/campaign refs, runtime budgets, and
+  the motion review. Corrected the 1 h claim in
+  [[runtime-honesty-and-commit-policy]], the event taxonomy (188 types), and the
+  console ratchets (palette 0, coupling 50/51, forms 44/195).
+- Corrected current accuracy figures (multi-start QAOA 0.899/0.948, HEA 0.246
+  Ha, HVA-6 0.0027 Ha), the repo visibility (public since 2026-10-26), the 405
+  challenge count, and the Lean live-proof status; added
+  [[wiki-current-state-audit-2026-11-18]] as the audit record.
+- Census: 166 pages (48 entities · 102 concepts · 11 sources · 5 meta);
+  wiki-lint strict clean; repo counts regenerated.

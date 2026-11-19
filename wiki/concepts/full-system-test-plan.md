@@ -211,7 +211,8 @@ error vs loading states distinguished, then the surface-specific battery:
 - Third-party security review (human gate, P3).
 - Full-loop load/chaos and real disk-fill (destructive; env-threshold
   simulation covers the logic).
-- Public-repo / outside-contributor flows (private by decision, Q-25).
+- Public-repo / outside-contributor flows (the repo is public since 2026-10-26;
+  no outside-contributor flow is recorded yet).
   *(Superseded 2026-10-26 by Q-27: repo flipped **public**; `CONTRIBUTING.md`,
   DCO 1.1 CI check, `Kubona-protect-1` ruleset, and branch protection active.)*
 

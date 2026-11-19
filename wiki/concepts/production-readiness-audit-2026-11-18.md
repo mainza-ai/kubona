@@ -140,9 +140,23 @@ execute the reset when ready.
 `docs/publication-followup-audit-2026-11-18.md` re-audited the shipped
 pipeline and fixed ten edge defects (F-01…F-10), including an
 order-insensitive content hash, unreachable section artifacts, citation-key
-collisions, and a missing schema bump. The remaining work is product depth
-(annotations, comparator, citations, retention) plus the two operator policy
-items; it is tracked in [[publication-pipeline]] and [[remaining-work]].
+collisions, and a missing schema bump. Annotations and the live comparator
+landed later on 2026-11-18; the remaining product depth is citation
+auto-feed/retention, tracked in [[publication-pipeline]] and
+[[remaining-work]].
+
+### Seventh pass (2026-11-18): live Lean proof and operator closure
+
+The pinned Lean sandbox was rebuilt from the checksummed v4.34.1 release
+tarballs with comparator v4.34.0, `lean4export` v4.34.0, and landrun v0.1.17.
+The Mathlib cache was warmed (8,908 files) and `ThreeStateSupercritical` ran a
+live kernel proof (`live_kernel_proven`, 0 `sorryAx`) whose signed attestation
+the API accepted (HTTP 201, event 780). The reviewer key is confirmed present
+in the running `kubonad`; `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1` is set; encrypted
+backups restore clean. Remaining operator items: copy the backup key off-host,
+the optional fresh-volume reset, paid-QPU evidence, VoiceOver/NVDA, the
+`gho_…` token, and the runtime rate card. See
+`docs/lean-comparator-runbook-2026-11-18.md`.
 
 ## What this audit changed
 

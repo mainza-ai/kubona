@@ -2,13 +2,18 @@
 type: concept
 name: Open Backlog 2026-11-15
 date: 2026-11-15
-updated: 2026-11-15
+updated: 2026-11-18
 tags: [plan, backlog, production, audit]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
 ---
 
 # Open Backlog — 2026-11-15
+
+> ⚑ **Update (2026-11-18):** raw palette **0**; raw buttons **368**; coupling
+> **50/51**; forms **44/195**. The ratchet values quoted in the 2026-11-15 text
+> below are the historical snapshot; form migration and further coupling
+> reduction remain open.
 
 Reconciled against `HEAD ce149481` (both `develop` and `main`), the live
 queues ([[remaining-work]], `docs/remaining-todos.md`), [[feedback-loops-and-notifications]],
@@ -79,8 +84,8 @@ These were checked and should not be carried as backlog:
   proposal decision events, derived inbox, read/resolve state, SSE domain,
   coalescing, and Notification Center. See
   [[feedback-loops-and-notifications]].
-- **Contract modelling.** Inventory is **162 modeled / 14 client-only / 0
-  unmodeled**, 139 schemas, 145 OpenAPI paths. The 14 client-only names are
+- **Contract modelling.** Inventory is **191 modeled / 16 client-only / 0
+  unmodeled**, 165 schemas, 166 OpenAPI paths (2026-11-18). The 14 client-only names are
   intentional transport/browser/auth helpers, not missing operations.
 - **Arbitrary-colour and size-named scale classes.** The colour class is
   closed (zero arbitrary colour-var utilities); size-named radius/text
@@ -102,43 +107,43 @@ claim. Fix the claim or supply the evidence before broadening scope.
 
 | ID | Gap | Evidence / current state | Exit criterion |
 |---|---|---|---|
-| OB-01 | **Mid-run steering is recorded but not consumed by the agent prompt.** The UI can say an instruction was applied at the next boundary, while the agent loop never reads the text. | [[remaining-work]] (C10); `loop_steers`/`loop_steered` exist, prompt wiring does not. | A queued steer changes the next model turn in a deterministic test; the UI only claims “applied” when the prompt consumed it. |
-| OB-02 | **No cancel/edit of a queued steer before the boundary.** | [[remaining-work]] (C10). | Typed cancel/edit API + console control; a cancelled steer is never applied; audit event records it. |
-| OB-03 | **Feedback reason UI and proposal-dismiss UI are missing.** The APIs accept reason/actor, but the operator cannot enter a reason or dismiss from the proposal card. | [[feedback-loops-and-notifications]]; `dismissProposal` exists but no UI call site. | Downvote reason persists and hydrates; dismiss captures reason and emits `proposal_dismissed`; E2E proves both. |
+| OB-01 | **Mid-run steering is recorded but not consumed by the agent prompt.** The UI can say an instruction was applied at the next boundary, while the agent loop never reads the text. | **Closed 2026-11-18.** `engine.SetSteerSource` feeds pending steers into the next model turn (`server.go`); `loop_steers`/`loop_steered` remain the audit trail. | A queued steer changes the next model turn in a deterministic test; the UI only claims “applied” when the prompt consumed it. |
+| OB-02 | **No cancel/edit of a queued steer before the boundary.** | **Partial 2026-11-18.** `UpdateSteer`/`CancelSteer` APIs exist; the console has no cancel/edit control yet. | Typed cancel/edit API + console control; a cancelled steer is never applied; audit event records it. |
+| OB-03 | **Feedback reason UI and proposal-dismiss UI are missing.** The APIs accept reason/actor, but the operator cannot enter a reason or dismiss from the proposal card. | **Closed 2026-11-18.** Feedback-reason input (`CopilotDrawer.tsx`) and proposal dismissal with a reason are wired. | Downvote reason persists and hydrates; dismiss captures reason and emits `proposal_dismissed`; E2E proves both. |
 | OB-04 | **Claim-review policy is undecided.** Reviews are explicitly advisory; the open question is whether that is permanent or whether a written rule changes claim state. | [[feedback-loops-and-notifications]] P0-3. | Decision recorded: either “advisory permanently” with requester notification, or a written transition rule with tests and notifications. |
-| OB-05 | **Operator evidence for production claims is incomplete.** Manual VoiceOver/NVDA was skipped; `gho_…` token revocation is not proven; reviewer key configuration must be confirmed on the host; paid-QPU evidence/invoice is not attached; runtime rate card is due before 2026-11-29. | [[remaining-work]] §A; `docs/remaining-todos.md`. | Each item has a dated evidence link or an explicit “not claimed” status. No prose claim outruns the evidence. |
+| OB-05 | **Operator evidence for production claims is incomplete.** Manual VoiceOver/NVDA was skipped; `gho_…` token revocation is not proven; reviewer key configuration must be confirmed on the host; paid-QPU evidence/invoice is not attached; runtime rate card is due before 2026-11-29. Reviewer key: confirmed present in the running kubonad container (2026-11-18). | [[remaining-work]] §A; `docs/remaining-todos.md`. | Each item has a dated evidence link or an explicit “not claimed” status. No prose claim outruns the evidence. |
 | OB-06 | **Closed 2026-11-15.** Hardware-in-the-loop VQE/QAOA is implemented in the bridge (`run_vqe_hardware_loop`, `run_qaoa_hardware_loop`) with per-objective hardware batches; live QPU evidence is recorded. The old “local optimizer only” note was stale. | `platform/bridge/experiments.py`; [[vqa-vqe]]; live-QPU evidence. | Closed. |
 
 ## P1 — incomplete loops and missing functionality
 
 | ID | Gap | Current state | Exit criterion |
 |---|---|---|---|
-| OB-07 | **Notification preferences and quiet routing.** | No server-synced per-kind/severity delivery; no quiet hours/presence routing. | Server preferences + console controls; inbox/toast/attention routing obeys them; tests cover quiet mode. |
-| OB-08 | **Attention Director is not wired to every producer.** Only `SpatialCanvas3D` calls `notify()`. | [[feedback-loops-and-notifications]]. | Terminal jobs/loops, approvals, budget, allowance, auth, and memory events route through one policy; no duplicate announcements. |
-| OB-09 | **One polite live-region batch.** 51 `role=alert`, 70 `role=status`, 6 `aria-live` remain; inline + toast + status can announce twice. | Feedback audit. | One batched polite region for non-blocking notifications; alerts only for blocking states; accessibility test. |
-| OB-10 | **Live model invocation in `eval-llm`.** The CLI scores recorded predictions only; no live model call; only the copilot role has fixtures. | [[remaining-work]] (B12). | `eval-llm --live` runs a model, records predictions/report with provenance; strict gate uses it; at least one non-copilot role gains fixtures. |
-| OB-11 | **Skills editor/installer and per-skill enable/disable.** | Catalogue + `load_skill` exist; no authoring UI or toggle. | Install/edit/validate a skill from Settings; disable excludes it from prompt/tool; rejected files still name their fault. |
-| OB-12 | **Memory inventory/retraction UI and S9 edge screening.** | Tombstones + recall defence exist; no list/retract UI; the secret screen is not wired to cloud-LLM request edge or general ledger writes. | Inventory lists/retracts memories; S9 screen refuses secret-shaped payloads at the cloud edge and ledger write path with tests. |
-| OB-13 | **Typed need rendering is incomplete.** Budget/approval/anchor refusals now carry typed `need` envelopes, but job/run cards do not render these envelopes and loop needs still lack a recorded failure field. | [[remaining-work]] (C2). | Owning rails emit each need from structured evidence; job/run cards render one sentence + remedy; no free-text inference returns. |
-| OB-14 | **Claim provenance panel and citation highlights.** Provenance endpoint exists; console has no panel. Citation check scans prose only, not tables/rendered values, and has no inline highlight. | [[remaining-work]] (B4/B5). | Claim card opens provenance rows; offending numbers are highlighted inline; table/value scanning is covered or explicitly out of scope. |
-| OB-15 | **Proposal history/list and priced proposals.** Id-addressed GET exists for operators; no history surface; proposals without numeric price bounds are refused rather than priced. | [[remaining-work]] (B1). | Proposal list/history with decision state; priced proposal path with explicit bound or an honest refusal reason. |
-| OB-16 | **Hardware parent allowance rails.** `hardware_experiment`, `qaoa_hardware`, `spin_chain_hardware` remain per-job only. | [[remaining-work]] (C11). | Parent allowance covers hardware child jobs; draw/revoke/suspend tests; taint exclusion preserved. |
-| OB-17 | **Plan draft persistence and unresolved tool references.** Plan card is ephemeral; unresolved tool references are facts, not typed needs. | [[remaining-work]] (C8). | Plan draft survives reload or is explicitly disposable; unresolved refs emit typed needs. |
-| OB-18 | **Obligation push events and ageing escalation.** Tray polls; no `obligation_*` ledger events; no 1-hour escalation. | [[remaining-work]] (needs-you tray). | Open/close emits events; SSE invalidates tray; ageing escalation policy implemented and tested. |
-| OB-19 | **Chart series and campaign-level fact refs.** Per-fact chips exist for job/loop/approval/task; chart series and campaign facts do not carry refs. | [[remaining-work]] (C9). | Chart points/campaign facts carry producing-record refs or explicitly state “unattributed”. |
+| OB-07 | **Notification preferences and quiet routing.** | **Partial 2026-11-18.** Server `NotificationPrefs` (quiet + muted kinds) with console controls; presence-based routing remains. | Server preferences + console controls; inbox/toast/attention routing obeys them; tests cover quiet mode. |
+| OB-08 | **Attention Director is not wired to every producer.** Only `SpatialCanvas3D` calls `notify()`. | **Closed 2026-11-18.** Attention Director wiring for notification severities landed (todos). | Terminal jobs/loops, approvals, budget, allowance, auth, and memory events route through one policy; no duplicate announcements. |
+| OB-09 | **One polite live-region batch.** 51 `role=alert`, 70 `role=status`, 6 `aria-live` remain; inline + toast + status can announce twice. | **Closed 2026-11-18.** Single polite live region; duplicate toast/chip announcements removed (todos). | One batched polite region for non-blocking notifications; alerts only for blocking states; accessibility test. |
+| OB-10 | **Live model invocation in `eval-llm`.** The CLI scores recorded predictions only; no live model call; only the copilot role has fixtures. | **Closed 2026-11-18.** `eval-llm --live` invokes a model and records predictions/report with provenance (todos). | `eval-llm --live` runs a model, records predictions/report with provenance; strict gate uses it; at least one non-copilot role gains fixtures. |
+| OB-11 | **Skills editor/installer and per-skill enable/disable.** | **Closed 2026-11-18.** Skill authoring/installer UI and per-skill toggle landed (todos). | Install/edit/validate a skill from Settings; disable excludes it from prompt/tool; rejected files still name their fault. |
+| OB-12 | **Memory inventory/retraction UI and S9 edge screening.** | **Partial 2026-11-18.** Memory inventory/retraction UI and general ledger-write secret screening landed; cloud-LLM request-edge screening is not verified. | Inventory lists/retracts memories; S9 screen refuses secret-shaped payloads at the cloud edge and ledger write path with tests. |
+| OB-13 | **Typed need rendering is incomplete.** Budget/approval/anchor refusals now carry typed `need` envelopes, but job/run cards do not render these envelopes and loop needs still lack a recorded failure field. | **Closed 2026-11-18.** Typed need envelopes, refusal chip, and run-card needs landed (todos). | Owning rails emit each need from structured evidence; job/run cards render one sentence + remedy; no free-text inference returns. |
+| OB-14 | **Claim provenance panel and citation highlights.** Provenance endpoint exists; console has no panel. Citation check scans prose only, not tables/rendered values, and has no inline highlight. | **Closed 2026-11-18.** `ClaimHistory` provenance panel; table/rendered citation scanning + inline highlights landed. | Claim card opens provenance rows; offending numbers are highlighted inline; table/value scanning is covered or explicitly out of scope. |
+| OB-15 | **Proposal history/list and priced proposals.** Id-addressed GET exists for operators; no history surface; proposals without numeric price bounds are refused rather than priced. | **Closed 2026-11-18.** Proposal list/history and the metered-pricing refusal rule landed. | Proposal list/history with decision state; priced proposal path with explicit bound or an honest refusal reason. |
+| OB-16 | **Hardware parent allowance rails.** `hardware_experiment`, `qaoa_hardware`, `spin_chain_hardware` remain per-job only. | **Closed 2026-11-18.** Hardware parent allowance rails landed. | Parent allowance covers hardware child jobs; draw/revoke/suspend tests; taint exclusion preserved. |
+| OB-17 | **Plan draft persistence and unresolved tool references.** Plan card is ephemeral; unresolved tool references are facts, not typed needs. | **Closed 2026-11-18.** Plan draft persistence and typed unresolved references landed. | Plan draft survives reload or is explicitly disposable; unresolved refs emit typed needs. |
+| OB-18 | **Obligation push events and ageing escalation.** **Closed 2026-11-18.** Obligation open/close events, SSE invalidation, and the 1 h escalation marker (`needs-you.ts`) landed. | [[remaining-work]] (needs-you tray). | Open/close emits events; SSE invalidates tray; ageing escalation policy implemented and tested. |
+| OB-19 | **Chart series and campaign-level fact refs.** Per-fact chips exist for job/loop/approval/task; chart series and campaign facts do not carry refs. | **Closed 2026-11-18.** Chart-series and campaign-level fact refs landed. | Chart points/campaign facts carry producing-record refs or explicitly state “unattributed”. |
 | OB-20 | **Run parts from remaining rails and copilot tool calls.** Literature/prover/tool rails record no parts; chat turns are not loops. | [[remaining-work]] (C1). | Each rail records parts or documents why it cannot; copilot tool calls render as parts or are explicitly out of scope. |
-| OB-21 | **Legacy surface retirement.** `WidgetStage` and the legacy molecule canvas remain; Recorder and Manifold are separate full-page products rather than Workbench views. | [[remaining-work]] (legacy retirement). | Five-widget parity met; old aliases survive one release; rollback path still tested; then remove. |
+| OB-21 | **Legacy surface retirement.** `WidgetStage` and the legacy molecule canvas remain; Recorder and Manifold are separate full-page products rather than Workbench views. | **Decision 2026-11-18.** Parity-gated product decision: keep until five-widget parity + one release of alias support; `KUBONA_CONSOLE_WORKBENCH=0` is the tested rollback. | Five-widget parity met; old aliases survive one release; rollback path still tested; then remove. |
 
 ## P2 — debt, quality, and performance
 
 | ID | Gap | Current state | Exit criterion |
 |---|---|---|---|
 | OB-22 | **Closed 2026-11-15.** All former `react-test-renderer` tests are migrated; the dependency is removed and the ratchet reports 0 files. | Browser/real-DOM tests cover focus/layout; no new renderer use. | Closed. |
-| OB-23 | **67 downward `components → lib/api` imports.** | Legal by layer rule, but couples UI to transport. | Move behind domain projections; target agreed per surface; import gate prevents regression. |
+| OB-23 | **Downward `components → lib/api` imports.** | Legal by layer rule, but couples UI to transport. **50 files / 51 imports (2026-11-18).** | Move behind domain projections; target agreed per surface; import gate prevents regression. |
 | OB-24 | **Closed 2026-11-15.** Workbench lazy-loaded with Suspense; largest first-load chunk ~277 KiB, total 1133.4 KiB raw / 336.2 KiB gzip, still under the route ceiling. | Per-route budgets remain green. | Closed. |
-| OB-25 | **LCP/INP/heap/request-count gates.** | Static/DOM budgets exist; runtime metrics do not gate. | Reproducible LCP/INP/heap/request budgets in CI with documented hardware variance. |
-| OB-26 | **Final 14 raw-palette baseline occurrences, form primitive migration, raw-button ratchet.** | Token lint holds at 14; forms still use raw utilities outside primitives. | 0 files; Field/Select/Toggle migrations complete; raw-button ratchet only shrinks. |
-| OB-27 | **Per-component motion review.** | Global CSS collapse works; only the workbench glide consumes the hook. | Each animated surface uses the motion vocabulary or documents why global collapse is sufficient. |
+| OB-25 | **LCP/INP/heap/request-count gates.** | **Closed 2026-11-18.** LCP/INP/heap/request-count budgets gate in the dense runtime spec. | Reproducible LCP/INP/heap/request budgets in CI with documented hardware variance. |
+| OB-26 | **Final raw-palette occurrences, form primitive migration, raw-button ratchet.** | Token lint is at **0**; forms are at 44 files / 195 controls and still migrating. | 0 files; Field/Select/Toggle migrations complete; raw-button ratchet only shrinks. |
+| OB-27 | **Per-component motion review.** | **Closed 2026-11-18.** Motion review completed; arbitrary duration/ease/animate values are banned by `console-token-lint`. | Each animated surface uses the motion vocabulary or documents why global collapse is sufficient. |
 | OB-28 | **Manual screen-reader transcript.** | Automated axe/keyboard green; manual VoiceOver/NVDA not run. | Dated manual walkthrough of every modal/surface with issues filed/fixed. |
 | OB-29 | **Single-daemon budget reservation.** | In-process reservations do not coordinate multiple daemons sharing one ledger. | Either multi-daemon coordination or an explicit single-daemon deployment constraint enforced by preflight. |
 

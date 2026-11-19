@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-11
+updated: 2026-11-18
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -304,6 +304,11 @@ blueprint milestone.
 as completion: six settled policies against 62 adopted mechanisms and zero open
 questions means the blueprint is fully settled and contributor-ready.
 
+> ⚑ Census update (2026-11-18, `scripts/wiki-lint.py --strict`): **166 pages** —
+> `settled` 6 · `adopted` 65 · `candidate` 13 · `tracked` 54 · `reference` 9 ·
+> `source` 11 · `living` 8 · `open-question` 0 (`48` entities · `102` concepts ·
+> `11` sources · `5` meta).
+
 > ⚑ Census update (2026-11-10, `scripts/wiki-lint.py --strict`): **156 pages** —
 > `settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 49 ·
 > `reference` 9 · `source` 10 · `living` 7 (`48` entities · `93` concepts · `10`
@@ -321,6 +326,22 @@ production-readiness audits).
 Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
+
+> ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):
+> `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages
+> (**1142** Go test functions), **188** Python test files (6 bridge files),
+> **159** console test files (**850** cases), **32** Rust tests, **6** MCP
+> servers (**38** tools), and **166** wiki pages. Console contracts stand at
+> **191 modeled / 16 client-only / 0 unmodeled** (`166` OpenAPI paths, `165`
+> schemas, `190` operations). Ledger schema is **15**. The agentic benchmark
+> runs **13 tasks at 11/13 pass@1** (HVA-6 solves the 8-site TFIM to 0.0027 Ha;
+> QAOA p2/p3 reach 0.899/0.948; H2 chemical accuracy passes at 0.640 mHa; the
+> 8/6-site HEA TFIM tasks remain failures). The Lean comparator ran a live
+> kernel proof (`ThreeStateSupercritical`, `live_kernel_proven`, API-accepted
+> attestation). Console ratchets: raw palette **0**, raw buttons **368**, forms
+> **44/195**, coupling **50/51**; `transition-all` and arbitrary motion values
+> are zero-tolerance. Re-verify the gate on the exact pushed commit before
+> citing “green”.
 
 > ⚑ Snapshot update (2026-11-14, `develop` working tree): `docs/repo-counts.md`
 > records **154** HTTP routes, **41** Go packages (**1032** Go test functions),
