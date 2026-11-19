@@ -29,9 +29,10 @@ status: adopted
 > refusal instead of empty axes (`hasChartValues` is pure and pinned). The
 > exact-values table stays available in compact cards (collapsed inside
 > `<details>`), and when a consumer supplies `onEvidence`, tooltip and table
-> evidence become actionable buttons instead of dead text. Remaining: the
-> 1,055-line `DataChart.tsx` split into pure plan/geometry modules and a
-> `LazyBoundary` retry for stale chunks.
+> evidence become actionable buttons instead of dead text. The `DataChart.tsx`
+> split (pure `chart-layout.ts` / render `chart-parts.tsx`, now ~371 lines) and
+> the `LazyBoundary` stale-chunk retry have landed; remaining chart work is
+> consumer-level, not the component split.
 >
 > **Import boundaries (D6, 2026-11-14).** The console enforces one direction:
 > `types < lib < domain < components < app`. `scripts/console-boundaries.mjs`
@@ -48,8 +49,8 @@ status: adopted
 > **Bundle budgets (D7, 2026-11-14).** `scripts/console-bundle-budgets.mjs`
 > reads the build that just ran (app-router client reference manifest +
 > `build-manifest.json`) and enforces the `/` first-load ceiling at
-> **1148.5 KiB raw / 350.8 KiB gzip** — recorded **1108.5 / 326.8** plus a
-> **40 / 24 KiB growth allowance** (single chunk ≤ 410 KiB). Forbidden
+> **1173.4 KiB raw / 360.2 KiB gzip** — recorded **1133.4 / 336.2** plus a
+> **40 / 24 KiB growth allowance** (single chunk ≤ 300 KiB). Forbidden
 > libraries must not appear in first-load: the checker
 > scans chunk contents for three.js, elkjs, and KaTeX markers. The first run
 > caught a real violation — `MathText` statically imported KaTeX — so it now
@@ -415,9 +416,10 @@ smoke (zero widget markup in default SSR — the stage is truly empty).
   bootstrap (`page.tsx`) from polling, queues concurrent SSE `pendingRefresh`
   invalidations (`resource-store.ts`), and eliminates `390×844` mobile composer
   and overlay-inspector collisions.
-- **Contracts & Verification:** Inventory stands at **171 modeled / 14
-  client-only / 0 unmodeled** contracts (`149` schemas, `151` OpenAPI paths)
-  with **821** Console test cases across **155** test files (`docs/repo-counts.md`),
+- **Contracts & Verification (2026-11-11 snapshot; superseded by §15's 191/16):**
+  Inventory stood at **171 modeled / 14 client-only / 0 unmodeled** contracts
+  (`149` schemas, `151` OpenAPI paths) with **821** Console test cases across
+  **155** test files (`docs/repo-counts.md`),
   including real-Chromium `*.component.test.tsx` coverage, plus
   `runtime-budget.spec.ts`, `stream-invalidation.spec.ts`, `a11y.spec.ts`,
   `workbench-a11y.spec.ts`, and `console.spec.ts`. Manual VoiceOver/NVDA

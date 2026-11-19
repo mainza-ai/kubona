@@ -2,7 +2,7 @@
 type: concept
 name: Observatory plan-vs-implementation gap audit (Oct 2026)
 date: 2026-10-23
-updated: 2026-10-25
+updated: 2026-11-18
 status: tracked
 tags: [observatory, audit, gaps, plan-conformance, atlas]
 sources:
@@ -94,14 +94,14 @@ execution record), [[observatory-spatial-representation-layer]] (design),
 
 **Operator actions (no code):** training opt-out toggle; dedicated dev project + monthly limit; key-scope review (`operations.cancel`, `assets.delete` only if P6 needs them); CLI `setup` for probes; mobile-push endpoint if Away is ever real (R-27).
 
-## 5. Quantum billing completeness + human dispatch (2026-10-24 audit; implemented hermetic 2026-10-24, live verification pending)
+## 5. Quantum billing completeness + human dispatch (2026-10-24 audit; hermetic implementation 2026-10-24, live governed-rail QPU execution/settlement verified 2026-10-29/11-09; the console dispatch leg was not separately recorded)
 
 Mechanism is built and hermetically tested (no live keys exist); the
 remaining gates are operator rulings (Q-40, Q-41) and live runs.
 
 - **R-32 Audited refund primitive.** ~~No refund path exists~~ **Mechanism done**: Go session `RefundSpend` + `POST /api/sessions/refund` (admin envelope, cross-tenant refusal, no-negative-books, receipted refusals — mirrors tenant `RefundSpend`); Python `SessionStore.release_spend` + governance wrapper (the MCP book had no refund at all). Open policy → Q-41 (signer scope beyond tenant admin, window, partials for partially-executed jobs).
 - **R-33 Provider-side cancel.** ~~In-flight hardware runs cannot be recalled~~ **Done where verifiable**: trait-level `cancel()` (fail-closed default); IBM Runtime cancel + qnexus cancel implemented against current vendor docs and injected-tested; `on_hardware_job` pins vendor ids into job meta at dispatch; `request_provider_recall` + bridge `QuantumCancel` + Go/console wiring. Rigetti/D-Wave/pulser/photonic/IonQ/Braket refuse with exact reasons (submit unwired or unverified — no fabricated SDK calls). Cancel never refunds by itself — pairs with R-32.
-- **R-34 Human quantum dispatch.** **Done (hermetic)**: `QuantumSubmit/JobStatus/Cancel/RunCanary` bridge RPCs calling the SAME `submit_job` rail (idempotency via persisted job meta, dry-run estimates, tenant attribution); Go `/api/quantum/jobs` proxy (bearer + autonomy + allowlist, no Go-side spend reservation — Python book stays single); `QuantumDispatch` console surface (estimate→mandate card→dispatch→poll→cancel). `mandate_ref` recorded, not enforced, pending the Q-10 conformance ruling (new Q-40).
+- **R-34 Human quantum dispatch.** **Done; live QPU execution/settlement verified 2026-10-29/11-09 through the governed rail (the console `QuantumDispatch` leg was not separately recorded):** `QuantumSubmit/JobStatus/Cancel/RunCanary` bridge RPCs calling the SAME `submit_job` rail (idempotency via persisted job meta, dry-run estimates, tenant attribution); Go `/api/quantum/jobs` proxy (bearer + autonomy + allowlist, no Go-side spend reservation — Python book stays single); `QuantumDispatch` console surface (estimate→mandate card→dispatch→poll→cancel). `mandate_ref` recorded, not enforced, pending the Q-10 conformance ruling (new Q-40).
 
 ## 4. Live-proof ledger (what the API actually answered)
 

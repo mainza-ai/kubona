@@ -2,7 +2,7 @@
 type: entity
 name: Qiskit MCP Servers
 date: 2026-10-03
-updated: 2026-10-09
+updated: 2026-11-18
 tags: [ibm, qiskit, mcp, vendor-tooling, execution]
 sources: [source-agent-protocol-landscape-2026]
 status: adopted
@@ -29,7 +29,9 @@ The repository contains five independently deployable servers:
 architectural differences from Kubona's [[protocol-strategy|Capability Core]]:
 - **Credential Exposure:** Relies on ambient environment variables (`QISKIT_IBM_TOKEN`) or raw tokens passed in tool parameters (`setup_ibm_quantum_account`). Kubona isolates credentials in an [[openbao]] sidecar vault.
 - **Unbounded Spend:** Contains zero spend estimation, cost ceilings, or approval gates; runaway agent loops can burn cloud credits unchecked. Kubona enforces mandatory pre-flight cost gates.
-- **Vendor Lock:** Targets IBM Quantum exclusively. Kubona federates IBM, IonQ, Quantinuum, Rigetti, and neutral-atom hardware.
+- **Vendor Lock:** Targets IBM Quantum exclusively. Kubona dispatches IBM and
+  Quantinuum (credential-gated) plus simulators; IonQ, Rigetti, neutral-atom,
+  and Braket are catalogued capability rows that fail closed (`quantum_settings.go`).
 - **Epistemic Anchors:** Returns unverified raw execution dictionaries without cryptographic circuit hashes or classical comparison baselines.
 
 **Kubona Integration Posture:** Tracked as an optional downstream execution target or provider plugin.

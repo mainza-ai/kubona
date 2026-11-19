@@ -2,7 +2,7 @@
 type: concept
 name: Optional enhancement plan (2026-11-01)
 date: 2026-11-01
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [plan, api, accessibility, operations, production]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -26,7 +26,7 @@ status: tracked
 - Contract inventory: 89 modeled / 40 client-only / 0 unmodeled, 85 schemas,
   84 OpenAPI paths.
 - Axe WCAG 2 A/AA passes Arena, Labs, Settings, and Circuit Codesign.
-- CI is the 20-job push gate plus Console E2E; run IDs live in `AGENTS.md`.
+- CI is the 22-job push gate plus Console E2E; run IDs live in `AGENTS.md`.
 
 > ⚑ Progress update (2026-11-10, `119749e` / `de3428c`):
 > - **Contracts & `/api/v1` parity (`E1`):** Console contract inventory expanded

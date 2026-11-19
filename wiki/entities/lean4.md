@@ -87,4 +87,6 @@ Sandbox execution above is now a mechanism, not an aspiration
   5.0.0-src+5045d00`; the hardened `--network none --read-only --cap-drop ALL`
   run reports the same Lean version. Manifest
   `sha256:e5effcbce273f8fc835b7608831b8f43f8fc32ce541bc72cab3b953e2a5e3a06`.
-  The mathlib-scale warm and a live challenge have not run.
+  The Mathlib warm (8,908 cache files) and a live challenge
+  (`ThreeStateSupercritical`, `live_kernel_proven`, 0 `sorryAx`, signed
+  attestation event 780) ran on 2026-11-18.

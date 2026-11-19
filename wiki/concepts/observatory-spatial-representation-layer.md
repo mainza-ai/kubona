@@ -2,7 +2,7 @@
 type: concept
 name: Observatory Spatial Representation Layer
 date: 2026-10-22
-updated: 2026-11-11
+updated: 2026-11-18
 status: adopted
 tags: [ux, spatial-canvas, observatory, world-model, atlas, representation-layer, calm-technology]
 sources:
@@ -198,14 +198,14 @@ Agents navigate the same world as humans using dedicated MCP tools:
 ## 10. Platform Implementation Architecture
 
 ### 10.1 Frontend: React 19 & Vanilla Three.js (`platform/console`)
-- **Runtime:** Next.js 16.3.8 + React 19.2.8.
+- **Runtime:** Next.js 16.4.6 + React 19.3.1.
 - **Engine Selection:** Standard `@react-three/fiber` ecosystems exhibit peer-dependency incompatibilities with React 19. The Observatory employs **vanilla Three.js (`three ^0.170.0`)** wrapped inside `SpatialCanvas3D.tsx`.
 - **Mounting:** Mounted via `useRef<HTMLCanvasElement>` and `useEffect` with strict cleanup (`cancelAnimationFrame`, geometry/material/texture disposal, `renderer.dispose()`).
 - **Surface Integration:** Integrated into `SpatialCanvas.tsx` as a togglable view (`[2D Workbench | 3D Spatial Observatory]`), preserving the 2D Morse potential calculations, OpenQASM schematic, and ADMET profile.
 
 > ⚑ Correction (2026-10-23, settled by [[observatory-lens-audit-2026-10-23]]):
 > the engine pin above is stale — `platform/console/package.json` carries
-> `three ^0.186.1` / `@types/three ^0.186.0`, not `^0.170.0`. Vanilla-Three.js
+> `three ^0.187.0` / `@types/three ^0.187.0`, not `^0.170.0`. Vanilla-Three.js
 > wrapping, mount-once lifecycle, and disposal discipline stand as written.
 
 ### 10.2 Backend: Go Air-Gap & Spend Proxy (`platform/core`)

@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Cloud Pricing & Financial Telemetry
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [pricing, cost, cloud, telemetry]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -42,7 +42,7 @@ table row).
 Related: [[cost-governance]] · [[provider-capability-schema]] · [[qiskit]] ·
 [[ionq]] · [[neutral-atom-quera-pasqal]] · [[microsoft-azure-quantum]]
 
-## First paid QPU runbook (prepared 2026-10-10, P1-real live-fire)
+## First paid QPU runbook (prepared 2026-10-10, P1-real live-fire; no paid invoice recorded yet)
 
 Verified rate (2026-10-10): IBM PAYG **$96/min billed per second ($1.60/s)**,
 1s minimum. Default target `ibm_brisbane` pending operator confirmation.
@@ -64,8 +64,9 @@ Operator checklist (smallest receipt first — Bell pair, low shots):
 >   fields). Hardware prepare responses show a reviewed QPU price preview (explicit
 >   Open Plan `$0.00` or explicit `unavailable` otherwise — never guessed from shots),
 >   keeping the signed operator `MaxCostUSD` cap as spend authority.
-> - **Live IBM executions recorded:** Paid `ibm_marrakesh` (`$3.20` for 2 QPU s,
->   `docs/paid-e2e-readiness-2026-10-31.md`) and `ibm_fez` Open Plan `$0.00`
+> - **Live IBM executions recorded:** Controlled `ibm_marrakesh` validation (`2` QPU s,
+>   Open Plan `pricing_type=free` → actual `$0.00`; `$3.20` was a pre-fix estimate;
+>   `docs/paid-e2e-readiness-2026-10-31.md`), and `ibm_fez` Open Plan `$0.00`
 >   science suite (`docs/live-qpu-2026-11-09.md`: SPSA HILO VQE `da0b1703`, ZNE VQE
 >   `5f0064eb`, active-space LiH `1b6bb0ec`, HILO QAOA `7014cd0c`,
 >   `spin_chain_hardware` `1ad0e5fb`, full settle + receipt). `hardware_pes`

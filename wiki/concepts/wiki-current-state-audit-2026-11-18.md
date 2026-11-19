@@ -11,10 +11,11 @@ status: living
 # Wiki Current-State Audit (2026-11-18)
 
 **Scope.** Reconcile the blueprint with the implementation state after the
-agentic-science and Lean-comparator work. Every page was checked by the
-structural lint plus targeted sweeps for stale counts, status claims, and
-register drift; the pages that assert current state were then corrected against
-code, generated counts, and live evidence.
+agentic-science and Lean-comparator work. All **166 pages** were read in seven
+parallel batches, then every checkable claim was verified against code,
+contracts, generated counts, git history, and live evidence; the pages that
+assert current state were corrected. Structural lint plus targeted sweeps ran
+over the whole tree.
 
 ## Method
 
@@ -51,6 +52,25 @@ Also corrected: the pinned checkout has **405** challenge JSON files, not the
 source document's 811 (retained with a correction in the source/entity pages);
 the README now states 19 `experiment-result-v1` kinds (13 matrix capabilities)
 and the current wiki/contract counts.
+
+## Second pass (page-by-page, all 166 pages)
+
+The batch read found additional current-state defects that the numeric sweep
+could not see; all were verified in code before editing:
+
+| Area | Was | Now |
+|---|---|---|
+| Paid-run label (3 pages) | "Paid `ibm_marrakesh` … `$3.20`" | Open Plan `pricing_type=free`, actual `$0.00`; `$3.20` was a pre-fix list-price estimate; paid evidence remains operator-owned |
+| Publication pipeline | "No comparator producer, no ACCEPT path"; "annotations not persisted" | Live attestation accepted (event 780); annotations persist and gate signoff |
+| Admin-key rotation (3 pages) | `RotateAdminKey` "immediately revokes all sessions" | `SetAdminKey` invalidates old-key admin actions; cookie sessions persist until logout/expiry/revoke (Q-56) |
+| Epistemic curvature | "pure functions, golden-tested, emitted as ledger records" | Stateful engine with manifold tests; no golden corpus and no curvature event — ledger emission is planned |
+| Audit remediation (2 pages) | "Nothing below is implemented/started" | Landed 2026-10-26; retained as the pre-fix deep dive |
+| Deep implementation audit | Lean unbuilt; 5 servers; 37 console_api routes; no CI secret scan | Lean live proof; 6 servers; 22 unserved handlers; secret-scan job landed |
+| Providers (2 pages) | "11+ providers" incl. Azure/Google | 10-provider closed vocabulary; Azure/Google are paper targets |
+| HF hub | Python `mesh/hf_hub.py` as the live rail | Go `pkg/hf/hub.go` + console routes; Python module is legacy; runtime registration not wired |
+| IBM probe | Wrong vendor job id + "cancelled while queued" | Vendor job `dbha28pq260s73busu70` `DONE/2 s`; local row stays cancelled/$0.00; $0 is the free-plan charge |
+| World Labs Atlas | `[ILLUSTRATIVE_SKIN · ATLAS CHISEL]` | Shipped watermark `SYNTHETIC LENS — WORLD LABS ATLAS`; `dev_inspect` has no code path |
+| Misc | 9 sources, 14 client-only, 48 questions A–E, 120 routes, 7 RPCs, UID 10001, `TailOverflowTripwire`, `useTelemetry` | 11 sources, 16 client-only, Q-01…Q-61 A–F, 156 routes, 19 RPCs, UID 1000, boolean `tail_overflow_tripped`, `useSessionStream` |
 
 ## Verified clean
 

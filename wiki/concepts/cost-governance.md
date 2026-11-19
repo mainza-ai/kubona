@@ -2,7 +2,7 @@
 type: concept
 name: Cost Governance
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-11-18
 tags: [cost, budget, governance]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: settled
@@ -105,7 +105,7 @@ and flat-latency / ~0%-reject telemetry treated as a smell, not health.
 
 ## Placement in the plan
 
-Non-optional in **Phase 1** (not deferred); the cost-gov MCP server is one of the four
+Non-optional in **Phase 1** (not deferred); the `cost` MCP server is one of the six
 federated servers (see [[mcp-and-context-flooding]]). Console pairing:
 [[agent-ux-control-plane|Cost & approval console]].
 

@@ -2,7 +2,7 @@
 type: entity
 name: Mainza / Milimo Foundation (existing codebase)
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-11-18
 tags: [foundation, prior-work, reuse]
 sources: [source-gap-analysis-plan]
 status: reference
@@ -30,7 +30,10 @@ by the same operator ("Mainza"). Not Kubona code, but directly de-risking for it
 ## How to treat these claims
 
 > ⚑ Single-source origin, now repo-verified at the surface level (2026-08-16): the referenced
-> repositories are public and confirm the headline claims — `mainza-ai/milimoquantum`
+> repositories `mainza-ai/MilimoClaw` and `mainza-ai/afreval` are public and confirm
+> their claims. `mainza-ai/milimoquantum` is **no longer publicly resolvable**
+> (GitHub API 404 on 2026-11-18), so its Qiskit/agent/HAL claims stand only on the
+> 2026-08-16 README inspection; the original note claimed it as public —
 > (README: "Qiskit 2.x", 17 specialized agents, VQE-based drug discovery MQDD, an
 > `autoresearch-mlx` module on Apple-Silicon MLX, IBM/D-Wave/Braket targets),
 > `mainza-ai/MilimoClaw` (README: the Stage 1 REVIEW → Stage 2 HOLD gate for agent-initiated

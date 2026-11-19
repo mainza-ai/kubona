@@ -38,7 +38,7 @@ sources: [source-frontier-repo-audit-2026]
 >   (`live_kernel_proven`, 0 `sorryAx`) and the API accepted the signed
 >   attestation (event 780).
 
-> ⚑ **Node delta (2026-11-14, `1ca42121`):**
+> ⚑ **Node delta (2026-11-14, `1ca42121`, earlier snapshot):**
 > - **Edge (`kubonad :8080`):** `151` HTTP routes (`docs/repo-counts.md`),
 >   including proposals (`/api/proposals`), run allowances
 >   (`/api/run-allowances`, signed mint/atomic draw), loop parts and steering
@@ -307,7 +307,8 @@ flowchart TB
   generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
-- Counts at `2026-11-14` (`docs/repo-counts.md`): **152** HTTP routes,
+- Note: two 2026-11-14 records exist (this count block and the `1ca42121` node delta); both are dated snapshots superseded by 2026-11-18.
+- Counts at `2026-11-14` (later snapshot, `docs/repo-counts.md`): **152** HTTP routes,
   **41** Go packages (**1013** Go test funcs), **185** Python test files,
   **152** console test files (**806** test cases), **32** Rust tests, **6**
   MCP servers (**38** tools), **160** wiki pages; console contracts **162
@@ -344,13 +345,13 @@ flowchart TB
 - Console gating: `MeasuredOutputs` renders live job folds;
   `COLLAPSED_VERIFIED` gates verified claims (`replan.go:394`);
   Action Gate behind `isMeteredBackend`.
-- Retired surface: 18 Python shadow routes removed (K5); `pkg/mcp/`
+- Retired surface: Python shadow routes removed (K5); `pkg/mcp/`
   absent (gateway deleted, F-5); `useTelemetry` deleted 2026-10-20 (Phase 4);
-  console_api.py holds 23 unserved routes (codesign trio now duplicated on
-  the Go rail — documented overlap, migration only on surface need).
-- Added 2026-10-21 (audit coverage): `platform/kubona/mcp/servers/_mount.py`
-  mounts all five stdio servers (single mount table, W2.14) with the
-  29-tool `mcp-catalog` — unserved in compose; `platform/contracts/`
+  console_api.py holds 22 unserved route handlers (codesign compute now proxied
+  on the Go rail — documented overlap, migration only on surface need).
+- Added 2026-10-21 (audit coverage; historical snapshot): `platform/kubona/mcp/servers/_mount.py`
+  mounted five stdio servers (single mount table, W2.14) with the 29-tool
+  `mcp-catalog`; the current catalog is six servers / 38 tools; `platform/contracts/`
   (error-catalog, event-types, obligation + mcp catalogs) enforced at Go
   and Python append chokes; `pkg/disk` WARN/BLOCK hysteresis with
   `refuseIfDiskBlocked` on new-work entries; Ed25519 session auth

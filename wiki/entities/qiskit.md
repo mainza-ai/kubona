@@ -2,7 +2,7 @@
 type: entity
 name: Qiskit
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-11-18
 tags: [sdk, ibm, framework]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -18,7 +18,7 @@ REST API with V2 Primitives**, which superseded V1.
 
 - Circuits must be fully **transpiled to the target QPU's Instruction Set Architecture**
   before submission; hidden server-side compilation is disabled.
-- **Sampler** — qiskit-ibm-runtime 0.50 uses the client-side `executor_sampler.Sampler`
+- **Sampler** — qiskit-ibm-runtime 0.52.1 (pinned in `platform/pyproject.toml`) uses the client-side `executor_sampler.Sampler`
   (legacy `SamplerV2` remains an interface); it takes an ISA circuit + optional parameter
   sets and returns per-shot measurement bitstrings.
 - **EstimatorV2** — takes an ISA circuit, observables (e.g. Pauli strings), parameter sets,

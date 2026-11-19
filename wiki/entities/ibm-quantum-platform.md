@@ -2,7 +2,7 @@
 type: entity
 name: IBM Quantum Platform
 date: 2026-10-28
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [provider, ibm, quantum, cloud, sdk]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -155,17 +155,19 @@ layout guard, not a full device-fidelity claim.
 
 ## Second governed probe (2026-10-29)
 
-Governed job `39b5e6b832cd4ae3` → IBM `dbha28pq260s73c93fk0`, backend
+Governed job `39b5e6b832cd4ae3` → IBM `dbha28pq260s73busu70`, backend
 `ibm_fez` (least_busy resolution), 100-shot Bell. Pre-dispatch estimate
 $8.000568 held on both rails (Go reservation + Python mirror); the probe
 caught one real cross-language bug first — Go minted fractional-expiry
 mandates the Python rail correctly refused — fixed at the mint
 (whole-second canonical), pinned both rails, rebuilt, re-fired cleanly.
-Vendor job queued ~1h (free-plan queue); cancelled via the governed API
-with vendor recall confirmed. Settlement: **$8.000568 → $0.00 on both
-rails**, ledger-sealed (`job_settled` event). Calibrated-subgraph guard
+Vendor evidence reports the job `DONE` with 2 QPU seconds; the local row
+remains `cancelled/$0.00` as historical metadata (not rewritten). The
+customary `$0.00` settlement stands because the instance is Open Plan/free,
+not because nothing ran. The cancel path now queries vendor status and
+settles measured usage (regression-tested). Calibrated-subgraph guard
 recorded physical 146/147, max readout 0.29% — no Marrakesh-class anomaly.
-No fidelity claim; $0 metered (cancelled while queued).
+No fidelity claim.
 
 ## Agent rules
 

@@ -2,7 +2,7 @@
 type: concept
 tags: [information-lifecycle, memory, graphrag, hipporag, negative-certificates, rlvr]
 date: 2026-10-07
-updated: 2026-10-07
+updated: 2026-11-18
 status: adopted
 sources:
   - source-architecture-paper
@@ -43,7 +43,7 @@ Every executed job, compiler pass, Lake build manifest, and formal AST is hashed
 ### Tier 2: Temporally Aware Scientific Knowledge Graph (GraphRAG / HippoRAG)
 Implemented in `platform/kubona/science/memory.py`:
 - Maps scientific entities (`Molecule`, `Hamiltonian`, `Ansatz`, `Theorem`, `Anchor`, `NegativeCertificate`) and typed relations (`PROVEN_BY`, `BOUNDED_BY`, `FAILS_ON`, `ROUTES_TO`, `REFUTES`).
-- Implements **HippoRAG** associative recall (personalized PageRank over relational subgraphs), enabling multi-hop associative queries such as:
+- Implements **HippoRAG** associative recall via `personalized_pagerank` in `platform/kubona/memory/tiered_storage.py`, over the entity/relation graph in `platform/kubona/science/memory.py` (bounded 2-hop `query_multi_hop`), enabling multi-hop associative queries such as:
   *"Find all transition metal systems where Family 278 Kohn-Sham failure occurred, and active space $> 50$ forced QPU Krylov execution."*
 
 ### Tier 3: Reflective Strategy Bank & Self-Evolution Engine

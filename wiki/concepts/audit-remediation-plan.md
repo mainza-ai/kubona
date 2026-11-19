@@ -2,7 +2,7 @@
 type: concept
 name: Audit Remediation Plan (findings F-R1-09 through F-R1-16, F-001, F-006)
 date: 2026-10-26
-updated: 2026-10-26
+updated: 2026-11-18
 tags: [audit, remediation, planning, gaps, production]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: tracked
@@ -12,7 +12,7 @@ status: tracked
 
 > **What this page is.** The fix plan for every *open* finding in
 > [[full-system-audit-2026-10-26]] plus the two standing items (F-001,
-> F-006). **Nothing below is implemented.** Each item names the
+> F-006). **Execution status (2026-10-26): every item with a recommended path landed** — see [[audit-remediation-todos]] §Execution record; this page is retained as the pre-fix deep dive with its 2026-10-26 anchors. Each item names the
 > decision to make first, the recommended path, and the acceptance test
 > that closes it. Rule of the house: a slice lands green or not at all —
 > findings fix with a regression pin proven to fail pre-fix, verified

@@ -2,7 +2,7 @@
 type: concept
 name: User & Agent Identity and Profiles
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-11-18
 tags: [identity, users, agents, profiles, labs]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -97,8 +97,11 @@ introducing an external OIDC IdP (preserving Q-16 air-gap integrity):
 - **Session management & rotation cascade:** `GET /api/auth/whoami`,
   `GET /api/auth/sessions` (scoped to the authenticated tenant),
   `POST /api/auth/revoke` (cross-tenant revoke returns 404), and `POST /api/auth/logout`.
-  Rotating a tenant's admin key (`RotateAdminKey` in `platform/core/pkg/tenants/tenants.go`)
-  immediately revokes all active `auth_sessions` for that tenant.
+  Rotating a tenant's admin key (`SetAdminKey` in `platform/core/pkg/tenants/tenants.go`)
+  immediately invalidates the old key's ability to mint admin-signed actions
+  (fingerprint check in `sessionAdminAction`); existing `kubona_session` cookies
+  persist until logout/expiry or `/api/auth/revoke` (Q-56: sessions are identity,
+  the key is signing material).
 - **Unified edge gate + CSRF protection (`platform/core/pkg/api/edge_auth.go`):**
   `checkAuth` accepts a valid `kubona_session` cookie first (enforcing `csrfAllowed`
   Origin allowlist checks on unsafe methods) and falls back to `KUBONA_API_TOKEN` bearer

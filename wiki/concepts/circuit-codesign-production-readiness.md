@@ -2,7 +2,7 @@
 type: concept
 name: Circuit Co-Design Production Readiness
 date: 2026-10-19
-updated: 2026-10-19
+updated: 2026-11-18
 tags: [circuits, codesign, production, gaps, planning]
 sources: [source-llm-circuit-codesign-2026]
 status: tracked
@@ -92,7 +92,7 @@ Deliberately short: the architecture is correctly decoupled and should stay that
 - **Go core** (`platform/core/pkg/codesign`: `frontier.go`, `tq.go`) is scoring-only: TQ cost with kappa 1..3 fail-closed bounds, MAP-Elites frontier keeps min-TQ per cell. This is the correct division of labor — Python owns validity (kickmix evaluator), Go owns ranking/serving. **No duplication of builders, no stale numbers**: grep finds no paper T-counts (3136, 6580, 1434…) hardcoded in Go; the API takes (T,Q) as inputs.
 - **Cross-language parity is asserted, not assumed**: Python `test_kappa_sweep_pins_triple` (5,10 → 50/500/5000) and Go `TestGoldenTQ` (5,10,1 → 50) pin the same golden; both refuse kappa outside 1..3. The formula is trivial (T·Q^kappa) so drift risk is minimal, but there is **no automated cross-language parity test** — a joint golden-vector check in CI would close this for free.
 - **Console** (`CodesignCockpit`) is read-only scoring (TQ, frontier, budget, DQI bound); it needs no per-builder knowledge and has none (zero references to phase_scan/bm_walk/mask_cancellation — verified). Correct as-is; do not wire builders into the console.
-- **Auditor's note (real gap, process not code): slices 51–54 are uncommitted** (new `f12.py`, four test files, `bm.py`/`f24.py`/`__init__.py` edits, this log). The 10039cb push landed slices 2–50; the working tree has not been committed since. Production rule: verified work is committed before the next slice starts.
+- **Auditor's note (2026-10-19, since resolved): slices 51–54 were uncommitted at audit time.** They landed in `2aa259b8` (slices 51–54), and later slices through 62 are committed. Production rule: verified work is committed before the next slice starts.
 
 ## E. Verification-strength decisions the production bar must rule on
 

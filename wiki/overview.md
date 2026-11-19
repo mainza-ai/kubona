@@ -51,7 +51,7 @@ ledger receipt, a cited anchor), never to an assertion.
 > `docs/local-deployment.md`; evidence and residual operator items:
 > [[remaining-work]] and [[audit-topology-map]].
 
-## The nine sources ingested
+## The eleven sources ingested
 
 | Source | What it provides |
 |---|---|
@@ -64,6 +64,8 @@ ledger receipt, a cited anchor), never to an assertion.
 | [[source-leanrea-investigation-2026]] | Live investigation of `aicodeking/leanrea` (`09ba4aa`, MIT): router + traps skill (`skills/kubona/SKILL.md`), benchmark harness (`bench/`), and 29-tool MCP catalog discipline ([[leanrea]], [[leanrea-adoption-plan]]) |
 | [[source-llm-circuit-codesign-2026]] | Gu et al. `arXiv:2610.22367v1` (15 Oct 2026, unreproduced): evaluator-guided LLM search, kickmix validity, TQ-cost, routing/history-decode/failure-budget, 7 wins + divsteps: [[evaluator-guided-circuit-codesign]], [[reversible-co-design-patterns]], [[failure-budget-and-frontier]] |
 | [[source-magic-state-cultivation-2026]] | Google Willow cultivation (Science Oct 2026, tracked): `~40×` cut, `99.99%` T-fidelity, d3-color→d5-surface graft; magic-state economics for costing |
+| [[source-agentic-science-frontier-2026]] | Agentic-science frontier research: benchmark design, autonomy ladders, oversight modes, and the AG-1…AG-24 program |
+| [[source-world-labs-atlas-2026]] | World Labs Atlas: image-to-3D/splat generation, posed-image cameras, and the offline asset rails |
 
 ## The synthesis (current best understanding)
 

@@ -2,7 +2,7 @@
 type: concept
 name: Security & PQC
 date: 2026-08-16
-updated: 2026-10-12
+updated: 2026-11-18
 tags: [security, pqc, oauth, mcp]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -48,10 +48,12 @@ Related: [[mcp-and-context-flooding]] · [[cost-governance]] ·
 
 Measured state: mandate-envelope ML-KEM-768 is live and tested
 (`pkg/mandates/pqc.go`, parameter sizes + tamper + wrong-key pinned);
-the Go gateway, the Python bridge wire, and the console API all run
-plain HTTP. "Hybrid post-quantum transport" above therefore describes
-the envelope layer, **not** the wire — claiming otherwise would be the
-kind of fiction this wiki exists to prevent.
+the Go gateway and console API run plain HTTP behind edge TLS, while the
+Go↔bridge hop runs over a 0600 Unix domain socket (gRPC) in the shipped
+compose stack, with non-loopback TCP bridge targets token-gated.
+"Hybrid post-quantum transport" above describes the envelope layer,
+**not** the wire — claiming otherwise would be the kind of fiction this
+wiki exists to prevent.
 
 Decision: TLS termination at the deployment edge (operator-owned certs,
 documented in the runbook) carries confidentiality and server identity;

@@ -395,7 +395,7 @@ Landed in later slices:
   automatic measured links at the job-claim mints, a provenance endpoint with
   a measured/complete summary, and an acceptance gate that refuses a verified
   claim without measured or explicit general-knowledge evidence. Remaining:
-  the console has no provenance panel yet (endpoint only), and citation-number
+  the claim provenance panel is in Claim History, and citation-number
   checking in copilot replies (B5) is the companion piece.
 - **Canvas polish (2026-11-14, reports C4–C7):** labelled pending lines
   (on-screen-only pulse), least-shift follow-live on by default with glide and
@@ -596,7 +596,7 @@ Still open (as of 2026-11-10):
   the wrapper measurement justifies it.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
-- The 14 remaining client-only names are intentional transport/browser/auth
+- The 16 remaining client-only names are intentional transport/browser/auth
   helpers (plus the delegating `fetchSessions`/`fetchCampaignState` wrappers),
   not unmodeled operations.
 
@@ -699,7 +699,7 @@ hardening. None blocks the supported local-private deployment.
   choices, not missing secrets.
 - `KUBONA_CONTACT_EMAIL` (console mailto + polite-pool), HF-token rotation,
   EPO registration.
-- ~~First paid QPU run~~ — ⚠️ OPERATOR-CONFIRMED 2026-10-28, evidence caveat
+- ~~First QPU run~~ — operator-confirmed 2026-10-28, but the attached evidence is an **Open Plan/free** job (`$0.00`), so paid-invoice evidence remains operator-owned; evidence caveat
   (2026-10-30): IBM job `dbha28pq260s73busu70` (`ibm_fez`, DONE, 2 s,
   0.028795 RU, 100 shots, counts 00:58/11:38/10:1/01:3) maps to local job
   `39b5e6b832cd4ae3` (estimate $8.000568, local cancelled, settled $0.00).
@@ -841,8 +841,8 @@ hardening. None blocks the supported local-private deployment.
   > (`kubona_session`, SHA-256 token hash only in `auth_sessions`, 60s single-use
   > challenge nonce, 12h TTL via `KUBONA_SESSION_TTL`); `csrfAllowed` Origin check
   > on unsafe cookie-authenticated methods (including `PUT /api/llm/settings`,
-  > `POST /api/auth/logout`, and `POST /api/auth/revoke`); `RotateAdminKey`
-  > immediately revokes active tenant sessions; `AuthPanel.tsx` mounted in
+  > `POST /api/auth/logout`, and `POST /api/auth/revoke`); `SetAdminKey`
+  > invalidates old-key admin actions by fingerprint (existing cookie sessions persist until logout/expiry or `/api/auth/revoke`); `AuthPanel.tsx` mounted in
   > `LabsView.tsx` with WebCrypto Ed25519 signing + Vitest coverage; 7 missing Go
   > ledger event types registered in `platform/contracts/event-types.json` +
   > `pkg/ledger/events.go` (188 shared event types as of 2026-11-18).
@@ -917,9 +917,11 @@ See [[feedback-loops-and-notifications]] for the full audit. The short queue:
   UI/reason; server-synced quiet/muted notification preferences; skill
   enable/disable persisted across restarts; steer edit/cancel and autoresearch
   prompt consumption. Claim reviews are **advisory permanently** (decided).
-- **Open P1:** proposal-dismiss reasons used in ranking, Attention Director
-  wiring for every producer, one polite live-region batch, removal of the
-  remaining duplicate per-surface toasts/chips, skill editor/installer.
+- **P1 closed 2026-11-18:** proposal-dismiss reasons feed the copilot prompt as
+  a generation signal, Attention Director is wired through
+  `NotificationAttentionBridge`, the live region is batched, duplicate
+  per-surface toasts/chips are removed, and skill authoring/installer is in
+  Settings.
 - **Open P2:** feed votes/reviews/dismissals/steering outcomes into
   eval/ranking with an explicit policy, and measure delivery/read/action
   latency.
@@ -932,7 +934,7 @@ See [[feedback-loops-and-notifications]] for the full audit. The short queue:
 
 ## D · Standing questions
 
-- All 48 questions in [[questions]] Sections A–E (including Q-01 through Q-48 and Q-27 history scrub) are **settled and closed** as of 2026-10-26 (0 open questions remaining across the entire blueprint).
+- All questions in [[questions]] Sections A–F (Q-01 through Q-61, including Q-27 history scrub) are **settled and closed** as of 2026-10-26 (0 open questions remaining across the entire blueprint).
 
 Related: [[questions]] · [[roadmap]] · [[risks]] · [[full-tree-roadmap]] ·
 [[rea-adoption-plan]] · [[cloudroom-adoption-plan]] ·

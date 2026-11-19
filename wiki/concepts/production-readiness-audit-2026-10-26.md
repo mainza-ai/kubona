@@ -2,7 +2,7 @@
 type: concept
 name: Production Readiness Audit — Round 2 (2026-10-26)
 date: 2026-10-26
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [audit, production, security, money, honesty, ci, plan]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -819,8 +819,9 @@ correction below).
 >   test files / `610` cases, `32` Rust tests, `6` MCP servers / `38` tools, `156`
 >   wiki pages).
 > - **Nightly & Paid QPU:** The thesis-scale nightly gate passed at `c7d98f6`
->   (run `41041244412`, `docs/remaining-todos.md`), a controlled paid run settled
->   on `ibm_marrakesh` (2 QPU s / `$3.20`, `docs/paid-e2e-readiness-2026-10-31.md`),
+>   (run `41041244412`, `docs/remaining-todos.md`), a controlled `ibm_marrakesh` validation run
+>   (2 QPU s, Open Plan `pricing_type=free` → actual `$0.00`; the `$3.20` was a
+>   pre-fix list-price estimate and the paid label is withdrawn),
 >   and `2026-11-09` Open Plan `ibm_fez` science runs completed end-to-end
 >   (`docs/live-qpu-2026-11-09.md`).
 > - **Additional hardening at `de3428c`:** Shared live `FidelityGate` pointer

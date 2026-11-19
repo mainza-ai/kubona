@@ -1,7 +1,7 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-11-17
+updated: 2026-11-18
 tags: [index]
 status: living
 ---
@@ -42,8 +42,8 @@ arrives, place it here first and it will find its page.
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
-| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot synced 2026-11-11 (`141` HTTP routes, UDS bridge physics/chemistry/discovery, `qir-core` bundled, Console `:3000`). Refresh after any service/port/store change. |
-| [[audit-topology-map]] | Deployment topology verified 2026-11-11 (`kubona-live` Compose stack, UDS bridge rails, F-006 closed, F-001 narrowed to `codesign`). Refresh after any compose/port/auth change. |
+| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot synced 2026-11-18 (`156` HTTP routes, UDS bridge physics/chemistry/discovery, `qir-core` bundled, Console `:3000`, oversight/notification and Lean-comparator nodes). Refresh after any service/port/store change. |
+| [[audit-topology-map]] | Deployment topology verified 2026-11-18 (`kubona-prod` Compose stack, UDS bridge rails, F-006 closed, F-001 resolved via bridge Python). Refresh after any compose/port/auth change. |
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8, all landed 2026-10-17). |
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6, all landed 2026-10-17). |
 | [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and landed slices (2026-10-17). |
@@ -75,10 +75,10 @@ Describes **how decided** something is — never how finished.
 
 **Census (166 pages = 48 entities · 102 concepts · 11 sources · 5 meta), 2026-11-18:**
 `settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 54 ·
-`reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
+`reference` 9 · `source` 11 · `living` 8 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
-census shows 0. Six `settled` against 62
+census shows 0. Six `settled` against 65
 `adopted` keeps the honest reading: the load-bearing constraints are **chosen**, everything
 else remains **understood**. `settled` stays small by rule — each entry needed test
 enforcement plus dependents ([[overview]] §Settled constraints); new candidates must meet
@@ -170,7 +170,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (101 total across this table, Overview & meta, and the layer map)
+## Concepts (102 total across this table, Overview & meta, and the layer map)
 
 | Page | What it is |
 |---|---|
@@ -202,7 +202,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[workflows-and-agent-authoring]] | User- and agent-created workflows & agents; triggers, gates, registry, safety rail |
 | [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex `external_novelty`, PySCF classical anchors; MPDS/EPO OPS gated) as governed MCP resources |
 | [[market-intelligence-capability]] | Gather→curate→store ecosystem intelligence (TQI-model report, 2026-10-11): entity schema, ER, tiered validation, versioned snapshots — `candidate` |
-| [[ui-ux-vision]] | Console/UX specification & measured science surfaces (semantic dark/light axes, Spatial Workbench auto-framing, `Cmd+E` drawer, `ResultsStudio` SVG charts, native `<dialog>`, 797 Console tests; manual AT pending) |
+| [[ui-ux-vision]] | Console/UX specification & measured science surfaces (semantic dark/light axes, Spatial Workbench auto-framing, `Cmd+E` drawer, `ResultsStudio` SVG charts, native `<dialog>`, 850 Console tests; manual AT pending) |
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
 | [[risks]] | Risk register synced 2026-11-10 (public DCO/rulesets, export routing, calibration & anti-overclaim gates, scrubbed history) |
 | [[quantum-advantage-realism]] | The anti-quantum-washing policy: never claim advantage; backend, classical anchor and interval travel with every artefact |
@@ -252,6 +252,6 @@ Revisit only with a concrete claim that fits nowhere.
 | [[failure-budget-and-frontier]] | Failure-budget design + TQ frontier + domain packs order + magic-state bridge (`adopted`) |
 | [[circuit-codesign-ux-plan]] | Backend→frontend inclusive plan: landed slice 1 + queued slices 2-5, threat model (`adopted`) |
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
-| [[audit-topology-map]] | Deployment topology verified 2026-11-11 (`kubona-live` Compose stack, UDS bridge rails, F-006 closed, F-001 narrowed to `codesign`) (`living`) |
+
 | [[full-system-test-plan]] | Diagram-complete test plan synced 2026-11-10 (public repo + live IBM runs noted; per-node batteries) (`candidate` — awaiting Phase-2 approval) |
 | [[observatory-spatial-representation-layer]] | Spatial representation layer (Surfaces 1 & 9): Two-Tier Atlas beta lens, camera restore, GCS image proxy, `ResultsStudio` SVG `<Chart>` views |

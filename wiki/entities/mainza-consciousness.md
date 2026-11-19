@@ -2,7 +2,7 @@
 type: entity
 name: mainza-consciousness (mainza-ai)
 date: 2026-09-27
-updated: 2026-09-27
+updated: 2026-11-18
 tags: [prior-art, owner-repo, memory, caution, incident-source]
 sources: [source-frontier-repo-audit-2026]
 status: candidate
@@ -29,7 +29,7 @@ is theatre, while the unglamorous module next to it is genuinely reusable.
   thresholds, and a decay curve you can unit-test — the shape Kubona needs for
   [[agentic-memory-and-observability]], where a memory that never expires is a claim that never
   gets re-checked.
-- **Hygiene failures**: 6 checked-in `.py.bak` files, and a **plaintext `ghp_…` GitHub PAT inside
+- **Hygiene failures**: **0 tracked** `.py.bak` files at HEAD (`*.bak` is gitignored; 131 untracked files remain in the local clone), and a **plaintext `ghp_…` GitHub PAT inside
   the remote URL of `.git/config`** — the classic `git clone https://user:token@…` mistake. The clone
   is gitignored scratch and the token never entered a commit. Re-checked against the API on
   2026-09-27: **401, already revoked/expired**, so nothing is exposed and nothing needs revoking —

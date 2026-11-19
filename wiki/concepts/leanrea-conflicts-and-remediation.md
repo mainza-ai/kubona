@@ -2,7 +2,7 @@
 type: concept
 name: leanrea conflicts and remediation
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-18
 tags: [plan, leanrea, conflicts, remediation, production, skill, benchmark]
 sources: [source-leanrea-investigation-2026]
 status: candidate
@@ -19,9 +19,10 @@ status: candidate
 
 ## LC1. Skill publication vs Q-25 private posture (blocks distribution, not writing)
 
-**Evidence.** Q-25 is closed: the repo stays private while the blueprint
-is designed, because a public repo without settled direction invites
-contributions the project cannot direct. Skills-sh/`npx` distribution
+**Evidence.** Q-25 is **superseded by Q-27 (2026-10-26): the repository is
+public** (`private:false`). The original Q-25 posture — private while the
+blueprint is designed — no longer holds, so the distribution gate below is
+post-public and must be re-scoped. Skills-sh/`npx` distribution
 publishes operational knowledge to the public internet; the skill
 documents traps, router paths, and working methods.
 **Impact.** A public skill advertises the project before the
@@ -95,8 +96,8 @@ present on every path.
 
 **Evidence.** Console, gateway tests, and agents depend on tool names;
 the L5 review may recommend merging `compiler` ×3. MCP has no
-versioning story and external consumers don't exist pre-public — but
-first-party breakage is still breakage.
+versioning story; since the repo is public (Q-27), external consumers can
+exist, but first-party breakage is still breakage.
 **Impact.** Silent client breakage disguised as hygiene.
 **Remediation (decided):** removal is a separate decided slice per tool
 (already L5 rule); catalog digest forces explicit regen (drift = red);

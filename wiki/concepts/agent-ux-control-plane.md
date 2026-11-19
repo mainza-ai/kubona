@@ -2,7 +2,7 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
-updated: 2026-11-14
+updated: 2026-11-18
 tags: [ux, control-plane, hitl]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: adopted
@@ -55,6 +55,13 @@ No existing tool (quantum or agentic) covers both.
 > axes drive `console-token-lint.mjs` to **0** occurrences,
 > Workbench viewports persist via session-scoped `GET/PUT /api/workbench/view`,
 > and concurrent SSE invalidations queue via `pendingRefresh` (`resource-store.ts`).
+
+> **Implementation update (2026-11-18):** Console contracts are **191 modeled /
+> 16 client-only / 0 unmodeled** (`166` OpenAPI paths, `165` schemas). The shell
+> adds the durable approval inbox (reviewer edits, rejection feedback,
+> approve/reject/defer), one-time tool approvals, the notify digest panel, the
+> notification inbox with quiet/muted preferences, receipts with undo, and the
+> composer Manual/Auto/Locked agentic chip. Raw-palette debt is **0**.
 
 > **Implementation update (2026-11-14):** The reviewer's decision queue now
 > lives in the shell, not three levels deep. `ModeRail` carries a
@@ -239,8 +246,9 @@ unreadable queue renders as unavailable, never as "nothing waiting". The
 
 ## Two hard rules
 
-- **Read/approve only** — the console is oversight on top of agent actions, never a second
-  path to submit jobs (avoids reopening the credential/spend risk).
+- **Oversight, not a bypass** — read/approve remains the default, and operators may
+  submit experiments/hardware only through the same server-minted proposal + Ed25519
+  mandate + budget-hold admission the agents use; never a second credential/spend path.
 - **Fixed, audited human surfaces** for approval/circuit/provenance — generative /
   agent-materialized UI (MCP Apps, A2UI) is a v2+ direction for ad-hoc visualizations only,
   given the security sensitivity.

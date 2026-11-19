@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-10-04
-updated: 2026-10-05
+updated: 2026-11-18
 tags: [audit, verification, gaps, forensic, codebase]
 status: tracked
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
@@ -149,7 +149,7 @@ Every page across the 89-page wiki inventory was audited against the codebase fo
 > `--user 1000:1000` default. The "UID 10001" figure was never in
 > the tree. Claim corrected, not deleted.
 - **Container Hardening (`platform/docker/Dockerfile.quantum-runner`):**
-  - Enforces non-root unprivileged execution (`USER kubona:kubona`, UID 10001).
+  - Enforces non-root unprivileged execution (`USER sandbox:sandbox`, UID/GID 1000 in `Dockerfile.quantum-runner`).
   - Flags specified in runtime contracts: `--read-only`, `--network=none`, `--cap-drop=ALL`.
   - Resource clamps: CPU limit 2.0 cores, memory limit 2048 MB, pids-limit 128.
 - **Residual Risk:** Development mode permits fallback to local Python virtualenv subprocess execution when Docker daemon socket `/var/run/docker.sock` is unavailable. Multi-tenant production deployments must enforce fail-closed execution.

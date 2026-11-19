@@ -118,7 +118,7 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | Gap | Status | What's real / what's missing |
 |---|---|---|
 | **Persistent state root (data-loss)** | 🟢 M0 | Route through `kubona/config.py` (`state_root()`) — default `~/.kubona`. |
-| **Prod auth & Ed25519 operator sessions (A1–A4)** | 🟢 landed 2026-10-17 | Unified `checkAuth` in Go core (`pkg/api/edge_auth.go`, `auth_session.go`): accepts `kubona_session` `httpOnly` + `SameSite=Lax` cookies minted via Ed25519 challenge-response against the lab's registered `admin_pubkey_hex` (with `csrfAllowed` Origin check on unsafe methods and session revocation on `RotateAdminKey`), or constant-time `KUBONA_API_TOKEN` bearer for CLI/CI callers. Console mounts `AuthPanel.tsx` in `LabsView.tsx`. |
+| **Prod auth & Ed25519 operator sessions (A1–A4)** | 🟢 landed 2026-10-17 | Unified `checkAuth` in Go core (`pkg/api/edge_auth.go`, `auth_session.go`): accepts `kubona_session` `httpOnly` + `SameSite=Lax` cookies minted via Ed25519 challenge-response against the lab's registered `admin_pubkey_hex` (with `csrfAllowed` Origin check on unsafe methods and old-key admin-action invalidation on `SetAdminKey` (existing cookie sessions persist until logout/expiry or `/api/auth/revoke`)), or constant-time `KUBONA_API_TOKEN` bearer for CLI/CI callers. Console mounts `AuthPanel.tsx` in `LabsView.tsx`. |
 | **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints + `kubonad` Go daemon with the production compose stack (`platform/docker/compose.prod.yml`; the old `docker-compose.yml` path was stale). |
 | **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions (`ci.yml` + `docker-smoke`). |
 | **Python dependency lock** | 🟢 landed 2026-11-16; protobuf 7 on 2026-11-17 | `platform/uv.lock` is committed and is the single resolved set for local runs, CI, nightly, and the bridge image. CI's `uv-lock` job runs `uv lock --check`; Python jobs use `uv sync --locked`. Verified locally with the fast suite, bridge suite, and bridge-image build; hosted CI is authoritative on push. The current bridge pins are protobuf 7.36.2 with regenerated 7.35.1 gencode and RDKit 2026.09.2. The hardened sandbox runner keeps its own pinned runtime stack, not the project environment. |
@@ -157,7 +157,12 @@ unimplemented, stubbed, or disguised behind static UI facades:
 Go and Python append chokes + cross-rail conformance tests. |
 | **Queue ops reframed + shipped (S7)** | 🟢 landed 2026-10-17 | No prompt queue exists (synchronous model) — shipped the real gaps: `POST /api/jobs/{id}/cancel` (CAS unwind, terminal replay, ungated by disk by design) + rewrite CAS/session-404/disk-gate. Steer N/A documented (no background turn). |
 | **Console context + progress + operator visibility (S8 + S8a + U0–U3 + D1–D2)** | 🟢 landed 2026-10-17 | `GET /api/sessions/context` (measured transcript vs BudgetHistory caps — no vendor window) + composer readout + pressure-gated overflow card + `JobProgress` in-flight polling + `OperatorBar` disk/drain/loops/bundle controls + runtime `/api/config` + digest-pinned Docker production stack (`platform/docker/`). |
-| **REA contracts & leanrea skill/catalog (R0–R6, C1–C6, L1–L5)** | 🟢 landed 2026-10-17 | Cross-rail `EvidenceEnvelope` vectors, `platform/contracts/obligation-rules.json` (7 rules), coverage declarations (`CoverageMap`), bounded tribunal context + provenance markers, 22-code `platform/contracts/error-codes.json` + `/api/capabilities`, 5-dimension transcript rubric, `skills/kubona/SKILL.md` (≤12 KB), `bench/` harness, and 29-tool `platform/contracts/mcp-catalog.json`. |
+| **REA contracts & leanrea skill/catalog (R0–R6, C1–C6, L1–L5)** | 🟢 landed 2026-10-17 | Cross-rail `EvidenceEnvelope` vectors, obligation close rules in
+`pkg/agents/obligation.go` (`AttemptClose`), coverage declarations
+(`CoverageMap`), bounded tribunal context + provenance markers, the
+**67-code** `platform/contracts/error-catalog.csv` + `/api/capabilities`,
+5-dimension transcript rubric, `skills/kubona/SKILL.md` (≤12 KB), `bench/`
+harness, and the **38-tool** `platform/contracts/mcp-catalog.json` (2026-11-18). |
 
 ## Medium
 

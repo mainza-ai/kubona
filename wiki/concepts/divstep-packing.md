@@ -2,7 +2,7 @@
 type: concept
 name: Divstep Register Packing
 date: 2026-10-19
-updated: 2026-10-26
+updated: 2026-11-18
 tags: [divstep, registers, packing, widths, two-complement, metrology]
 sources: [source-llm-circuit-codesign-2026]
 status: settled
@@ -84,8 +84,10 @@ architecture** in `platform/kubona/codesign/packing.py`:
 2. **`paper_256` (Research Reproduction Model):**
    - Register width: **256 bits** per bank ($256 \times 2 = 512$ total qubits), matching the
      paper's headline claim.
-   - Tripwire mechanism: Walk traces are monitored dynamically. Any excursion exceeding 256 bits
-     trips a `TailOverflowTripwire`, failing closed with an audited failure record.
+   - Tripwire mechanism: the `paper_256` planner report sets
+     `tail_overflow_tripped = not fits` (`platform/kubona/codesign/packing.py`).
+     It is a boolean in the report, not a ledger record; the failure-budget
+     envelope is booked by the caller.
    - Failure budget: Overflows are explicitly booked against the circuit's declared
      `failure_budget` envelope ($P_{\mathrm{overflow}} \approx 10^{-4}$) rather than ignored or
      masked with silent wrap-around arithmetic.

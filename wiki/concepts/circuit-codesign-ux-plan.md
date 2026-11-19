@@ -2,7 +2,7 @@
 type: concept
 name: Circuit Co-Design UX Plan
 date: 2026-10-18
-updated: 2026-10-20
+updated: 2026-11-18
 tags: [ux, console, codesign, frontier, observatory]
 sources: [source-llm-circuit-codesign-2026, source-gap-analysis-plan]
 status: adopted
@@ -13,7 +13,7 @@ status: adopted
 ## Backend (landed slice 1)
 
 - Python `platform/kubona/codesign/` (evaluator ground truth): `kickmix.py` (trajectory sim Eqs 10-16, `ε` Eqs 20-21), `tq.py` (shared `κ∈[1,3]`, golden `5×10=50`), `frontier.py` (MAP-Elites min-TQ/cell), `harness.py` (four-part contract, forged-artifact invalid), `passes.py` (MBU saving, routing detector — report only, rewrite stays in search loop).
-- Python `console_api.py` (Python-owned, pending Go migration): `POST /api/codesign/evaluate` + `POST /api/codesign/frontier` (`and2/cz-phase/copy1`, `≤64` batch, fail-closed, read-only, no submission endpoints).
+- Go `pkg/api` now serves the codesign rail (`/api/codesign/{tq,frontier,evaluate,evaluate-batch,families,budget,verified,packs,rerun}`, slice 5 closed 2026-10-20). `console_api.py` is a tested reference/harness only and is unserved.
 - Go `platform/core/pkg/codesign/` (serving mirror, not validity): `tq.go` + `frontier.go` (same golden pinned both sides), `pkg/api/codesign.go` `GET /api/codesign/tq` + `POST /api/codesign/frontier` (read-only, no spend, no jobs). Live-verified 2026-10-18 (`50` golden, HHL `1348×115=155020`).
 - LLM: Strata local engine for any proposal calls (OpenAI-compat, default `http://127.0.0.1:47831/v1` overridable via `STRATA_BASE_URL`, model via `STRATA_MODEL`); NVIDIA parked (configured, explicitly selectable, not the default). No LLM calls in slice 1 tests (deterministic).
 

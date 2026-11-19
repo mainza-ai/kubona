@@ -2,7 +2,7 @@
 type: concept
 name: Audit Remediation Todo List (sequenced, file-anchored)
 date: 2026-10-26
-updated: 2026-10-26
+updated: 2026-11-18
 tags: [audit, remediation, planning, todos, production]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: tracked
@@ -13,9 +13,10 @@ status: tracked
 > Execution list for [[audit-remediation-plan]], built from the
 > 2026-10-26 file-level deep dive. Every item names its files, its
 > regression pin (proven to fail pre-fix), and its live verification —
-> the same bar as round 1. **Nothing below is started.** Phase 0
-> decisions gate everything; Phase 3 is operator-gated and must not be
-> picked up on initiative. Slices land green or not at all; each slice
+> the same bar as round 1. **Status: landed 2026-10-26** — see the
+> §Execution record below (T-01a `927f096`, T-01b `13a3727`, and the rest);
+> the checklist is the pre-execution plan. Phase 0 decisions gated the work;
+> Phase 3 remains operator-gated. Slices land green or not at all; each slice
 > is one commit, pushed to both branches, wiki-linked on landing.
 
 ## Phase 0 — Decisions (no code until each is recorded on its concept page)

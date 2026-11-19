@@ -2,7 +2,7 @@
 type: concept
 tags: [mission-control, multimodal, local-llm, cloud-escalation, custom-agents, routing]
 date: 2026-10-07
-updated: 2026-10-07
+updated: 2026-11-18
 status: adopted
 sources:
   - source-architecture-paper
@@ -55,7 +55,7 @@ Kubona balances hardened, formal system agents with a declarative user-defined a
 Users can author specialized scientific personas via declarative manifests (`UserDefinedAgentManifest`):
 - **Declarative Schema:** ID, name, role, avatar emoji, system instructions, capability tags, supported modalities, preferred model (local vs. cloud), MCP tool whitelists, spend ceilings, and scoped memory bank access.
 - **Sandboxed Capability Gating:** User-defined agents can only invoke MCP tools explicitly declared in their manifest.
-- **Dynamic Hot-Reloading:** Agents are saved to local persistent storage (`~/.kubona/custom_agents.json`), exposed via `/api/agents/custom`, and rendered dynamically in the Cognitive Mesh cockpit surface.
+- **Dynamic Hot-Reloading:** Agents are saved in the ledger SQLite `custom_agents` table (`pkg/agents/custom.go`; the JSON-file backend exists only in the unused Python registry), exposed via `/api/agents/custom`, and rendered dynamically in the Cognitive Mesh cockpit surface.
 
 ## Cross-References
 

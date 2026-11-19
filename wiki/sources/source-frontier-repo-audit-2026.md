@@ -3,7 +3,7 @@ name: Frontier Repo Audit (Sept 2026)
 type: source
 tags: [audit, integration, licensing, governance, frontier]
 date: 2026-09-27
-updated: 2026-09-27
+updated: 2026-11-18
 status: source
 origin: first-party maintainer inspection — no raw/ document (see Evidence class below)
 ---
@@ -183,7 +183,7 @@ worth citing.
    `AerEstimatorV2 → Statevector → Aer-statevector → numpy-fallback`, and the string
    `classical-fallback: {exception}` is returned *in the result* (`:219`). Same posture as
    Kubona's `engine: "rust-qir-core"` vs `"python-reference"` marker in
-   `platform/kubona/qir/native.py:74`. This is the pattern for every dual-path engine we ship.
+   `platform/kubona/qir/native.py:137`. This is the pattern for every dual-path engine we ship.
 
 ## Not adopted (and why)
 
@@ -193,5 +193,5 @@ worth citing.
 | `mainza-consciousness` "simulate a human brain locally" | 32 GB RAM claimed for ~7.5 B parameters; unbounded memory growth (see `wiki/concepts/risks.md`). |
 | chickensoup `field_manipulator/`, `prompt_superposition` | Metaphor presented as mechanism; no measured coupling. Kept as *naming* inspiration only. |
 | TFQ as a runtime dependency | Self-declared unsupported (`quantum/README.md:124`); Blueprint for Cirq-interop patterns only. |
-| Milimo-QDD UI as a template | Proprietary-style single-tenant React SPA; Kubona ships the Flutter console ([[agent-ux-control-plane]]). |
+| Milimo-QDD UI as a template | Proprietary-style single-tenant React SPA; Kubona ships the Next.js/React console in `platform/console` ([[agent-ux-control-plane]]). |
 | Vendoring `llvm-project` | Source-build cost dwarfs Kubona itself; external binary with a pinned version contract instead. |

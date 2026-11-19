@@ -2,7 +2,7 @@
 type: concept
 name: Failure Budget and TQ Frontier
 date: 2026-10-18
-updated: 2026-10-18
+updated: 2026-11-18
 tags: [failure-budget, tq-cost, frontier, packs, magic-states]
 sources: [source-llm-circuit-codesign-2026, source-magic-state-cultivation-2026]
 status: adopted
@@ -16,7 +16,7 @@ Find worst-case-driving rare inputs by distribution sampling (cf. 400M BM sims, 
 
 ## TQ frontier
 
-MAP-Elites `(T,Q)` grid; `jstore`-style sliders produce the frontier (`0:198hist/1065Q → 5:60Q → 9:24Q` for divsteps; `1616→1432` schedule-cut for Euclid). Console shows the frontier plot read-only (no job-submission endpoints). `κ` default stays `1` for paper-comparability; `κ∈[1,3]` adopted when qubit-scarce realism demands it; depth/volume variants when factory/cultivation data present (source-magic-state-cultivation-2026).
+MAP-Elites `(T,Q)` grid; `jstore`-style sliders produce the frontier (`0:198hist/1065Q → 5:60Q → 9:24Q` for divsteps; `1616→1432` schedule-cut for Euclid). The console renders the frontier and can recompute it via `/api/codesign/frontier` (no job-submission/QPU endpoint). `κ` default stays `1` for paper-comparability; `κ∈[1,3]` adopted when qubit-scarce realism demands it; depth/volume variants when factory/cultivation data present (source-magic-state-cultivation-2026).
 
 ## Packs (dependency order)
 

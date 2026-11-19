@@ -3,7 +3,7 @@ name: The Five-Ring Research Loop
 type: concept
 tags: [frontier, autonomy, closed-loop, orchestration, architecture]
 date: 2026-09-27
-updated: 2026-10-10
+updated: 2026-11-18
 status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper, source-gap-analysis-plan]
 ---
@@ -67,9 +67,9 @@ artifact, while uncollapsed ones may still be used as probes. One line governs t
 [[claim-credibility-wavefunctions]]; stagnation detector in [[epistemic-curvature]].
 
 **Ring 2 — Instrumental.** `kubona/mcp/servers/{execution,compiler,control,cost,
-provenance}.py` expose `transpile_circuit`, `lower_circuit`, `write_record`,
-`query_records`; providers register through [[provider-capability-schema]]. Nothing new is
-required here.
+provenance,world}.py` (six servers; `world.py` is the sixth) expose
+`transpile_circuit`, `lower_circuit`, `write_record`, `query_records`; providers
+register through [[provider-capability-schema]]. Nothing new is required here.
 
 **Ring 3 — Methodological.** [[cost-governance]] already gates *money*
 (estimate → pre-flight → settlement). Add the **fidelity gate** beside it: predict result

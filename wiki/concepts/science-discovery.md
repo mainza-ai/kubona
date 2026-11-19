@@ -2,7 +2,7 @@
 type: concept
 name: Science Discovery Platform
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [kubona, science, discovery, experiments]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -88,7 +88,7 @@ explicit layer, so the blueprint no longer reads as uniformly near-term:
 | Layer | Meaning | Pages |
 |---|---|---|
 | **CORE-SURFACED** | engine green + console surface + tests | [[science-discovery]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multi-agent-research-collective]], [[epistemic-information-lifecycle-and-memory]], [[evaluation-and-benchmarks]], [[science-data-integrations]], [[quantum-domain-packs]] |
-| **CORE-ENGINE** | engine green, no full surface yet; the gap is named | [[autonomous-ansatz-optimization]] (harness engine green; GQE retrain pending), [[meta-search-and-self-evolution]] (propose-only by design), [[autonomous-mathematical-discovery]] (corpus ingested, static comparator; live-kernel proving needs toolchain), [[agentic-memory-and-observability]] (pieces live across ledger/hindsight/FlightRecorder, no unified surface), [[frontier-benchmark-saturation]] |
+| **CORE-ENGINE** | engine green, no full surface yet; the gap is named | [[autonomous-ansatz-optimization]] (harness engine green; GQE retrain pending), [[meta-search-and-self-evolution]] (propose-only by design), [[autonomous-mathematical-discovery]] (corpus ingested; comparator has a live kernel proof — `ThreeStateSupercritical`, `live_kernel_proven`, 2026-11-18; remaining gap is breadth, not toolchain), [[agentic-memory-and-observability]] (pieces live across ledger/hindsight/FlightRecorder, no unified surface), [[frontier-benchmark-saturation]] |
 | **VISION (Phase 5+)** | designed, not built | multi-user lab collaboration surfaces, autonomous proposing beyond human grant, [[unsloth]] GQE flywheel retrain |
 
 Rule going forward: a discovery page that graduates a layer updates this table

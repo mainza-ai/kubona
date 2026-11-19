@@ -117,7 +117,7 @@ flowchart TB
     KUBONAD & KLOCAL --> GO
     VENV --> PY
 
-    F001["F-001 (RESOLVED 2026-11-18): codesign compute routes proxy<br/>to bridge Python, so no host python3 is needed in the kubonad image;<br/>chemistry ADMET & discovery run via Go + gRPC UDS bridge"]
+    F001["F-001 (RESOLVED 2026-10-26; reconfirmed 2026-11-18): codesign compute routes proxy<br/>to bridge Python, so no host python3 is needed in the kubonad image;<br/>chemistry ADMET & discovery run via Go + gRPC UDS bridge"]
     F006["F-006 (RESOLVED): /api/fidelity calls<br/>EvaluateAdmissionFloorOnly with probe_run:false;<br/>Server & Runner share live FidelityGate"]
     RADAR["Radar probes the bridge addr<br/>(flag removed 2026-10-29: kubonad<br/>dials KUBONA_BRIDGE_SOCKET unix<br/>socket, TCP refused in prod)"]
     HF401["HF/agent rails: bearer-gated by<br/>design; console had no token →<br/>silent [] / silent null (fixed:<br/>throw + in-modal refusal)"]
@@ -197,7 +197,7 @@ one-shot, `--network none`); it enters only as a signed attestation through
   its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for
   explicit overrides.
 - Python exec: `runBridgePython` + `findPythonVenv`
-  (`server.go:3577+`); kubonad image has no python
+  (`server.go:6008-6076`); kubonad image has no python
   (`platform/docker/Dockerfile.kubonad`).
 - LLM: `pkg/llm/client.go` (`CompleteCapped`, spend silence via
   `IsLocalProvider`), `pkg/llm/cost.go`, `pkg/agents/collective.go`

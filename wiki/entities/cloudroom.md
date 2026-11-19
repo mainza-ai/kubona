@@ -2,7 +2,7 @@
 type: entity
 name: Cloudroom
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-18
 tags: [platform, agents, sandbox, prior-art, cloud-agents, rust, electron]
 sources: [source-frontier-repo-audit-2026]
 status: reference
@@ -196,8 +196,10 @@ model logins. Two repos, both Apache-2.0:
    and the Bao runbook without changing the lease model.
 5. **Disk guard for the sandbox + bridge:** warn/block/resume thresholds
    with hysteresis, `ready` 503 when blocked, heaviest-writer kill that
-   never targets the harness. Kubona has no disk guard; a runaway job or
-   PySCF scratch fill is currently an unmodelled outage.
+   never targets the harness. Kubona ships a disk guard over the DB and
+   HF-model directories (`pkg/disk`, warn/block/resume with env thresholds,
+   admission gating and a `/ready` probe); sandbox/bridge scratch dirs (PySCF)
+   remain uncovered.
 6. **Label the sandbox honestly** (Command-Guard precedent): accident
    prevention ≠ containment. Kubona's sandbox claims should carry the same
    explicit boundary statement.

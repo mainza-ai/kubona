@@ -2,7 +2,7 @@
 type: concept
 name: MCP & Context Flooding
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [mcp, agent-integration]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-agent-protocol-landscape-2026]
 status: adopted
@@ -47,8 +47,9 @@ Empirical validation (source-agent-protocol-landscape-2026):
 
 ## Kubona's server topology & capability core
 
-Four **federated, scoped** servers — compiler, execution, cost-governance, eval/provenance —
-mounted behind a unified gateway. Per [[protocol-strategy]], the servers are thin adapters
+Historically four **federated, scoped** servers — compiler, execution, cost-governance,
+eval/provenance — mounted behind a unified gateway; the shipped catalog is now six
+(adds `control` and `world`). Per [[protocol-strategy]], the servers are thin adapters
 delegating to Kubona's protocol-neutral Capability Core; capability functions accept and return
 native Python data structures uncoupled from MCP SDK types.
 
@@ -56,7 +57,7 @@ native Python data structures uncoupled from MCP SDK types.
 > and `platform/contracts/mcp-catalog.json` now mount **6** servers (`control`, `compiler`,
 > `execution`, `cost`, `provenance`, `world`) exposing **38** tools (`docs/repo-counts.md`),
 > and Go SSE (`/api/events/stream`) supports `Last-Event-ID` cursor replay + live Console
-> campaign/job invalidation beyond `useTelemetry` fleet radar.
+ > campaign/job invalidation; the `useTelemetry` hook is retired and the console uses `useSessionStream`.
 
 ## Target revision & extension policy (Q-29, closed 2026-10-09)
 
@@ -69,8 +70,9 @@ native Python data structures uncoupled from MCP SDK types.
   must work on request/response + polling — true today (console polls on 3.5s/1s cadences,
   Go serves a tested SSE stream at `/api/events/stream`). `tasks/get` may be adopted for
   long jobs; MRTR formalizes approvals without held connections (fits the mandate gate).
-  REST polling is the normative console transport; the `useTelemetry` SSE hook is staged
-  for fleet-radar only, pending load measurement (`platform/console/src/lib/useTelemetry.ts`).
+  REST polling is the normative console transport; the console consumes
+  `/api/events/stream` through `platform/console/src/lib/useSessionStream.ts`
+  (the `useTelemetry` hook was retired 2026-10-20).
 - **A2A adapter ships first** (ledger-bound delegation already on the jobs rail);
   MCP tasks-extension second. Enforcement lives in the Go core rail, never in adapters
   (contract-tested: unmapped capabilities refuse, underspecified physics refuses).

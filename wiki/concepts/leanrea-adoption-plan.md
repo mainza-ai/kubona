@@ -2,7 +2,7 @@
 type: concept
 name: leanrea adoption plan
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-18
 tags: [plan, leanrea, skill, benchmark, mcp, production]
 sources: [source-leanrea-investigation-2026]
 status: adopted
@@ -214,6 +214,10 @@ silent edits; rollback stated.
   alone (same bar as R5, reviewed by reading).
 - **Rollback:** catalog is additive; no tool removed in this slice
   (removal, if ever, is a separate decided slice per tool).
+> ⚑ Current (2026-11-18): the catalog mounts **6 servers / 38 tools** and the
+> measured leanrea surface budget is **18 KiB**; the 2026-10-17 29-tool/16 KiB
+> figures below are the baseline measurement, not current state.
+>
 > ✅ LANDED 2026-10-17: `platform/contracts/mcp-catalog.json` (29 tools,
 > digest-pinned, verdict+trust_property+error_codes per tool) +
 > `kubona/mcp/catalog.py` (live-registry builder, SDK's own serialization,

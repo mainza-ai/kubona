@@ -71,9 +71,9 @@ The register and plan that remain:
 
 - **P0 operator:** backup encryption/waiver + require flags; fresh-volume reset
   for the polluted host ledger.
-- **P1:** annotation persistence; comparator producer (no ACCEPT path yet);
-  literature→citation binding + novelty; artifact retention; durable audit
-  events/build telemetry.
+- **P1:** literature→citation auto-feed + novelty; artifact retention; durable
+  audit events/build telemetry. Annotation persistence and the comparator
+  producer landed (A1/A3 + the live attestation, event 780).
 - **P2/P3:** create idempotency, draft edit/delete, pagination, `deposit_ready`,
   authenticated blob download, review-detail UX, route-vs-operation counts.
 
@@ -135,10 +135,10 @@ The register and plan that remain:
 
 ## Known limits
 
-- No production comparator producer ⇒ no ACCEPT path today (gate tested with a
-  synthetic event).
-- Annotations are not yet persisted as manuscript review notes.
-- Citations are caller-supplied; literature lookup does not auto-feed them.
+- Citations are caller-supplied (OpenAlex search adds references; no automatic
+  literature→citation feed yet).
+- Annotations are persisted review notes and gate signoff (`annotations_open`);
+  the Results Studio free-text prompt is still a copilot turn, not a note.
 - Figures are caller artifacts; convergence data is a table, not a plot.
 - Server-side signoff uses the commissioned reviewer key on the single trusted
   host; a hardware-held key would be a stronger separation.

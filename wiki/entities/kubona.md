@@ -66,18 +66,18 @@ Kubona v1 is the production agent-native platform for **Quantum Circuit Co-Desig
 ## Posture
 
 - Greenfield build, licensed **Apache-2.0**.
-- **Private by decision, not by accident** (ruled 2026-09-27). While the blueprint is being
-  designed, opening the repository invites contributions before the project has anything to
-  direct them into — so privacy is *load-bearing design protection*, not an unmet gate. The
-  flip is gated on the blueprint becoming **contributor-legible** (Q-01 settled above, and a method layer that says what to build first), not on a date.
+- **Public since 2026-10-26** (Q-27 closed; `private:false` in the GitHub API). The
+  repository was private by decision while the blueprint was being designed; the
+  contributor-legibility condition was met, Apache-2.0 was honored at publication,
+  and the historical `dev-docs/` + `.obsidian/` residue was excised. The
+  pre-flip posture is retained in the correction below as history.
 
-> ⚑ Correction: this page previously carried "public repo from Phase 0" as a live rule with an
+> ⚑ Correction (2026-10-26): this page previously carried "public repo from Phase 0" as a live rule with an
 > ⚑ *Conflict* block, because the Phase-0 gate passed weeks ago and the repository stayed
-> private — which read as drift. The operator has since stated the intent, and it was never
+> private — which read as drift. The operator stated the intent, and it was never
 > "public when tests pass": the trigger is **direction legible enough to onboard strangers**,
-> which the blueprint has now achieved with the closure of Section A (Q-01). The Apache-2.0
-> commitment stands; its timing follows the condition above. Residual hygiene work before any
-> flip (private-remote, never-public `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
+> which the blueprint achieved with the closure of Section A (Q-01). The repo is now public
+> (2026-10-26); Apache-2.0 was honored and the history scrub is complete. See
 > [[implementation-gaps]] and [[risks]].
 
 - Closed platforms ([[qbraid]], [[strangeworks]]) are design references and *optional,
@@ -111,9 +111,10 @@ Kubona v1 is the production agent-native platform for **Quantum Circuit Co-Desig
 - **Compilation:** [[qir-mlir-compilation]] via a Rust core (WASM edge, PyO3 bindings).
 - **Session model:** `job_id` threaded through every call; state rebuilt from the
   provenance ledger.
-- **Providers (11+):** IBM · IonQ · Quantinuum · Rigetti · Azure · Google · D-Wave ·
-  QuEra · Pasqal · Xanadu · local/GPU simulator — onboarded as
-  [[provider-capability-schema|data, not code]].
+- **Providers catalogued (10, closed vocabulary):** local simulator · Qiskit Aer ·
+  IBM · Rigetti · Quantinuum · D-Wave · QuEra/Pasqal · Xanadu · IonQ · AWS Braket
+  — onboarded as [[provider-capability-schema|data, not code]]; Azure and Google
+  remain paper targets, not catalogued backends.
 - **Control plane:** TypeScript/Next.js [[agent-ux-control-plane|read/approve-only console]] (Dart/Flutter retired Q-22).
 
 ## Monetization (future)

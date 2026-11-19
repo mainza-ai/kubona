@@ -2,7 +2,7 @@
 type: concept
 name: Full-System Test Plan (diagram-complete)
 date: 2026-10-21
-updated: 2026-11-10
+updated: 2026-11-18
 tags: [testing, audit, plan, coverage, scenarios]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-llm-circuit-codesign-2026]
 status: candidate
@@ -87,7 +87,7 @@ error vs loading states distinguished, then the surface-specific battery:
   garbage into every form (inline named errors), 390px pass per
   surface, keyboard-only pass of the five highest-traffic flows.
 
-## 2. EDGE — kubonad :8080 (all 120 routes, valid-path + refusal; count generated in `docs/repo-counts.md`)
+## 2. EDGE — kubonad :8080 (all 156 routes, valid-path + refusal; count generated in `docs/repo-counts.md`)
 
 - Route census recount; every route gets happy-path + one refusal case.
 - Auth matrix: bearerless/wrong-token/admin-without-envelope per gated
@@ -164,13 +164,13 @@ error vs loading states distinguished, then the surface-specific battery:
 ## 6. RUST + MCP + MEM + BRIDGE + BACKENDS + MODELS + SECRETS + CODESIGN
 
 - Rust: `cargo test` both crates; qir-core CLI golden vectors.
-- MCP: gateway boot via `build_gateway`, all five servers' tools
+- MCP: gateway boot via `build_gateway`, all six servers' tools
   callable through it (auth on/off), catalog digest match.
 - Memory: retain/recall round-trip per bank; tenant scoping;
   pgvector dormant-contract test (no live PG).
-- Bridge (all 7 RPCs, enumerated: `ExecuteCircuit`, `CutCircuit`,
+- Bridge (all 19 RPCs, enumerated: `ExecuteCircuit`, `CutCircuit`,
   `ComputeClassicalAnchor`, `EvaluateWavefunction`, `GroundLiterature`,
-  `ExecuteQuantumKrylov`, `MitigateCircuit` — `proto/kubona.proto:187-193`):
+  `ExecuteQuantumKrylov`, `MitigateCircuit` — `platform/bridge/proto/kubona.proto` (19 RPCs)):
   execute valid/invalid/oversize-RAM, cut (incl. kappa-cap + multi-q
   refusals), anchor per molecule + basis allowlist + variational guard,
   krylov H2 + non-H2 refusal corridor, mitigate ZNE/PEC/CDR +
@@ -204,7 +204,8 @@ error vs loading states distinguished, then the surface-specific battery:
 
 - Real QPU execution (no credentials; fail-closed paths covered instead).
   *(Superseded in part 2026-10-31 / 2026-11-09: controlled `ibm_marrakesh`
-  paid run and `ibm_fez` Open Plan SPSA VQE / ZNE / QAOA / spin-chain runs
+  validation run (Open Plan free, `$0.00`) and `ibm_fez` Open Plan SPSA VQE /
+  ZNE / QAOA / spin-chain runs
   executed live — see `docs/live-qpu-2026-11-09.md`; non-IBM backends still
   exercise fail-closed refusal without external creds.)*
 - Paid endpoints / x402 live rail (dormant by design, Phase 5+).

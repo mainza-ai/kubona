@@ -3,7 +3,7 @@ name: Epistemic Curvature and Research Stagnation
 type: concept
 tags: [frontier, epistemics, observability, stagnation, metrics]
 date: 2026-09-27
-updated: 2026-10-08
+updated: 2026-11-18
 status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
@@ -74,10 +74,14 @@ $$g_{\mu\nu}(\vec{\theta}) = \mathbb{E}_{\vec{\theta}}\left[ \frac{\partial \log
 
 ## Landing in the platform
 
-- `platform/kubona/epistemics/curvature.py`: pure functions, golden-tested on a synthetic
-  evidence corpus (a diverging corpus, an echo corpus, a stale corpus).
-- Emitted as ledger records on the same append-only store as runs, so a stagnation alarm is
-  itself provenance ([[provenance-and-reproducibility]]).
+- `platform/kubona/epistemics/curvature.py`: stateful classes
+  (`CurvatureMetrics`, `EpistemicCurvatureEngine`, `FisherRaoCredibilityManifold`).
+  The manifold has unit coverage (`test_continuum_and_krylov.py`,
+  `test_epistemics_and_anchors.py`); the diverging/echo/stale golden corpus and
+  a dedicated curvature test are **not** present.
+- Ledger emission is **planned**, not landed: no `curvature` event type exists
+  and no call site consumes the engine today. The provenance claim is design
+  intent, not current behavior.
 - Consumed by the Ring 0 watchdog: `κ > 0.85 ∧ no new evidence in window → re-scope` (never
   "continue, but say something new").
 - Surfaced as Surface 3 (Epistemic Manifold) in the console ([[scientific-agentic-experience-triad]]).

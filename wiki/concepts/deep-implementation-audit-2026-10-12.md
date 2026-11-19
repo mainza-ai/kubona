@@ -2,7 +2,7 @@
 type: concept
 name: Deep Line-by-Line Implementation Audit 2026-10-12
 date: 2026-10-12
-updated: 2026-11-17
+updated: 2026-11-18
 tags: [audit, implementation, gaps, verification, production]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus, source-cloudflare-economy]
 status: tracked
@@ -44,7 +44,7 @@ implemented (needs revision). Every item has file:line or a live probe.
   live-proven, truncation/schedule/critics, advantage checks, canary +
   nightly green, single `release_gate()`, budget/sim-first/WBP
   behavior evals.
-- **Protocols:** MCP 2026-07-28 + 5 stdio servers + MRTR approvals,
+- **Protocols:** MCP 2026-07-28 + 6 stdio servers (38 tools) + MRTR approvals,
   A2A internal + revoke + per-tenant sessions, x402 dormant-correct,
   Bao client + per-call sourcing, stdlib `crypto/mlkem` + noble
   kyber bilateral.
@@ -94,10 +94,10 @@ implemented (needs revision). Every item has file:line or a live probe.
   correct the claim.
 - 🟡 **Loops endpoint global-only** (`server.go:1884-1888`); header
   counts global loops. Fix: session filter + scoped display.
-- 🟡 **Python console_api (37 routes, :8000 closed):** full shadow of
-  Go (~20 dupes) + 17 with no Go equivalent (labs, models, reports,
-  agents, settings, workflows, science/*, approvals, provenance).
-  Nothing serves it; nothing references :8000. Decide: serve, merge,
+- 🟡 **Python console_api (22 route handlers, unserved):** the module has no
+  listener or compose target; Go proxies the stateless codesign compute routes
+  to bridge Python, and the remaining stateful routes are retired. Decide:
+  retire or archive,
   or retire (Q-17 table implications).
 - 🟡 **Go custom-agent registry:** in-memory, no auth on
   create/delete, no escalation check visible. Fix: persist + gate +
@@ -116,8 +116,11 @@ implemented (needs revision). Every item has file:line or a live probe.
 - 🟡 **QIR reality:** text IR only (bitcode open), no MLIR authorship
   yet, no openqasm3 Rust frontend, no WASM/PyO3 — pipeline works via
   Go Analyze + portfolio + Rust text-IR. Honest; keep scoped.
-- 🟡 **Lean:** AST-first + container→host precedence correct; image
-  unbuilt (operator); Deltakit absent (Stim-direct fine).
+- 🟢 **Lean (updated 2026-11-18):** AST-first + container→host precedence
+  correct; the image builds from the pinned v4.34.1 tarball + comparator
+  v4.34.0/landrun v0.1.17 and ran a live kernel proof (`live_kernel_proven`);
+  Docker Desktop's linuxkit kernel cannot run landrun (use Colima/Linux).
+  Deltakit absent (Stim-direct fine).
 - 🟡 **oMLX up, daemon on cloud** (speed directive); local-first
   restorable. Llama-3.2 direct completion proven LOCAL-OK.
 
@@ -146,8 +149,10 @@ implemented (needs revision). Every item has file:line or a live probe.
 - ❌ Staging gates with no evidence: nightly never caught a
   regression (P3 needs it), correctness-in-staging unproven,
   hardware-validated library entry absent, vendor grading unrun.
-- ❌ CI secret scan (wiki demands it; only local pre-commit exists).
-- ❌ TLS-bind config test (promised in "done looks like").
+- ✅ CI secret scan landed (`.github/workflows/ci.yml` job `secret-scan`,
+  `scripts/secret-scan.sh`).
+- 🟡 TLS cookie/HTTPS behavior is tested (`spend_authority_test.go`); a
+  dedicated TLS-bind config test is still absent.
 - ❌ Suspended-status mutator, PG/HNSW wiring, `useTelemetry`
   consumption, `@xyflow/react` verdict — see Q-33/34 + H13.
 
