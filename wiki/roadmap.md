@@ -440,6 +440,26 @@ The chain that must not slip — and the debt that must not be left unpaid:
 and node-based visual workflow canvases (React Flow). Go handles concurrent autonomous agent loops with minimal memory
 overhead and manages sandbox infrastructure natively.
 
+## Performance acceptance (2026-11-18)
+
+Performance is an acceptance criterion, not an afterthought. The measured audit
+and the `PERF-01…PERF-15` slices are in
+[[performance-engineering-2026-11-18]]; the executable plan is
+`docs/active-implementation-todos.md` §Performance. Gates:
+
+- **Attributable latency:** `/debug/pprof` (bearer-only) and Go benchmarks exist
+  before any further hot-path tuning; the session-list p99 is explained by a
+  named phase, not a guess.
+- **Transport floor:** large JSON carries `Content-Length`, negotiates gzip for
+  bodies over 1 KiB, and does not regress the p99.
+- **Scale floor:** every list query used by a console surface has a covering
+  index and a 100k-row benchmark at or under 0.2 ms.
+- **Compute floor:** simulator method is chosen from circuit shape, chemistry
+  anchors are cached, and the chosen transpile level is recorded with the
+  circuit.
+- **Regression gate:** `scripts/perf-gate.sh` runs in CI and fails on a >20%
+  regression in the named benchmarks.
+
 ## Schedule risks to watch
 
 - Managing gRPC IPC contracts between the Go orchestrator and Python quantum runtimes.

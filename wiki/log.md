@@ -7428,6 +7428,24 @@ skipped is the exact failure this incident is about:
   the source document's 811 (recorded in [[comparator]] and
   [[openai-math]]).
 
+## [2026-11-18] verification | performance audit and PERF plan
+
+- Measured the live local stack and the compute path at `bbcd2958`: `/api/health`
+  24–32k req/s at c=20 (0.6–0.8 ms mean, 1.9 ms p99) vs `/api/sessions`
+  1.3–1.7k req/s (11–15 ms mean, **161 ms p99**); the isolated SQL (39–70 µs)
+  and JSON (35 µs) do not explain the gap, and the repo has no pprof or Go
+  benchmark — instrumentation is the first slice.
+- Quantified the unclaimed wins: no HTTP compression on the Go API (9,811 → 2,159 B gzip),
+  chunked >2 KB bodies (30,376 vs 98,665 req/s on a synthetic 10 KB body),
+  missing session ordering indexes (100k rows 6.23 → 0.06 ms; tenant 5.36 →
+  0.09 ms), unbounded SQLite pool with ~8 MB per-connection cache, Aer MPS 18.2×
+  faster at 26 qubits, benzene PySCF 1.2–2.0 s uncached, and 102/214 console
+  files as client components with React Compiler/PPR off.
+- Added `docs/performance-research-2026-11-18.md`, the PERF-01…PERF-15 section
+  in `docs/active-implementation-todos.md`, and
+  [[performance-engineering-2026-11-18]] (`tracked`). No product code changed.
+- Census: 167 pages (48 entities · 103 concepts · 11 sources · 5 meta).
+
 ## [2026-11-18] cleanup | wiki current-state audit
 
 - Reconciled every current-state claim with the implementation: new 2026-11-18

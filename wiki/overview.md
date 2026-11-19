@@ -306,10 +306,19 @@ blueprint milestone.
 as completion: six settled policies against 62 adopted mechanisms and zero open
 questions means the blueprint is fully settled and contributor-ready.
 
-> ⚑ Census update (2026-11-18, `scripts/wiki-lint.py --strict`): **166 pages** —
-> `settled` 6 · `adopted` 65 · `candidate` 13 · `tracked` 54 · `reference` 9 ·
-> `source` 11 · `living` 8 · `open-question` 0 (`48` entities · `102` concepts ·
+> ⚑ Census update (2026-11-18, `scripts/wiki-lint.py --strict`): **167 pages** —
+> `settled` 6 · `adopted` 65 · `candidate` 13 · `tracked` 55 · `reference` 9 ·
+> `source` 11 · `living` 8 · `open-question` 0 (`48` entities · `103` concepts ·
 > `11` sources · `5` meta).
+
+> ⚑ Performance posture (2026-11-18): a measured audit found the Go edge fast
+> where the path is simple (`/api/health` 24–32k req/s at c=20, 1.9 ms p99) and
+> unmeasured where it is not (`/api/sessions` 1.3–1.7k req/s, 161 ms p99, with
+> no pprof or Go benchmark to attribute it). The mechanical gaps (no Go-API
+> compression, chunked large JSON, missing session ordering indexes, unbounded
+> SQLite pool), the fixed compute strategy (statevector only, no chemistry
+> cache, transpile level 1), and the console's disabled compiler/PPR features
+> are tracked as PERF-01…PERF-15 in [[performance-engineering-2026-11-18]].
 
 > ⚑ Census update (2026-11-10, `scripts/wiki-lint.py --strict`): **156 pages** —
 > `settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 49 ·

@@ -278,6 +278,76 @@ verification, receipt cap) are landed with tests.
       transitions use 150–300 ms and ambient surfaces 500–1000 ms with explicit
       properties. Autoresearch/Memory/Approval surfaces checked in this pass.
 
+## Performance (2026-11-18)
+
+Research, measurements, and the full argument:
+`docs/performance-research-2026-11-18.md`; wiki
+[[performance-engineering-2026-11-18]]. Every slice names the check that
+closes it. Baseline (this host, `bbcd2958`): `/api/health` 24–32k rps at c=20,
+0.6–0.8 ms mean, 1.9 ms p99; `/api/sessions` 1.3–1.7k rps, 11–15 ms mean,
+161 ms p99, 9,811 B body (2,159 B gzipped); console first load 1,135.6 KiB raw
+/ 336.1 KiB gzip, largest chunk 276.6 KiB; 102/214 TSX files are client
+components. Do not treat absolute rates as a budget — the host runs a resident
+LLM server.
+
+### P0 — instrument and remove mechanical costs
+
+- [ ] PERF-01: operator-gated `pprof` (bearer-only, off by default) and Go
+      benchmarks for `ListSessions`, `GetEventsSinceWithGlobalTypes`,
+      `AppendEvent`, `checkAuth`; `scripts/perf-smoke.sh` reproduces the §3
+      table. Closes: the 161 ms p99 on `/api/sessions` becomes attributable;
+      benchmark artifacts recorded.
+- [ ] PERF-02: set `Content-Length` in `writeJSON`/`WriteAPIError` (keep
+      chunked only for streams). Evidence: chunked vs CL on a 10 KB body is
+      30,376 vs 98,665 rps at c=20.
+- [ ] PERF-03: gzip level 1 (then optional zstd) for JSON > 1 KiB, `Vary:
+      Accept-Encoding`, pooled writers, SSE skipped. Evidence: 9,811 → 2,159 B
+      (4.54×) at 51 µs per 14 KB.
+- [ ] PERF-04: `idx_sessions_updated(updated_at DESC)` +
+      `idx_sessions_tenant_updated(tenant_id, updated_at DESC)`, ledger schema
+      16 with a verified pre-migration snapshot. Evidence: 100k rows 6.23 →
+      0.06 ms (operator), 5.36 → 0.09 ms (tenant).
+- [ ] PERF-05: bound the SQLite pool (`SetMaxOpenConns`/`SetMaxIdleConns`),
+      apply PRAGMAs once at open, `temp_store=MEMORY`, measured `mmap_size`;
+      evaluate a read-only pool for GETs. Evidence: `cache_size` is ~8 MB *per
+      connection* and the pool is currently unlimited.
+- [ ] PERF-06: ETag + `Cache-Control` on capabilities/config/rate cards/route
+      catalogs (304 on repeat). Evidence: only two workbench routes use ETags
+      today; `/api/capabilities` is 2,034 B recomputed per request.
+
+### P1 — measured compute and console wins
+
+- [ ] PERF-07: per-session SSE hub (one query per 2 s tick, fan-out to
+      subscribers) and remove the duplicate `events`/`event` payload. Evidence:
+      one query per client per tick today; each event is serialized twice.
+- [ ] PERF-08: Aer method heuristic (`matrix_product_state` for shallow wide
+      circuits, statevector otherwise), configurable thread cap, and a raised
+      local cap only with correctness pins. Evidence: 26 qubits 3.48 s → 0.19 s
+      (18.2×); 1 thread is 5.5× slower than default.
+- [ ] PERF-09: bounded LRU for chemistry anchors keyed by
+      `(molecule, r, basis)` and `(atom, basis, charge, spin, ncas, nelecas)`,
+      with hit/miss metrics. Evidence: benzene 1.22–2.02 s per uncached call.
+- [ ] PERF-10: configurable hardware `optimization_level` (default 2, record
+      depth/2q before/after). Evidence: pinned at 1 in
+      `qiskit_provider.py:397` and `bridge/experiments.py:1012,1061`.
+- [ ] PERF-11: React Compiler on; Cache Components/PPR only for static shells;
+      reduce the 102/214 client-component surface. Gate: build + bundle budgets
+      + LCP/INP unchanged or better; no session-scoped caching.
+- [ ] PERF-12: `scripts/perf-gate.sh` + CI job with benchmark deltas and a
+      disposable-stack latency budget (fail on >20% regression in the named
+      benchmarks).
+
+### P2 — architectural
+
+- [ ] PERF-13: run the existing Streamable HTTP MCP gateway
+      (`kubona/run.py`, `mcp/http_gateway.py`) as a compose service with shared
+      sessions; keep stdio for local. Evidence: research measures ~293–300 rps
+      (HTTP shared) vs 0.64 rps (stdio, 20 concurrent).
+- [ ] PERF-14: parallel dispatch for independent read-only tool calls, with the
+      taint barrier, per-turn submit bound, and observation order preserved.
+- [ ] PERF-15: `encoding/json/v2` only on measured decode paths (26% unmarshal
+      win; marshal parity means no write-path migration).
+
 ## Operator-only
 
 - [ ] Manual VoiceOver/NVDA walkthrough. (Needs assistive-technology hardware.)
