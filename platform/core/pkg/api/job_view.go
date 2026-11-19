@@ -45,6 +45,22 @@ func jobStatusWire(status pb.JobStatus) string {
 	return strings.ToLower(name)
 }
 
+// submittedJobView snapshots a job from the ledger before rendering a submit
+// response. The pointer returned by SubmitJob is the live worker object; the
+// worker mutates it as the job runs, so reading fields directly is a data
+// race (caught by `go test -race`). A row read is a consistent snapshot.
+func (s *Server) submittedJobView(job *jobs.Job) *jobView {
+	if job == nil {
+		return nil
+	}
+	if s != nil && s.jobRunner != nil {
+		if snap, err := s.jobRunner.GetJob(job.ID); err == nil && snap != nil {
+			return jobViewFrom(snap)
+		}
+	}
+	return jobViewFrom(job)
+}
+
 func jobViewFrom(job *jobs.Job) *jobView {
 	if job == nil {
 		return nil

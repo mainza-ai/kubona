@@ -130,7 +130,7 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": s.submittedJobView(job)})
 }
 
 // POST /api/experiments/qaoa/hardware — launch the optimized simulator QAOA
@@ -274,7 +274,7 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": s.submittedJobView(job)})
 }
 
 // hardwarePricing is a reviewed rate-card preview. It is deliberately not a
@@ -494,7 +494,7 @@ func (s *Server) handleHardwareVQE(w http.ResponseWriter, r *http.Request) {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": s.submittedJobView(job)})
 }
 
 // spinChainHardwareIntent is shared by prepare and launch.
@@ -683,7 +683,7 @@ func (s *Server) handleSpinChainHardware(w http.ResponseWriter, r *http.Request)
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": s.submittedJobView(job)})
 }
 
 // hardwarePESIntent is shared by the PES hardware prepare and launch routes.
@@ -865,5 +865,5 @@ func (s *Server) handleHardwarePES(w http.ResponseWriter, r *http.Request) {
 		s.idemFinishError(w, idem, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": jobViewFrom(job)})
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{"job": s.submittedJobView(job)})
 }

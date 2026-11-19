@@ -3906,7 +3906,7 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	s.sessionMgr.AddMessage(req.SessionID, "system", fmt.Sprintf("🚀 Dispatched Job %s to backend '%s' (proposal %s). Loop %s armed under Ring 0 watchdog.", job.ID, body.Backend, proposal.ID, loop.ID), nil)
 
 	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{
-		"job":  jobViewFrom(job),
+		"job":  s.submittedJobView(job),
 		"loop": loop,
 	})
 }

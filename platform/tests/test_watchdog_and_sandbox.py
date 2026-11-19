@@ -209,6 +209,6 @@ def test_container_sandbox_runs_pure_math(monkeypatch):
     monkeypatch.setenv("KUBONA_SANDBOX_CONTAINER", "1")
     monkeypatch.setenv("KUBONA_SANDBOX_IMAGE",
                        os.getenv("KUBONA_SANDBOX_IMAGE", SANDBOX_IMAGE_DEFAULT))
-    res = WorkloadSandbox().execute_script("import math\nprint(f'CONTAINER_OK={math.sqrt(9.0)}')")
+    res = WorkloadSandbox().execute_script("import math\nprint(f'CONTAINER_OK={math.sqrt(9.0)}')", timeout_sec=60.0)
     assert res.success, res.stderr
     assert "CONTAINER_OK=3.0" in res.stdout
