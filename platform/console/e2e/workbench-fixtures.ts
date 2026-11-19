@@ -97,6 +97,35 @@ export async function mockApi(
     if (path === '/api/tasks') return json({ tasks: [] });
     if (path === '/api/events') return json({ events: [] });
     if (path === '/api/events/stream') return route.fulfill({ status: 204, body: '' });
+    if (path === '/api/sessions/perf-session/agentic') {
+      return json({
+        session_id: 'perf-session',
+        agentic_enabled: true,
+        agentic_locked: false,
+        stages: { hypothesize: 'suggest', plan: 'suggest', execute: 'suggest', collapse: 'suggest' },
+        max_act_budget_usd: 1,
+      });
+    }
+    if (path === '/api/notifications') {
+      return json({
+        session_id: 'perf-session',
+        notifications: [],
+        unread: 0,
+        preferences: { quiet: false, muted_kinds: [], updated_at: '2026-11-01T00:00:00Z' },
+        generated_at: '2026-11-01T00:00:00Z',
+      });
+    }
+    if (path === '/api/notifications/preferences') {
+      return json({
+        ok: true,
+        preferences: { quiet: false, muted_kinds: [], updated_at: '2026-11-01T00:00:00Z' },
+      });
+    }
+    if (path === '/api/chat/feedback') return json({ feedback: [] });
+    if (/^\/api\/loops\/[^/]+\/parts$/.test(path)) {
+      const loopId = decodeURIComponent(path.split('/')[3] || 'perf-loop');
+      return json({ ok: true, loop_id: loopId, parts: [], count: 0 });
+    }
     if (path === '/api/sessions/perf-session/campaign') return json(campaign());
     if (path === '/api/sessions/context' || path === '/api/sessions/perf-session/context') {
       return json({

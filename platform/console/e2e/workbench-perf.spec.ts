@@ -142,7 +142,7 @@ async function measureWorkbench(page: Page, counts: { loops: number; jobs: numbe
 }
 
 test('100-object workbench sustains the interaction frame budget', async ({ page }) => {
-  await measureWorkbench(page, { loops: 40, jobs: 40, obligations: 20 }, 100, 45);
+  await measureWorkbench(page, { loops: 46, jobs: 46, obligations: 20 }, 100, 45);
 });
 
 test('300+ object workbench sustains the interaction frame budget', async ({ page }) => {
