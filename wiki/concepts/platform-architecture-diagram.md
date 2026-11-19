@@ -2,23 +2,42 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-11-14
+updated: 2026-11-18
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
 
 # Platform Architecture Diagram
 
-> **Snapshot, not blueprint.** Latest verification: `mainza-ai/kubona` @ `1ca42121`
-> (`2026-11-14`, live `kubona-live` Docker Compose stack, `develop` + `main` synced;
-> hosted CI green: develop `43670825216` / main `43670828233`, Console E2E
-> `43670825300` / `43670828231`). Earlier snapshots: `119749e` / `de3428c`
+> **Snapshot, not blueprint.** Latest verification: `mainza-ai/kubona` @
+> `fe31d1af` (`2026-11-18`, live Lean comparator proof + the `kubona-prod`
+> Docker stack; hosted CI status remains tied to the pushed commit). Earlier
+> snapshots: `1ca42121` (2026-11-14), `119749e` / `de3428c`
 > (2026-11-10), `d6fff39` (2026-10-29), `86afb3a` (2026-10-21) — retained below /
 > in [[log]].
 > Design intent lives on the linked concept pages; this page records only what the
 > prototype does today. **Refresh duty:** re-verify node-by-node after any slice that
 > adds/removes a service, port, store — a stale map is worse than none.
 >
+> ⚑ **Node delta (2026-11-18, `fe31d1af` + current working tree):**
+> - **Edge (`kubonad :8080`):** `156` HTTP routes (`docs/repo-counts.md`).
+>   The agentic oversight rail adds `/approvals` (reviewer edits + rejection
+>   feedback), `/tool-approvals` (one-time argument-bound grants), `/receipts`
+>   (reversible actions), `/agentic/digest`, `/autonomy/history|rollback`, and
+>   `/tenants/agentic-default`; `/notifications` is a derived inbox over events
+>   and obligations.
+> - **Console (`:3000`):** `191` modeled / `16` client-only / `0` unmodeled
+>   contracts (`166` OpenAPI paths, `165` schemas), **850** cases across
+>   **159** files; raw-palette debt **0**, coupling **50/51**, forms **44/195**;
+>   `transition-all` and arbitrary motion values are banned.
+> - **Trust/contracts:** ledger schema **15**; plans persist `risk_categories`
+>   and reviewer edits with undo snapshots; the error catalog holds **67**
+>   codes and the shared event taxonomy **188** types.
+> - **Formal verification:** `kubona-lean:4.34.1` (comparator v4.34.0 +
+>   `lean4export` v4.34.0 + landrun v0.1.17) ran a live kernel proof
+>   (`live_kernel_proven`, 0 `sorryAx`) and the API accepted the signed
+>   attestation (event 780).
+
 > ⚑ **Node delta (2026-11-14, `1ca42121`):**
 > - **Edge (`kubonad :8080`):** `151` HTTP routes (`docs/repo-counts.md`),
 >   including proposals (`/api/proposals`), run allowances
@@ -94,7 +113,7 @@ flowchart TB
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>151 routes (docs/repo-counts.md)<br/>bearer + session edge auth, proposals, claims,<br/>skills, evals, allowances, parts/steering"]
+        API["pkg/api<br/>156 routes (docs/repo-counts.md)<br/>bearer + session edge auth, proposals, claims,<br/>skills, evals, allowances, approvals, notifications"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
@@ -130,10 +149,12 @@ flowchart TB
         SKILLS["Runtime skills<br/>names-only prompt, load_skill sections<br/>16 KiB / 64 / symlink refusal"]
         EVALS["Recorded decision evals<br/>sha-pinned fixtures, Brier/ECE<br/>opt-in model gate"]
         CONTROL["Run parts + steering + allowances<br/>ledger-ordered parts, signed draw<br/>taint-gated effect tools"]
+        OVERSIGHT["Oversight + approvals<br/>reviewer edits/rejection feedback,<br/>one-time tool grants, digest, receipts/undo,<br/>risk taxonomy, tenant default"]
+        NOTIF["Notifications<br/>derived inbox + read/resolve prefs<br/>SSE invalidation"]
     end
 
     subgraph TRUST["Trust — Go core"]
-        LEDGER["Ledger<br/>SQLite single-writer flock, sealed events<br/>per-tenant shards, union reads"]
+        LEDGER["Ledger (schema 15)<br/>SQLite single-writer flock, sealed events<br/>per-tenant shards, union reads"]
         TENANT["Tenants = labs<br/>suspend freeze, verifyAdmin choke<br/>reviewer key COMMISSIONED"]
         GRANTS["Grants + mandates<br/>tenant-grants HTTP lifecycle<br/>Go registry = single source of truth"]
         OBL["Obligations queue<br/>open list + close, owner/key auth<br/>bearer never sufficient"]
@@ -141,6 +162,10 @@ flowchart TB
         AUTH["Ed25519 session auth<br/>challenge/response, revoke (A1-A4)<br/>ephemeral refused in prod"]
         DISK["Disk guard<br/>WARN/BLOCK hysteresis, /ready probe"]
         CONTRACTS["contracts/<br/>error-catalog, event-types,<br/>obligation + mcp catalogs"]
+    end
+
+    subgraph FORMAL["Formal verification"]
+        LEAN["Lean comparator sandbox<br/>pinned Lean 4.34.1 + comparator v4.34.0<br/>landrun; live_kernel_proven attestations"]
     end
 
     subgraph MEM["Memory"]
@@ -170,14 +195,14 @@ flowchart TB
     subgraph CODESIGN["Circuit co-design rail (verified 2026-10-21)"]
         CDPROXY["Go proxies :8080<br/>tq, frontier, evaluate(-batch),<br/>budget, families, packs, verified"]
         PYEVAL["kickmix evaluator (venv python)<br/>validity owner; failure recipes"]
-        F001["F-001: prod kubonad image has<br/>no python → exec rails 503<br/>(compose); local rail works"]
+        F001["F-001 (RESOLVED): codesign compute routes<br/>proxy to bridge Python; no host python<br/>in the prod image is required"]
     end
 
     subgraph SECRETS["Secrets"]
         BAO["OpenBao sidecar or env<br/>leases scoped tenant/id"]
     end
 
-    LEGACY["platform/kubona console_api.py<br/>legacy shim, 22 routes remain (was 19;<br/>codesign trio now duplicated on Go rail)"]
+    LEGACY["platform/kubona console_api.py<br/>unserved legacy shim (no listener/compose target);<br/>Go owns transport, bridge Python the validator"]
 
     CONSOLE -->|bearer token| API
     SIGN -->|signed approvals| API
@@ -196,11 +221,16 @@ flowchart TB
     API --> SKILLS
     API --> EVALS
     API --> CONTROL
+    API --> OVERSIGHT
+    API --> NOTIF
+    OVERSIGHT --> LEDGER
+    API --> LEAN
+    LEAN --> LEDGER
     JOBS --> CONTROL
     LEDGER --> PROV
     API --> CDPROXY
-    CDPROXY -->|local venv exec| PYEVAL
-    CDPROXY -.->|no python in prod image = 503| F001
+    CDPROXY -->|bridge Python validator| PYEVAL
+    CDPROXY -.->|resolved; no host python needed| F001
     JOBS -->|dispatch| QIR
     QIR -->|lower| BSRV
     JOBS -->|gRPC| BSRV
@@ -231,7 +261,7 @@ flowchart TB
     QIR -.->|reference compiler, CI-gated| QIRCORE
     MGW -.->|stdio gateway, unserved in compose| API
     PGVEC -.->|dormant, activation needs operator PG| RECALL
-    API -.->|read mirror| LEGACY
+    LEGACY -.->|unserved; tests only| API
 ```
 
 ## How to read it

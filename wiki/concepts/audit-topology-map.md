@@ -21,7 +21,18 @@ status: living
 > rails (`--db /tmp/…`, host bridge + UDS socket), plus the 2026-10-29
 > governed live-QPU probe (estimate→reserve→cancel→settle, ledger-sealed).
 >
-> **Update (2026-11-11, `kubona-live` Compose stack):**
+> **Update (2026-11-18):** `kubonad` serves **156** route patterns; console
+> contracts are **191** modeled / **16** client-only / **0** unmodeled across
+> **166** OpenAPI paths / **165** schemas; raw-palette debt is **0** and the
+> ledger schema is **15**. The edge adds the oversight rail (`/approvals`,
+> `/tool-approvals`, `/receipts`, `/agentic/digest`,
+> `/autonomy/history|rollback`, `/tenants/agentic-default`) and the derived
+> notification inbox. The Lean comparator is **not a compose service**: it runs
+> on demand in the pinned sandbox and its signed attestation is POSTed to
+> `/api/sessions/{id}/formal-verifications` (live proof: event 780, 2026-11-18;
+> see `docs/lean-comparator-runbook-2026-11-18.md`).
+>
+> **Update (2026-11-11, `kubona-live` Compose stack; historical):**
 > - **Edge & Contracts:** `kubonad` serves **141** HTTP routes (adding
 >   session-scoped `GET/PUT /api/workbench/view` viewport persistence and
 >   campaign-scoped `replan.go` filtering); Console contract coverage stands at
@@ -74,7 +85,7 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>156 routes (docs/repo-counts.md, 2026-11-18)<br/>bearer|session edge auth, shared FidelityGate"]
+        KUBONAD["kubonad :8080<br/>156 routes (docs/repo-counts.md, 2026-11-18)<br/>bearer|session edge auth, shared FidelityGate<br/>approvals, notifications, verification ingest"]
         BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
         VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end
@@ -106,7 +117,7 @@ flowchart TB
     KUBONAD & KLOCAL --> GO
     VENV --> PY
 
-    F001["F-001 (NARROWED 2026-11-10): in DOCKER, Python-exec rails 503<br/>(no python3 in kubonad image): codesign eval/budget/packs/families/rerun;<br/>chemistry ADMET & discovery now run via Go + gRPC UDS bridge"]
+    F001["F-001 (RESOLVED 2026-11-18): codesign compute routes proxy<br/>to bridge Python, so no host python3 is needed in the kubonad image;<br/>chemistry ADMET & discovery run via Go + gRPC UDS bridge"]
     F006["F-006 (RESOLVED): /api/fidelity calls<br/>EvaluateAdmissionFloorOnly with probe_run:false;<br/>Server & Runner share live FidelityGate"]
     RADAR["Radar probes the bridge addr<br/>(flag removed 2026-10-29: kubonad<br/>dials KUBONA_BRIDGE_SOCKET unix<br/>socket, TCP refused in prod)"]
     HF401["HF/agent rails: bearer-gated by<br/>design; console had no token →<br/>silent [] / silent null (fixed:<br/>throw + in-modal refusal)"]
@@ -116,6 +127,10 @@ flowchart TB
     KUBONAD -.-> RADAR
     UI -.-> HF401
 ```
+
+The Lean comparator runs outside this compose topology (Docker/Colima/Linux,
+one-shot, `--network none`); it enters only as a signed attestation through
+`/api/sessions/{id}/formal-verifications`.
 
 ## What the arrows proved (2026-10-29, live QPU probe + UDS cutover)
 

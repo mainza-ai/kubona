@@ -43,7 +43,7 @@ code, generated counts, and live evidence.
 | [[runtime-honesty-and-commit-policy]] | "1 h escalation not implemented" | Implemented and marked in the tray (`needs-you.ts`, tested) |
 | [[agentic-science-frontier-2026]] | single-start QAOA 0.891/0.932; HEA 0.244 | Multi-start 0.899/0.948; HEA 0.246; HVA-6 0.0027; schema 15 |
 | [[implementation-gaps]] | 142/14 contracts; 121 event rows | 191/16 (2026-11-18); 188 shared event types |
-| [[ui-ux-vision]], [[frontend-backend-ui-ux-audit]], [[platform-architecture-diagram]], [[audit-topology-map]], [[agent-ux-control-plane]] | 142/144 contracts, 141 routes, palette 14 | 191/16 contracts, 156 routes, palette 0 |
+| [[ui-ux-vision]], [[frontend-backend-ui-ux-audit]], [[platform-architecture-diagram]], [[audit-topology-map]], [[agent-ux-control-plane]] | 142/144 contracts, 141/151 routes, palette 14; Mermaid showed a legacy read mirror and F-001 "503 in prod" | 191/16 contracts, 156 routes, palette 0; Mermaid adds oversight/notification and Lean nodes, marks the shim unserved, and records F-001 resolved |
 | [[production-readiness-audit-2026-11-18]] | sixth-pass "build/warm the Lean image" | Seventh pass: live kernel proof, attestation event 780, reviewer key and required-backup preflight confirmed |
 | [[comparator]], [[lean4]], [[formal-proof-verification-lean-comparator]] | no official Hub image / no live proof | Tarball-built image, comparator/landrun pins, live `live_kernel_proven` run |
 
