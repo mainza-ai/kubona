@@ -99,7 +99,7 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // queue; 15 = plan risk-category taxonomy. Each bump
 // makes an existing ledger take a verified pre-migration snapshot before the
 // additive DDL, which is the production upgrade invariant.
-const CurrentSchemaVersion = 15
+const CurrentSchemaVersion = 16
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -257,8 +257,11 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		lockFile.Close()
 		return nil, fmt.Errorf("state directory locked by another daemon (%s): stop it first — refusing second writer", dbPath)
 	}
-	// Open with SQLite WAL mode and busy timeout for high-throughput concurrent writes
-	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL", dbPath)
+	// Open with SQLite WAL mode and a bounded pool. cache_size and
+	// temp_store are per connection; -8000 is ~8 MiB per connection, and the
+	// pool is deliberately small so eight connections cannot silently claim
+	// 64 MiB of page cache in a 1 GiB daemon.
+	dsn := fmt.Sprintf("%s?_busy_timeout=5000&_synchronous=NORMAL&_cache_size=-8000&_temp_store=2", dbPath)
 	if opts.EnforceForeignKeys {
 		dsn += "&_foreign_keys=on"
 	}
@@ -266,6 +269,31 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	if err != nil {
 		releaseLock(lockFile)
 		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
+	}
+	maxConns := sqliteMaxOpenConns()
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
+	if !existed {
+		// auto_vacuum must be chosen before the database is initialized, and
+		// switching to WAL initializes it. Set auto_vacuum first, then WAL.
+		if _, err := db.Exec("PRAGMA auto_vacuum=INCREMENTAL"); err != nil {
+			db.Close()
+			releaseLock(lockFile)
+			return nil, fmt.Errorf("enable incremental auto-vacuum: %w", err)
+		}
+	}
+	// WAL is a persistent database property. Setting it once at open (rather
+	// than on every pooled connection via the DSN) avoids a write-lock
+	// transition each time database/sql grows the pool.
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		releaseLock(lockFile)
+		return nil, fmt.Errorf("enable WAL: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		releaseLock(lockFile)
+		return nil, fmt.Errorf("sqlite ping: %w", err)
 	}
 
 	// Schema downgrade protection: create/read the migration ledger before
@@ -744,6 +772,7 @@ func migrateLegacySchema(db *sql.DB) error {
 		`ALTER TABLE sessions ADD COLUMN spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE sessions ADD COLUMN current_spend_micro_usd INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`,
+		`ALTER TABLE sessions ADD COLUMN updated_at DATETIME`,
 		`ALTER TABLE tenants ADD COLUMN spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000`,
 		`ALTER TABLE tenants ADD COLUMN spent_micro_usd INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`,
@@ -798,6 +827,20 @@ func migrateLegacySchema(db *sql.DB) error {
 	if err := execMigration(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_manuscripts_request
 		ON manuscripts(session_id, request_id) WHERE request_id != ''`); err != nil {
 		return err
+	}
+	// Ordering indexes are built after the legacy ALTERs: a pre-current
+	// sessions table had no updated_at until the migration above, so
+	// creating these in initSchema would fail on the very databases the
+	// compatibility path exists for.
+	for _, stmt := range []string{
+		`CREATE INDEX IF NOT EXISTS idx_chat_session_created ON chat_messages(session_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_jobs_session_created ON jobs(session_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_sessions_tenant_updated ON sessions(tenant_id, updated_at DESC)`,
+	} {
+		if err := execMigration(db, stmt); err != nil {
+			return err
+		}
 	}
 
 	// One-time backfills only when the legacy REAL column is present. On a

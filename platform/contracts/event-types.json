@@ -1752,6 +1752,18 @@
         "memory_id"
       ]
     },
+    "retention_run": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Retention pass reaped expired chat/tombstone rows; ledger events are immutable and were not deleted.",
+      "required": [
+        "chat_messages_deleted",
+        "tombstones_deleted",
+        "chat_days",
+        "tombstone_days"
+      ]
+    },
     "run_allowance_drawn": {
       "emitters": [
         "go"

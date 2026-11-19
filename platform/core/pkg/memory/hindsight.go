@@ -56,6 +56,35 @@ func DefaultStoreConfig() StoreConfig {
 	}
 }
 
+// StoreStats is the observable shape of the live store. It is deliberately
+// cheap (map lengths + one pass for vector bytes) so /metrics can call it on
+// every scrape without perturbing recall latency.
+type StoreStats struct {
+	Items       int   `json:"items"`
+	Vectors     int   `json:"vectors"`
+	Retracted   int   `json:"retracted"`
+	VectorBytes int64 `json:"vector_bytes"`
+}
+
+// Stats reports resident cardinality and embedding footprint.
+func (s *HindsightStore) Stats() StoreStats {
+	if s == nil {
+		return StoreStats{}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	st := StoreStats{Items: len(s.items), Vectors: len(s.vectors)}
+	for _, item := range s.items {
+		if item.RetractedAt != nil {
+			st.Retracted++
+		}
+	}
+	for _, vec := range s.vectors {
+		st.VectorBytes += int64(len(vec) * 4)
+	}
+	return st
+}
+
 type HindsightStore struct {
 	mu           sync.RWMutex
 	db           *sql.DB

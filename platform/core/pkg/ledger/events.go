@@ -146,6 +146,7 @@ var KnownEventTypes = map[string]bool{
 	SettlementSkippedUnknownUsageEvent:  true,
 	"spend_refund_refused":              true,
 	"spend_release_refused":             true,
+	"retention_run":                     true,
 	"run_allowance_drawn":               true,
 	"run_allowance_minted":              true,
 	"run_allowance_revoked":             true,

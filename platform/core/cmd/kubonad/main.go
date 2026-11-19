@@ -155,6 +155,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "backup" {
 		os.Exit(runBackup(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "vacuum" {
+		os.Exit(runVacuum(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "restore" {
 		os.Exit(runRestore(os.Args[2:]))
 	}
@@ -263,6 +266,8 @@ func main() {
 		log.Fatalf("Failed to open ledger: %v", err)
 	}
 	defer l.Close()
+	stopRetention := startRetentionLoop(l)
+	defer stopRetention()
 	if backup := l.PreMigrationBackupPath(); backup != "" {
 		slog.Info("[Kubona Core] pre-migration backup verified", "path", backup)
 	}

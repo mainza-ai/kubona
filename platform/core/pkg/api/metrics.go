@@ -5,7 +5,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -82,7 +86,10 @@ func (m *httpMetrics) render(w io.Writer) {
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	gzipOK bool
 }
+
+func (w *statusWriter) gzipAccepted() bool { return w.gzipOK }
 
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
@@ -112,12 +119,104 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	s.httpMetrics.render(w)
+	s.renderProcessMetrics(w)
+	s.renderMemoryStoreMetrics(w)
 	s.renderOpsMetrics(w)
+}
+
+// renderProcessMetrics exposes the runtime and cgroup numbers an operator
+// needs to separate a Go heap problem from a native/container problem. The
+// Go soft limit (GOMEMLIMIT) is a runtime target, not RSS; both are emitted.
+func (s *Server) renderProcessMetrics(w io.Writer) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	fmt.Fprintln(w, "# HELP kubona_process_heap_bytes Bytes of allocated Go heap objects.")
+	fmt.Fprintln(w, "# TYPE kubona_process_heap_bytes gauge")
+	fmt.Fprintf(w, "kubona_process_heap_bytes %d\n", m.HeapAlloc)
+	fmt.Fprintln(w, "# HELP kubona_process_heap_sys_bytes Bytes of Go heap obtained from the OS.")
+	fmt.Fprintln(w, "# TYPE kubona_process_heap_sys_bytes gauge")
+	fmt.Fprintf(w, "kubona_process_heap_sys_bytes %d\n", m.HeapSys)
+	fmt.Fprintln(w, "# HELP kubona_process_stack_bytes Bytes of goroutine stacks.")
+	fmt.Fprintln(w, "# TYPE kubona_process_stack_bytes gauge")
+	fmt.Fprintf(w, "kubona_process_stack_bytes %d\n", m.StackInuse)
+	fmt.Fprintln(w, "# HELP kubona_process_goroutines Current goroutine count.")
+	fmt.Fprintln(w, "# TYPE kubona_process_goroutines gauge")
+	fmt.Fprintf(w, "kubona_process_goroutines %d\n", runtime.NumGoroutine())
+	fmt.Fprintln(w, "# HELP kubona_process_gc_cycles_total Completed GC cycles.")
+	fmt.Fprintln(w, "# TYPE kubona_process_gc_cycles_total counter")
+	fmt.Fprintf(w, "kubona_process_gc_cycles_total %d\n", m.NumGC)
+	fmt.Fprintln(w, "# HELP kubona_process_gc_pause_seconds_total Cumulative GC pause time.")
+	fmt.Fprintln(w, "# TYPE kubona_process_gc_pause_seconds_total counter")
+	fmt.Fprintf(w, "kubona_process_gc_pause_seconds_total %f\n", float64(m.PauseTotalNs)/1e9)
+	fmt.Fprintln(w, "# HELP kubona_process_gc_goal_bytes Heap goal for the next GC cycle.")
+	fmt.Fprintln(w, "# TYPE kubona_process_gc_goal_bytes gauge")
+	fmt.Fprintf(w, "kubona_process_gc_goal_bytes %d\n", m.NextGC)
+	if rss, limit := processMemory(); rss > 0 {
+		fmt.Fprintln(w, "# HELP kubona_process_rss_bytes Resident set size (Linux /proc).")
+		fmt.Fprintln(w, "# TYPE kubona_process_rss_bytes gauge")
+		fmt.Fprintf(w, "kubona_process_rss_bytes %d\n", rss)
+		if limit > 0 {
+			fmt.Fprintln(w, "# HELP kubona_cgroup_memory_limit_bytes Container memory limit.")
+			fmt.Fprintln(w, "# TYPE kubona_cgroup_memory_limit_bytes gauge")
+			fmt.Fprintf(w, "kubona_cgroup_memory_limit_bytes %d\n", limit)
+			fmt.Fprintln(w, "# HELP kubona_cgroup_memory_bytes Current container memory use.")
+			fmt.Fprintln(w, "# TYPE kubona_cgroup_memory_bytes gauge")
+			fmt.Fprintf(w, "kubona_cgroup_memory_bytes %d\n", rss)
+		}
+	}
+}
+
+// processMemory reads the kernel's RSS and cgroup limit when available. On
+// non-Linux hosts it returns (0, 0) and the gauges are omitted rather than
+// fabricated from Go's heap accounting.
+func processMemory() (rss, limit int64) {
+	if raw, err := os.ReadFile("/proc/self/statm"); err == nil {
+		fields := strings.Fields(string(raw))
+		if len(fields) >= 2 {
+			if pages, perr := strconv.ParseInt(fields[1], 10, 64); perr == nil {
+				rss = pages * int64(os.Getpagesize())
+			}
+		}
+	}
+	for _, p := range []string{"/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"} {
+		if b, err := os.ReadFile(p); err == nil {
+			raw := strings.TrimSpace(string(b))
+			if raw == "" || raw == "max" {
+				continue
+			}
+			if v, perr := strconv.ParseInt(raw, 10, 64); perr == nil && v > 0 {
+				limit = v
+				break
+			}
+		}
+	}
+	return rss, limit
+}
+
+// renderMemoryStoreMetrics exposes the agentic store's cardinality and vector
+// footprint so tenant growth is visible before it becomes an OOM.
+func (s *Server) renderMemoryStoreMetrics(w io.Writer) {
+	if s.memoryStore == nil {
+		return
+	}
+	st := s.memoryStore.Stats()
+	fmt.Fprintln(w, "# HELP kubona_memory_items Total retained memory items.")
+	fmt.Fprintln(w, "# TYPE kubona_memory_items gauge")
+	fmt.Fprintf(w, "kubona_memory_items %d\n", st.Items)
+	fmt.Fprintln(w, "# HELP kubona_memory_vectors Stored embeddings.")
+	fmt.Fprintln(w, "# TYPE kubona_memory_vectors gauge")
+	fmt.Fprintf(w, "kubona_memory_vectors %d\n", st.Vectors)
+	fmt.Fprintln(w, "# HELP kubona_memory_retracted Retraction tombstones still resident.")
+	fmt.Fprintln(w, "# TYPE kubona_memory_retracted gauge")
+	fmt.Fprintf(w, "kubona_memory_retracted %d\n", st.Retracted)
+	fmt.Fprintln(w, "# HELP kubona_memory_vector_bytes Bytes held by in-memory embeddings.")
+	fmt.Fprintln(w, "# TYPE kubona_memory_vector_bytes gauge")
+	fmt.Fprintf(w, "kubona_memory_vector_bytes %d\n", st.VectorBytes)
 }
 
 func (s *Server) instrument(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sw := &statusWriter{ResponseWriter: w}
+		sw := &statusWriter{ResponseWriter: w, gzipOK: acceptsGzip(r)}
 		s.httpMetrics.begin()
 		start := time.Now()
 		defer func() {

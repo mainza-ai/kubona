@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/ed25519"
 	"crypto/hmac"
@@ -515,6 +516,10 @@ func NewServer(
 	llmCli.SetSpendGuard(&llmBudgetGuard{s: s})
 
 	s.registerRoutes()
+	if strings.TrimSpace(os.Getenv("KUBONA_PPROF")) == "1" {
+		s.registerPprof()
+		slog.Warn("[Kubona Core] pprof enabled: bearer-gated at /debug/pprof/ — disable after diagnosis")
+	}
 	if err := initAuthSessionTable(l.DB()); err != nil {
 		slog.Error("[Auth] session table init failed; login will refuse until the ledger is writable", "error", err)
 	}
@@ -943,15 +948,91 @@ func (s *Server) requireTenantDispatchAutonomy(tenantID string) error {
 	return nil
 }
 
+// jsonCompressionThreshold is the body size above which writeJSON offers
+// gzip. Small responses keep their bytes and their Content-Length; large
+// lists (sessions, events, catalogs) are the ones that actually pay for
+// compression.
+const jsonCompressionThreshold = 1024
+
+// gzipWriterPool reuses compressor state across responses. gzip.NewWriterLevel
+// allocates ~800 KiB of match/hash tables per writer; at a few hundred
+// responses per second that allocation rate would dominate the CPU the
+// compression is meant to save.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		zw, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+		return zw
+	},
+}
+
+// gzipNegotiator is implemented by the instrumentation writer. Handlers that
+// bypass instrumentation (tests, internal calls) simply get the uncompressed
+// path — never a panic on a type assertion.
+type gzipNegotiator interface{ gzipAccepted() bool }
+
+// acceptsGzip reports whether the request allows gzip. It honours q=0 on the
+// gzip token (and on *), because a client that explicitly refuses gzip must
+// get identity bytes even if other encodings are advertised.
+func acceptsGzip(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, params, _ := strings.Cut(part, ";")
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name != "gzip" && name != "*" {
+			continue
+		}
+		// Reject only an explicit zero quality. A substring check would
+		// treat q=0.5 as q=0 and silently skip compression for most real
+		// browser headers.
+		for _, param := range strings.Split(params, ";") {
+			k, v, ok := strings.Cut(param, "=")
+			if !ok || !strings.EqualFold(strings.TrimSpace(k), "q") {
+				continue
+			}
+			if q, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && q <= 0 {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func writeJSON(w http.ResponseWriter, status int, data any) {
-	bytes, err := json.Marshal(data)
+	payload, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	if len(payload) >= jsonCompressionThreshold {
+		// Always advertise the negotiation, even when this caller gets
+		// identity, so shared caches cannot serve gzip bytes to a client
+		// that did not ask for them.
+		w.Header().Add("Vary", "Accept-Encoding")
+	}
+	if len(payload) >= jsonCompressionThreshold && w.Header().Get("Content-Encoding") == "" {
+		if n, ok := w.(gzipNegotiator); ok && n.gzipAccepted() {
+			var buf bytes.Buffer
+			zw := gzipWriterPool.Get().(*gzip.Writer)
+			zw.Reset(&buf)
+			_, werr := zw.Write(payload)
+			if werr == nil {
+				if cerr := zw.Close(); cerr == nil {
+					payload = buf.Bytes()
+					w.Header().Set("Content-Encoding", "gzip")
+				}
+			}
+			zw.Reset(io.Discard)
+			gzipWriterPool.Put(zw)
+		}
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
 	w.WriteHeader(status)
-	w.Write(bytes)
+	_, _ = w.Write(payload)
 }
 
 // decodeStrict parses a spend-mutation body with unknown fields refused

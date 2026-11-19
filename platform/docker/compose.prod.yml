@@ -167,6 +167,12 @@ services:
       # cloud LLM roles always do regardless of this flag.
       KUBONA_SINGLE_LAB: ${KUBONA_SINGLE_LAB:-1}
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
+      # Retention is off by default for local development; production turns
+      # it on. Ledger events are hash-chained and never reaped.
+      KUBONA_RETENTION_ENABLED: "${KUBONA_RETENTION_ENABLED:-1}"
+      KUBONA_RETENTION_DAYS: "${KUBONA_RETENTION_DAYS:-90}"
+      KUBONA_RETENTION_TOMBSTONE_DAYS: "${KUBONA_RETENTION_TOMBSTONE_DAYS:-30}"
+      KUBONA_SQLITE_MAX_OPEN_CONNS: "${KUBONA_SQLITE_MAX_OPEN_CONNS:-8}"
       # 32-byte hex/base64 key for AES-256-GCM sealing of UI-entered LLM
       # provider keys in the local ledger. Set it for production; unset
       # keeps legacy plaintext readable (dev migration) and logs a warning.
