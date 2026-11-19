@@ -582,7 +582,20 @@ loop:
 			callSource = "dsml"
 		}
 		hist = append(hist, llm.ChatMessage{Role: "assistant", Content: "", ToolCalls: calls})
-		for _, c := range calls {
+		// Independent read-only calls run concurrently; every effectful or
+		// tainted batch stays sequential. Permission gates run before the
+		// parallel dispatch, so a denied tool is never executed early.
+		var parallel []toolExecResult
+		if !tainted && s.allToolCallsReadOnly(calls) {
+			parallel = s.dispatchReadOnlyTools(ctx, calls)
+			for i, c := range calls {
+				if gerr := s.gateToolDispatch(sessionID, policy, policyErr, c.Name, c.Arguments); gerr != nil {
+					parallel[i].err = gerr
+					parallel[i].blocked = true
+				}
+			}
+		}
+		for idx, c := range calls {
 			var out any
 			var derr error
 			// B6: the taint state at dispatch time is auditable on the event.
@@ -598,7 +611,8 @@ loop:
 			}
 			// AG-21/AG-21b: tool-level permission gate (allow/ask/block). The
 			// ask rung spends a one-time approval for this exact argument set.
-			if derr == nil {
+			// The parallel branch already gated every call above.
+			if derr == nil && parallel == nil {
 				derr = s.gateToolDispatch(sessionID, policy, policyErr, c.Name, c.Arguments)
 			}
 			// Per-turn write bound: at most one simulator dispatch per
@@ -612,7 +626,15 @@ loop:
 				}
 			}
 			if derr == nil {
-				out, derr = s.toolRegistry.Dispatch(ctx, CopilotRole, toRegistryCall(c))
+				if parallel != nil {
+					if parallel[idx].blocked {
+						derr = parallel[idx].err
+					} else {
+						out, derr = parallel[idx].out, parallel[idx].err
+					}
+				} else {
+					out, derr = s.toolRegistry.Dispatch(ctx, CopilotRole, toRegistryCall(c))
+				}
 			}
 			// Even a refused or failed call returns attacker-influenced text.
 			tainted = true

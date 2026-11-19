@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 )
 
 // startRetentionLoop runs the configured retention pass once per interval.
 // It is off by default (local development should not silently delete chat
 // text); production compose sets KUBONA_RETENTION_ENABLED=1.
-func startRetentionLoop(l *ledger.Ledger) func() {
+func startRetentionLoop(l *ledger.Ledger, sup *supervisor.Supervisor) func() {
 	if strings.TrimSpace(os.Getenv("KUBONA_RETENTION_ENABLED")) != "1" {
 		return func() {}
 	}
@@ -47,6 +48,11 @@ func startRetentionLoop(l *ledger.Ledger) func() {
 				}
 				if res.ChatMessages+res.Tombstones > 0 {
 					slog.Info("[Kubona Core] retention pass", "chat_messages", res.ChatMessages, "tombstones", res.Tombstones)
+				}
+				if sup != nil {
+					if n := sup.EvictTerminalLoops(time.Now().UTC().AddDate(0, 0, -90)); n > 0 {
+						slog.Info("[Kubona Core] evicted terminal loops", "count", n)
+					}
 				}
 			}
 		}

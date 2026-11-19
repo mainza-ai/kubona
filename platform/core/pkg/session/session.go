@@ -282,9 +282,15 @@ func (m *Manager) AddMessage(sessionID, role, content string, proposal *json.Raw
 	return msg, nil
 }
 
+// maxTranscriptRows bounds a single session read. The LLM prompt is capped at
+// 40 messages / 48k chars anyway; loading an unbounded transcript to then
+// throw most of it away is pure heap pressure. Newest N are loaded and
+// reversed to chronological order.
+const maxTranscriptRows = 1000
+
 func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
-	query := `SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json, proposal_id, proposal_digest, citations_json FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`
-	rows, err := m.ledger.DB().Query(query, sessionID)
+	query := `SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json, proposal_id, proposal_digest, citations_json FROM chat_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`
+	rows, err := m.ledger.DB().Query(query, sessionID, maxTranscriptRows)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +326,9 @@ func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
 			msg.UsageJSON = &raw
 		}
 		msgs = append(msgs, msg)
+	}
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
 	return msgs, nil
 }

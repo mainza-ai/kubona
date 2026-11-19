@@ -1,5 +1,7 @@
 package llm
 
+import "strings"
+
 // History budgeting: every LLM call carries a bounded transcript. Unbounded
 // GetMessages growth otherwise becomes unbounded spend and latency, and
 // drowns the live turn in stale context. System messages always survive;
@@ -30,25 +32,85 @@ func BudgetHistory(msgs []ChatMessage, maxMsgs, maxChars int) []ChatMessage {
 			turns = append(turns, m)
 		}
 	}
-	dropped := 0
+	var droppedMsgs []ChatMessage
 	for len(turns) > maxMsgs || historyChars(turns) > maxChars {
+		droppedMsgs = append(droppedMsgs, turns[0])
 		turns = turns[1:]
-		dropped++
 	}
 	// Preserve assistant ToolCalls <-> tool result pairing: never leave orphaned
 	// leading "tool" messages whose preceding assistant tool_calls turn was cut.
 	for len(turns) > 0 && turns[0].Role == "tool" {
+		droppedMsgs = append(droppedMsgs, turns[0])
 		turns = turns[1:]
-		dropped++
 	}
 	out := append([]ChatMessage(nil), system...)
-	if dropped > 0 {
+	if len(droppedMsgs) > 0 {
 		out = append(out, ChatMessage{
 			Role:    "system",
-			Content: "Context budget: the " + itoa(dropped) + " oldest turns were omitted; what follows is the most recent history.",
+			Content: compactionSummary(droppedMsgs),
 		})
 	}
 	return append(out, turns...)
+}
+
+// compactionSummary is a deterministic extractive summary of the turns the
+// budget drops. It is not an LLM summary: it preserves the user's stated asks
+// and the tools that ran, and points at the full transcript (retained in the
+// ledger), so compaction is reversible. The old marker said only "N turns
+// omitted", which lost the task intent that makes a long session coherent.
+func compactionSummary(dropped []ChatMessage) string {
+	const maxAsks = 4
+	const askRunes = 160
+	var asks []string
+	seenTools := map[string]struct{}{}
+	var tools []string
+	for _, m := range dropped {
+		if m.Role == "user" {
+			text := strings.TrimSpace(m.Content)
+			if text != "" {
+				r := []rune(text)
+				if len(r) > askRunes {
+					text = string(r[:askRunes]) + "…"
+				}
+				asks = append(asks, text)
+				if len(asks) > maxAsks {
+					asks = asks[len(asks)-maxAsks:]
+				}
+			}
+		}
+		for _, tc := range m.ToolCalls {
+			if tc.Name == "" {
+				continue
+			}
+			if _, ok := seenTools[tc.Name]; !ok {
+				seenTools[tc.Name] = struct{}{}
+				tools = append(tools, tc.Name)
+			}
+		}
+	}
+	var b strings.Builder
+	b.WriteString("Context compaction: the ")
+	b.WriteString(itoa(len(dropped)))
+	b.WriteString(" oldest turns were omitted")
+	if len(asks) > 0 {
+		b.WriteString("; earlier user asks: ")
+		for i, ask := range asks {
+			if i > 0 {
+				b.WriteString(" | ")
+			}
+			b.WriteString(ask)
+		}
+	}
+	if len(tools) > 0 {
+		b.WriteString("; tools used: ")
+		b.WriteString(strings.Join(tools, ", "))
+	}
+	b.WriteString("; the full transcript remains in the session ledger and can be re-read.")
+	out := b.String()
+	if r := []rune(out); len(r) > 1600 {
+		out = string(r[:1600]) + "…"
+	}
+	return out
 }
 
 func historyChars(msgs []ChatMessage) int {

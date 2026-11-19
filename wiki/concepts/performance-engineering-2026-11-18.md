@@ -101,6 +101,22 @@ PERF-02, PERF-05, PERF-08, and PERF-12 are shared slices.
   concurrency with the taint barrier intact; PERF-15 JSON v2 on measured decode
   paths only.
 
+## Execution (2026-11-18)
+
+Landed: PERF-01…10, 12, 13, 14. `writeJSON` carries `Content-Length` and
+gzip (bench 26.4 → 31.9 µs, 20.7 KB allocs for 50 sessions); pprof is
+bearer-only; schema 16 adds the session/chat/job ordering indexes with a
+bounded pool and WAL-once; SSE is one poll per session (payload deduped);
+Aer gets a cgroup budget, `max_memory_mb`, and an MPS heuristic; chemistry
+anchors are cached (benzene 3.04 s cold → <1 ms warm); transpile level is
+configurable; the Streamable-HTTP MCP gateway runs in compose; read-only tool
+calls overlap; `scripts/perf-gate.sh` is in CI.
+
+Deferred with evidence: **PERF-11** React Compiler grew first load by
+**94.4 KiB raw / 37.1 KiB gzip** (1,227.3 / 373.3 KiB, chunk 315.7 KiB > 300
+KiB), so it was reverted. **PERF-15** JSON v2 decode was not adopted: encode is
+at parity and no decode path justified the migration.
+
 ## Anti-findings (do not do)
 
 - Do not pin Aer to one thread (5.5× slower).

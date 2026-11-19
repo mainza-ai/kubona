@@ -105,6 +105,7 @@ func (e *HTTPEmbedder) Embed(ctx context.Context, text string) ([]float32, strin
 type ScoredMemoryItem struct {
 	Item       *MemoryItem `json:"item"`
 	Similarity float64     `json:"similarity"`
+	Rank       float64     `json:"rank"`
 }
 
 // EncodeEmbedding serializes a float32 vector into a binary byte slice
@@ -208,4 +209,81 @@ func GenerateSemanticEmbedding(text string) []float32 {
 	}
 
 	return vec
+}
+
+// QuantizeEmbedding maps float32 components to int8 with one symmetric scale
+// per vector. Cosine similarity is scale-invariant, so the per-vector scale
+// cancels and the stored int8 vector is enough for ranking; the f32 blob is
+// kept on disk for rescoring/export.
+func QuantizeEmbedding(vec []float32) ([]int8, float32) {
+	if len(vec) == 0 {
+		return nil, 0
+	}
+	maxAbs := float32(0)
+	for _, v := range vec {
+		if v < 0 {
+			v = -v
+		}
+		if v > maxAbs {
+			maxAbs = v
+		}
+	}
+	if maxAbs == 0 {
+		return make([]int8, len(vec)), 0
+	}
+	scale := maxAbs / 127.0
+	out := make([]int8, len(vec))
+	for i, v := range vec {
+		q := int(math.Round(float64(v / scale)))
+		if q > 127 {
+			q = 127
+		}
+		if q < -127 {
+			q = -127
+		}
+		out[i] = int8(q)
+	}
+	return out, scale
+}
+
+// CosineSimilarityInt8 computes cosine similarity directly on quantized
+// vectors. Different per-vector scales cancel, so no dequantization is
+// needed for ranking.
+func CosineSimilarityInt8(a, b []int8) float64 {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	if n == 0 {
+		return 0
+	}
+	var dot, na, nb float64
+	for i := 0; i < n; i++ {
+		x, y := float64(a[i]), float64(b[i])
+		dot += x * y
+		na += x * x
+		nb += y * y
+	}
+	if na == 0 || nb == 0 {
+		return 0
+	}
+	return dot / (math.Sqrt(na) * math.Sqrt(nb))
+}
+
+// EncodeInt8 serializes an int8 vector for the embedding_int8 column.
+func EncodeInt8(vec []int8) []byte {
+	buf := make([]byte, len(vec))
+	for i, v := range vec {
+		buf[i] = byte(v)
+	}
+	return buf
+}
+
+// DecodeInt8 deserializes the int8 blob.
+func DecodeInt8(buf []byte) []int8 {
+	out := make([]int8, len(buf))
+	for i, v := range buf {
+		out[i] = int8(v)
+	}
+	return out
 }

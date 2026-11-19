@@ -889,19 +889,22 @@ def test_codesign_ops_error_strings_match_retired_snippets():
 
 # --------------------------------------- global RAM admission (in-flight) ---
 
-def test_global_inflight_cap_defaults_to_twice_single_job_ceiling():
+def test_global_inflight_cap_is_derived_from_the_container_budget():
     from executor import (
+        _BUDGET_MB,
         _SINGLE_JOB_CEILING_BYTES,
+        MAX_STATEVECTOR_QUBITS,
         _global_inflight_cap_bytes,
         check_circuit_memory_bounds,
     )
     from qiskit import QuantumCircuit
 
-    assert _SINGLE_JOB_CEILING_BYTES == (2 ** 28) * 16
-    assert _global_inflight_cap_bytes() == 2 * _SINGLE_JOB_CEILING_BYTES
-    # Any per-job-admittable solo simulation always fits an empty semaphore:
-    # the largest admittable estimate (28 qubits) is half the default cap.
-    assert check_circuit_memory_bounds(QuantumCircuit(28))["required_bytes"] * 2 \
+    # The cap follows the cgroup budget: one maximum job must fit, and the
+    # default is 70% of the budget (not the old 2x/8 GiB overcommit).
+    assert _SINGLE_JOB_CEILING_BYTES == (2 ** MAX_STATEVECTOR_QUBITS) * 16
+    expected = max(_SINGLE_JOB_CEILING_BYTES, int(_BUDGET_MB * 1024 * 1024 * 0.70))
+    assert _global_inflight_cap_bytes() == expected
+    assert check_circuit_memory_bounds(QuantumCircuit(MAX_STATEVECTOR_QUBITS))["required_bytes"] \
         <= _global_inflight_cap_bytes()
 
 
@@ -956,7 +959,10 @@ def test_global_inflight_release_clamps_and_env_cap_parses():
     old = os.environ.get("KUBONA_BRIDGE_MAX_INFLIGHT_BYTES")
     try:
         os.environ["KUBONA_BRIDGE_MAX_INFLIGHT_BYTES"] = "not-a-number"
-        assert executor._global_inflight_cap_bytes() == 2 * executor._SINGLE_JOB_CEILING_BYTES
+        assert executor._global_inflight_cap_bytes() == max(
+            executor._SINGLE_JOB_CEILING_BYTES,
+            int(executor._BUDGET_MB * 1024 * 1024 * 0.70),
+        )
         os.environ["KUBONA_BRIDGE_MAX_INFLIGHT_BYTES"] = "12345"
         assert executor._global_inflight_cap_bytes() == 12345
     finally:

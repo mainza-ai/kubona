@@ -111,6 +111,21 @@ Full acceptance tests are in the report §7 and in
 (transport/`Content-Length`), PERF-05 (SQLite pool/pragmas), PERF-08 (Aer
 method/heap), PERF-12 (regression gate).
 
+## Execution (2026-11-18)
+
+Landed: MEM-01…16, 18, 19. Global item/byte budget with bounded startup and
+fair-share eviction; Go/store gauges; decay daemon + `EffectiveScore` in rank;
+cgroup bridge budget (Aer `max_memory_mb`, derived width, 70% in-flight);
+`MALLOC_ARENA_MAX`/thread caps + `malloc_trim`; retention/vacuum; bounded
+automatic recall; deterministic extractive compaction; 1,000-row transcript
+read; dedupe; temporal validity + `supersedes`; int8 vectors (384 B vs 1,536 B
+per 384-dim vector) with f32 retained for export; tombstone/loop eviction;
+hybrid retrieval; embedding cache; sparse PPR.
+
+Deferred/gated: MEM-17 outcome calibration, MEM-20 pgvector/HNSW (no cap
+pressure yet), MEM-21 temporal graph, MEM-22 tiered promotion (capped instead);
+bridge RSS has no health field.
+
 ## Anti-findings
 
 - Do not set `GOMEMLIMIT` far below the live heap or disable GOGC to "use all

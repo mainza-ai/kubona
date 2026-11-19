@@ -184,6 +184,35 @@ func NewSupervisor(l *ledger.Ledger) *Supervisor {
 	return s
 }
 
+// EvictTerminalLoops drops finished loops from the in-memory maps after a
+// retention window. The ledger rows remain (audit); a long-lived daemon must
+// not keep every loop it ever ran, and RehydrateLoops would otherwise reload
+// all of them at boot.
+func (s *Supervisor) EvictTerminalLoops(cutoff time.Time) int {
+	if s == nil {
+		return 0
+	}
+	terminal := map[string]struct{}{}
+	for _, st := range TerminalLoopStatuses() {
+		terminal[st] = struct{}{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := 0
+	for id, loop := range s.loops {
+		if loop == nil || loop.UpdatedAt.After(cutoff) {
+			continue
+		}
+		if _, ok := terminal[loop.Status]; !ok {
+			continue
+		}
+		delete(s.loops, id)
+		delete(s.snapshots, id)
+		removed++
+	}
+	return removed
+}
+
 // RehydrateLoops loads persisted supervisor loops (rows without a harness_id)
 // from SQLite so loops survive daemon restarts instead of vanishing into 404s.
 func (s *Supervisor) RehydrateLoops() int {

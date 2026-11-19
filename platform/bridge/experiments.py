@@ -31,6 +31,11 @@ except ImportError:  # pragma: no cover - bridge image always has it
     HAS_QISKIT = False
 
 try:
+    from . import simulator as sim_policy
+except ImportError:  # bridge runs with the bridge dir on sys.path
+    import simulator as sim_policy
+
+try:
     from krylov import build_h2_hamiltonian_matrix
     HAS_PYSCF = True
 except ImportError:  # pragma: no cover
@@ -187,7 +192,7 @@ def _shot_energy(
     theta: np.ndarray, coeffs: dict[str, float], layers: int,
     shots: int, seed: int,
 ) -> dict[str, Any]:
-    sim = AerSimulator()
+    sim = sim_policy.aer_simulator()
     qc = _ansatz(theta, layers)
     by_term: dict[str, Any] = {}
     energy = 0.0
@@ -1009,8 +1014,8 @@ def _pauli_measurement_energy(
     # concrete basis before measurement. Transpilation is part of execution,
     # not a substitute for it.
     qc = transpile(qc, basis_gates=["u1", "u2", "u3", "cx"],
-                   optimization_level=1, seed_transpiler=seed)
-    sim = AerSimulator()
+                   optimization_level=sim_policy.transpile_level(2), seed_transpiler=seed)
+    sim = sim_policy.aer_simulator()
     total = 0.0
     variance = 0.0
     terms: dict[str, Any] = {}
@@ -1058,7 +1063,7 @@ def _nature_ansatz_qasm(ansatz: Any, theta: np.ndarray, seed: int) -> str:
         from qiskit import qasm2, transpile
         bound = ansatz.assign_parameters(theta)
         isa = transpile(bound, basis_gates=["u1", "u2", "u3", "cx"],
-                        optimization_level=1, seed_transpiler=int(seed))
+                        optimization_level=sim_policy.transpile_level(2), seed_transpiler=int(seed))
         return qasm2.dumps(isa)
     except Exception:
         return ""
@@ -2084,7 +2089,7 @@ def run_qaoa(
     value = best_value
     qc = qaoa(theta)
     qc.measure_all()
-    counts = AerSimulator().run(qc, shots=int(shots), seed_simulator=int(seed)).result().get_counts()
+    counts = sim_policy.aer_simulator(qc).run(qc, shots=int(shots), seed_simulator=int(seed)).result().get_counts()
     try:
         from qiskit import qasm2
         qaoa_qasm = qasm2.dumps(qc)

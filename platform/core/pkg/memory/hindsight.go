@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -38,21 +39,36 @@ type MemoryItem struct {
 	// embedding removed; recall never returns it.
 	RetractedAt   *time.Time `json:"retracted_at,omitempty"`
 	RetractReason string     `json:"retract_reason,omitempty"`
+	// Temporal validity: a contradiction closes the old interval instead of
+	// deleting history. Recall defaults to ValidTo == nil; the superseded row
+	// remains queryable by id/audit.
+	ValidFrom    time.Time  `json:"valid_from,omitempty"`
+	ValidTo      *time.Time `json:"valid_to,omitempty"`
+	SupersededBy string     `json:"superseded_by,omitempty"`
 }
 
 type StoreConfig struct {
-	MaxItemsPerBank  int           `json:"max_items_per_bank"`
-	MaxTokensPerBank int           `json:"max_tokens_per_bank"`
+	MaxItemsPerBank  int `json:"max_items_per_bank"`
+	MaxTokensPerBank int `json:"max_tokens_per_bank"`
+	// MaxTotalItems and MaxTotalBytes bound the WHOLE store, not one tenant.
+	// Per-bank caps are isolation; without a global cap, tenant count is an
+	// unbounded memory dimension (loadFromDB loads every tenant).
+	MaxTotalItems    int           `json:"max_total_items"`
+	MaxTotalBytes    int64         `json:"max_total_bytes"`
 	DecayInterval    time.Duration `json:"decay_interval"`
 	DecayRatePerHour float64       `json:"decay_rate_per_hour"`
+	TombstoneTTLDays int           `json:"tombstone_ttl_days"`
 }
 
 func DefaultStoreConfig() StoreConfig {
 	return StoreConfig{
 		MaxItemsPerBank:  500,
 		MaxTokensPerBank: 250000,
+		MaxTotalItems:    200000,
+		MaxTotalBytes:    300 << 20,
 		DecayInterval:    1 * time.Hour,
 		DecayRatePerHour: 0.01, // 1% decay per hour
+		TombstoneTTLDays: 30,
 	}
 }
 
@@ -64,6 +80,52 @@ type StoreStats struct {
 	Vectors     int   `json:"vectors"`
 	Retracted   int   `json:"retracted"`
 	VectorBytes int64 `json:"vector_bytes"`
+	TotalBytes  int64 `json:"total_bytes"`
+}
+
+type cachedEmbedding struct {
+	vec   []float32
+	model string
+}
+
+// embedFor resolves an embedding with a bounded content cache. The HTTP
+// call happens WITHOUT the store lock: one slow endpoint must not freeze
+// every tenant's recall/retain.
+func (s *HindsightStore) embedFor(text string) ([]float32, string) {
+	key := sha256.Sum256([]byte(text))
+	s.cacheMu.Lock()
+	if cached, ok := s.embedCache[key]; ok {
+		s.cacheMu.Unlock()
+		return cached.vec, cached.model
+	}
+	s.cacheMu.Unlock()
+
+	s.mu.RLock()
+	embedder := s.embedder
+	s.mu.RUnlock()
+	if embedder != nil {
+		if vec, model, err := embedder.Embed(context.Background(), text); err == nil && len(vec) > 0 {
+			s.rememberEmbedding(key, vec, model)
+			return vec, model
+		}
+	}
+	return GenerateSemanticEmbedding(text), LexicalEmbeddingModel
+}
+
+func (s *HindsightStore) rememberEmbedding(key [32]byte, vec []float32, model string) {
+	s.cacheMu.Lock()
+	defer s.cacheMu.Unlock()
+	if _, exists := s.embedCache[key]; exists {
+		return
+	}
+	const maxCached = 256
+	for len(s.embedOrder) >= maxCached {
+		oldest := s.embedOrder[0]
+		s.embedOrder = s.embedOrder[1:]
+		delete(s.embedCache, oldest)
+	}
+	s.embedCache[key] = cachedEmbedding{vec: append([]float32(nil), vec...), model: model}
+	s.embedOrder = append(s.embedOrder, key)
 }
 
 // Stats reports resident cardinality and embedding footprint.
@@ -79,8 +141,11 @@ func (s *HindsightStore) Stats() StoreStats {
 			st.Retracted++
 		}
 	}
-	for _, vec := range s.vectors {
-		st.VectorBytes += int64(len(vec) * 4)
+	for id, vec := range s.vectors {
+		st.VectorBytes += int64(len(vec))
+		if item := s.items[id]; item != nil {
+			st.TotalBytes += int64(len(item.Content)+len(vec)) + 128
+		}
 	}
 	return st
 }
@@ -90,9 +155,16 @@ type HindsightStore struct {
 	db           *sql.DB
 	cfg          StoreConfig
 	items        map[string]*MemoryItem
-	vectors      map[string][]float32
+	vectors      map[string][]int8
+	vectorScales map[string]float32
 	vectorModels map[string]string
 	embedder     TextEmbedder
+	// embedCache is a bounded single-flight-by-content cache. Embedding
+	// endpoints are the slowest part of retain/recall; repeated prompts
+	// should not pay a network round trip under the store lock.
+	embedCache map[[32]byte]cachedEmbedding
+	embedOrder [][32]byte
+	cacheMu    sync.Mutex
 }
 
 func NewHindsightStore() *HindsightStore {
@@ -114,20 +186,31 @@ func NewPersistentHindsightStoreWithConfig(db *sql.DB, cfg StoreConfig) *Hindsig
 	if cfg.MaxTokensPerBank <= 0 {
 		cfg.MaxTokensPerBank = 250000
 	}
+	if cfg.MaxTotalItems <= 0 {
+		cfg.MaxTotalItems = 200000
+	}
+	if cfg.MaxTotalBytes <= 0 {
+		cfg.MaxTotalBytes = 300 << 20
+	}
 	if cfg.DecayInterval <= 0 {
 		cfg.DecayInterval = 1 * time.Hour
 	}
 	if cfg.DecayRatePerHour <= 0 {
 		cfg.DecayRatePerHour = 0.01
 	}
+	if cfg.TombstoneTTLDays <= 0 {
+		cfg.TombstoneTTLDays = 30
+	}
 
 	store := &HindsightStore{
 		db:           db,
 		cfg:          cfg,
 		items:        make(map[string]*MemoryItem),
-		vectors:      make(map[string][]float32),
+		vectors:      make(map[string][]int8),
+		vectorScales: make(map[string]float32),
 		vectorModels: make(map[string]string),
 		embedder:     NewEnvEmbedder(),
+		embedCache:   map[[32]byte]cachedEmbedding{},
 	}
 	if db != nil {
 		store.initTable()
@@ -153,7 +236,12 @@ func (s *HindsightStore) initTable() {
 			created_at TIMESTAMP NOT NULL,
 			last_accessed_at TIMESTAMP NOT NULL,
 			retracted_at TIMESTAMP,
-			retract_reason TEXT NOT NULL DEFAULT ''
+			retract_reason TEXT NOT NULL DEFAULT '',
+			valid_from TIMESTAMP,
+			valid_to TIMESTAMP,
+			superseded_by TEXT NOT NULL DEFAULT '',
+			embedding_int8 BLOB,
+			embedding_scale REAL NOT NULL DEFAULT 0
 		);
 		CREATE INDEX IF NOT EXISTS idx_mem_bank ON hindsight_memories(bank);
 		CREATE INDEX IF NOT EXISTS idx_mem_tenant ON hindsight_memories(tenant_id);
@@ -161,6 +249,8 @@ func (s *HindsightStore) initTable() {
 		CREATE TABLE IF NOT EXISTS hindsight_vectors (
 			memory_id TEXT PRIMARY KEY,
 			embedding BLOB NOT NULL,
+			embedding_int8 BLOB,
+			embedding_scale REAL NOT NULL DEFAULT 0,
 			embedding_model TEXT NOT NULL DEFAULT 'lexical-hash-v1',
 			embedding_dim INTEGER NOT NULL DEFAULT 384
 		);
@@ -173,40 +263,78 @@ func (s *HindsightStore) initTable() {
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN retract_reason TEXT NOT NULL DEFAULT ''`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_model TEXT NOT NULL DEFAULT 'lexical-hash-v1'`)
 	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_dim INTEGER NOT NULL DEFAULT 384`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_int8 BLOB`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_vectors ADD COLUMN embedding_scale REAL NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN valid_from TIMESTAMP`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN valid_to TIMESTAMP`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN superseded_by TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN embedding_int8 BLOB`)
+	_, _ = s.db.Exec(`ALTER TABLE hindsight_memories ADD COLUMN embedding_scale REAL NOT NULL DEFAULT 0`)
 }
 
 func (s *HindsightStore) loadFromDB() {
 	if s.db == nil {
 		return
 	}
-	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason FROM hindsight_memories`)
+	limit := s.cfg.MaxTotalItems
+	if limit <= 0 {
+		limit = 1000
+	}
+	// Bounded startup: the global budget is the only total cap, so do not
+	// materialize an unbounded table just to evict it afterwards. The
+	// highest-scoring rows win; low-value rows remain on disk for retention.
+	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason, valid_from, valid_to, superseded_by FROM hindsight_memories ORDER BY effective_score DESC LIMIT ?`, limit)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var item MemoryItem
 			var bankStr string
-			var retracted sql.NullTime
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason); err == nil {
+			var retracted, validFrom, validTo sql.NullTime
+			var superseded sql.NullString
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason, &validFrom, &validTo, &superseded); err == nil {
 				item.Bank = MemoryBank(bankStr)
 				if retracted.Valid {
 					t := retracted.Time
 					item.RetractedAt = &t
 				}
+				if validFrom.Valid {
+					item.ValidFrom = validFrom.Time
+				}
+				if validTo.Valid {
+					t := validTo.Time
+					item.ValidTo = &t
+				}
+				item.SupersededBy = superseded.String
 				s.items[item.ID] = &item
 			}
 		}
 	}
 
-	vecRows, err := s.db.Query(`SELECT memory_id, embedding, COALESCE(embedding_model, 'lexical-hash-v1') FROM hindsight_vectors`)
+	vecRows, err := s.db.Query(`SELECT v.memory_id, v.embedding, v.embedding_int8, COALESCE(v.embedding_scale, 0), COALESCE(v.embedding_model, 'lexical-hash-v1')
+		FROM hindsight_vectors v JOIN hindsight_memories m ON m.id = v.memory_id
+		ORDER BY m.effective_score DESC LIMIT ?`, limit)
 	if err == nil {
 		defer vecRows.Close()
 		for vecRows.Next() {
 			var memID, model string
-			var blob []byte
-			if err := vecRows.Scan(&memID, &blob, &model); err == nil {
-				if vec, err := DecodeEmbedding(blob); err == nil {
-					s.vectors[memID] = vec
+			var f32blob, i8blob []byte
+			var scale float64
+			if err := vecRows.Scan(&memID, &f32blob, &i8blob, &scale, &model); err == nil {
+				if len(i8blob) > 0 {
+					s.vectors[memID] = DecodeInt8(i8blob)
+					s.vectorScales[memID] = float32(scale)
 					s.vectorModels[memID] = model
+					continue
+				}
+				if vec, derr := DecodeEmbedding(f32blob); derr == nil {
+					q, qscale := QuantizeEmbedding(vec)
+					s.vectors[memID] = q
+					s.vectorScales[memID] = qscale
+					s.vectorModels[memID] = model
+					// Backfill the compact form so the next boot does not
+					// decode f32 again.
+					_, _ = s.db.Exec(`UPDATE hindsight_vectors SET embedding_int8 = ?, embedding_scale = ? WHERE memory_id = ?`,
+						EncodeInt8(q), qscale, memID)
 				}
 			}
 		}
@@ -232,19 +360,62 @@ func (s *HindsightStore) RetainScoped(
 	importance float64,
 	customEmbedding []float32,
 ) *MemoryItem {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if tenantID == "" {
 		tenantID = "default"
 	}
 	if readership == "" {
 		readership = "public"
 	}
+	if importance < 0 {
+		importance = 0
+	}
+	if importance > 1 {
+		importance = 1
+	}
+
+	// Embedding happens before the lock (F4): one slow endpoint must not
+	// block every other tenant's retain/recall.
+	emb := customEmbedding
+	embModel := "custom"
+	if len(emb) == 0 {
+		emb, embModel = s.embedFor(content)
+	}
 
 	tokens := len(content) / 4
 	if tokens < 1 {
 		tokens = 1
+	}
+	now := time.Now().UTC()
+	embQ, _ := QuantizeEmbedding(emb)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Dedupe/merge: a repeated turn must not consume the bank cap and evict
+	// useful history. Exact content is matched cheaply; near-duplicates use
+	// the embedding already computed above.
+	for _, existing := range s.items {
+		if existing.RetractedAt != nil || existing.Bank != bank ||
+			existing.TenantID != tenantID || existing.Readership != readership {
+			continue
+		}
+		duplicate := existing.Content == content
+		if !duplicate && len(embQ) > 0 && len(s.vectors[existing.ID]) == len(embQ) {
+			duplicate = CosineSimilarityInt8(embQ, s.vectors[existing.ID]) >= 0.97
+		}
+		if !duplicate {
+			continue
+		}
+		if importance > existing.Importance {
+			existing.Importance = importance
+			existing.EffectiveScore = importance
+		}
+		existing.LastAccessedAt = now
+		if s.db != nil {
+			_, _ = s.db.Exec(`UPDATE hindsight_memories SET importance = ?, effective_score = ?, last_accessed_at = ? WHERE id = ?`,
+				existing.Importance, existing.EffectiveScore, existing.LastAccessedAt, existing.ID)
+		}
+		return existing
 	}
 
 	item := &MemoryItem{
@@ -256,48 +427,134 @@ func (s *HindsightStore) RetainScoped(
 		TokensEstimate: tokens,
 		Importance:     importance,
 		EffectiveScore: importance,
-		CreatedAt:      time.Now().UTC(),
-		LastAccessedAt: time.Now().UTC(),
+		CreatedAt:      now,
+		LastAccessedAt: now,
+		ValidFrom:      now,
 	}
 
-	emb := customEmbedding
-	embModel := "custom"
-	if len(emb) == 0 {
-		if s.embedder != nil {
-			if vec, m, err := s.embedder.Embed(context.Background(), content); err == nil && len(vec) > 0 {
-				emb = vec
-				embModel = m
-			}
-		}
-		if len(emb) == 0 {
-			emb = GenerateSemanticEmbedding(content)
-			embModel = LexicalEmbeddingModel
-		}
-	}
-
+	itemQ, itemScale := QuantizeEmbedding(emb)
 	s.items[item.ID] = item
-	s.vectors[item.ID] = emb
+	s.vectors[item.ID] = itemQ
+	s.vectorScales[item.ID] = itemScale
 	s.vectorModels[item.ID] = embModel
 
 	if s.db != nil {
 		_, _ = s.db.Exec(`
-			INSERT INTO hindsight_memories (id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, item.ID, item.TenantID, item.Readership, string(item.Bank), item.Content, item.TokensEstimate, item.Importance, item.EffectiveScore, item.CreatedAt, item.LastAccessedAt)
+			INSERT INTO hindsight_memories (id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, valid_from)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, item.ID, item.TenantID, item.Readership, string(item.Bank), item.Content, item.TokensEstimate, item.Importance, item.EffectiveScore, item.CreatedAt, item.LastAccessedAt, item.ValidFrom)
 
 		encodedBlob := EncodeEmbedding(emb)
 		_, _ = s.db.Exec(`
-			INSERT OR REPLACE INTO hindsight_vectors (memory_id, embedding, embedding_model, embedding_dim)
-			VALUES (?, ?, ?, ?)
-		`, item.ID, encodedBlob, embModel, len(emb))
+			INSERT OR REPLACE INTO hindsight_vectors (memory_id, embedding, embedding_int8, embedding_scale, embedding_model, embedding_dim)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, item.ID, encodedBlob, EncodeInt8(itemQ), itemScale, embModel, len(emb))
 	}
 
 	// Enforce capacity bounds and LRU eviction within the SAME tenant +
 	// readership: one lab filling its bank must never evict another lab's
 	// memories (availability isolation).
 	s.evictIfExceededLocked(bank, tenantID, readership)
-
+	s.enforceGlobalBudgetLocked()
 	return item
+}
+
+// enforceGlobalBudgetLocked is the last-resort whole-store bound. It prefers
+// evicting from tenants over their fair share, then the lowest-scoring oldest
+// item, so one runaway lab cannot silently delete every other lab's memory.
+func (s *HindsightStore) enforceGlobalBudgetLocked() int {
+	if s.cfg.MaxTotalItems <= 0 && s.cfg.MaxTotalBytes <= 0 {
+		return 0
+	}
+	if len(s.items) <= s.cfg.MaxTotalItems && s.totalBytesLocked() <= s.cfg.MaxTotalBytes {
+		return 0
+	}
+	perTenant := 1
+	if n := s.tenantCountLocked(); n > 0 {
+		perTenant = s.cfg.MaxTotalItems / n
+		if perTenant < 1 {
+			perTenant = 1
+		}
+	}
+	counts := map[string]int{}
+	for _, item := range s.items {
+		counts[item.TenantID]++
+	}
+	type candidate struct {
+		item *MemoryItem
+		over bool
+	}
+	cands := make([]candidate, 0, len(s.items))
+	for _, item := range s.items {
+		cands = append(cands, candidate{item: item, over: counts[item.TenantID] > perTenant})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].over != cands[j].over {
+			return cands[i].over
+		}
+		if cands[i].item.EffectiveScore != cands[j].item.EffectiveScore {
+			return cands[i].item.EffectiveScore < cands[j].item.EffectiveScore
+		}
+		return cands[i].item.LastAccessedAt.Before(cands[j].item.LastAccessedAt)
+	})
+	evicted := 0
+	for _, c := range cands {
+		if len(s.items) <= s.cfg.MaxTotalItems && s.totalBytesLocked() <= s.cfg.MaxTotalBytes {
+			break
+		}
+		delete(s.items, c.item.ID)
+		delete(s.vectors, c.item.ID)
+		delete(s.vectorScales, c.item.ID)
+		delete(s.vectorModels, c.item.ID)
+		if s.db != nil {
+			_, _ = s.db.Exec(`DELETE FROM hindsight_memories WHERE id = ?`, c.item.ID)
+			_, _ = s.db.Exec(`DELETE FROM hindsight_vectors WHERE memory_id = ?`, c.item.ID)
+		}
+		evicted++
+	}
+	return evicted
+}
+
+func (s *HindsightStore) tenantCountLocked() int {
+	seen := map[string]struct{}{}
+	for _, item := range s.items {
+		seen[item.TenantID] = struct{}{}
+	}
+	return len(seen)
+}
+
+func (s *HindsightStore) totalBytesLocked() int64 {
+	var total int64
+	for id, item := range s.items {
+		total += int64(len(item.Content)) + 128
+		if vec := s.vectors[id]; len(vec) > 0 {
+			total += int64(len(vec))
+		}
+	}
+	return total
+}
+
+// PurgeRetracted removes tombstones older than before from memory and disk.
+// Retraction is terminal, but a tombstone need not be resident forever.
+func (s *HindsightStore) PurgeRetracted(before time.Time) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := 0
+	for id, item := range s.items {
+		if item.RetractedAt == nil || !item.RetractedAt.Before(before) {
+			continue
+		}
+		delete(s.items, id)
+		delete(s.vectors, id)
+		delete(s.vectorScales, id)
+		delete(s.vectorModels, id)
+		if s.db != nil {
+			_, _ = s.db.Exec(`DELETE FROM hindsight_memories WHERE id = ?`, id)
+			_, _ = s.db.Exec(`DELETE FROM hindsight_vectors WHERE memory_id = ?`, id)
+		}
+		removed++
+	}
+	return removed
 }
 
 // evictIfExceededLocked removes low-scoring / least recently accessed memories when bank limits are exceeded
@@ -331,6 +588,7 @@ func (s *HindsightStore) evictIfExceededLocked(bank MemoryBank, tenantID, reader
 		totalTokens -= toPurge.TokensEstimate
 		delete(s.items, toPurge.ID)
 		delete(s.vectors, toPurge.ID)
+		delete(s.vectorScales, toPurge.ID)
 
 		if s.db != nil {
 			_, _ = s.db.Exec(`DELETE FROM hindsight_memories WHERE id = ?`, toPurge.ID)
@@ -351,8 +609,8 @@ func (s *HindsightStore) Recall(bank MemoryBank, query string, maxTokens int) []
 	var matched []*MemoryItem
 
 	for _, item := range s.items {
-		if item.RetractedAt != nil {
-			continue // tombstone: never recalled
+		if item.RetractedAt != nil || item.ValidTo != nil {
+			continue // tombstone or superseded: never recalled
 		}
 		if bank != "" && item.Bank != bank {
 			continue
@@ -397,8 +655,8 @@ func (s *HindsightStore) ListRecent(bank MemoryBank, tenant string, maxTokens in
 	}
 	var matched []*MemoryItem
 	for _, item := range s.items {
-		if item.RetractedAt != nil {
-			continue // tombstone: never listed
+		if item.RetractedAt != nil || item.ValidTo != nil {
+			continue // tombstone or superseded: never listed
 		}
 		if bank != "" && item.Bank != bank {
 			continue
@@ -441,16 +699,15 @@ func (s *HindsightStore) SemanticRecallScoped(
 	requesterTenant string,
 	requesterPrincipals []string,
 ) []*ScoredMemoryItem {
+	// Embed before taking the store lock (F4). A slow endpoint delays this
+	// query, not every other tenant's memory operations.
+	queryVec, _ := s.embedFor(queryText)
+	lexicalQueryVec := GenerateSemanticEmbedding(queryText)
+	queryInt8, _ := QuantizeEmbedding(queryVec)
+	lexicalInt8, _ := QuantizeEmbedding(lexicalQueryVec)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	lexicalQueryVec := GenerateSemanticEmbedding(queryText)
-	queryVec := lexicalQueryVec
-	if s.embedder != nil {
-		if vec, _, err := s.embedder.Embed(context.Background(), queryText); err == nil && len(vec) > 0 {
-			queryVec = vec
-		}
-	}
 
 	// Prepare IFC destination reader-set for requester
 	var destRS ifc.ReaderSet
@@ -463,8 +720,8 @@ func (s *HindsightStore) SemanticRecallScoped(
 	var scored []*ScoredMemoryItem
 
 	for id, item := range s.items {
-		if item.RetractedAt != nil {
-			continue // tombstone: never recalled
+		if item.RetractedAt != nil || item.ValidTo != nil {
+			continue // tombstone or superseded: never recalled
 		}
 		if bank != "" && item.Bank != bank {
 			continue
@@ -507,22 +764,27 @@ func (s *HindsightStore) SemanticRecallScoped(
 			continue
 		}
 
-		qv := queryVec
-		if len(qv) != len(itemVec) && len(lexicalQueryVec) == len(itemVec) {
-			qv = lexicalQueryVec
+		qv := queryInt8
+		if len(qv) != len(itemVec) && len(lexicalInt8) == len(itemVec) {
+			qv = lexicalInt8
 		}
-		sim := CosineSimilarity(qv, itemVec)
+		sim := CosineSimilarityInt8(qv, itemVec)
 		if sim >= minSimilarity {
+			// Hybrid rank: semantic similarity dominates, lexical overlap
+			// catches exact identifiers the embedding misses, and a small
+			// recency prior keeps two equally relevant memories ordered.
+			rank := 0.70*sim + 0.15*lexicalOverlap(queryText, item.Content) + 0.10*recencyWeight(item.LastAccessedAt) + 0.05*item.EffectiveScore
 			scored = append(scored, &ScoredMemoryItem{
 				Item:       item,
 				Similarity: sim,
+				Rank:       rank,
 			})
 		}
 	}
 
-	// Sort by similarity descending
+	// Sort by the hybrid rank descending; Similarity stays the raw signal.
 	sort.Slice(scored, func(i, j int) bool {
-		return scored[i].Similarity > scored[j].Similarity
+		return scored[i].Rank > scored[j].Rank
 	})
 
 	// Pack items up to token budget
@@ -538,6 +800,43 @@ func (s *HindsightStore) SemanticRecallScoped(
 	}
 
 	return budgeted
+}
+
+func lexicalOverlap(query, content string) float64 {
+	terms := strings.Fields(strings.ToLower(query))
+	if len(terms) == 0 {
+		return 0
+	}
+	text := strings.ToLower(content)
+	seen := map[string]struct{}{}
+	hits := 0
+	for _, term := range terms {
+		if len(term) < 3 {
+			continue
+		}
+		if _, ok := seen[term]; ok {
+			continue
+		}
+		seen[term] = struct{}{}
+		if strings.Contains(text, term) {
+			hits++
+		}
+	}
+	if len(seen) == 0 {
+		return 0
+	}
+	return float64(hits) / float64(len(seen))
+}
+
+func recencyWeight(t time.Time) float64 {
+	if t.IsZero() {
+		return 0
+	}
+	days := time.Since(t).Hours() / 24
+	if days < 0 {
+		days = 0
+	}
+	return math.Exp(-days / 30.0)
 }
 
 // Decay applies time-decayed memory consolidation based on mainza-consciousness:
@@ -572,10 +871,39 @@ func (s *HindsightStore) RetractScoped(tenantID, id, reason string) error {
 	item.Content = "[retracted]"
 	item.TokensEstimate = 1
 	delete(s.vectors, id)
+	delete(s.vectorScales, id)
 	if s.db != nil {
 		_, _ = s.db.Exec(`UPDATE hindsight_memories SET content = ?, tokens_estimate = 1, retracted_at = ?, retract_reason = ? WHERE id = ?`,
 			item.Content, now, reason, id)
 		_, _ = s.db.Exec(`DELETE FROM hindsight_vectors WHERE memory_id = ?`, id)
+	}
+	return nil
+}
+
+// SupersedeScoped closes an old memory's validity interval. History is kept
+// (the row remains queryable by id/audit); recall defaults to current facts.
+func (s *HindsightStore) SupersedeScoped(tenantID, oldID, newID string) error {
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[oldID]
+	if !ok {
+		return ErrMemoryNotFound
+	}
+	itemTenant := item.TenantID
+	if itemTenant == "" {
+		itemTenant = "default"
+	}
+	if itemTenant != tenantID {
+		return ErrMemoryNotFound
+	}
+	now := time.Now().UTC()
+	item.ValidTo = &now
+	item.SupersededBy = newID
+	if s.db != nil {
+		_, _ = s.db.Exec(`UPDATE hindsight_memories SET valid_to = ?, superseded_by = ? WHERE id = ?`, now, newID, oldID)
 	}
 	return nil
 }
@@ -585,6 +913,10 @@ func (s *HindsightStore) SetEmbedder(e TextEmbedder) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.embedder = e
+	s.cacheMu.Lock()
+	s.embedCache = map[[32]byte]cachedEmbedding{}
+	s.embedOrder = nil
+	s.cacheMu.Unlock()
 }
 
 func (s *HindsightStore) Decay(elapsedHours float64) {
@@ -621,6 +953,7 @@ func (s *HindsightStore) StartDecayDaemon(ctx context.Context) {
 			case <-ticker.C:
 				hours := s.cfg.DecayInterval.Hours()
 				s.Decay(hours)
+				s.PurgeRetracted(time.Now().UTC().AddDate(0, 0, -s.cfg.TombstoneTTLDays))
 			}
 		}
 	}()

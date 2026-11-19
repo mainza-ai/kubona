@@ -15,6 +15,11 @@ from typing import Any
 import numpy as np
 
 try:
+    from . import simulator as sim_policy
+except ImportError:
+    import simulator as sim_policy
+
+try:
     from qiskit import QuantumCircuit, qasm2
     from qiskit.quantum_info import Statevector
     from qiskit_aer import AerSimulator
@@ -100,7 +105,7 @@ def _qiskit_pauli_label(label: str) -> str:
 
 def _measured_terms(qc: Any, terms: list[tuple[str, float]], shots: int,
                     seed: int) -> dict[str, Any]:
-    sim = AerSimulator()
+    sim = sim_policy.aer_simulator(qc)
     out: dict[str, Any] = {}
     energy = 0.0
     variance = 0.0
@@ -119,7 +124,7 @@ def _measured_terms(qc: Any, terms: list[tuple[str, float]], shots: int,
 
 
 def _measured_magnetization(qc: Any, n_sites: int, shots: int, seed: int) -> list[float]:
-    sim = AerSimulator()
+    sim = sim_policy.aer_simulator(qc)
     measured = qc.copy()
     measured.measure_all()
     counts = sim.run(measured, shots=int(shots), seed_simulator=int(seed)).result().get_counts()

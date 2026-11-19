@@ -153,3 +153,21 @@ func BenchmarkWriteJSON(b *testing.B) {
 		}
 	})
 }
+
+func TestWriteJSONCachedHonoursETag(t *testing.T) {
+	payload := map[string]any{"catalog": strings.Repeat("x", 2048)}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/capabilities", nil)
+	writeJSONCached(rec, req, http.StatusOK, payload)
+	etag := rec.Header().Get("ETag")
+	if etag == "" || rec.Code != http.StatusOK {
+		t.Fatalf("first response code=%d etag=%q", rec.Code, etag)
+	}
+	req2 := httptest.NewRequest(http.MethodGet, "/api/capabilities", nil)
+	req2.Header.Set("If-None-Match", etag)
+	rec2 := httptest.NewRecorder()
+	writeJSONCached(rec2, req2, http.StatusOK, payload)
+	if rec2.Code != http.StatusNotModified || rec2.Body.Len() != 0 {
+		t.Fatalf("304 expected, got code=%d body=%d", rec2.Code, rec2.Body.Len())
+	}
+}

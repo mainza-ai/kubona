@@ -28,6 +28,7 @@ from chemistry import (
 )
 from epistemics import evaluate_claim_credibility
 from executor import execute_qasm, cut_circuit_qasm
+from simulator import trim_memory
 from literature import search_arxiv, search_openalex, to_records
 from fidelity import predict_fidelity, probe_clifford_fidelity
 from krylov import solve_quantum_krylov
@@ -315,6 +316,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 success=False,
                 error_message=f"circuit execution failed: {e}",
             )
+        finally:
+            trim_memory()
         return kubona_pb2.CircuitExecutionResponse(
             job_id=request.job_id,
             success=res["success"],

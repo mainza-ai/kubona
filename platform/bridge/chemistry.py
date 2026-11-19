@@ -10,7 +10,9 @@ Zero fake placeholders or empirical curve-fit approximations presented as measur
 """
 from __future__ import annotations
 
+import copy
 import math
+from functools import lru_cache
 from typing import Dict, Any, List, Optional
 import numpy as np
 
@@ -56,6 +58,19 @@ COMPOSITE_MODEL_LABEL_V1 = "composite_heuristic_v1"
 
 
 def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: str = "sto-3g") -> Dict[str, Any]:
+    """Bounded cache over the numerical anchor (identical inputs are common in
+    a bond-distance sweep). The returned dict is a deep copy so a caller
+    cannot mutate the cached value."""
+    key = (str(molecule).strip().upper(), round(float(bond_distance_angstrom), 6), str(basis).strip().lower().replace(" ", ""))
+    return copy.deepcopy(_cached_anchor(*key))
+
+
+@lru_cache(maxsize=256)
+def _cached_anchor(molecule: str, bond_distance_angstrom: float, basis: str) -> Dict[str, Any]:
+    return _solve_classical_anchor_uncached(molecule, bond_distance_angstrom, basis)
+
+
+def _solve_classical_anchor_uncached(molecule: str, bond_distance_angstrom: float, basis: str = "sto-3g") -> Dict[str, Any]:
     """
     Computes genuine RHF and FCI energies along with nuclear repulsion and orbital energies
     using ab-initio PySCF numerical solvers.

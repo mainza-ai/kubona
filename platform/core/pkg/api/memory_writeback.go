@@ -599,6 +599,9 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 		Content    string   `json:"content"`
 		Importance *float64 `json:"importance"`
 		Bank       string   `json:"bank"`
+		// Supersedes optionally closes the validity interval of an older
+		// memory after this one is retained. History is kept.
+		Supersedes string `json:"supersedes,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -646,11 +649,23 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 		importance = 1
 	}
 	item := s.memoryStore.RetainScoped(tenant, tenant, bank, content, importance, nil)
-	writeJSON(w, http.StatusCreated, map[string]any{
+	resp := map[string]any{
 		"id": item.ID, "bank": string(item.Bank), "importance": item.Importance,
 		"tenant": item.TenantID, "created_at": item.CreatedAt,
 		"redacted": len(redactionKinds) > 0, "redaction_kinds": redactionKinds,
-	})
+	}
+	if req.Supersedes != "" {
+		if serr := s.memoryStore.SupersedeScoped(tenant, req.Supersedes, item.ID); serr != nil {
+			// The new memory is real; the requested supersession is not.
+			// Report both facts rather than pretending the write was atomic.
+			resp["superseded"] = false
+			resp["supersede_error"] = serr.Error()
+		} else {
+			resp["superseded"] = true
+			resp["superseded_id"] = req.Supersedes
+		}
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // retainTurnExperience stores one bounded experience for a completed model

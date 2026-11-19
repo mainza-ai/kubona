@@ -24,10 +24,15 @@ except ImportError:
     HAS_QISKIT = False
 
 try:
-    from qiskit_aer import Aer
+    from qiskit_aer import AerSimulator
     HAS_AER = True
 except ImportError:
     HAS_AER = False
+
+try:
+    from . import simulator as sim_policy
+except ImportError:
+    import simulator as sim_policy
 
 
 def circuit_to_qasm(qc: QuantumCircuit) -> str:
@@ -92,10 +97,15 @@ def calculate_meyer_wallach(statevector: np.ndarray) -> float:
     return float(q_score / n)
 
 
-MAX_STATEVECTOR_QUBITS = 28  # Safe 4GB RAM ceiling (2^28 * 16 bytes = 4.29 GB)
-MAX_AER_SIM_QUBITS = 30      # 16GB Aer density matrix / MPS simulation limit
+# The per-job width is derived from the cgroup budget, not a hardcoded 4 GiB
+# claim. A 28-qubit state is 4 GiB by itself; with interpreter/Qiskit copies a
+# 4 GiB container cannot hold it. 1.5x headroom keeps the admission honest.
+_BUDGET_MB = sim_policy.memory_budget_mb()
+_MAX_BY_BUDGET = int(math.floor(math.log2((_BUDGET_MB * 1024 * 1024 / 16) / 1.5)))
+MAX_STATEVECTOR_QUBITS = max(20, min(27, _MAX_BY_BUDGET))
+MAX_AER_SIM_QUBITS = 30      # MPS/density-matrix ceiling; max_memory_mb still governs
 
-#: Bytes of one maximum single-job statevector (2^28 complex128).
+#: Bytes of one maximum single-job statevector.
 _SINGLE_JOB_CEILING_BYTES = (2 ** MAX_STATEVECTOR_QUBITS) * 16
 
 
@@ -118,7 +128,10 @@ def _global_inflight_cap_bytes() -> int:
             cap_bytes = 0
         if cap_bytes > 0:
             return cap_bytes
-    return 2 * _SINGLE_JOB_CEILING_BYTES
+    # 70% of the cgroup budget, never below one admitted job. The old 2x
+    # single-job default (8 GiB) could not fit in the 4 GiB container.
+    default_cap = max(_SINGLE_JOB_CEILING_BYTES, int(_BUDGET_MB * 1024 * 1024 * 0.70))
+    return default_cap
 
 
 # Process-wide in-flight simulation bytes (global RAM admission). execute_qasm
@@ -178,6 +191,7 @@ def check_circuit_memory_bounds(qc: QuantumCircuit) -> Dict[str, Any]:
         "num_qubits": n_qubits,
         "required_bytes": required_bytes,
         "required_mb": required_mb,
+        "budget_mb": _BUDGET_MB,
         "exceeds_statevector_limit": n_qubits > MAX_STATEVECTOR_QUBITS,
         "exceeds_aer_limit": n_qubits > MAX_AER_SIM_QUBITS,
     }
@@ -314,7 +328,7 @@ def execute_qasm(
 ) -> Dict[str, Any]:
     """Global RAM admission wrapper (process-wide in-flight-bytes semaphore).
 
-    The per-job 28-qubit guard inside _execute_qasm_inner stays as-is; this
+    The per-job width guard inside _execute_qasm_inner stays as-is; this
     wrapper adds the host-level rail: 8 bridge workers each holding a 4GB
     statevector would OOM the host, so a new simulation whose estimated bytes
     would push process-wide held bytes over the cap refuses fail-closed
@@ -626,11 +640,11 @@ def _execute_qasm_inner(
             resolved_backend = "qiskit_aer.AerSimulator"
             degradation_level = 2
             degradation_reason = "Executed Aer shot simulation (no noise model attached; exact statevector also recorded when within bounds)"
-            backend = Aer.get_backend("aer_simulator")
             # If circuit has no measurements, save statevector
             qc_meas = qc.copy()
             if not any(instr.operation.name == "measure" for instr in qc_meas.data):
                 qc_meas.measure_all()
+            backend = sim_policy.aer_simulator(qc_meas)
             job = backend.run(qc_meas, shots=shots, seed_simulator=seed)
             result = job.result()
             counts = result.get_counts()
@@ -649,7 +663,7 @@ def _execute_qasm_inner(
         else:
             sv = np.array([])
             mw_score = 0.0
-            degradation_reason += f" (Statevector omitted: required {bounds['required_mb']:.1f} MB exceeds 28-qubit ceiling)"
+            degradation_reason += f" (Statevector omitted: required {bounds['required_mb']:.1f} MB exceeds the {MAX_STATEVECTOR_QUBITS}-qubit budget)"
         
         # If counts weren't produced by Aer, sample from statevector probabilities
         # with the EXPLICIT seed (default_rng, never global np.random).

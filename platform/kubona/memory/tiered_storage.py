@@ -25,6 +25,14 @@ from kubona.science.memory import EpistemicKnowledgeGraph, KnowledgeEntity, Know
 #: bound cannot rot apart from the code that enforces it.
 MAX_STRATEGIES = 256
 
+#: Tier 0 is a transient cache, not a second ledger. Bound it so a long-lived
+#: process cannot grow an unbounded dict; oldest insertion is evicted first.
+MAX_TIER0_ENTRIES = 1000
+
+#: Tier 1 is a Merkle chain: blocks cannot be dropped without breaking the
+#: hash links. Refuse at the bound instead of silently truncating history.
+MAX_TIER1_BLOCKS = 10000
+
 
 @dataclass
 class StorageTierRecord:
@@ -80,6 +88,9 @@ class TieredStorageManager:
             created_at=time.time(),
             content_hash=h,
         )
+        if key not in self._tier0_cache and len(self._tier0_cache) >= MAX_TIER0_ENTRIES:
+            oldest = next(iter(self._tier0_cache))
+            self._tier0_cache.pop(oldest, None)
         self._tier0_cache[key] = record
         return h
 
@@ -116,6 +127,11 @@ class TieredStorageManager:
             "prev_hash": prev_hash,
             "payload": payload,
         }
+        if len(self._tier1_ledger) >= MAX_TIER1_BLOCKS:
+            raise ValueError(
+                f"tier1 block bound reached ({MAX_TIER1_BLOCKS}); refusing to "
+                "truncate a hash-chained ledger — export or raise the bound"
+            )
         encoded = json.dumps(block, sort_keys=True).encode("utf-8")
         block_hash = hashlib.sha256(encoded).hexdigest()
         block["block_hash"] = block_hash
@@ -155,22 +171,21 @@ class TieredStorageManager:
             return {}
 
         entity_to_idx = {e: i for i, e in enumerate(entities)}
-        
-        # Build adjacency matrix
-        A = np.zeros((n, n), dtype=float)
+
+        # Sparse adjacency: O(edges) memory, not O(n^2). The old dense
+        # np.zeros((n, n)) peaked at 415 MiB for 5k entities and would OOM a
+        # 4 GiB bridge long before a real graph did.
+        edges: Dict[int, List[tuple[int, float]]] = {i: [] for i in range(n)}
         for src, rels in self.graph._adjacency.items():
-            if src in entity_to_idx:
-                for rel in rels:
-                    dst = rel.target_id
-                    if dst in entity_to_idx:
-                        A[entity_to_idx[dst], entity_to_idx[src]] = rel.confidence_rho
+            if src not in entity_to_idx:
+                continue
+            s_idx = entity_to_idx[src]
+            for rel in rels:
+                dst = rel.target_id
+                if dst in entity_to_idx:
+                    edges[entity_to_idx[dst]].append((s_idx, float(rel.confidence_rho)))
 
-        # Column normalize A
-        col_sums = A.sum(axis=0)
-        col_sums[col_sums == 0] = 1.0
-        M = A / col_sums
-
-        # Personalization vector p
+        out_weight = [sum(w for _, w in edges[i]) for i in range(n)]
         p = np.zeros(n, dtype=float)
         for seed in seed_entities:
             if seed in entity_to_idx:
@@ -180,14 +195,23 @@ class TieredStorageManager:
         else:
             p = p / p.sum()
 
-        # Power iteration
         v = p.copy()
         for _ in range(max_iter):
-            v_next = alpha * (M @ v) + (1.0 - alpha) * p
-            if np.linalg.norm(v_next - v, 1) < tol:
+            nxt = (1.0 - alpha) * p
+            for dst in range(n):
+                if not edges[dst]:
+                    continue
+                total = out_weight[dst]
+                if total <= 0:
+                    continue
+                acc = 0.0
+                for src, weight in edges[dst]:
+                    acc += (weight / total) * v[src]
+                nxt[dst] += alpha * acc
+            if np.linalg.norm(nxt - v, 1) < tol:
+                v = nxt
                 break
-            v = v_next
-
+            v = nxt
         return {entities[i]: float(v[i]) for i in range(n)}
 
     # --- TIER 3: REFLECTIVE STRATEGY BANK ---

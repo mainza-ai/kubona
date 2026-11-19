@@ -12,6 +12,11 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 
 try:
+    from . import simulator as sim_policy
+except ImportError:
+    import simulator as sim_policy
+
+try:
     from qiskit import QuantumCircuit
     from qiskit_aer import AerSimulator
     from qiskit_aer.noise import NoiseModel, depolarizing_error
@@ -181,7 +186,7 @@ def mitigate_circuit(
 
     # Evaluate observable <Z_0> under noisy Aer
     noise_model = _build_noise_model(DEPOL_P_1Q_V1)
-    sim = AerSimulator(noise_model=noise_model) if noise_model else AerSimulator()
+    sim = sim_policy.aer_simulator(circuit=qc, noise_model=noise_model)
 
     qc_meas = qc.copy()
     has_measures = any(getattr(inst.operation, "name", "") == "measure" for inst in qc_meas.data)
@@ -338,7 +343,7 @@ def mitigate_circuit(
         # ideal=a*noisy+b by least squares, check conditioning, and apply
         # the fit to the unmitigated point. A single-point or constant-axis
         # fit REFUSES.
-        ideal_sim = AerSimulator()  # noiseless reference
+        ideal_sim = sim_policy.aer_simulator(circuit=qc)  # noiseless reference
         noisy_vals: List[float] = []
         ideal_vals: List[float] = []
         for s in scale_factors:

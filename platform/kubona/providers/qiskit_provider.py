@@ -6,12 +6,48 @@ Qiskit/Aer are NOT hard dependencies — import only when this plugin is used.
 
 from __future__ import annotations
 
+import math
+import os
+from pathlib import Path
 from typing import Any
 
 from kubona.circuits import Circuit, to_qasm
 from kubona.schema import ProviderCapability
 
 from .base import Provider, ProviderError
+
+
+def _aer_memory_mb() -> int:
+    """Container-aware Aer ceiling; 0 means unset (Aer's host-memory default
+    is exactly the footgun this avoids)."""
+    raw = (os.getenv("KUBONA_AER_MAX_MEMORY_MB") or "").strip()
+    if raw:
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            pass
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            value = Path(path).read_text().strip()
+        except OSError:
+            continue
+        if value and value != "max":
+            try:
+                return max(512, int(int(value) / (1024 * 1024) * 0.8))
+            except ValueError:
+                pass
+    return 0
+
+
+def _transpile_level(default: int = 2) -> int:
+    raw = (os.getenv("KUBONA_TRANSPILE_LEVEL") or "").strip()
+    if raw:
+        try:
+            return max(0, min(3, int(raw)))
+        except ValueError:
+            pass
+    return max(0, min(3, default))
+
 
 
 def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] | None:
@@ -191,7 +227,7 @@ class QiskitProvider(Provider):
             # credential-free Aer path (open-source first, per maintainer direction)
             from qiskit_aer import AerSimulator
 
-            backend = AerSimulator(seed_simulator=seed)
+            backend = AerSimulator(seed_simulator=seed, max_memory_mb=_aer_memory_mb())
             job = backend.run(qc, shots=shots)
             counts = job.result().get_counts()
             out: dict[str, Any] = {"counts": counts, "shots": shots, "seed": seed,
@@ -394,7 +430,7 @@ class QiskitProvider(Provider):
         if layout is None:
             layout = self._calibrated_initial_layout(qc, backend)
         return generate_preset_pass_manager(
-            optimization_level=1, backend=backend, initial_layout=layout
+            optimization_level=_transpile_level(2), backend=backend, initial_layout=layout
         ).run(qc)
 
     def _layout_summary(self, original, isa) -> dict[str, Any] | None:

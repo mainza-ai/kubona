@@ -494,6 +494,32 @@ jobs:
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.canary --gate
 
+  performance-gate:
+    name: Performance gate (named Go benchmarks + memory budgets)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    defaults:
+      run:
+        working-directory: platform/core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.27.4"
+          cache-dependency-path: platform/core/go.sum
+      - name: Memory lifecycle + global budget
+        run: go test ./pkg/memory -run 'TestGlobalBudget|TestDedupe|TestLoadRespects|TestSupersede|TestEmbeddingCache' -count=1
+      - name: writeJSON gzip benchmark budget
+        run: |
+          OUT="$(go test ./pkg/api -run XXX -bench 'BenchmarkWriteJSON/gzip' -benchmem -benchtime 200x)"
+          echo "$OUT"
+          NS="$(echo "$OUT" | awk '/gzip/{print $3; exit}')"
+          BYTES="$(echo "$OUT" | awk '/gzip/{print $5; exit}')"
+          test -n "$NS" && test "$NS" -le 200000
+          test -n "$BYTES" && test "$BYTES" -le 100000
+      - name: Hindsight benchmarks (trend evidence)
+        run: go test ./pkg/memory -run XXX -bench 'BenchmarkHindsight' -benchmem -benchtime 100x
+
   go-core-tests:
     name: Go Orchestrator Core (tests + race detector)
     runs-on: ubuntu-latest

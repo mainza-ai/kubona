@@ -85,6 +85,8 @@ type Server struct {
 	skillStoreMu        sync.RWMutex
 	evalStore           evals.Store
 	memoryStore         *memory.HindsightStore
+	streamHub           *streamHub
+	streamHubMu         sync.Mutex
 	metaSearchEngine    *metasearch.MetaSearchEngine
 	sandboxRunner       *sandbox.SandboxRunner
 	autoresearchMu      sync.RWMutex
@@ -446,6 +448,10 @@ func NewServer(
 	// Persistent associative memory (SQLite-backed, tenant-scoped recall).
 	// Activates the tribunal recall/retain paths and the recall_memory tool.
 	s.memoryStore = memory.NewPersistentHindsightStore(l.DB())
+	// Lifetime policy is only real if it runs: decay + tombstone purge.
+	s.memoryStore.StartDecayDaemon(context.Background())
+	// SSE fan-out: one poll per session per tick, not one per client.
+	s.streamHub = newStreamHub(l)
 	// Planner replan: settled jobs fold their measured results back into the
 	// session campaign. Runs on the job-worker goroutine — pure fold plus
 	// ledger writes only, never LLM or bridge calls.
@@ -1171,7 +1177,7 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	budget := llm.DefaultBudgetConfig()
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSONCached(w, r, http.StatusOK, map[string]any{
 		"catalog_digest": digest,
 		"tools":          json.RawMessage(body),
 		"disk":           disk,
@@ -3179,6 +3185,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	history = appendCurrentUserTurn(history, req.Content)
 	history = llm.BudgetHistory(history, 0, 0)
+	history = withRecalledMemory(history, s.recallContextForTurn(sessionID, req.Content))
 
 	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
 	defer cancel()
@@ -3691,6 +3698,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	// newest turns win, cuts announced). Prevents unbounded spend/latency
 	// growth as sessions lengthen.
 	history = llm.BudgetHistory(history, 0, 0)
+	history = withRecalledMemory(history, s.recallContextForTurn(sessionID, content))
 
 	// 2. Plan→tool→observe: let the model inspect live session state	// (anchors, campaign, jobs) before answering. Degrades to the base
 	// history on any failure — never blocks the answer path.
@@ -4664,7 +4672,6 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 				"session_id": sessionID,
 				"timestamp":  time.Now().UTC().Format(time.RFC3339),
 				"events":     []ledger.EventRecord{ev},
-				"event":      ev,
 			})
 			fmt.Fprintf(w, "id: %d\nevent: telemetry\ndata: %s\n\n", ev.ID, payload)
 		}
@@ -4693,22 +4700,33 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
+	hub := s.getStreamHub()
+	if hub == nil {
+		http.Error(w, "event stream unavailable: ledger is not open", http.StatusServiceUnavailable)
+		return
+	}
+	sub, unsubscribe := hub.subscribe(sessionID, cursor)
+	defer unsubscribe()
+	heartbeat := time.NewTicker(2 * time.Second)
+	defer heartbeat.Stop()
+	lastWrite := time.Now()
 	notify := r.Context().Done()
 	for {
 		select {
 		case <-notify:
 			return
-		case <-ticker.C:
-			events, err := s.ledger.GetEventsSinceWithGlobalTypes(sessionID, llmStreamGlobalEvents, cursor, 100)
-			if err == nil && len(events) > 0 {
-				writeFrames(events)
-				cursor = events[len(events)-1].ID
-			} else {
+		case f, ok := <-sub.ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "id: %d\nevent: telemetry\ndata: %s\n\n", f.ID, f.Data)
+			flusher.Flush()
+			lastWrite = time.Now()
+		case <-heartbeat.C:
+			if time.Since(lastWrite) >= 2*time.Second {
 				fmt.Fprintf(w, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339))
 				flusher.Flush()
+				lastWrite = time.Now()
 			}
 		}
 	}

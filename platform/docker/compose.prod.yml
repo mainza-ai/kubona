@@ -338,6 +338,36 @@ services:
       retries: 2
       start_period: 60s
 
+  # Streamable-HTTP MCP transport (PERF-13). The gateway code existed
+  # (`kubona.run serve-gateway`) but nothing ran it; stdio-only meant a
+  # shared-session transport was not actually available. Local-only bind.
+  mcp:
+    image: kubona/bridge:prod
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bridge
+    <<: *default-hardening
+    working_dir: /app
+    entrypoint: ["/app/.venv/bin/python", "-m", "kubona.run", "serve-gateway"]
+    environment:
+      KUBONA_ENV: "production"
+      KUBONA_GATEWAY_PORT: "8123"
+      KUBONA_STATE_DIR: /home/kubona/.kubona
+      KUBONA_EVENT_TYPES: /app/contracts/event-types.json
+      KUBONA_ERROR_CATALOG: /app/contracts/error-catalog.csv
+    volumes:
+      - kubona-state:/home/kubona/.kubona
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:8123:8123"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
   console:
     build:
       context: ../console

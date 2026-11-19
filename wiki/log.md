@@ -7489,3 +7489,24 @@ skipped is the exact failure this incident is about:
   [[wiki-current-state-audit-2026-11-18]] as the audit record.
 - Census: 166 pages (48 entities · 102 concepts · 11 sources · 5 meta);
   wiki-lint strict clean; repo counts regenerated.
+
+## [2026-11-18] verification | PERF and MEM plans executed
+
+- Landed PERF-01…10, 12, 13, 14: Content-Length + gzip (26.4 → 31.9 µs /
+  20.7 KB allocs), bearer pprof, schema 16 ordering indexes + bounded SQLite
+  pool + WAL-once + retention/vacuum, per-session SSE hub with deduped frames,
+  cgroup-budgeted Aer with MPS, chemistry LRU (3.04 s cold → <1 ms warm),
+  configurable transpile level, MCP Streamable HTTP compose service, parallel
+  read-only tools, and `scripts/perf-gate.sh` in CI.
+- Landed MEM-01…16, 18, 19: global budget + bounded startup + fair-share
+  eviction, Go/store gauges, decay daemon + score ranking, bridge budget
+  (27q/2.1 GiB, 70% in-flight), Python arena/thread caps + trim, retention,
+  automatic recall, extractive compaction, bounded transcript, dedupe,
+  temporal validity/supersede, int8 vectors, tombstone/loop eviction, hybrid
+  retrieval, embedding cache, sparse PPR.
+- Deferred with evidence: PERF-11 React Compiler (+94.4 KiB raw / +37.1 KiB
+  gzip first load, over budget), PERF-15 JSON v2 decode (no path), MEM-17/20/
+  21/22 (outcome calibration, pgvector, temporal graph, tiered promotion).
+- Verification: full `go test ./...`; race tests for SSE/parallel tools/memory;
+  bridge 161 passed/1 skipped; targeted Python 41 passed; console build +
+  bundle budgets; `scripts/perf-gate.sh`; MCP `/health` HTTP 200.

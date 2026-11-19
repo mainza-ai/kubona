@@ -10,6 +10,26 @@
 > Every number was produced on this host on 2026-11-18 at `5446b2a2`; absolute
 > rates are trend evidence, not a capacity budget.
 
+## 0. Execution status (2026-11-18)
+
+Landed: **MEM-01…MEM-16, MEM-18, MEM-19**. Evidence: global item/byte budget
+with startup `LIMIT` and fair-share eviction; Go/store memory gauges; decay
+daemon started and `EffectiveScore` participates in recall ranking; cgroup
+bridge budget (`Aer max_memory_mb`, per-job width derived from the budget,
+in-flight 70%); `MALLOC_ARENA_MAX`/thread caps plus `malloc_trim`;
+retention/vacuum; bounded automatic recall; deterministic extractive
+compaction; 1,000-row transcript read; content/near-duplicate dedupe; temporal
+validity (`valid_from`/`valid_to`/`superseded_by` + retain `supersedes`);
+int8 vectors (1 byte/dim: 384 B vs 1,536 B per 384-dim vector) with f32 kept
+for export; tombstone purge + terminal-loop eviction; hybrid semantic/lexical/
+recency ranking; single-flight embedding cache; sparse PPR (5k entities no
+longer allocates a 200 MB dense matrix).
+
+Deferred/gated: **MEM-17** outcome-based importance calibration, **MEM-20**
+pgvector/HNSW (no global-cap pressure yet), **MEM-21** temporal graph
+projection, **MEM-22** tiered storage (capped/quarantined instead of promoted);
+bridge RSS has no health field, so that observability sub-item is deferred.
+
 ## 1. Verdict
 
 Kubona has a **real agentic memory model with production-shaped isolation and

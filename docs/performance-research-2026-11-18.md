@@ -15,6 +15,25 @@
 > pool/pragmas), PERF-08 (Aer strategy), PERF-12 (gate), and PERF-02
 > (transport) with this plan.
 
+## 0. Execution status (2026-11-18)
+
+Landed: **PERF-01…PERF-10, PERF-12, PERF-13, PERF-14**. Evidence:
+`writeJSON` now emits `Content-Length` and gzip (benchmark: identity 26.4 µs /
+22.5 KB allocs, gzip 31.9 µs / 20.7 KB allocs for a 50-session payload);
+bearer-only pprof; schema 16 ordering indexes + bounded SQLite pool + WAL-once +
+incremental auto-vacuum + retention/vacuum command; per-session SSE hub (one
+poll per tick) and single-payload frames; cgroup-budgeted Aer policy with MPS
+for wide shallow circuits; chemistry LRU (benzene 3.04 s cold → <1 ms warm);
+configurable transpile level; Streamable-HTTP MCP service in compose; parallel
+read-only tool calls (two 120 ms calls finish under 220 ms); `scripts/perf-gate.sh`
+wired into CI.
+
+Deferred with evidence: **PERF-11** React Compiler measured **+94.4 KiB raw /
++37.1 KiB gzip** first load (1,227.3 / 373.3 KiB; chunk 315.7 KiB > 300 KiB
+budget), so it was reverted rather than shipping a bundle regression. **PERF-15**
+JSON v2 decode was not adopted: marshal is at parity and no single decode path
+was shown to pay for the migration.
+
 ## 1. Verdict
 
 The platform is **fast where it is simple and unmeasured where it is complex**.

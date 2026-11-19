@@ -13,6 +13,15 @@
 
 FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
+# glibc arena sprawl and BLAS thread pools size themselves from the node, not
+# the container. Cap both to the 2-CPU / 4 GiB bridge budget; the Lean image
+# already uses the same arena cap for the same reason.
+ENV MALLOC_ARENA_MAX=2 \
+    OMP_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2 \
+    NUMEXPR_NUM_THREADS=2
+
 # uv is the resolver for the shipped Python environment; pin the binary by
 # digest just like the base image. The lock is copied before source so the
 # dependency layer survives kubona/ edits.

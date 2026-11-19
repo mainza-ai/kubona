@@ -266,8 +266,6 @@ func main() {
 		log.Fatalf("Failed to open ledger: %v", err)
 	}
 	defer l.Close()
-	stopRetention := startRetentionLoop(l)
-	defer stopRetention()
 	if backup := l.PreMigrationBackupPath(); backup != "" {
 		slog.Info("[Kubona Core] pre-migration backup verified", "path", backup)
 	}
@@ -389,6 +387,8 @@ func main() {
 	defer jobRunner.Stop()
 
 	loopSupervisor := supervisor.NewSupervisor(l)
+	stopRetention := startRetentionLoop(l, loopSupervisor)
+	defer stopRetention()
 	taskWatchdog := watchdog.NewTaskWatchdog(l, loopSupervisor)
 
 	// 4. Start HTTP / REST / WebSocket Gateway
