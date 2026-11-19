@@ -518,21 +518,19 @@ Landed in later slices:
 > deleted from origin on `2026-11-10` after scoping Ruleset `25762910` to exclude
 > `dependabot/**/*`.
 
-Still open (as of 2026-11-10):
+Operator/deferred (not current code plan):
 
-- Manual VoiceOver/NVDA evidence: **NOT RUN**; the operator explicitly skipped
-  it. Automated axe, forced-colors, 200%-zoom, reduced-motion and settings
-  workspace audits are green, but they are not a manual pass.
-- Design-system migration: the shared primitive set exists (Button through
-  Tooltip), and Separator/KeyHint are used by the shell; most product surfaces
-  still use raw utility classes. The CI ratchet now holds **865** occurrences,
-  down from 873. The shell has a global campaign header outside the arena, the
-  status strip is at the bottom, one banner slot outranks API refusal behind
-  auth expiry, Settings is a single-column section workspace (186 visible DOM),
-  four font families were reduced to Geist + JetBrains, decorative gradients
-  and glass were removed from surfaces, and rest-state float/pulse was removed
-  from the shell. Remaining: migrate all forms to Field/Select/Toggle and retire
-  the raw-palette debt rather than hold it.
+- Manual VoiceOver/NVDA evidence: **NOT RUN / operator-owned**; the operator
+  explicitly skipped it. Automated axe, forced-colors, 200%-zoom,
+  reduced-motion and settings workspace audits are green, but they are not a
+  manual pass. Register: `docs/operator-evidence-2026-11-18.md`.
+- Design-system ratchets (accepted, CI-enforced, may only shrink): raw palette
+  **0**, forms **44 files / 195 controls**, raw buttons **368**, coupling
+  **50 files / 51 imports**. The shell has a global campaign header outside the
+  arena, the status strip at the bottom, one banner slot outranking API refusal
+  behind auth expiry, a single-column Settings workspace, Geist + JetBrains
+  only, no decorative gradients/glass, and no rest-state float/pulse. Zero is
+  not a completion gate for the prototype; new debt fails CI.
 - Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **425 KB
   static / 435 KB all-resource / 473 DOM** on the normal mocked boot, plus
   **186 visible Settings DOM**; the dense 361-object boot is **425 KB static /
@@ -922,9 +920,9 @@ See [[feedback-loops-and-notifications]] for the full audit. The short queue:
   `NotificationAttentionBridge`, the live region is batched, duplicate
   per-surface toasts/chips are removed, and skill authoring/installer is in
   Settings.
-- **Open P2:** feed votes/reviews/dismissals/steering outcomes into
-  eval/ranking with an explicit policy, and measure delivery/read/action
-  latency.
+- **P2 deferred:** feed votes/reviews/dismissals/steering outcomes into
+  eval/ranking only with an explicit policy; memory outcomes already calibrate
+  importance (MEM-17). No current surface requires this ranking loop.
 
 ## C · Conditional (wire when a consumer exists)
 

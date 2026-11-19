@@ -46,8 +46,9 @@ Updated 2026-11-14. This is the short execution list; the full queue lives in
 - [x] Structural accessibility gates: axe/structural E2E, keyboard skip link,
       one main landmark, live regions, reduced-motion collapse (OS + in-app),
       semantic token contrast checks, and browser component tests for focus.
-- [ ] Still open: manual VoiceOver/NVDA walkthrough of every modal/surface
-      (automated gates cannot prove a screen-reader transcript is useful).
+- [ ] Operator-owned, not claimed: manual VoiceOver/NVDA walkthrough of every
+      modal/surface (automated gates cannot prove a screen-reader transcript is
+      useful). See `docs/operator-evidence-2026-11-18.md`.
 
 ## Landed 2026-11-14 (Zephium-insights program)
 

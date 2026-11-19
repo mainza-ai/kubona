@@ -7527,3 +7527,18 @@ skipped is the exact failure this incident is about:
 - Verification: full core suite, race tests, bridge suite, targeted browser
   test, Python quarantine test, console build/bundle budgets, perf-gate,
   wiki-lint/repo-counts.
+
+## [2026-11-18] cleanup | code plan closed; operator evidence separated
+
+- Reconciled the open backlog with the implementation: OB-04 (advisory
+  permanently), OB-07 (quiet/muted routing), OB-20 (no loop identity for
+  parts), OB-23/OB-26 (accepted CI ratchets), and OB-29 (single-writer flock)
+  are closed; OB-05/OB-28 are operator-owned and explicitly not claimed.
+- Removed the stale phased implementation plan from
+  [[open-backlog-2026-11-15]]; it now records closure, accepted ratchets, and
+  trigger-based optional infrastructure.
+- Separated operator evidence into `docs/operator-evidence-2026-11-18.md`
+  (VoiceOver/NVDA, `gho_` revocation, paid-QPU invoice, rate card, fresh-volume
+  reset); the code plan has no unchecked implementation items.
+- Refreshed [[remaining-work]] design-system/ratchet numbers and marked the
+  eval/ranking feedback loop as deferred without a policy. No code changed.

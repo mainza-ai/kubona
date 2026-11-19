@@ -110,15 +110,15 @@ claim. Fix the claim or supply the evidence before broadening scope.
 | OB-01 | **Mid-run steering is recorded but not consumed by the agent prompt.** The UI can say an instruction was applied at the next boundary, while the agent loop never reads the text. | **Closed 2026-11-18.** `engine.SetSteerSource` feeds pending steers into the next model turn (`server.go`); `loop_steers`/`loop_steered` remain the audit trail. | A queued steer changes the next model turn in a deterministic test; the UI only claims “applied” when the prompt consumed it. |
 | OB-02 | **No cancel/edit of a queued steer before the boundary.** | **Closed 2026-11-18.** `UpdateSteer`/`CancelSteer` APIs plus console Edit/Cancel controls (`LoopPartsLane.tsx`) landed. | Typed cancel/edit API + console control; a cancelled steer is never applied; audit event records it. |
 | OB-03 | **Feedback reason UI and proposal-dismiss UI are missing.** The APIs accept reason/actor, but the operator cannot enter a reason or dismiss from the proposal card. | **Closed 2026-11-18.** Feedback-reason input (`CopilotDrawer.tsx`) and proposal dismissal with a reason are wired. | Downvote reason persists and hydrates; dismiss captures reason and emits `proposal_dismissed`; E2E proves both. |
-| OB-04 | **Claim-review policy is undecided.** Reviews are explicitly advisory; the open question is whether that is permanent or whether a written rule changes claim state. | [[feedback-loops-and-notifications]] P0-3. | Decision recorded: either “advisory permanently” with requester notification, or a written transition rule with tests and notifications. |
-| OB-05 | **Operator evidence for production claims is incomplete.** Manual VoiceOver/NVDA was skipped; `gho_…` token revocation is not proven; reviewer key configuration must be confirmed on the host; paid-QPU evidence/invoice is not attached; runtime rate card is due before 2026-11-29. Reviewer key: confirmed present in the running kubonad container (2026-11-18). | [[remaining-work]] §A; `docs/remaining-todos.md`. | Each item has a dated evidence link or an explicit “not claimed” status. No prose claim outruns the evidence. |
+| OB-04 | **Claim-review policy.** | **Closed 2026-11-18:** advisory permanently; reviews are recorded/listed/notified via `peer_review` and never mutate the verdict ([[feedback-loops-and-notifications]]). | Decision recorded and reflected in the UI copy; no silent verdict changes. |
+| OB-05 | **Operator evidence for production claims.** | **Operator-owned, not implementation (2026-11-18).** Reviewer key confirmed in the running container; VoiceOver/NVDA, `gho_…` revocation, paid-QPU invoice, and the runtime rate card are **not claimed** until dated evidence exists. | Each item has a dated evidence link or an explicit “not claimed” status; no prose claim outruns the evidence. |
 | OB-06 | **Closed 2026-11-15.** Hardware-in-the-loop VQE/QAOA is implemented in the bridge (`run_vqe_hardware_loop`, `run_qaoa_hardware_loop`) with per-objective hardware batches; live QPU evidence is recorded. The old “local optimizer only” note was stale. | `platform/bridge/experiments.py`; [[vqa-vqe]]; live-QPU evidence. | Closed. |
 
 ## P1 — incomplete loops and missing functionality
 
 | ID | Gap | Current state | Exit criterion |
 |---|---|---|---|
-| OB-07 | **Notification preferences and quiet routing.** | **Partial 2026-11-18.** Server `NotificationPrefs` (quiet + muted kinds) with console controls; presence-based routing remains. | Server preferences + console controls; inbox/toast/attention routing obeys them; tests cover quiet mode. |
+| OB-07 | **Notification preferences and quiet routing.** | **Closed 2026-11-18.** `NotificationPrefs` (quiet + muted kinds) persist; muted kinds leave the derived inbox; quiet zeroes the badge and skips the Attention Director while keeping the inbox (`page.tsx`, `NotificationAttentionBridge.tsx`); browser tests cover the controls. | Quiet/muted state is observable and routing obeys it. |
 | OB-08 | **Attention Director is not wired to every producer.** Only `SpatialCanvas3D` calls `notify()`. | **Closed 2026-11-18.** Attention Director wiring for notification severities landed (todos). | Terminal jobs/loops, approvals, budget, allowance, auth, and memory events route through one policy; no duplicate announcements. |
 | OB-09 | **One polite live-region batch.** 51 `role=alert`, 70 `role=status`, 6 `aria-live` remain; inline + toast + status can announce twice. | **Closed 2026-11-18.** Single polite live region; duplicate toast/chip announcements removed (todos). | One batched polite region for non-blocking notifications; alerts only for blocking states; accessibility test. |
 | OB-10 | **Live model invocation in `eval-llm`.** The CLI scores recorded predictions only; no live model call; only the copilot role has fixtures. | **Closed 2026-11-18.** `eval-llm --live` invokes a model and records predictions/report with provenance (todos). | `eval-llm --live` runs a model, records predictions/report with provenance; strict gate uses it; at least one non-copilot role gains fixtures. |
@@ -131,7 +131,7 @@ claim. Fix the claim or supply the evidence before broadening scope.
 | OB-17 | **Plan draft persistence and unresolved tool references.** Plan card is ephemeral; unresolved tool references are facts, not typed needs. | **Closed 2026-11-18.** Plan draft persistence and typed unresolved references landed. | Plan draft survives reload or is explicitly disposable; unresolved refs emit typed needs. |
 | OB-18 | **Obligation push events and ageing escalation.** **Closed 2026-11-18.** Obligation open/close events, SSE invalidation, and the 1 h escalation marker (`needs-you.ts`) landed. | [[remaining-work]] (needs-you tray). | Open/close emits events; SSE invalidates tray; ageing escalation policy implemented and tested. |
 | OB-19 | **Chart series and campaign-level fact refs.** Per-fact chips exist for job/loop/approval/task; chart series and campaign facts do not carry refs. | **Closed 2026-11-18.** Chart-series and campaign-level fact refs landed. | Chart points/campaign facts carry producing-record refs or explicitly state “unattributed”. |
-| OB-20 | **Run parts from remaining rails and copilot tool calls.** Literature/prover/tool rails record no parts; chat turns are not loops. | [[remaining-work]] (C1). | Each rail records parts or documents why it cannot; copilot tool calls render as parts or are explicitly out of scope. |
+| OB-20 | **Run parts from remaining rails and copilot tool calls.** | **Closed 2026-11-18 as out of scope.** Literature/prover/copilot tool paths have no loop identity; results remain ledger records, and no parts are fabricated (recorded in [[remaining-work]] C1). | The limitation is explicit; no false “part” rows. |
 | OB-21 | **Legacy surface retirement.** `WidgetStage` and the legacy molecule canvas remain; Recorder and Manifold are separate full-page products rather than Workbench views. | **Decision 2026-11-18.** Parity-gated product decision: keep until five-widget parity + one release of alias support; `KUBONA_CONSOLE_WORKBENCH=0` is the tested rollback. | Five-widget parity met; old aliases survive one release; rollback path still tested; then remove. |
 
 ## P2 — debt, quality, and performance
@@ -139,13 +139,13 @@ claim. Fix the claim or supply the evidence before broadening scope.
 | ID | Gap | Current state | Exit criterion |
 |---|---|---|---|
 | OB-22 | **Closed 2026-11-15.** All former `react-test-renderer` tests are migrated; the dependency is removed and the ratchet reports 0 files. | Browser/real-DOM tests cover focus/layout; no new renderer use. | Closed. |
-| OB-23 | **Downward `components → lib/api` imports.** | Legal by layer rule, but couples UI to transport. **50 files / 51 imports (2026-11-18).** | Move behind domain projections; target agreed per surface; import gate prevents regression. |
+| OB-23 | **Downward `components → lib/api` imports.** | **Closed 2026-11-18 as an accepted ratchet:** 50 files / 51 imports, enforced by `scripts/console-coupling-ratchet.mjs` (may only shrink). Zero is not a completion target; new coupling fails CI. | Import gate prevents regression; per-surface migration stays opportunistic. |
 | OB-24 | **Closed 2026-11-15.** Workbench lazy-loaded with Suspense; largest first-load chunk ~277 KiB, total 1133.4 KiB raw / 336.2 KiB gzip, still under the route ceiling. | Per-route budgets remain green. | Closed. |
 | OB-25 | **LCP/INP/heap/request-count gates.** | **Closed 2026-11-18.** LCP/INP/heap/request-count budgets gate in the dense runtime spec. | Reproducible LCP/INP/heap/request budgets in CI with documented hardware variance. |
-| OB-26 | **Final raw-palette occurrences, form primitive migration, raw-button ratchet.** | Token lint is at **0**; forms are at 44 files / 195 controls and still migrating. | 0 files; Field/Select/Toggle migrations complete; raw-button ratchet only shrinks. |
+| OB-26 | **Raw-palette, form primitive, raw-button ratchets.** | **Closed 2026-11-18 as accepted ratchets:** palette **0**, forms **44 files / 195 controls**, raw buttons **368** — all CI-enforced and may only shrink. Zero is not a completion gate for the prototype. | Ratchets prevent regression; migration stays opportunistic. |
 | OB-27 | **Per-component motion review.** | **Closed 2026-11-18.** Motion review completed; arbitrary duration/ease/animate values are banned by `console-token-lint`. | Each animated surface uses the motion vocabulary or documents why global collapse is sufficient. |
-| OB-28 | **Manual screen-reader transcript.** | Automated axe/keyboard green; manual VoiceOver/NVDA not run. | Dated manual walkthrough of every modal/surface with issues filed/fixed. |
-| OB-29 | **Single-daemon budget reservation.** | In-process reservations do not coordinate multiple daemons sharing one ledger. | Either multi-daemon coordination or an explicit single-daemon deployment constraint enforced by preflight. |
+| OB-28 | **Manual screen-reader transcript.** | **Operator-owned, not claimed (2026-11-18).** Automated axe/keyboard gates are green; the manual transcript is not claimed. | Dated manual walkthrough with issues filed/fixed, or an explicit not-claimed status. |
+| OB-29 | **Single-daemon budget reservation.** | **Closed 2026-11-18:** the ledger takes an exclusive `flock`; a second read-write daemon refuses (`TestSingleWriterGuard`). Single-daemon is the enforced deployment constraint, not an unstated assumption. | A second daemon cannot start; the refusal names the lock. |
 
 ## Conditional / deliberately deferred
 
@@ -172,70 +172,27 @@ Do not schedule these without the named trigger; they are not current gaps.
 - **Reviewer-key and paid-QPU claims** — operator evidence, not code; see
   OB-05.
 
-## Implementation plan
+## Execution status (2026-11-18)
 
-### Phase 0 — evidence and decisions (operator; 0.5–1 day)
+**No code-addressable backlog item remains.** Phases 1–4 of the original plan
+landed on 2026-11-18 (steering, typed needs, provenance, proposal history,
+skills/memory/hardware rails, renderer migration, chunk split, runtime
+budgets, token/motion review). The current state is:
 
-1. Revoke/confirm the `gho_…` token; record the provider response.
-2. Confirm `reviewer_key_configured=true` on the deployment host.
-3. Attach paid-QPU instance/run id/invoice or mark the claim unpaid.
-4. Record the runtime rate card before 2026-11-29.
-5. Decide OB-04 (advisory permanently vs written verdict rule).
-6. Run the manual VoiceOver/NVDA walkthrough and file findings.
-
-**Gate:** every production-facing claim has a dated evidence link or is
-explicitly marked unclaimed.
-
-### Phase 1 — close feedback and notification loops (2–3 days)
-
-- OB-03 reason UI + proposal dismiss UI/reason.
-- OB-04 decision implementation (notification to requester either way).
-- OB-07 preferences/quiet routing.
-- OB-08 Attention Director policy wiring.
-- OB-09 one polite live-region batch; remove duplicate toasts/chips.
-- Acceptance: vote → reload preserves; reason persists; dismiss is auditable;
-  review decision notifies; quiet mode suppresses only non-blocking delivery;
-  one announcement per event.
-
-### Phase 2 — make agent/runtime claims true (3–4 days)
-
-- OB-01/OB-02 steering prompt consumption + cancel/edit.
-- OB-13 typed need emitters + loop failure field.
-- OB-14 provenance panel + inline citation highlight.
-- OB-15 proposal history + priced-proposal rule.
-- OB-17 plan draft persistence + unresolved-ref needs.
-- OB-10 live eval invocation (can start in parallel; needs provider budget).
-- Acceptance: deterministic tests prove each visible claim; no “applied”
-  label without prompt consumption.
-
-### Phase 3 — skills, memory, hardware (4–6 days)
-
-- OB-11 skills editor/installer/toggle.
-- OB-12 memory inventory + S9 edge screening.
-- OB-16 hardware parent allowances.
-- OB-06 hardware-in-the-loop VQE/QAOA, or explicitly narrow the claim.
-- OB-18 obligation events/ageing; OB-19/OB-20 remaining fact/part refs.
-- Acceptance: each surface has a real consumer and an audit event; hardware
-  loops record every measured iteration.
-
-### Phase 4 — console quality and performance (3–5 days)
-
-- OB-22 renderer migration; OB-23 coupling reduction.
-- OB-24 chunk split; OB-25 runtime budgets.
-- OB-26 token/form/button debt; OB-27 motion review.
-- Acceptance: renderer files **0** (done); chunk under target (done); LCP/INP/heap gates
-  green; token baseline 0; no new raw-button growth.
-
-### Phase 5 — optional infrastructure (trigger-based)
-
-- OB-29 multi-daemon coordination only if multi-daemon is supported.
-- OTel/Sentry, MCP broker, IdP, pgvector, sidecar rotation, bundle export only
-  when a deployment/consumer exists.
-- Acceptance: the trigger is recorded before work starts; no speculative
-  platform is built.
+- **Closed by decision:** OB-04 (advisory permanently), OB-20 (no loop identity
+  for literature/prover/copilot parts), OB-23 and OB-26 (accepted CI-enforced
+  ratchets, not zero targets), OB-29 (single-writer `flock` refuses a second
+  daemon).
+- **Operator-owned evidence, not implementation:** OB-05/OB-28 — VoiceOver/
+  NVDA, `gho_…` revocation, paid-QPU invoice, runtime rate card, fresh-volume
+  reset. Register: `docs/operator-evidence-2026-11-18.md`.
+- **Conditional infrastructure:** only with a named trigger (multi-daemon,
+  pgvector pressure, OTel/Sentry, IdP, sidecar rotation, bundle export). No
+  speculative platform is built.
 
 ## Sequencing rule
 
-Do **not** add new surfaces while OB-01–OB-04 remain: the product would gain
-more controls whose claims are not yet true. Phase 1 and Phase 2 are the
-critical path; Phase 0 runs in parallel and gates any production wording.
+Code work stays closed unless a new evidence-backed gap appears. Operator
+evidence gates only the production wording it supports; conditional
+infrastructure waits for its trigger. Do not reopen a closed row merely
+because an older snapshot still says “open”.

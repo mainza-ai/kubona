@@ -82,8 +82,6 @@ Executed 2026-11-18; each box is closed only by a test or a live run named in
       explicitly unmeasured. Citations carry `claim_id`/`source_id`/`verified`,
       a bound claim is checked against the ledger, and the Publication panel
       searches OpenAlex and adds/removes references (A2a/A2b).
-- [ ] Operator: fresh-volume reset to restore the declared `local_private`
-      posture (documented procedure; preserves a verified snapshot).
 
 ## Agentic science frontier (2026-11-18)
 
@@ -438,14 +436,17 @@ PySCF benzene/6-31G* 224 MiB; `/metrics` exposes no memory gauges.
 - [x] MEM-22: tiered storage explicitly quarantined (`UNSERVED` marker + test
       that no served module imports it); capped Tier 0/1 and sparse PPR remain.
 
-## Operator-only
+## Operator-owned evidence (not implementation)
 
-- [ ] Manual VoiceOver/NVDA walkthrough. (Needs assistive-technology hardware.)
-- [ ] Revoke/confirm the `gho_…` token. (External GitHub credential.)
-- [x] Confirm reviewer key on the deployment host: `KUBONA_REVIEWER_PRIVKEY_HEX`
-      is present in the running `kubonad` container
-      (`reviewer_key_present`), so manuscript signoff refuses only for other
-      reasons.
-- [ ] Attach paid-QPU instance/run id/invoice or mark unpaid. (External vendor
-      evidence; not available in this repo.)
+These are external evidence tasks, tracked in
+`docs/operator-evidence-2026-11-18.md`. They are **not claimed complete** and
+do not block code progress; they block only production claims that depend on
+them.
+
+- [ ] Manual VoiceOver/NVDA walkthrough. (Not claimed; needs AT hardware.)
+- [ ] Revoke/confirm the `gho_…` token. (Not claimed; external credential.)
+- [x] Confirm reviewer key on the deployment host (2026-11-18).
+- [ ] Attach paid-QPU instance/run id/invoice or mark unpaid. (Not claimed.)
 - [ ] Record runtime rate card before 2026-11-29. (Operator pricing decision.)
+- [ ] Fresh-volume reset to restore the declared `local_private` posture.
+      (Operator procedure on a verified snapshot.)
