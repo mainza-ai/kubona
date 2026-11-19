@@ -25,7 +25,6 @@ import numpy as np
 try:  # Qiskit is part of the bridge image; source checkouts may miss it.
     from qiskit import QuantumCircuit
     from qiskit.quantum_info import Statevector
-    from qiskit_aer import AerSimulator
     HAS_QISKIT = True
 except ImportError:  # pragma: no cover - bridge image always has it
     HAS_QISKIT = False

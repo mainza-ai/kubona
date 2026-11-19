@@ -6,7 +6,6 @@ Qiskit/Aer are NOT hard dependencies — import only when this plugin is used.
 
 from __future__ import annotations
 
-import math
 import os
 from pathlib import Path
 from typing import Any

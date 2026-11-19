@@ -1,7 +1,4 @@
 import importlib
-import os
-
-import pytest
 
 
 def _policy(monkeypatch, budget="4096"):

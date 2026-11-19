@@ -29,7 +29,7 @@ from chemistry import (
 )
 from epistemics import evaluate_claim_credibility
 from executor import execute_qasm, cut_circuit_qasm
-from simulator import trim_memory
+from simulator import trim_memory  # noqa: E402
 from literature import search_arxiv, search_openalex, to_records
 from fidelity import predict_fidelity, probe_clifford_fidelity
 from krylov import solve_quantum_krylov
@@ -509,7 +509,6 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     tenant_id=getattr(request, "tenant_id", "") or "",
                     spend_prepaid=True,
                 )
-                from kubona.mcp.servers import cost as _cost
                 _cost._sessions.sync_external_session(
                     session_id=request.session_id,
                     budget_ceiling_usd=ceiling_usd,

@@ -18,7 +18,6 @@ except ImportError:
 
 try:
     from qiskit import QuantumCircuit
-    from qiskit_aer import AerSimulator
     from qiskit_aer.noise import NoiseModel, depolarizing_error
     HAS_QISKIT = True
 except ImportError:

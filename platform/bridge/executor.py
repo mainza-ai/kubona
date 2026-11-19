@@ -24,7 +24,7 @@ except ImportError:
     HAS_QISKIT = False
 
 try:
-    from qiskit_aer import AerSimulator
+    from qiskit_aer import AerSimulator  # noqa: F401
     HAS_AER = True
 except ImportError:
     HAS_AER = False

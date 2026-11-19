@@ -21,9 +21,10 @@ def test_codes_match_contract():
     # approval_required (400). The 2026-11-14 Rails program added the
     # proposal lifecycle and steering codes below. `anchor_missing` carries
     # the typed need for accepting a verified claim without evidence. The
-    # count pins the contract size so silent catalog drift fails loudly; the
+    # The count pins the contract size so silent catalog drift fails loudly;
+    # 67 is the 2026-11-18 catalog (the old 36 was a pre-Rails snapshot). The
     # named set pins *which* codes the console/agent rails depend on.
-    assert len(rows) == 36, f"catalog grew/shrank: {len(rows)} rows"
+    assert len(rows) == 67, f"catalog grew/shrank: {len(rows)} rows"
     assert {
         "credits_unavailable", "spend_limit_exceeded", "task_not_entitled",
         "anchor_missing", "revision_conflict", "precondition_required", "proposal_stale",

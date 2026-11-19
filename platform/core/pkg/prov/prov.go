@@ -171,9 +171,9 @@ func BuildPROVJSON(b Bundle) map[string]any {
 	}
 	entity := map[string]any{
 		manuscriptID(b): map[string]any{
-			"prov:type":          "kubona:Manuscript",
-			"prov:label":         b.Title,
-			"kubona:contentHash": b.ContentHash,
+			"prov:type":            "kubona:Manuscript",
+			"prov:label":           b.Title,
+			"kubona:contentHash":   b.ContentHash,
 			"prov:generatedAtTime": b.CreatedAt,
 		},
 		campaignID(b): map[string]any{
@@ -363,12 +363,12 @@ func ProvOGraph(b Bundle) []map[string]any {
 		},
 		{
 			"@id": composeID(b), "@type": "prov:Activity", "name": "manuscript composition",
-			"prov:used":         []map[string]any{{"@id": campaignID(b)}},
+			"prov:used":              []map[string]any{{"@id": campaignID(b)}},
 			"prov:wasAssociatedWith": []map[string]any{{"@id": agentCore}},
 		},
 		{
 			"@id": manuscriptID(b), "@type": []string{"prov:Entity", "kubona:Manuscript"},
-			"name": b.Title,
+			"name":                b.Title,
 			"prov:wasGeneratedBy": []map[string]any{{"@id": composeID(b)}},
 			"prov:wasDerivedFrom": []map[string]any{{"@id": campaignID(b)}},
 			"kubona:contentHash":  b.ContentHash,

@@ -22,7 +22,6 @@ except ImportError:
 try:
     from qiskit import QuantumCircuit, qasm2
     from qiskit.quantum_info import Statevector
-    from qiskit_aer import AerSimulator
     HAS_QISKIT = True
 except ImportError:  # pragma: no cover - bridge image always has it
     HAS_QISKIT = False
@@ -207,7 +206,6 @@ def run_spin_chain(
         theta = np.zeros(0, dtype=float)
         exact_opt = float(exact_energy)
         optimizer_name = "none"
-        optimizer_success = True
         total_evals = 0
         optimizer_status = "converged"
         gap = 0.0
