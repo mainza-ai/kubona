@@ -104,9 +104,11 @@ def test_lean_sandbox_cmd_flags(tmp_path):
     cmd = sandbox_docker_cmd(cfg, tmp_path, "QuasiRiemannHypothesis")
     for flag in ["--read-only", "--network", "none", "--cap-drop", "ALL",
                  "--memory", "4g", "--memory-swap", "4g", "--cpus", "2.0",
-                 "--pids-limit", "256", "--tmpfs", "/tmp"]:
+                 "--pids-limit", "256", "--tmpfs", "/tmp", "-e", "HOME=/tmp"]:
         assert flag in cmd, (flag, cmd)
-    assert cmd[-1] == "QuasiRiemannHypothesis"
+    assert cmd[-3:] == [
+        "env", "comparator", "ComparatorChallenges/QuasiRiemannHypothesis.json",
+    ]
     assert "kubona-lean:4.34.1" in cmd
 
 
@@ -157,3 +159,12 @@ def test_infra_failure_detector():
     assert _is_infra_failure("Error: no such image") is True
     assert _is_infra_failure("error: unknown tactic 'sorryAx', sorry") is False
     assert _is_infra_failure("") is False
+
+
+def test_sandbox_identity_can_be_overridden(monkeypatch, tmp_path):
+    """VM-remapped bind mounts can pass the owning uid:gid explicitly."""
+    from kubona.eval.comparator_eval import LeanSandboxConfig, sandbox_docker_cmd
+
+    monkeypatch.setenv("KUBONA_SANDBOX_USER", "506:1000")
+    cmd = sandbox_docker_cmd(LeanSandboxConfig(), tmp_path, "X")
+    assert cmd[cmd.index("--user") + 1] == "506:1000"

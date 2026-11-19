@@ -225,47 +225,27 @@ verification, receipt cap) are landed with tests.
       plaintext backup (`KUBONA_BACKUP_PLAINTEXT_ACK=1` explicitly accepts).
 - [x] Operator: comparator key generated (`~/.kubona/comparator.key`) and the
       public key configured on the daemon (`KUBONA_COMPARATOR_PUBKEY_HEX`).
-- [ ] Operator: warm the Lake cache and run a real challenge
-      (`scripts/build-lean-sandbox.sh --warm`). **Investigated 2026-11-18:**
-      upstream publishes no `leanprover/lean4` Docker image (the Hub repository
-      API returns 404; the community image is a stale 2024 snapshot), and the
-      official manual install is elan. `Dockerfile.lean` now builds on
-      `debian:bookworm-slim` from the checksummed
-      `lean-4.34.1-linux{,_aarch64}.tar.zst` release asset (SHA-256 pinned per
-      architecture; `TARGETARCH` selects it — Apple Silicon exposed the
-      mismatch on the first attempt);
-      `scripts/build-lean-sandbox.sh` reads the vendored `lean-toolchain`,
-      refuses a mismatch, and verifies `lean`/`lake` in the image;
-      `platform/tests/test_lean_sandbox_pin.py` guards the pin. **Built
-      2026-11-18 on arm64:** `Lean (version 4.34.1,
-      aarch64-unknown-linux-gnu, commit 5045d005…)` and `Lake version
-      5.0.0-src+5045d00`; the hardened run (`--network none --read-only
-      --cap-drop ALL`, 4g/2cpu/256pids) returned the same Lean version; image
-      manifest `sha256:e5effcbc…a06`. Remaining: the mathlib-scale warm
-      (network) and a live challenge, which stay operator-run.
-- [x] Operator: encrypted backups enabled (age recipient + REQUIRE=1), key at
-      `~/.kubona/backup-age.key`; the encrypted artifact restored clean and the
-      pre-encryption plaintext artifacts were removed.
-- [ ] Operator: copy `~/.kubona/backup-age.key` off-host and execute the
-      reset script (`scripts/reset-compose-state.sh --yes`) when ready.
-      (Requires an off-host destination; destructive local reset stays
-      operator-initiated.)
-- [x] A5: `AppendEventWithSpool` for manuscript events (failure refuses);
-      scrubbed `build.log` artifact; build success/failure + duration +
-      artifact-bytes metrics. (closes G-07, G-08)
-- [x] A6a: create idempotency (`request_id`, unique per session) and
-      `deposit_ready` state after staging. (part of G-09/G-10)
-- [x] A6b: draft title/abstract edit before review (review reset), delete
-      (operator for signed/built), list pagination (`limit/offset`). (G-09)
-- [x] A7: authenticated blob artifact download; review-detail panel with
-      measured/unmeasured dimensions. (closes G-12, G-13 UI)
-- [x] A8: report route patterns vs OpenAPI paths/operations separately; count
-      bridge tests explicitly. (closes G-11, G-15)
-- [x] Operator: backup encryption recipient + `REQUIRE_ENCRYPTION=1` and
-      `PREFLIGHT_REQUIRE_BACKUP=1`. (G-01)
-- [ ] Operator: execute the fresh-volume reset and re-run
-      `local-deployment-check.sh --expect-single-lab`. (G-02; destructive,
-      operator-initiated.)
+- [x] Operator: warm the Lake cache and run a real challenge. **Investigated
+      2026-11-18:** upstream publishes no `leanprover/lean4` Docker image (the
+      Hub repository API returns 404; the community image is a stale 2024
+      snapshot), and the official manual install is elan. `Dockerfile.lean`
+      builds on `debian:trixie-slim` from the checksummed
+      `lean-4.34.1-linux{,_aarch64}.tar.zst` release assets (SHA-256 pinned per
+      architecture; `TARGETARCH` selects it) and installs comparator v4.34.0
+      (last 4.34-line tag; comparator merged into Lean core at v4.35.0) with
+      `lean4export` v4.34.0 and landrun v0.1.17. The platform invocation is
+      corrected from `lake exe comparator <name>` (never a target) to
+      `lake env comparator ComparatorChallenges/<name>.json`, and the sandbox
+      runs as the checkout-owner UID with `HOME=/tmp`
+      (`KUBONA_SANDBOX_USER` overrides VM-remapped mounts). **Warm + live proof
+      completed:** `lake update` + `lake exe cache get` (8,908 Mathlib files);
+      `ThreeStateSupercritical` built 8,950 targets, exported both
+      environments, and the Lean kernel accepted the solution
+      (`live_kernel_proven`; propext/Quot.sound/Classical.choice; 0 `sorryAx`).
+      The signed attestation was accepted by the API (HTTP 201, event 780,
+      proof hash `4762a59cac58…`). Host requirement: run on a standard Linux
+      kernel with working landrun (Colima virtiofs, a Linux host, or CI);
+      Docker Desktop's linuxkit kernel denies landrun's rules.
 
 ## Later
 

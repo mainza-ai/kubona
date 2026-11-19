@@ -25,6 +25,10 @@ On 6 October 2026, OpenAI released `openai/math`, a monumental open-source corpu
 The repository comprises:
 1. **722 mathematical manuscripts** organized into **372 result families**, spanning **17 distinct mathematical disciplines**.
 2. **Lean 4 formalizations** covering 162 papers with formalized main results, configured via `formalization.yaml` (schema v0.4) and accompanied by **811 Comparator challenge specifications** and **235 Lean documentation pages**.
+
+> ⚑ Correction (2026-11-18): the pinned checkout contains **405**
+> `ComparatorChallenges/*.json` files, not 811; the document's count is
+> recorded here as the upstream claim. See [[comparator]].
 3. **10 comprehensive reasoning summaries** (chain-of-thought traces) providing verbatim model reflections, exploratory trajectories, and proof strategies on deep open questions.
 4. **Methodological evaluation protocol:** Posed ~4,000 open research problems; each result utilized an average of three hours of ChatGPT Pro thinking compute.
 

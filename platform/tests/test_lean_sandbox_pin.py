@@ -72,6 +72,18 @@ def test_runtime_image_tag_matches_the_pin():
     assert LeanSandboxConfig().image == f"kubona-lean:{version}"
 
 
+def test_comparator_and_landrun_are_pinned():
+    text = DOCKERFILE.read_text()
+    assert "ARG LANDRUN_VERSION=0.1.17" in text
+    assert "LANDRUN_AMD64_SHA256=6ada66a06669e8994e174a7271af2db636308e55a0d6ec896cc7d326b46727f6" in text
+    assert "LANDRUN_ARM64_SHA256=365d8c8656c732b14d70e621d972cb733e490621fb5b9c0876376bcf457dbb5d" in text
+    assert "ARG COMPARATOR_COMMIT=d03acab154d269c06e60e4de7e4cc85deebff94b" in text
+    assert "ARG LEAN4EXPORT_COMMIT=076e8e57707e813375e8f9da8bf989799ace9680" in text
+    assert "lake build lean4export comparator" in text
+    assert "sed -i" in text and "lakefile.toml" in text, (
+        "the comparator manifest must be regenerated from the pinned lean4export rev"
+    )
+
 def test_build_script_reads_the_pin_and_verifies_the_image():
     text = BUILD_SCRIPT.read_text()
     assert "lean-toolchain" in text

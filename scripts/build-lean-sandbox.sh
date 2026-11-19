@@ -12,6 +12,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE="${KUBONA_LEAN_IMAGE:-kubona-lean:4.34.1}"
+# The warm steps write `.lake` in the bind-mounted checkout, so run as the
+# checkout owner (or KUBONA_SANDBOX_USER when a VM remaps mount ownership).
+SANDBOX_USER="${KUBONA_SANDBOX_USER:-$(id -u):$(id -g)}"
 TOOLCHAIN_FILE="$ROOT/submodules/math/lean/lean-toolchain"
 DOCKERFILE="$ROOT/platform/docker/Dockerfile.lean"
 WARM=0
@@ -57,8 +60,16 @@ esac
 docker run --rm --entrypoint lake "$IMAGE" --version >/dev/null
 
 if [ "$WARM" = 1 ]; then
-  echo "build-lean-sandbox: warming the Lake cache (network required)…"
-  docker run --rm -v "$ROOT/submodules/math/lean:/workspace:rw" -w /workspace \
-    --entrypoint lake "$IMAGE" build
+  # Comparator's README: `lake update`, then `lake exe cache get`. Building the
+  # whole OAI library is not required: comparator builds the challenge and
+  # solution modules on demand, inside its own sandbox.
+  echo "build-lean-sandbox: fetching Lake dependencies (network required)…"
+  docker run --rm -e HOME=/tmp --user "$SANDBOX_USER" \
+    -v "$ROOT/submodules/math/lean:/workspace:rw" -w /workspace \
+    --entrypoint lake "$IMAGE" update
+  echo "build-lean-sandbox: downloading the Mathlib cache (network required)…"
+  docker run --rm -e HOME=/tmp --user "$SANDBOX_USER" \
+    -v "$ROOT/submodules/math/lean:/workspace:rw" -w /workspace \
+    --entrypoint lake "$IMAGE" exe cache get
 fi
 echo "Next: scripts/comparator-verify.sh --challenge <name> --session <sid> --out /tmp/attestation.json"

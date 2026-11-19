@@ -64,10 +64,11 @@ See also [[comparator]], [[openai-math]], [[formal-proof-verification-lean-compa
 Sandbox execution above is now a mechanism, not an aspiration
 (`platform/kubona/eval/comparator_eval.py`, `platform/docker/Dockerfile.lean`):
 
-- **Image:** `kubona-lean:4.34.1` built on `debian:bookworm-slim` from the
-  checksummed `lean-4.34.1-linux.tar.zst` GitHub release asset, unprivileged
-  user, `MALLOC_ARENA_MAX=2`; source stays vendored and is mounted at runtime
-  (image carries the toolchain only). Build cache must be warmed at
+- **Image:** `kubona-lean:4.34.1` built on `debian:trixie-slim` (glibc for
+  landrun) from the checksummed `lean-4.34.1-linux{,_aarch64}.tar.zst` GitHub
+  release asset, plus comparator v4.34.0, `lean4export` v4.34.0, and landrun
+  v0.1.17; unprivileged user, `MALLOC_ARENA_MAX=2`; source stays vendored and
+  is mounted at runtime. Build cache must be warmed at
   image-build time — runtime runs `--network none`, so an unwarmed first build
   would fail offline.
 - **Caps on every run** (`LeanSandboxConfig`, unit-tested flag-for-flag):

@@ -90,6 +90,21 @@ def docker_image_present(image: str) -> bool:
         return False
 
 
+def _sandbox_identity_flags() -> list[str]:
+    """Run the sandbox as the caller when the platform exposes POSIX ids.
+
+    `KUBONA_SANDBOX_USER` overrides the id pair for hosts where a VM remaps
+    bind-mount ownership (for example Colima's guest UID differs from macOS).
+    """
+    flags = ["-e", "HOME=/tmp"]
+    override = os.environ.get("KUBONA_SANDBOX_USER", "").strip()
+    if override:
+        flags += ["--user", override]
+    elif hasattr(os, "getuid") and hasattr(os, "getgid"):
+        flags += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    return flags
+
+
 def sandbox_docker_cmd(cfg: LeanSandboxConfig, lean_dir: Path, challenge_name: str) -> list[str]:
     """The exact container invocation (unit-tested flag-for-flag)."""
     return [
@@ -104,8 +119,14 @@ def sandbox_docker_cmd(cfg: LeanSandboxConfig, lean_dir: Path, challenge_name: s
         "--tmpfs", "/tmp",
         "-v", f"{lean_dir}:/workspace:rw",
         "-w", "/workspace",
+        # Comparator (and landrun inside it) writes `.lake`; run as the
+        # invoking user so a bind-mounted checkout owned by that UID is
+        # writable. HOME points at the tmpfs so nothing needs the image home.
+        *_sandbox_identity_flags(),
         cfg.image,
-        "exe", "comparator", challenge_name,
+        # `comparator` is an external binary (archived v4.34.0), not a Lake
+        # target: the project README invokes it through `lake env`.
+        "env", "comparator", f"ComparatorChallenges/{challenge_name}.json",
     ]
 
 
@@ -412,7 +433,7 @@ class ComparatorChallengeRegistry:
         cfg: LeanSandboxConfig,
         ledger: Optional[Ledger],
     ) -> Optional[VerificationResult]:
-        """Containerized `lake exe comparator` under resource caps. Returns
+        """Containerized `lake env comparator` under resource caps. Returns
         None when the sandbox cannot run (daemon/image absent) so the caller
         falls back to AST containment with reason; timeouts and nonzero exits
         inside the container are honest results, not fallbacks."""

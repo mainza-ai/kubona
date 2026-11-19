@@ -7403,3 +7403,27 @@ skipped is the exact failure this incident is about:
   flags and the image agree.
 - Manifest `sha256:e5effcbc…a06`. The mathlib-scale warm and a live comparator
   challenge remain operator-run.
+
+## [2026-11-18] verification | Lean comparator live kernel proof
+
+- Toolchain: `kubona-lean:4.34.1` on `debian:trixie-slim` from the checksummed
+  `lean-4.34.1-linux{,_aarch64}.tar.zst` assets, plus comparator v4.34.0 (last
+  4.34-line tag; merged into Lean core at v4.35.0), `lean4export` v4.34.0, and
+  landrun v0.1.17. The platform invocation is corrected to
+  `lake env comparator ComparatorChallenges/<Name>.json`; the sandbox runs as
+  the checkout-owner UID with `HOME=/tmp` (`KUBONA_SANDBOX_USER` overrides
+  VM-remapped mounts).
+- Warm: `lake update` fetched the package set; `lake exe cache get`
+  decompressed 8,908 Mathlib cache files.
+- Live: `ThreeStateSupercritical` built 8,950 targets, exported the challenge
+  and solution environments, and the Lean kernel accepted the solution
+  (`Your solution is okay!`; `live_kernel_proven`; axioms propext,
+  `Quot.sound`, `Classical.choice`; 0 `sorryAx`). The signed attestation was
+  accepted by the API (HTTP 201, event 780, proof hash `4762a59c…`).
+- Host requirement: Docker Desktop's linuxkit kernel cannot run landrun (its
+  rules are effectively deny-all there, though a minimal Landlock probe works);
+  the live run used Colima with virtiofs (sshfs drops the Docker API tunnel
+  under Lean's write volume).
+- Count correction: the pinned checkout has **405** challenge JSON files, not
+  the source document's 811 (recorded in [[comparator]] and
+  [[openai-math]]).

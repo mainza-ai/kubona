@@ -127,8 +127,14 @@ development — re-verify the gate on the exact commit before citing
 > merged alongside diagnostics (the proposer timeout/cap are configurable);
 > failures always fall back to diagnostics with `llm.error`; the verification calibration labels are maintainer-authored, not
 > an independent human study; human minutes are not recorded and stay `null`;
-> and the pinned Lean image remains operator-built, so no live kernel proof has
-> run here. The 2026-11-18 accuracy investigation
+> and the Lean comparator has now run a live kernel proof:
+> `ThreeStateSupercritical` was built, exported, and accepted by the Lean kernel
+> on 2026-11-18 (`live_kernel_proven`; axioms propext, Quot.sound,
+> Classical.choice; 0 `sorryAx`), and the API accepted its signed attestation
+> (event 780, proof hash `4762a59c…`). The image builds from the checksummed
+> pinned release tarball; a live run needs a standard Linux kernel with working
+> landrun (Colima virtiofs, a Linux host, or CI), because Docker Desktop's
+> linuxkit kernel cannot run landrun. The 2026-11-18 accuracy investigation
 > (`docs/accuracy-gap-investigation-2026-11-18.md`) fixed a QAOA simulator
 > bit-order bug (p=2 0.788 → 0.891) and an Inspector header overlap, and
 > separated the TFIM gap into optimizer and depth causes; AG-11…AG-16 carry the

@@ -625,22 +625,28 @@ design. The session master switch is implemented; the rest is planned.
 
 ### Residual work (not AG slices)
 
-- Lean comparator: the attestation boundary is implemented, but the pinned
-  `kubona-lean:4.34.1` image now builds from the checksummed v4.34.1 release
-  tarball (upstream publishes no official image) and was verified on arm64
-  (Lean 4.34.1 / Lake 5.0.0-src, including the hardened run profile), but the
-  mathlib-scale warm and a live kernel proof remain operator-run, so none has
-  run here.
-- Operator-owned chores remain: copy `~/.kubona/backup-age.key` off-host,
-  execute a fresh-volume reset if desired, and set
-  `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1` if the deployment should require a fresh
-  backup.
+- Lean comparator: **live kernel proof run 2026-11-18.** The pinned
+  `kubona-lean:4.34.1` image builds from the checksummed v4.34.1 release tarball
+  (upstream publishes no official image), installs comparator v4.34.0 +
+  `lean4export` v4.34.0 + landrun v0.1.17, and the `ThreeStateSupercritical`
+  challenge built 8,950 targets, exported both environments, and was accepted by
+  the Lean kernel (`Your solution is okay!`, `live_kernel_proven`, axioms
+  propext/Quot.sound/Classical.choice, 0 `sorryAx`). The platform CLI's signed
+  attestation was accepted by the API (HTTP 201, event 780, proof hash
+  `4762a59c…`). The warm cache (`lake update` + `lake exe cache get`, 8,908
+  files) is in place.
+  Host requirement: a standard Linux kernel with working landrun (Colima
+  virtiofs, a Linux host, or CI); Docker Desktop's linuxkit kernel denies
+  landrun's rules.
+- Operator-owned chores remain: copy `~/.kubona/backup-age.key` off-host and
+  execute a fresh-volume reset if desired. `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`
+  is set.
 - Re-verify the full gate on the exact pushed commit before citing "green".
 
 ### Still open
 
-No AG slices remain; the items above are operator/verification chores, not
-unimplemented design.
+No AG slices remain; the live Lean kernel proof now runs. The items above are
+operator chores, not unimplemented design.
 
 ## 7. Source notes and limitations
 
@@ -648,8 +654,9 @@ unimplemented design.
   different task slices (code, reproduction, re-discovery, workflow).
 - Several 2026 systems are company-reported; where possible the primary paper
   or arXiv is cited. Self-estimated accuracy (Kosmos 79.4%) is labeled as such.
-- The Lean comparator attestation boundary is implemented; the live Lean
-  sandbox image is still operator-built, so no real kernel proof has been run
-  in this environment.
+- The Lean comparator attestation boundary is implemented and a live kernel
+  proof ran on 2026-11-18 (see the residual-work section); the sandbox image is
+  built from the pinned release tarball, and the live run needs a Linux kernel
+  with working landrun.
 - Web research date: 2026-11-18. Re-check the source list before citing these
   numbers in a publication.
