@@ -14,15 +14,28 @@ from kubona.eval.comparator_eval import LeanSandboxConfig
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLCHAIN = ROOT / "submodules" / "math" / "lean" / "lean-toolchain"
+# CI does not fetch the 11 GiB `openai/math` submodule. The checked-in contract
+# carries the pin for CI; when the submodule is present the test also checks
+# that the two agree, so the fallback cannot silently drift on a dev machine.
+TOOLCHAIN_FALLBACK = ROOT / "platform" / "contracts" / "lean-toolchain"
 DOCKERFILE = ROOT / "platform" / "docker" / "Dockerfile.lean"
 BUILD_SCRIPT = ROOT / "scripts" / "build-lean-sandbox.sh"
 
 
 def _pinned_version() -> str:
-    value = TOOLCHAIN.read_text().strip()
+    path = TOOLCHAIN if TOOLCHAIN.exists() else TOOLCHAIN_FALLBACK
+    value = path.read_text().strip()
     match = re.fullmatch(r"leanprover/lean4:v(.+)", value)
     assert match, f"unexpected lean-toolchain contents: {value!r}"
     return match.group(1)
+
+
+def test_fallback_pin_matches_the_submodule_when_present():
+    if not TOOLCHAIN.exists():
+        return
+    assert TOOLCHAIN.read_text().strip() == TOOLCHAIN_FALLBACK.read_text().strip(), (
+        "platform/contracts/lean-toolchain drifted from the math submodule"
+    )
 
 
 def test_dockerfile_pins_the_vendored_toolchain():
