@@ -122,8 +122,13 @@ Still open (A-series in `docs/active-implementation-todos.md`):
   verified encrypted restore; the comparator keypair generated and the public
   key configured; one-command scripts for the Lean sandbox, comparator run,
   and an archive-first compose reset.
-- **Operator:** build/warm the Lean image and run a real challenge; copy
-  `~/.kubona/backup-age.key` off-host; execute
+- **Landed (seventh pass):** the pinned Lean sandbox was built from the
+  checksummed v4.34.1 release tarballs with comparator v4.34.0 +
+  `lean4export` v4.34.0 + landrun v0.1.17; the cache was warmed (8,908 Mathlib
+  files) and `ThreeStateSupercritical` ran a live kernel proof
+  (`live_kernel_proven`, 0 `sorryAx`) whose signed attestation the API accepted
+  (event 780). See `docs/lean-comparator-runbook-2026-11-18.md`.
+- **Operator:** copy `~/.kubona/backup-age.key` off-host; execute
   `scripts/reset-compose-state.sh --yes` when ready for a fresh single-lab
   ledger.
 - **Operator:** backup encryption/waiver + `PREFLIGHT_REQUIRE_BACKUP=1`, and
@@ -880,8 +885,12 @@ hardening. None blocks the supported local-private deployment.
   CKT, Cirq/Q#/Serverless/Braket/rQOPS/CQM providers, GQE transformer,
   Bemba/Typst surfaces, quantum multi-geometry, loop load/chaos tests,
   cgroup kill, peercred sidecar (Q5 Linux hardening), workspace-files v2.
-- Lean image — blocked on toolchain (no `lake`/`elan`, image
-  unresolvable); comparator stays AST-first.
+- Lean image — **resolved 2026-11-18**: the official `leanprover/lean4` image
+  does not exist; the sandbox now builds from the checksummed v4.34.1 release
+  tarballs with comparator/landrun and a live kernel proof has run. The
+  remaining requirement is a standard Linux kernel with working landrun
+  (Docker Desktop's linuxkit kernel cannot run it). See
+  `docs/lean-comparator-runbook-2026-11-18.md`.
 
 > Current reconciled backlog and phased plan: [[open-backlog-2026-11-15]].
 

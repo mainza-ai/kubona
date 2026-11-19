@@ -376,8 +376,9 @@ working, governed core.
   ground → hypothesis → experiment → analysis → report → library → meta-learn —
   inside the existing cost/capability gates.
 - **Formal verification & mathematical discovery anchors:** [[openai-math]] integrated as
-  adopted submodule (`submodules/math`, Apache-2.0, 372 families); [[lean4]] / [[comparator]]
-  formal verification challenge evaluator; exact analytical baselines ([[mathematical-physics-anchors]])
+  adopted submodule (`submodules/math`, Apache-2.0, 372 families; 405 challenges
+  measured 2026-11-18); [[lean4]] / [[comparator]] formal verification evaluator with a
+  live kernel proof run and API-accepted attestation (2026-11-18); exact analytical baselines ([[mathematical-physics-anchors]])
   grounding quantum discovery campaigns with $\rho = 1.0$ epistemic certainty.
 - **Personas & fine-tuned domain models** via [[unsloth]] (private, local; ties to the
   Milimo Apple-Silicon HAL, [[mainza-milimo-foundation]]).

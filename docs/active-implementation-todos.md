@@ -1,7 +1,7 @@
 # Active implementation TODOs — 2026-11-18
 
 Local-only execution list. No push until explicitly requested.
-Baseline: `d9a0c1ab` on `develop`.
+Baseline: `fe31d1af` on `develop` (post-Lean live proof, 2026-11-18).
 Audit: `docs/production-audit-2026-11-18.md` (K-01…K-14).
 
 ## Now
@@ -245,7 +245,8 @@ verification, receipt cap) are landed with tests.
       The signed attestation was accepted by the API (HTTP 201, event 780,
       proof hash `4762a59cac58…`). Host requirement: run on a standard Linux
       kernel with working landrun (Colima virtiofs, a Linux host, or CI);
-      Docker Desktop's linuxkit kernel denies landrun's rules.
+      Docker Desktop's linuxkit kernel denies landrun's rules. Runbook:
+      `docs/lean-comparator-runbook-2026-11-18.md`.
 
 ## Later
 

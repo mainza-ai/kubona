@@ -60,7 +60,7 @@ ledger receipt, a cited anchor), never to an assertion.
 | [[source-cloudflare-economy]] | The agent resource economy: why Kubona's outputs are monetizable, [[x402]] rail, startup patterns |
 | [[source-frontier-repo-audit-2026]] | 25 live repos read end-to-end (remote · HEAD · licence · `path:line`): [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], prior-art primitives for memory, governance and packs |
 | [[source-agent-protocol-landscape-2026]] | 2026 standards audit: MCP 2026-07-28 & SDK 2.x, AAIF, A2A delegation, AP2 mandates, Qiskit MCP servers, [[protocol-strategy]] |
-| [[source-openai-math-corpus]] | 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 Comparator challenges: [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]] |
+| [[source-openai-math-corpus]] | 722 manuscripts in 372 families, 162 Lean 4 formalizations, 405 Comparator challenges in the pinned checkout (source document says 811; see [[comparator]]): [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]] |
 | [[source-leanrea-investigation-2026]] | Live investigation of `aicodeking/leanrea` (`09ba4aa`, MIT): router + traps skill (`skills/kubona/SKILL.md`), benchmark harness (`bench/`), and 29-tool MCP catalog discipline ([[leanrea]], [[leanrea-adoption-plan]]) |
 | [[source-llm-circuit-codesign-2026]] | Gu et al. `arXiv:2610.22367v1` (15 Oct 2026, unreproduced): evaluator-guided LLM search, kickmix validity, TQ-cost, routing/history-decode/failure-budget, 7 wins + divsteps: [[evaluator-guided-circuit-codesign]], [[reversible-co-design-patterns]], [[failure-budget-and-frontier]] |
 | [[source-magic-state-cultivation-2026]] | Google Willow cultivation (Science Oct 2026, tracked): `~40×` cut, `99.99%` T-fidelity, d3-color→d5-surface graft; magic-state economics for costing |
@@ -137,7 +137,8 @@ ledger receipt, a cited anchor), never to an assertion.
 
 9. **Autonomous Mathematical Discovery and Formal Verification Anchors:**
    The sixth source, [[source-openai-math-corpus]], provides 372 result families, 162 [[lean4]] formalizations,
-   and 811 [[comparator]] challenges integrated as an adopted submodule ([[openai-math]], `submodules/math`,
+   and 405 [[comparator]] challenges in the pinned checkout (the source document
+   records 811; measured 2026-11-18) integrated as an adopted submodule ([[openai-math]], `submodules/math`,
    Apache-2.0). Mathematical physics proofs (Heisenberg ferromagnet spontaneous magnetization, QAOA optimality on
    the SK spin glass, Haldane gap, MUB dimension 6) establish exact analytical anchors for quantum simulation
    ([[mathematical-physics-anchors]]), while formal proof verification provides an epistemic confidence $\rho = 1.0$

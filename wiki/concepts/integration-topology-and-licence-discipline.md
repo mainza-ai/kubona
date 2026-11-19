@@ -36,7 +36,7 @@ development ends, so the URL is the durable reference):
 
 | Submodule / Candidate | Live URL | Licence | Status & Why it earns submodule status |
 |---|---|---|---|
-| [[openai-math]] | `github.com/openai/math` | Apache-2.0 | **Adopted submodule** (`submodules/math`, SHA `adc7f1241`); provides 372 mathematical discovery families, 162 Lean 4 formalizations, 811 Comparator challenges, and analytical physics anchors |
+| [[openai-math]] | `github.com/openai/math` | Apache-2.0 | **Adopted submodule** (`submodules/math`, SHA `adc7f1241`); provides 372 mathematical discovery families, 162 Lean 4 formalizations, 405 Comparator challenges in the pinned checkout (source document: 811), and analytical physics anchors |
 | PennyLane | `github.com/PennyLaneAI/pennylane` | Apache-2.0 | Candidate; the differentiable engine itself; we ship against it, not a fork ([[differentiable-quantum-stack]]) |
 | QASM3 grammar | `github.com/openqasm/openqasm` | Apache-2.0 | Candidate; `source/grammar/qasm3{Lexer,Parser}.g4` is the parse contract we validate front-ends against |
 | LLVM/MLIR | `github.com/llvm/llvm-project` | Apache-2.0 + LLVM exception | **External binary**, not a submodule — the monorepo is never vendored |

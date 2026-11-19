@@ -3,7 +3,7 @@ name: Formal Proof Verification with Lean 4 and Comparator
 type: concept
 tags: [concept, formal-verification, lean4, comparator, epistemics, proof-checking]
 date: 2026-10-08
-updated: 2026-10-08
+updated: 2026-11-18
 status: adopted
 sources: [source-openai-math-corpus, source-architecture-paper]
 ---
@@ -70,5 +70,32 @@ assert result.ok
 ```
 
 When verified, the event is appended to Kubona's tamper-evident hash-chained [[provenance-and-reproducibility|ledger]], providing cryptographic provenance for mathematical discoveries.
+
+`verify_lean4_live` is the kernel path: it runs the archived comparator
+(`lake env comparator ComparatorChallenges/<Name>.json`) inside the pinned
+sandbox and only attests `live_kernel_proven` when the kernel actually accepts
+the solution. Axiom-only checks remain a weaker, non-kernel mode.
+
+---
+
+## 4. Live verification status (2026-11-18)
+
+The boundary is no longer only implemented; it has run a live kernel proof:
+
+- **Challenge:** `ThreeStateSupercritical`
+  (`OAI.ThreeState.poisson_supercritical`,
+  `OAI.ThreeState.regular_supercritical`).
+- **Toolchain:** Lean v4.34.1 from the checksummed release tarball; comparator
+  v4.34.0 with `lean4export` v4.34.0 and landrun v0.1.17 (comparator merged
+  into Lean core at v4.35.0; this corpus is pinned to 4.34.1).
+- **Result:** 8,950 targets built; both environments exported; the kernel
+  accepted the solution — `live_kernel_proven`, axioms `propext`,
+  `Quot.sound`, `Classical.choice`, `sorryAx` count 0.
+- **Attestation:** proof hash `4762a59cac58…`; the API accepted the signed
+  attestation (HTTP 201, event 780).
+- **Host requirement:** a standard Linux kernel with working landrun
+  (Colima virtiofs, a Linux host, or CI). Docker Desktop's linuxkit kernel
+  cannot run landrun's rules. Full runbook:
+  `docs/lean-comparator-runbook-2026-11-18.md`.
 
 See also [[lean4]], [[comparator]], [[openai-math]], [[autonomous-mathematical-discovery]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]].

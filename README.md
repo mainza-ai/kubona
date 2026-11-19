@@ -15,7 +15,7 @@
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-Orchestrator-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-161%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-165%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -80,6 +80,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 - **Signed, Hash-Chained Receipts:** Every run emits a schema-validated `experiment-result-v1` payload sealed into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger.
 - **Pre-Dispatch Fidelity Gate:** Evaluates hardware `T₁`/`T₂`, two-qubit gate error, and calibration freshness (<24h) before a circuit is admitted to a QPU.
 - **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement across IBM Quantum, IonQ, AWS Braket, and local private runtimes.
+- **Machine-Checked Proofs:** 405 pre-registered Lean 4 challenges run inside a pinned, offline sandbox (Lean 4.34.1, comparator v4.34.0, `lean4export`, landrun). Only a kernel-accepted solution is attested as `live_kernel_proven`; signed attestations are verified against the configured comparator key. See [`docs/lean-comparator-runbook-2026-11-18.md`](docs/lean-comparator-runbook-2026-11-18.md).
 
 ### 4. Polyglot Core & MCP-Native Architecture
 
@@ -124,7 +125,7 @@ All 13 experiment kinds execute through the governed Go job rail, validate again
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 stdio MCP servers (38 tools: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
 | [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
 | [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
-| [`wiki/`](wiki/) | **Blueprint Wiki** | 161 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
+| [`wiki/`](wiki/) | **Blueprint Wiki** | 165 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
 
 ---
 

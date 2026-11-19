@@ -637,7 +637,8 @@ design. The session master switch is implemented; the rest is planned.
   files) is in place.
   Host requirement: a standard Linux kernel with working landrun (Colima
   virtiofs, a Linux host, or CI); Docker Desktop's linuxkit kernel denies
-  landrun's rules.
+  landrun's rules. Runbook:
+  `docs/lean-comparator-runbook-2026-11-18.md`.
 - Operator-owned chores remain: copy `~/.kubona/backup-age.key` off-host and
   execute a fresh-volume reset if desired. `KUBONA_PREFLIGHT_REQUIRE_BACKUP=1`
   is set.
