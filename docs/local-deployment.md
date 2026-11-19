@@ -307,11 +307,11 @@ talks to the QPU vendor. Without credentials, simulators still work and the
 fleet reports the backend as credentialless (fail-closed at submit).
 Air-gap mode disables QPU cloud as well as cloud LLM.
 
-## 6b. Agent MCP layer (stdio)
+## 6b. Agent MCP layer (stdio + Streamable HTTP)
 
-The 6 MCP servers are **stdio processes spawned by the agent host**, not
-long-running compose services. On the same machine, run them from the repo
-venv (or install the package):
+The 6 MCP servers can be spawned as **stdio processes by the agent host**,
+or served by the optional `mcp` compose service over the 2026-07-28
+Streamable-HTTP transport. Stdio from the repo venv:
 
 ```bash
 cd platform
@@ -319,11 +319,11 @@ cd platform
 # execution, cost, provenance, control, world — same pattern
 ```
 
-They use local SQLite/ledger state and the same contracts; no TCP control
-plane is exposed. The compose stack is the human/operator plane. If an agent
-runs in a container, give it the repo/venv and the state volume, or point it
-at the Go API instead. This is the supported local topology; a containerized
-stdio broker is not required and is not shipped.
+The compose `mcp` service runs `kubona.run serve-gateway` on
+`127.0.0.1:8123` with the same OAuth2/session auth and audit JSONL. It shares
+the `kubona-state` volume and exposes no public port. Use stdio for a single
+local agent, or the HTTP gateway when several clients need a shared session
+pool. Both paths use the same contracts and tools.
 
 The `cost` server's `codesign_rerun` tool forwards to `POST
 /api/codesign/rerun`. Set `KUBONA_API_URL` (default `http://127.0.0.1:8080`)
@@ -413,7 +413,18 @@ advisory banner.
 
 - Logs: `docker compose ... logs -f kubonad console bridge`.
 - Metrics: `GET /metrics` with `Authorization: Bearer $KUBONA_API_TOKEN`.
+  Includes HTTP counters, Go heap/GC/RSS, cgroup memory limit/use, bridge RSS
+  (`kubona_bridge_rss_bytes`, fresh <60 s), and memory-store item/vector
+  counts.
 - Health/readiness: `/api/health`, `/api/ready`.
+- Profiler: start with `KUBONA_PPROF=1`; `/debug/pprof/` is **bearer-only**
+  and off by default. Disable after diagnosis.
+- Memory/retention: `kubonad memory-status --db <abs> --json`,
+  `kubonad memory-graph --db <abs> --tenant default`, and
+  `kubonad memory-feedback --db <abs> --id <id> --useful`. Retention is on in
+  compose (`KUBONA_RETENTION_ENABLED=1`, chat 90 d / tombstones 30 d); run
+  `kubonad vacuum --db <abs>` once to enable incremental auto-vacuum on an
+  existing database.
 - No telemetry leaves the host by default. Sentry/OTLP are not release
   requirements and are not enabled in this compose file.
 

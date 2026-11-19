@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (166 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (168 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to

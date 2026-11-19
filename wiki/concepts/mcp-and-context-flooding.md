@@ -65,7 +65,7 @@ native Python data structures uncoupled from MCP SDK types.
   sessions/`Mcp-Session-Id` removed from core (handles pass as tool arguments), Tasks out of
   core into `io.modelcontextprotocol/tasks`, Roots/Sampling/Logging deprecated. The venv
   already runs SDK 2.3.0, so the "2.0.0 vs 2.3.0" fork is moot (deltas verified against the
-  5 stdio servers + Streamable HTTP gateway).
+  6 stdio servers + Streamable HTTP gateway).
 - **Tasks extension: opportunistic, never mandatory (progressive enhancement).** Every flow
   must work on request/response + polling — true today (console polls on 3.5s/1s cadences,
   Go serves a tested SSE stream at `/api/events/stream`). `tasks/get` may be adopted for

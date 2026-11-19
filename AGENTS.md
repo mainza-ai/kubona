@@ -106,6 +106,27 @@ development — re-verify the gate on the exact commit before citing
 > scan. The raw-palette baseline is **0**. Re-verify the full gate on the
 > pushed commit before citing “green”.
 
+> ⚑ State update (2026-11-18, performance & memory close, local commits
+> `74776c9f`…`8511301f`): the PERF-01…PERF-15 and MEM-01…MEM-22 programs are
+> closed. Current generated counts: **156** HTTP route patterns, **48** Go
+> packages / **1166** Go test functions, **189** Python test files, **159**
+> console test files / **850** cases, **32** Rust tests, **6** MCP servers /
+> **38** tools, **168** wiki pages; contracts **191 modeled / 16 client-only /
+> 0 unmodeled** across **166** OpenAPI paths / **165** schemas; ledger schema
+> **16**. Landed: `Content-Length` + gzip (pooled), bearer-only pprof, process/
+> cgroup/bridge/store metrics, one-poll-per-session SSE fan-out, schema-16
+> ordering indexes + bounded SQLite pool + WAL-once + retention/vacuum,
+> cgroup-budgeted Aer with MPS and `max_memory_mb`, chemistry LRU, configurable
+> transpile level, parallel read-only tool calls, Streamable-HTTP MCP compose
+> service, global memory budget/fair-share eviction, decay + hybrid recall,
+> automatic recall + extractive compaction, dedupe, temporal validity, int8
+> vectors, embedding cache, sparse PPR, and `scripts/perf-gate.sh` in CI.
+> React Compiler is annotation-only (default `infer` measured +94.4 KiB and was
+> reverted); JSON v2 is a recorded no-adoption decision. Code-addressable
+> backlog is closed; operator evidence lives in
+> `docs/operator-evidence-2026-11-18.md`. Re-verify the gate on the exact
+> pushed commit before citing “green”.
+
 > ⚑ State update (2026-11-18, `develop`): the agentic-science program landed
 > AG-1…AG-9 in local commits `8defdb3f`…`7f0bb04e`. The platform now has: a
 > real end-to-end benchmark (`platform/bench_agentic`, 13 Kubona-domain tasks,

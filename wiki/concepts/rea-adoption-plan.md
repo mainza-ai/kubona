@@ -54,7 +54,7 @@ decided it wants; several prior proposals are now closed or reduced.
 | P2-10 | CI overhaul | **PARTIALLY DONE** | Qiskit pinned (`==2.5.2/aer/runtime`, `pyproject.toml:31`) ✓. Still open, re-verified today: pnpm-only caching (no pip/Go/cargo cache), no `needs:` DAG, mega `python-tests` job (Rust build + suite + doctor + wiki-lint in one), wiki-lint buried at step 55, tag-pinned (`v4`/`v5`) not SHA-pinned actions. |
 | P2-11 | Transcript scoring | **OPEN** | No session-transcript scoring; tribunal quality unevaluated and model-dependent. |
 | P2-12 | Typed error contract | **OPEN** | No `isError` catalog (grep clean across Go/Python). Failures are fail-closed but machine-illegible across MCP/REST/gRPC/CLI. |
-| P2-13 | Generated MCP catalog | **OPEN** | 5 servers (`compiler`, `control`, `cost`, `execution`, `provenance` + gateway registry) hand-maintained; no catalog digest (grep clean). |
+| P2-13 | Generated MCP catalog | **Landed 2026-11-18** | 6 servers / 38 tools in `platform/contracts/mcp-catalog.json`; `tools.CatalogJSON` pins the digest and `/api/capabilities` serves it. |
 | P2-14 | Plan-preview onboarding | **PARTIALLY CLOSED** | Workflows `dry_run=True` landed (trigger discipline slice) — plan-then-approve exists for workflows. Remainder: setup/doctor trust pattern for any future agent-config editing. |
 | P2-15 | Anti-mock lane | **PARTIALLY CLOSED** | [[quantum-advantage-realism]] settled (backend recorded, anchor required); simulator-vs-hardware distinction in receipts still absent — keep the receipt-level distinction open. |
 

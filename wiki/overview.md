@@ -348,11 +348,12 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 
 > ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):
 > `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages
-> (**1142** Go test functions), **188** Python test files (6 bridge files),
+> (**1166** Go test functions), **189** Python test files (7 bridge files),
 > **159** console test files (**850** cases), **32** Rust tests, **6** MCP
-> servers (**38** tools), and **166** wiki pages. Console contracts stand at
-> **191 modeled / 16 client-only / 0 unmodeled** (`166` OpenAPI paths, `165`
-> schemas, `190` operations). Ledger schema is **15**. The agentic benchmark
+> servers (**38** tools; stdio + Streamable HTTP gateway), and **168** wiki
+> pages. Console contracts stand at **191 modeled / 16 client-only / 0
+> unmodeled** (`166` OpenAPI paths, `165` schemas, `190` operations). Ledger
+> schema is **16**. The agentic benchmark
 > runs **13 tasks at 11/13 pass@1** (HVA-6 solves the 8-site TFIM to 0.0027 Ha;
 > QAOA p2/p3 reach 0.899/0.948; H2 chemical accuracy passes at 0.640 mHa; the
 > 8/6-site HEA TFIM tasks remain failures). The Lean comparator ran a live

@@ -132,7 +132,7 @@ prove autonomy on a benchmark.
   The risk classifier is a persisted v2 taxonomy (domain: bio, chem,
   radiological, cyber; protocol: human-subjects, animal, environmental; plus
   hardware and budget) and notify-mode executions reach the notification inbox.
-  Ledger schema is 15. See `docs/agentic-mode-toggle-2026-11-18.md`.
+  Ledger schema is 16. See `docs/agentic-mode-toggle-2026-11-18.md`.
 
 ## Known accuracy gaps (2026-11-18 investigation)
 

@@ -154,7 +154,7 @@ flowchart TB
     end
 
     subgraph TRUST["Trust — Go core"]
-        LEDGER["Ledger (schema 15)<br/>SQLite single-writer flock, sealed events<br/>per-tenant shards, union reads"]
+        LEDGER["Ledger (schema 16)<br/>SQLite single-writer flock, sealed events<br/>per-tenant shards, union reads"]
         TENANT["Tenants = labs<br/>suspend freeze, verifyAdmin choke<br/>reviewer key COMMISSIONED"]
         GRANTS["Grants + mandates<br/>tenant-grants HTTP lifecycle<br/>Go registry = single source of truth"]
         OBL["Obligations queue<br/>open list + close, owner/key auth<br/>bearer never sufficient"]

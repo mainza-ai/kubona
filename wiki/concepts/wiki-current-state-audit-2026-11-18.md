@@ -78,6 +78,11 @@ could not see; all were verified in code before editing:
   `status: open-question` in frontmatter.
 - Every page has valid frontmatter, a controlled `status`, canonical source
   keys, and resolves through `index.md`/`questions.md`.
+> ⚑ Post-audit addendum (2026-11-18): two concept pages
+> ([[performance-engineering-2026-11-18]], [[memory-management-2026-11-18]])
+> were added after this page-by-page audit. The audit covers the 166-page tree
+> at that commit; the current census is **168 pages**.
+
 - The status census is mechanical and matches the directory: **166 pages**
   (48 entities · 102 concepts · 11 sources · 5 meta).
 - Historical audit pages and `log.md` were left as dated records; where they

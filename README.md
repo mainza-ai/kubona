@@ -15,7 +15,7 @@
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-Orchestrator-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-166%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-168%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -25,7 +25,7 @@
 
 **Kubona** (from Chitonga *ku-bona*, *"to see, observe, perceive"*) is an open-source, local-first quantum and scientific discovery platform built around a single rule: **no claim without a classical anchor, no execution without a budget hold, and no result without a cryptographic receipt.**
 
-It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools over `stdio`), and a Next.js 3D operator console.
+It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools; `stdio` + Streamable HTTP), and a Next.js 3D operator console.
 
 > [!NOTE]
 > **Active Development:** A platform like this is never finished on day one; it compounds. **Kubona is in active development and becoming more capable every week** — tightening the feedback loop between what an agent proposes, what physics permits, and what the ledger can prove. Follow phased milestones in [`wiki/roadmap.md`](wiki/roadmap.md) and [`wiki/log.md`](wiki/log.md).
@@ -84,12 +84,19 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 ### 4. Polyglot Core & MCP-Native Architecture
 
-- **6-Server MCP Surface (38 Tools over `stdio`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
+- **6-Server MCP Surface (38 Tools; `stdio` + Streamable HTTP):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
 - **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), Rust native `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
 
 ### 5. The Sovereign Observatory Console
 
 - **Real-Time 3D Workbench:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), interactive **Results Studio** charts, and the unified **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`).
+
+### 6. Performance & Memory Engineering
+
+- **Measured transport and storage:** JSON responses carry `Content-Length` and negotiate gzip (pooled compressor); SSE fans one per-session ledger poll out to every client; schema 16 adds the session/chat/job ordering indexes; the SQLite pool is bounded and WAL is set once per database.
+- **Measured compute policy:** every Aer simulator gets a cgroup-derived `max_memory_mb` and a budget-derived qubit ceiling (27q on the 4 GiB bridge); wide shallow circuits use MPS; chemistry anchors are LRU-cached; transpile level is configurable; the bridge caps glibc arenas/BLAS threads and trims after jobs.
+- **Bounded agentic memory:** global item/byte budget with fair-share eviction, decay + consolidation, automatic pre-turn recall, deterministic extractive compaction, dedupe, temporal validity/supersession, int8 vectors (4× smaller), embedding cache, and a tenant-scoped temporal graph export.
+- **Observable by default:** `/metrics` exposes Go heap/GC/RSS, cgroup limits, bridge RSS (freshness-checked), and memory-store counts; bearer-only `/debug/pprof` is opt-in via `KUBONA_PPROF=1`; `scripts/perf-gate.sh` and a CI `performance-gate` job guard the named benchmarks.
 
 ---
 
@@ -122,10 +129,10 @@ All 19 `experiment-result-v1` kinds execute through the governed Go job rail (th
 | [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 stdio MCP servers (38 tools: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 MCP servers (38 tools; `stdio` + Streamable HTTP: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
 | [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
 | [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
-| [`wiki/`](wiki/) | **Blueprint Wiki** | 166 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
+| [`wiki/`](wiki/) | **Blueprint Wiki** | 168 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
 
 ---
 
@@ -222,8 +229,28 @@ node scripts/console-scale-lint.mjs       # role-named radius/type only
 node scripts/console-color-utility-lint.mjs
 python3 scripts/repo-counts.py --check
 
+# Performance/memory regression gate (Go benchmarks, memory lifecycle,
+# simulator policy, console bundle budgets)
+bash scripts/perf-gate.sh
+
 # Strict wiki blueprint lint
 python3 scripts/wiki-lint.py --strict
+```
+
+### Operations: memory, retention, and profiling
+
+```bash
+# One-time incremental auto-vacuum migration (takes a verified snapshot first)
+kubonad vacuum --db "$HOME/.kubona/kubona.db"
+
+# Memory pressure / pgvector readiness, temporal graph, outcome feedback
+kubonad memory-status --db "$HOME/.kubona/kubona.db" --json
+kubonad memory-graph --db "$HOME/.kubona/kubona.db" --tenant default
+kubonad memory-feedback --db "$HOME/.kubona/kubona.db" --id <memory-id> --useful
+
+# Bearer-only profiler (never enabled in the default stack)
+KUBONA_PPROF=1 kubonad --db "$HOME/.kubona/kubona.db" --port 8080
+
 ```
 
 ---
