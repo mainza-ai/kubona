@@ -73,8 +73,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 11 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (167 pages = 48 entities · 103 concepts · 11 sources · 5 meta), 2026-11-18:**
-`settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 55 ·
+**Census (168 pages = 48 entities · 104 concepts · 11 sources · 5 meta), 2026-11-18:**
+`settled` 6 · `adopted` 65 · `open-question` 0 pages · `candidate` 13 · `tracked` 56 ·
 `reference` 9 · `source` 11 · `living` 8 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
@@ -170,7 +170,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (103 total across this table, Overview & meta, and the layer map)
+## Concepts (104 total across this table, Overview & meta, and the layer map)
 
 | Page | What it is |
 |---|---|
@@ -235,6 +235,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[production-readiness-audit-2026-10-26-details]] | Round-2 audit appendix: P2/P3 register by domain, exact coverage and verification log (`tracked`) |
 | [[production-readiness-audit-2026-11-18]] | Local-private audit at `d9a0c1ab`: publication pipeline not deployed, single-lab posture contradicted by the ledger, unbuildable manuscripts, caller-attested review; R0–R7 plan (`tracked`) |
 | [[performance-engineering-2026-11-18]] | Measured performance audit: HTTP edge, transport, SQLite, bridge, console; PERF-01…PERF-15 plan (`tracked`) |
+| [[memory-management-2026-11-18]] | Measured memory audit: agentic Hindsight, Go/Python runtime, simulator peak RSS, retention; MEM-01…MEM-22 plan (`tracked`) |
 | [[publication-pipeline]] | Server-owned manuscripts: campaign-composed drafts, signed-receipt evidence, persisted review, byte-reproducible pdfTeX build, hash-bound signoff, staged deposit (`adopted`) |
 | [[agentic-science-frontier-2026]] | 2025–2026 agentic-science frontier vs Kubona: hypothesis tournaments, lab-in-the-loop, benchmark reality, provenance standards; AG-1…AG-9 plan (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |

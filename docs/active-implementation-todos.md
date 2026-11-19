@@ -348,6 +348,89 @@ LLM server.
 - [ ] PERF-15: `encoding/json/v2` only on measured decode paths (26% unmarshal
       win; marshal parity means no write-path migration).
 
+## Memory management (2026-11-18)
+
+Research, measurements, and the full argument:
+`docs/memory-management-research-2026-11-18.md`; wiki
+[[memory-management-2026-11-18]]. Companion to the Performance section above;
+the shared slices are called out per item. Baseline (`5446b2a2`, this host):
+kubonad 1 GiB / fresh RSS 27.6 MiB; bridge 4 GiB / 2 CPUs; console 1 GiB with
+a 250 MB heap gate; 50k Hindsight memories = 97.3 MiB live heap and 169 ms
+load; Aer peak RSS 1.1 GiB at 26q, 2.1 GiB at 27q, **4,172 MiB at 28q**;
+PySCF benzene/6-31G* 224 MiB; `/metrics` exposes no memory gauges.
+
+### P0 — make memory visible and bounded
+
+- [ ] MEM-01: global budget (`MaxTotalItems`/`MaxTotalBytes`, startup trim,
+      fair share) because bank caps are per tenant and `loadFromDB` loads all
+      tenants. Closes: 50k items stay under budget with deterministic
+      eviction; no cross-tenant eviction. (shares PERF-05)
+- [ ] MEM-02: memory observability: Go heap/GC/RSS/cgroup via
+      `runtime/metrics` + `/proc` + `memory.current`; store item/vector counts;
+      bridge RSS in health; heap profile behind bearer. Closes: the 28q OOM
+      risk and tenant growth are visible. (shares PERF-01)
+- [ ] MEM-03: start the decay daemon with the server context and include
+      `EffectiveScore`/recency in semantic ranking (or delete the dead config).
+      Closes: stale experience ranks below fresh equivalent; daemon test.
+- [ ] MEM-04: bridge budget derived from cgroup `memory.max`; set
+      `max_memory_mb` on every `AerSimulator`; per-job cap 27q/2.1 GiB;
+      in-flight ≤70% of budget; typed preflight refusal; check Aer result
+      status. Closes: 28q refuses before allocation; 26q runs; concurrent jobs
+      stay under 4 GiB. (shares PERF-08)
+- [ ] MEM-05: Python hygiene: `MALLOC_ARENA_MAX=2`, OMP/BLAS threads = CPU
+      limit, `malloc_trim(0)` after jobs, soft `RLIMIT_AS`. Closes: RSS flat
+      across a 30-job soak; no OOM. (shares PERF-08)
+- [ ] MEM-06: retention + vacuum: event/message/job/tombstone classes, reaper,
+      `auto_vacuum=INCREMENTAL` + one-time `VACUUM`, backup temp-space budget.
+      Closes: a synthetic 100k-event month stops growing; evidence referenced
+      by claims/manuscripts is preserved. (shares PERF-05)
+- [ ] MEM-07: automatic bounded pre-turn recall through the same tenant/IFC
+      path. Closes: scripted continuity improves vs tool-only; ≤250 tokens;
+      cross-tenant refusal.
+- [ ] MEM-08: compaction/offload: summarize old turns at a threshold, offload
+      large observations to a durable store with a pointer, keep the full
+      transcript. Closes: 100-turn session peak tokens down ≥30%, key facts
+      retrievable, reversible.
+- [ ] MEM-09: bounded transcript read: SQL-side `LIMIT` + pagination instead
+      of loading the whole session. Closes: 100k-message session reads newest
+      N in <50 ms with bounded heap. (shares PERF-02)
+- [ ] MEM-10: dedupe/merge: content hash + near-duplicate cosine, importance
+      bump. Closes: 100 repeated turns → ≤2 memories; cap not exhausted;
+      source ids retained.
+- [ ] MEM-11: temporal validity (`valid_from`/`valid_to`/`superseded_by`).
+      Closes: contradictory recall returns current only; "as of" returns
+      history.
+- [ ] MEM-12: int8 vector quantization + f32 rescoring (optional ANN). Closes:
+      ≥4× vector memory cut; recall@10 ≥0.95 of f32 on a labeled set.
+- [ ] MEM-13: purge retracted rows after retention; evict terminal loops; cap
+      snapshots; A2A TTL; map-size gauge. Closes: 100k retractions do not grow
+      heap; loop map bounded.
+- [ ] MEM-14: memory gate: peak-RSS benchmarks (Hindsight 50k, Aer 24/26/28,
+      PySCF benzene, console heap) with a 10% regression threshold. Closes:
+      CI artifact and failure. (shares PERF-12)
+- [ ] MEM-15: tiered storage: delete/quarantine or cap Tier 0/1 and replace
+      the dense PPR with sparse iteration. Closes: n=5k PPR <100 MiB; module
+      marked unserved if kept.
+
+### P1 — quality and scale
+
+- [ ] MEM-16: hybrid retrieval (semantic + lexical + recency) with a reranker,
+      measured on a labeled recall set.
+- [ ] MEM-17: importance calibration from outcomes (claim accepted/refuted,
+      user feedback) instead of turn-shape heuristics.
+- [ ] MEM-18: embedding single-flight cache keyed by content/query hash (also
+      removes the HTTP call from under the store lock — F4).
+- [ ] MEM-19: per-tenant byte accounting and fair-share eviction.
+
+### P2 — architecture
+
+- [ ] MEM-20: pgvector/HNSW sidecar only after the global cap is reached; keep
+      SQLite as the local default.
+- [ ] MEM-21: temporal graph projection if MEM-11 lands and graph queries
+      justify it.
+- [ ] MEM-22: tiered storage only if a served surface needs it; otherwise
+      remove it from the blueprint.
+
 ## Operator-only
 
 - [ ] Manual VoiceOver/NVDA walkthrough. (Needs assistive-technology hardware.)

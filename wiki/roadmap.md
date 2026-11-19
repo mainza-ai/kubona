@@ -460,6 +460,24 @@ and the `PERF-01…PERF-15` slices are in
 - **Regression gate:** `scripts/perf-gate.sh` runs in CI and fails on a >20%
   regression in the named benchmarks.
 
+## Memory acceptance (2026-11-18)
+
+Memory is bounded per tenant today; the missing property is a **global**
+budget and a **measured** lifetime. The audit and `MEM-01…MEM-22` slices are in
+[[memory-management-2026-11-18]]; the executable plan is
+`docs/active-implementation-todos.md` §Memory. Gates:
+
+- **Bounded:** a global item/byte budget with startup trim and fair-share
+  eviction; no tenant can grow the store without bound.
+- **Observable:** Go heap/GC/RSS/cgroup and bridge RSS are on `/metrics`
+  before any further memory tuning; a heap profile is available behind bearer.
+- **Safe compute:** every simulator gets `max_memory_mb` from a cgroup-derived
+  budget; a width that cannot fit is refused before allocation, not OOM-killed.
+- **Durable context:** long sessions compact and offload reversibly; the full
+  transcript stays in the ledger, and a 100-turn session keeps its facts.
+- **Retention:** events, messages, jobs, and tombstones have a stated lifetime;
+  vacuum reclaims free pages; referenced evidence is never reaped.
+
 ## Schedule risks to watch
 
 - Managing gRPC IPC contracts between the Go orchestrator and Python quantum runtimes.

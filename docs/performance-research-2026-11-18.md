@@ -9,6 +9,11 @@
 >
 > Companion plan: `docs/active-implementation-todos.md` §Performance. Durable
 > wiki summary: [[performance-engineering-2026-11-18]].
+> **Memory companion:** `docs/memory-management-research-2026-11-18.md`
+> (`MEM-01…MEM-22`) covers agentic memory, Go/Python runtime memory, simulator
+> peak RSS, and retention. It shares PERF-01 (profiling), PERF-05 (SQLite
+> pool/pragmas), PERF-08 (Aer strategy), PERF-12 (gate), and PERF-02
+> (transport) with this plan.
 
 ## 1. Verdict
 
@@ -323,7 +328,10 @@ Sources are listed in §9.
 ## 7. PERF program (ordered)
 
 Each slice lands only with the named executable check. "Baseline" means the
-number in §3 on this host; a slice must beat it or prove no regression.
+number in §3 on this host; a slice must beat it or prove no regression. The
+memory program (`MEM-*`) is the companion; instrument once (PERF-01), bound the
+pool once (PERF-05), choose the simulator once (PERF-08), and gate both
+(PERF-12).
 
 ### P0 — instrument and remove the mechanical costs
 

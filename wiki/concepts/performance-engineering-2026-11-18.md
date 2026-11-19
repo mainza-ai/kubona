@@ -87,7 +87,9 @@ part.
 ## Plan
 
 Full acceptance tests are in the report §7 and in
-`docs/active-implementation-todos.md` §Performance.
+`docs/active-implementation-todos.md` §Performance. The companion memory
+program (`MEM-01…MEM-22`) is in [[memory-management-2026-11-18]]; PERF-01,
+PERF-02, PERF-05, PERF-08, and PERF-12 are shared slices.
 
 - **P0:** PERF-01 profiling + benchmarks; PERF-02 `Content-Length`; PERF-03
   gzip L1; PERF-04 session indexes (schema 16, pre-migration snapshot); PERF-05

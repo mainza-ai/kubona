@@ -7428,6 +7428,28 @@ skipped is the exact failure this incident is about:
   the source document's 811 (recorded in [[comparator]] and
   [[openai-math]]).
 
+## [2026-11-18] verification | memory management audit and MEM plan
+
+- Measured the agentic store at scale: 50,000 Hindsight memories = **97.3 MiB**
+  live heap, 169 ms startup load, 34.3 ms semantic recall; `loadFromDB` loads
+  every tenant and there is no global item/byte cap.
+- Found the lifetime policy inert: `StartDecayDaemon` has no caller and
+  semantic recall ignores `EffectiveScore`; the turn write-back appends every
+  experience with no dedupe or scheduled consolidation.
+- Measured the bridge against its container: Aer peak RSS 1.1 GiB at 26q,
+  2.1 GiB at 27q, **4,172 MiB at 28q** on a 4 GiB container; the in-flight rail
+  defaults to 8 GiB and Aer `max_memory_mb` defaults to host memory. The Qiskit
+  `Statevector` path peaks ~4× (4,165 MiB at 26q).
+- Quantified the rest: PySCF 107–224 MiB; dormant PPR 415 MiB at 5k entities;
+  unbounded transcript reads, event/message retention absent, `auto_vacuum=0`;
+  no heap/GC/RSS/cgroup gauges or pprof; no `MALLOC_ARENA_MAX`/BLAS caps.
+- Added `docs/memory-management-research-2026-11-18.md`, the MEM-01…MEM-22
+  section in `docs/active-implementation-todos.md`, and
+  [[memory-management-2026-11-18]] (`tracked`), cross-linked to
+  [[performance-engineering-2026-11-18]] (shared PERF-01/02/05/08/12). No
+  product code changed.
+- Census: 168 pages (48 entities · 104 concepts · 11 sources · 5 meta).
+
 ## [2026-11-18] verification | performance audit and PERF plan
 
 - Measured the live local stack and the compute path at `bbcd2958`: `/api/health`

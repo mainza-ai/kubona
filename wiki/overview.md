@@ -306,9 +306,9 @@ blueprint milestone.
 as completion: six settled policies against 62 adopted mechanisms and zero open
 questions means the blueprint is fully settled and contributor-ready.
 
-> ⚑ Census update (2026-11-18, `scripts/wiki-lint.py --strict`): **167 pages** —
-> `settled` 6 · `adopted` 65 · `candidate` 13 · `tracked` 55 · `reference` 9 ·
-> `source` 11 · `living` 8 · `open-question` 0 (`48` entities · `103` concepts ·
+> ⚑ Census update (2026-11-18, `scripts/wiki-lint.py --strict`): **168 pages** —
+> `settled` 6 · `adopted` 65 · `candidate` 13 · `tracked` 56 · `reference` 9 ·
+> `source` 11 · `living` 8 · `open-question` 0 (`48` entities · `104` concepts ·
 > `11` sources · `5` meta).
 
 > ⚑ Performance posture (2026-11-18): a measured audit found the Go edge fast
@@ -319,6 +319,14 @@ questions means the blueprint is fully settled and contributor-ready.
 > SQLite pool), the fixed compute strategy (statevector only, no chemistry
 > cache, transpile level 1), and the console's disabled compiler/PPR features
 > are tracked as PERF-01…PERF-15 in [[performance-engineering-2026-11-18]].
+>
+> ⚑ Memory posture (2026-11-18): the agentic store has real tenant/IFC
+> isolation and bounded banks, but **no global budget** (50k memories = 97.3
+> MiB live heap, all tenants loaded at boot), the advertised decay never runs,
+> and the compute bridge's 28-qubit cap peaks at **4,172 MiB on a 4 GiB
+> container** while Aer's memory ceiling defaults to host RAM. Memory is
+> tracked as MEM-01…MEM-22 in [[memory-management-2026-11-18]], sharing
+> PERF-01/02/05/08/12.
 
 > ⚑ Census update (2026-11-10, `scripts/wiki-lint.py --strict`): **156 pages** —
 > `settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 49 ·
