@@ -221,5 +221,8 @@ func (s *Server) pauseSessionLoops(sessionID string) int {
 		s.persistLoopRow(e)
 		paused++
 	}
+	if s.supervisor != nil {
+		paused += s.supervisor.PauseSessionLoops(sessionID)
+	}
 	return paused
 }

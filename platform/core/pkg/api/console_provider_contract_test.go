@@ -391,7 +391,6 @@ func TestConsoleAuthAndTenantContracts(t *testing.T) {
 		{"/api/obligations/" + obligationID, `{"signature_hex":"` + hex.EncodeToString(ed25519.Sign(priv, obligationCloseCanonical(obligationID))) + `"}`, "/api/obligations/{id}"},
 		{"/api/mandates/sign", `{"tenant_id":"contract-auth","job_hash":"contract-job","max_budget_usd":1,"ttl_seconds":60,"admin_action":` + mustJSON(t, signAdminAction(t, priv, pubHex, "contract-auth", "mandate_sign", map[string]any{"job_hash": "contract-job", "max_budget_usd": 1.0, "ttl_seconds": int64(60)})) + `}`, "/api/mandates/sign"},
 		{"/api/tenants/revoke", `{"tenant_id":"contract-auth","reason":"contract revoke"}`, "/api/tenants/revoke"},
-		{"/api/tenants/admin-key", `{"tenant_id":"contract-auth","new_admin_pubkey_hex":"` + newPubHex + `","action":` + mustJSON(t, signAdminAction(t, priv, pubHex, "contract-auth", "set_admin_key", map[string]string{"new_admin_pubkey_hex": newPubHex})) + `}`, "/api/tenants/admin-key"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
@@ -417,6 +416,8 @@ func TestConsoleAuthAndTenantContracts(t *testing.T) {
 		}
 	}
 
+	// Rotate the tenant admin key and verify the old session cookie is revoked.
+	rotateBody := `{"tenant_id":"contract-auth","new_admin_pubkey_hex":"` + newPubHex + `","action":` + mustJSON(t, signAdminAction(t, priv, pubHex, "contract-auth", "set_admin_key", map[string]string{"new_admin_pubkey_hex": newPubHex})) + `}`
 	revokeBody, _ := json.Marshal(map[string]string{"id": sessionsDoc.Sessions[0].ID})
 	revokeReq := httptest.NewRequest(http.MethodPost, "/api/auth/revoke", bytes.NewReader(revokeBody))
 	revokeReq.Header.Set("Content-Type", "application/json")
@@ -432,6 +433,21 @@ func TestConsoleAuthAndTenantContracts(t *testing.T) {
 	}
 	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/auth/revoke"), revokePayload, "$"); err != nil {
 		t.Fatalf("auth.revoke contract: %v", err)
+	}
+	rotReq := httptest.NewRequest(http.MethodPost, "/api/tenants/admin-key", strings.NewReader(rotateBody))
+	rotReq.Header.Set("Authorization", "Bearer provider-contract-token")
+	rotReq.Header.Set("Content-Type", "application/json")
+	rotW := httptest.NewRecorder()
+	handler.ServeHTTP(rotW, rotReq)
+	if rotW.Code != http.StatusOK {
+		t.Fatalf("/api/tenants/admin-key status %d, want 200: %s", rotW.Code, strings.TrimSpace(rotW.Body.String()))
+	}
+	var rotPayload any
+	if err := json.Unmarshal(rotW.Body.Bytes(), &rotPayload); err != nil {
+		t.Fatalf("/api/tenants/admin-key JSON: %v", err)
+	}
+	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/tenants/admin-key"), rotPayload, "$"); err != nil {
+		t.Fatalf("/api/tenants/admin-key contract: %v", err)
 	}
 }
 

@@ -77,7 +77,8 @@ func restoreEmbedded(t *testing.T) {
 func TestLoadFileSourceAndStaleRefusalKeepsLastGood(t *testing.T) {
 	restoreEmbedded(t)
 	t.Cleanup(func() { restoreEmbedded(t) })
-	good := []byte(`{"version":9,"source":"test","effective_date":"2026-10-30","stale_after_days":30,"models":{"p/m":{"input_per_1k_usd":0.001,"output_per_1k_usd":0.002}}}`)
+	today := time.Now().UTC().Format("2006-01-02")
+	good := []byte(`{"version":9,"source":"test","effective_date":"` + today + `","stale_after_days":30,"models":{"p/m":{"input_per_1k_usd":0.001,"output_per_1k_usd":0.002}}}`)
 	path := filepath.Join(t.TempDir(), "rates.json")
 	if err := os.WriteFile(path, good, 0o600); err != nil {
 		t.Fatal(err)
@@ -106,7 +107,8 @@ func TestLoadFileSourceAndStaleRefusalKeepsLastGood(t *testing.T) {
 func TestLoadURLFromLoopback(t *testing.T) {
 	restoreEmbedded(t)
 	t.Cleanup(func() { restoreEmbedded(t) })
-	body := `{"version":11,"source":"http","effective_date":"2026-10-30","stale_after_days":30,"models":{}}`
+	today := time.Now().UTC().Format("2006-01-02")
+	body := `{"version":11,"source":"http","effective_date":"` + today + `","stale_after_days":30,"models":{}}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(body))
 	}))
@@ -153,7 +155,8 @@ func TestModelRateMetadataAndNegativeCacheValidation(t *testing.T) {
 		t.Fatalf("expected enriched context/cache/capabilities metadata, got %+v", r)
 	}
 
-	badCard := []byte(`{"version":12,"source":"test","effective_date":"2026-10-30","stale_after_days":30,"models":{"p/bad":{"input_per_1k_usd":0.001,"output_per_1k_usd":0.002,"cached_input_per_1k_usd":-0.1}}}`)
+	today := time.Now().UTC().Format("2006-01-02")
+	badCard := []byte(`{"version":12,"source":"test","effective_date":"` + today + `","stale_after_days":30,"models":{"p/bad":{"input_per_1k_usd":0.001,"output_per_1k_usd":0.002,"cached_input_per_1k_usd":-0.1}}}`)
 	path := t.TempDir() + "/bad-cache.json"
 	if err := os.WriteFile(path, badCard, 0o600); err != nil {
 		t.Fatal(err)

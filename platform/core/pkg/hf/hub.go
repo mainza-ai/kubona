@@ -194,6 +194,19 @@ var fallbackCatalog = []HFModelSummary{
 	},
 }
 
+func isHFAirGapped() bool {
+	return strings.TrimSpace(os.Getenv("KUBONA_AIRGAP")) == "1"
+}
+
+func isLoopbackResolveBase(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	h := strings.ToLower(u.Hostname())
+	return h == "127.0.0.1" || h == "localhost" || h == "::1"
+}
+
 // SearchModels queries the live Hugging Face Hub API, falling back to local sovereign models if offline
 func (c *HubClient) SearchModels(ctx context.Context, query, library string, limit int) ([]HFModelSummary, error) {
 	if limit <= 0 {
@@ -201,6 +214,9 @@ func (c *HubClient) SearchModels(ctx context.Context, query, library string, lim
 	}
 	if library == "" {
 		library = "gguf"
+	}
+	if isHFAirGapped() {
+		return c.filterFallback(query, library, limit), nil
 	}
 
 	endpoint := fmt.Sprintf("%s/models?search=%s&filter=%s&sort=downloads&direction=-1&limit=%d&full=false",
@@ -236,7 +252,7 @@ func (c *HubClient) SearchModels(ctx context.Context, query, library string, lim
 		} `json:"siblings"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&rawItems); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&rawItems); err != nil {
 		return c.filterFallback(query, library, limit), nil
 	}
 
@@ -308,6 +324,12 @@ func (c *HubClient) filterFallback(query, library string, limit int) []HFModelSu
 
 // GetModelDetails returns detailed metadata and available quantizations for a model
 func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFModelSummary, error) {
+	if isHFAirGapped() {
+		if fb := fallbackModel(repoID); fb != nil {
+			return fb, nil
+		}
+		return nil, fmt.Errorf("air-gap active: refusing external Hugging Face lookup for %q", repoID)
+	}
 	endpoint := fmt.Sprintf("%s/models/%s", HFAPIBase, repoID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -347,7 +369,7 @@ func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFMode
 		} `json:"siblings"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&item); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&item); err != nil {
 		return nil, err
 	}
 
@@ -394,6 +416,9 @@ func fallbackModel(repoID string) *HFModelSummary {
 func (c *HubClient) StartDownload(repoID, filename string) (*HFDownloadTask, error) {
 	if err := validateDownloadTarget(repoID, filename); err != nil {
 		return nil, err
+	}
+	if isHFAirGapped() && !isLoopbackResolveBase(c.resolveBase) {
+		return nil, fmt.Errorf("air-gap active: refusing external Hugging Face download for %s/%s", repoID, filename)
 	}
 
 	c.mu.Lock()
@@ -450,8 +475,22 @@ func validateDownloadTarget(repoID, filename string) error {
 	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
 		return fmt.Errorf("filename must not contain path separators: %q", filename)
 	}
-	if strings.Contains(repoID, "..") {
+	if strings.HasPrefix(repoID, "/") || strings.HasSuffix(repoID, "/") || strings.Contains(repoID, "\\") || strings.Contains(repoID, "//") {
 		return fmt.Errorf("invalid repo_id: %q", repoID)
+	}
+	segments := strings.Split(repoID, "/")
+	if len(segments) > 2 {
+		return fmt.Errorf("invalid repo_id %q: expected org/model or model", repoID)
+	}
+	for _, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." {
+			return fmt.Errorf("invalid repo_id segment in %q", repoID)
+		}
+		for _, r := range seg {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-') {
+				return fmt.Errorf("invalid character in repo_id %q", repoID)
+			}
+		}
 	}
 	return nil
 }
@@ -508,9 +547,9 @@ func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask, baseU
 		return
 	}
 
-	// Stream to a temp path and rename only on success, so a failed or
-	// cancelled download never masquerades as a complete weight file.
-	partPath := task.LocalPath + ".part"
+	// Stream to a per-task temp path and rename only on verified complete EOF,
+	// so concurrent or truncated downloads never corrupt the final weight file.
+	partPath := fmt.Sprintf("%s.%s.part", task.LocalPath, task.TaskID)
 	f, err := os.Create(partPath)
 	if err != nil {
 		c.setTerminal(task, "failed", err.Error())
@@ -554,6 +593,12 @@ func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask, baseU
 			}
 			if rerr != nil {
 				if rerr == io.EOF {
+					c.mu.RLock()
+					gotBytes, wantBytes := task.BytesDownloaded, task.TotalBytes
+					c.mu.RUnlock()
+					if wantBytes > 0 && gotBytes != wantBytes {
+						return fmt.Errorf("truncated download: got %d of %d bytes", gotBytes, wantBytes)
+					}
 					return nil
 				}
 				return rerr

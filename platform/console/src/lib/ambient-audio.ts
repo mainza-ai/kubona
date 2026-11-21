@@ -18,10 +18,12 @@ class AmbientAudio {
   muted: boolean;
 
   constructor() {
-    let muted = false;
+    // Muted by default: audio stays silent until the operator explicitly
+    // unmutes (stored as '0' in localStorage).
+    let muted = true;
     try {
       if (typeof window !== 'undefined') {
-        muted = window.localStorage?.getItem(MUTE_KEY) === '1';
+        muted = window.localStorage?.getItem(MUTE_KEY) !== '0';
       }
     } catch {
       /* storage unavailable */
@@ -37,10 +39,12 @@ class AmbientAudio {
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.9;
+      this.master.gain.value = this.muted ? 0 : 0.9;
       this.master.connect(this.ctx.destination);
       this.unlocked = true;
-      this.startHum();
+      if (!this.muted) {
+        this.startHum();
+      }
     } catch {
       this.ctx = null;
     }
@@ -54,6 +58,12 @@ class AmbientAudio {
       }
     } catch {
       /* ignore */
+    }
+    if (!muted && !this.unlocked) {
+      this.unlock();
+    }
+    if (!muted && this.unlocked && this.humNodes.length === 0) {
+      this.startHum();
     }
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(muted ? 0 : 0.9, this.ctx.currentTime, 0.05);

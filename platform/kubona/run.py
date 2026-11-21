@@ -82,7 +82,7 @@ def serve(*, host: str = "127.0.0.1", port: int | None = None) -> None:
     main(host=host, port=port)  # console_api.main() runs uvicorn on host/port
 
 
-def serve_gateway(*, host: str = "127.0.0.1", port: int | None = None) -> None:
+def serve_gateway(*, host: str | None = None, port: int | None = None) -> None:
     """Boot the HTTP gateway transport (streamable-HTTP MCP surface, G8).
 
     In production this is the network-facing entry point: OAuth2 bearer +
@@ -95,9 +95,10 @@ def serve_gateway(*, host: str = "127.0.0.1", port: int | None = None) -> None:
 
     gateway = make_gateway(require_auth=True)
     app = make_http_gateway(gateway, secure_session=None)  # TLS/KEMTLS terminates the wire
-    # W2.14: explicit `port=` wins; otherwise the env default (never ignored).
+    # W2.14: explicit `host=`/`port=` win; otherwise env defaults (never ignored).
+    resolved_host = host if host is not None else os.environ.get("KUBONA_GATEWAY_HOST", "127.0.0.1")
     resolved_port = port if port is not None else int(os.environ.get("KUBONA_GATEWAY_PORT", "8123"))
-    Server(Config(app, host=host, port=resolved_port, log_level="warning")).run()
+    Server(Config(app, host=resolved_host, port=resolved_port, log_level="warning")).run()
 
 
 def _doctor_providers() -> str:
@@ -385,11 +386,13 @@ def serve_platform(
     bridge_addr: str = "",
 ) -> int:
     """Supervise the full local platform stack: Python gRPC bridge + Go kubonad."""
+    import secrets
     import shutil
     import signal
     import subprocess
     import time
 
+    from kubona import config
     from kubona.logging import setup_logging
     setup_logging(log_dir=None)
 
@@ -399,20 +402,35 @@ def serve_platform(
     kubonad_cmd = [kubonad_bin] if kubonad_bin else ["go", "run", "./cmd/kubonad"]
 
     bind_port = port if port is not None else int(os.environ.get("KUBONA_PORT", "8080"))
-    bridge_target = bridge_addr or os.environ.get("KUBONA_BRIDGE_ADDR") or "/tmp/kubona-bridge.sock"
+    run_dir = config.state_path("run")
+    run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(run_dir, 0o700)
+    except OSError:
+        pass
+    default_sock = str(run_dir / "bridge.sock")
+    bridge_sock = bridge_addr or os.environ.get("KUBONA_BRIDGE_SOCKET") or default_sock
+    bridge_token = os.environ.get("KUBONA_BRIDGE_TOKEN") or secrets.token_hex(32)
 
     bridge_env = os.environ.copy()
-    bridge_env.setdefault("KUBONA_BRIDGE_ADDR", bridge_target)
+    bridge_env["KUBONA_BRIDGE_SOCKET"] = bridge_sock
+    bridge_env["KUBONA_BRIDGE_TOKEN"] = bridge_token
     kubonad_env = os.environ.copy()
-    kubonad_env.setdefault("KUBONA_LISTEN_ADDR", f"{host}:{bind_port}")
-    kubonad_env.setdefault("KUBONA_BRIDGE_ADDR", bridge_target)
+    kubonad_env["KUBONA_BRIDGE_SOCKET"] = bridge_sock
+    kubonad_env["KUBONA_BRIDGE_TOKEN"] = bridge_token
+    kubonad_cmd = [*kubonad_cmd, "-bind", host, "-port", str(bind_port)]
 
     bridge_proc = subprocess.Popen(
         [sys.executable, "-m", "bridge.server"],
         cwd=str(platform_dir),
         env=bridge_env,
     )
-    time.sleep(0.5)
+    deadline = time.monotonic() + 10.0
+    sock_path = Path(bridge_sock)
+    while time.monotonic() < deadline and bridge_proc.poll() is None:
+        if sock_path.exists():
+            break
+        time.sleep(0.1)
     kubonad_proc = subprocess.Popen(
         kubonad_cmd,
         cwd=str(core_dir),
@@ -446,7 +464,9 @@ def serve_platform(
                     proc.kill()
 
 
-def _cli(argv: list[str]) -> int:
+def _cli(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv
     cmd = argv[1] if len(argv) > 1 else "serve"
     if cmd == "serve":
         serve()

@@ -275,15 +275,18 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 
 func terminalJobStatus(status pb.JobStatus) bool {
 	switch status {
-	case pb.JobStatus_JOB_STATUS_COMPLETED, pb.JobStatus_JOB_STATUS_FAILED, pb.JobStatus_JOB_STATUS_CANCELLED:
+	case pb.JobStatus_JOB_STATUS_COMPLETED, pb.JobStatus_JOB_STATUS_FAILED, pb.JobStatus_JOB_STATUS_CANCELLED,
+		pb.JobStatus_JOB_STATUS_INTERRUPTED, pb.JobStatus_JOB_STATUS_OUTCOME_UNKNOWN:
 		return true
 	default:
 		return false
 	}
 }
 
-func (s *Server) waitForJob(sessionID, jobID string, timeout time.Duration) (*jobs.Job, error) {
+func (s *Server) waitForJob(ctx context.Context, sessionID, jobID string, timeout time.Duration) (*jobs.Job, error) {
 	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		j, err := s.jobRunner.GetJob(jobID)
 		if err == nil && j != nil && j.SessionID == sessionID && terminalJobStatus(j.Status) {
@@ -292,7 +295,11 @@ func (s *Server) waitForJob(sessionID, jobID string, timeout time.Duration) (*jo
 		if time.Now().After(deadline) {
 			return j, fmt.Errorf("job %s did not reach a terminal state within %s", jobID, timeout)
 		}
-		time.Sleep(200 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return j, ctx.Err()
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -324,6 +331,9 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+		return
+	}
+	if !s.requireAgentic(w, sid) {
 		return
 	}
 	steps := req.Steps
@@ -409,7 +419,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		final, waitErr := s.waitForJob(sid, job.ID, timeout)
+		final, waitErr := s.waitForJob(r.Context(), sid, job.ID, timeout)
 		result := discoveryStepResult{JobID: job.ID, Kind: kind}
 		if waitErr != nil {
 			result.Status = "timeout"

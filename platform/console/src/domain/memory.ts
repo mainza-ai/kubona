@@ -1,3 +1,3 @@
-// Memory domain boundary: recall and retention transport.
-export { fetchMemoryRecall, retainMemory } from '@/lib/api';
+// Memory domain boundary: recall, retention, and retraction transport.
+export { fetchMemoryRecall, retainMemory, retractMemory } from '@/lib/api';
 export type { MemorySnippet } from '@/lib/api';

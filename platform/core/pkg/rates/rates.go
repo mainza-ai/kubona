@@ -370,6 +370,9 @@ func LoadedAt() time.Time {
 // QPUPrice returns the reviewed QPU rate row for a provider, or false when
 // no reviewed row exists. It never invents a price for an unknown backend.
 func QPUPrice(provider string) (QPURate, bool) {
+	if IsStale(time.Now()) {
+		return QPURate{}, false
+	}
 	st := current.Load()
 	if st == nil || st.card == nil {
 		return QPURate{}, false
@@ -384,6 +387,9 @@ func QPUPrice(provider string) (QPURate, bool) {
 // LensCostUSD returns the per-dispatch lens cost, or false when the card is
 // missing the entry or marks it retired.
 func LensCostUSD(name string) (float64, bool) {
+	if IsStale(time.Now()) {
+		return 0, false
+	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("KUBONA_ENV")), "production") && !IsExternal() {
 		return 0, false
 	}

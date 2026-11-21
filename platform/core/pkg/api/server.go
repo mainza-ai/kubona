@@ -556,7 +556,7 @@ func (s *Server) Handler() http.Handler {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID, Idempotency-Key, Last-Event-ID, X-Kubona-A2A-Token")
 		w.Header().Set("Access-Control-Expose-Headers", "Kubona-API-Version")
 		if r.Method == "OPTIONS" {
@@ -645,15 +645,15 @@ func (s *Server) RegisteredRoutes() []string {
 
 func (s *Server) registerRoutes() {
 	s.route("/api/health", s.handleHealth)
-	s.route("/metrics", s.requireBearer(s.handleMetrics))
-	s.route("/api/ops/science", s.requireBearer(s.handleScienceMetrics))
+	s.route("/metrics", s.requireOperatorBearer(s.handleMetrics))
+	s.route("/api/ops/science", s.requireOperatorBearer(s.handleScienceMetrics))
 	s.route("/api/ready", s.handleReady)
 	s.route("/api/capabilities", s.handleCapabilities)
 	// B11: body-free skill catalogue + closed loader faults for Settings.
 	s.route("/api/notifications", s.handleNotifications)
 	s.route("/api/notifications/preferences", s.handleNotificationPreferences)
-	s.route("/api/skills", s.requireBearerForWrites(s.handleSkills))
-	s.route("/api/skills/", s.requireBearer(s.handleSkillByID))
+	s.route("/api/skills", s.requireOperatorBearerForWrites(s.handleSkills))
+	s.route("/api/skills/", s.requireOperatorBearer(s.handleSkillByID))
 	// B12: recorded decision-eval status for the model picker (scores only).
 	s.route("/api/evals/llm", s.handleEvalLLM)
 	s.route("/api/access", s.handleAccess)
@@ -750,15 +750,15 @@ func (s *Server) registerRoutes() {
 	// Hybrid LLM Configuration Plane endpoints. Settings reads stay public;
 	// settings writes (provider/endpoint flips redirect prompts+secrets) are
 	// bearer-gated HERE at registration — see requireBearerForWrites.
-	s.route("/api/llm/settings", s.requireBearerForWrites(s.handleLLMSettings))
+	s.route("/api/llm/settings", s.requireOperatorBearerForWrites(s.handleLLMSettings))
 	s.route("/api/llm/models", s.handleLLMModels)
 	s.route("/api/llm/discover", s.handleLLMDiscover)
-	s.route("/api/llm/test", s.requireBearer(s.handleLLMTest))
-	s.route("/api/llm/providers/", s.requireBearer(s.handleLLMProviderAction))
+	s.route("/api/llm/test", s.requireOperatorBearer(s.handleLLMTest))
+	s.route("/api/llm/providers/", s.requireOperatorBearer(s.handleLLMProviderAction))
 	// Quantum provider settings (human selection surface; secrets stay
 	// in env/Bao and are never accepted here). Same mixed posture as LLM
 	// settings: public reads, registration-gated writes.
-	s.route("/api/quantum/settings", s.requireBearerForWrites(s.handleQuantumSettings))
+	s.route("/api/quantum/settings", s.requireOperatorBearerForWrites(s.handleQuantumSettings))
 	s.route("/api/quantum/backends", s.handleQuantumBackends)
 	// Human quantum dispatch proxy (R-34) + provider cancel (R-33).
 	// Spend authority lives in the Python rail; these routes authenticate,
@@ -862,11 +862,11 @@ func (s *Server) registerRoutes() {
 	// "search" fans out to huggingface.co and caches), so every HF route
 	// is an operator-gated write-class rail: bearer auth, no anonymous
 	// fetch-or-store primitive.
-	s.route("/api/hf/search", s.requireBearer(s.handleHFSearch))
-	s.route("/api/hf/models/", s.requireBearer(s.handleHFModelDetails))
-	s.route("/api/hf/download", s.requireBearer(s.handleHFDownload))
-	s.route("/api/hf/downloads", s.requireBearer(s.handleHFDownloads))
-	s.route("/api/hf/downloads/", s.requireBearer(s.handleHFDownloadAction))
+	s.route("/api/hf/search", s.requireOperatorBearer(s.handleHFSearch))
+	s.route("/api/hf/models/", s.requireOperatorBearer(s.handleHFModelDetails))
+	s.route("/api/hf/download", s.requireOperatorBearer(s.handleHFDownload))
+	s.route("/api/hf/downloads", s.requireOperatorBearer(s.handleHFDownloads))
+	s.route("/api/hf/downloads/", s.requireOperatorBearer(s.handleHFDownloadAction))
 
 	// Custom Agents & Multimodal Mesh Router
 	// K3: agent create/delete are registry mutations — bearer-gated like
@@ -882,7 +882,7 @@ func (s *Server) registerRoutes() {
 	// and the abort rail is an availability kill-switch — both are writes,
 	// so both get edge auth + their own limiter. Reads stay public behind
 	// limiters; these two never serve anonymous callers.
-	s.route("/api/ledger/append", s.requireBearer(s.handleLedgerAppend))
+	s.route("/api/ledger/append", s.requireOperatorBearer(s.handleLedgerAppend))
 	s.route("/api/ledger/export", s.handleLedgerExport)
 	s.route("/api/supervisor/abort", s.requireBearer(s.handleSupervisorAbort))
 	s.route("/api/tenants", s.handleTenants)
@@ -899,7 +899,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
 	s.route("/api/tenants/refund", s.requireBearer(s.handleTenantRefund))
 	s.route("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
-	s.route("/api/tenants/agentic-default", s.requireBearer(s.handleTenantAgenticDefault))
+	s.route("/api/tenants/agentic-default", s.requireOperatorBearer(s.handleTenantAgenticDefault))
 	s.route("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
 	s.route("/api/tenants/status", s.requireBearer(s.handleTenantStatus))
 }
@@ -2719,7 +2719,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			reviewer := s.callerActor(r)
-			rec, err := s.ledger.MintClaimReview(sessionID, claimID, req.Decision, req.Reason, reviewer, req.Evidence)
+			rec, err := s.ledger.MintClaimReviewSigned(sessionID, claimID, req.Decision, req.Reason, reviewer, req.Evidence, s.signerPrivKey)
 			if err != nil {
 				if errors.Is(err, ledger.ErrAnchorMissing) {
 					WriteAPIError(w, "anchor_missing", err.Error(), nil)
@@ -4654,9 +4654,25 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	llmStreamGlobalEvents := []string{"llm_settings_updated", "llm_provider_verified"}
+
+	hub := s.getStreamHub()
+	if hub == nil {
+		WriteAPIError(w, "service_unavailable", "event stream unavailable: ledger is not open", nil)
+		return
+	}
+
+	// Clear the HTTP server WriteTimeout for long-lived SSE connections.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
 	latestID := int64(0)
 	if events, lerr := s.ledger.GetRecentEvents(sessionID, 1); lerr == nil && len(events) > 0 {
 		latestID = events[0].ID
+	}
+	if globalEvents, gerr := s.ledger.GetEventsSinceWithGlobalTypes(sessionID, llmStreamGlobalEvents, latestID, 200); gerr == nil && len(globalEvents) > 0 {
+		if last := globalEvents[len(globalEvents)-1].ID; last > latestID {
+			latestID = last
+		}
 	}
 	if !cursorSet || cursor > latestID {
 		cursor = latestID
@@ -4690,8 +4706,6 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: connected\ndata: %s\nretry: 3000\n\n", initData)
 	flusher.Flush()
 
-	llmStreamGlobalEvents := []string{"llm_settings_updated", "llm_provider_verified"}
-
 	// Replay any gap before entering the live loop.
 	if cursorSet {
 		if events, err := s.ledger.GetEventsSinceWithGlobalTypes(sessionID, llmStreamGlobalEvents, cursor, 200); err == nil && len(events) > 0 {
@@ -4700,11 +4714,6 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hub := s.getStreamHub()
-	if hub == nil {
-		http.Error(w, "event stream unavailable: ledger is not open", http.StatusServiceUnavailable)
-		return
-	}
 	sub, unsubscribe := hub.subscribe(sessionID, cursor)
 	defer unsubscribe()
 	heartbeat := time.NewTicker(2 * time.Second)

@@ -157,8 +157,8 @@ func MintGrant(issuerPrivHex, audDID, grantingTenant, targetTenant, scope string
 	if err := checkScopes(scopes); err != nil {
 		return nil, "", err
 	}
-	if maxBudgetUSD <= 0 {
-		return nil, "", fmt.Errorf("grant budget must be positive")
+	if math.IsNaN(maxBudgetUSD) || math.IsInf(maxBudgetUSD, 0) || maxBudgetUSD <= 0 {
+		return nil, "", fmt.Errorf("grant budget must be finite and positive")
 	}
 	if err := checkTTL(ttl); err != nil {
 		return nil, "", err
@@ -240,8 +240,8 @@ func AttenuateGrant(parentSealed []byte, issuerPrivHex, audDID, scope string, sc
 	if !parent.Command().Covers(childCmd) {
 		return nil, "", fmt.Errorf("attenuation widens command %s beyond %s: refused", childCmd, parent.Command())
 	}
-	if maxBudgetUSD <= 0 || maxBudgetUSD > parentMeta.budget {
-		return nil, "", fmt.Errorf("attenuated budget %.4f exceeds parent %.4f: refused", maxBudgetUSD, parentMeta.budget)
+	if math.IsNaN(maxBudgetUSD) || math.IsInf(maxBudgetUSD, 0) || maxBudgetUSD <= 0 || maxBudgetUSD > parentMeta.budget {
+		return nil, "", fmt.Errorf("attenuated budget %.4f exceeds parent %.4f or is invalid: refused", maxBudgetUSD, parentMeta.budget)
 	}
 	if !scopesSubset(scopes, parentMeta.scopes) {
 		return nil, "", fmt.Errorf("attenuated scopes %v exceed parent %v: refused", scopes, parentMeta.scopes)
@@ -372,8 +372,17 @@ func VerifyChain(chain [][]byte, opts VerifyOptions) (*VerifiedGrant, error) {
 		if opts.Revoked[cid.String()] {
 			return nil, fmt.Errorf("grant %s revoked: refused", cid.String())
 		}
-		if exp := tok.Expiration(); exp != nil && !now.Before(*exp) {
+		exp := tok.Expiration()
+		if exp == nil {
+			return nil, fmt.Errorf("grant envelope %d missing expiration (immortal grant refused)", i)
+		}
+		if !now.Before(*exp) {
 			return nil, fmt.Errorf("grant envelope %d expired: refused", i)
+		}
+		if i > 0 {
+			if parentExp := toks[i-1].Expiration(); parentExp != nil && exp.After(*parentExp) {
+				return nil, fmt.Errorf("grant envelope %d extends expiration beyond parent: refused", i)
+			}
 		}
 		if nbf := tok.NotBefore(); nbf != nil && now.Before(*nbf) {
 			return nil, fmt.Errorf("grant envelope %d not yet valid: refused", i)
@@ -397,6 +406,9 @@ func VerifyChain(chain [][]byte, opts VerifyOptions) (*VerifiedGrant, error) {
 	}
 	for i := 1; i < len(toks); i++ {
 		child := toks[i]
+		if child.Subject().String() != root.Subject().String() {
+			return nil, fmt.Errorf("chain broken at level %d (sub != root sub): refused", i)
+		}
 		if child.Issuer().String() != toks[i-1].Audience().String() {
 			return nil, fmt.Errorf("chain broken at level %d (iss != parent aud): refused", i)
 		}

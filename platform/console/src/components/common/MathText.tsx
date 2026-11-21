@@ -39,7 +39,13 @@ function renderMath(raw: string, displayMode: boolean, katex: KatexRenderer | nu
     return escapeHtml(displayMode ? `$$${raw}$$` : `$${raw}$`);
   }
   try {
-    return katex.renderToString(raw, { displayMode, throwOnError: false });
+    return katex.renderToString(raw, {
+      displayMode,
+      throwOnError: false,
+      trust: false,
+      maxExpand: 200,
+      maxSize: 10,
+    });
   } catch {
     return escapeHtml(displayMode ? `$$${raw}$$` : `$${raw}$`);
   }
@@ -49,7 +55,9 @@ function renderMath(raw: string, displayMode: boolean, katex: KatexRenderer | nu
 // touches math contents, while leaving fenced/inline code spans untouched.
 function protectMath(text: string, katex: KatexRenderer | null): { text: string; restore: (s: string) => string } {
   const slots: string[] = [];
-  const protected_ = text.replace(/```[\s\S]*?```|`[^`\n]+`|\$\$[\s\S]*?\$\$|\$[^$\n]*?\$/g, (m) => {
+  // Strip NUL bytes first so model/user prose cannot forge \u0000MATH0\u0000 placeholders.
+  const sanitized = text.replace(/\u0000/g, '');
+  const protected_ = sanitized.replace(/```[\s\S]*?```|`[^`\n]+`|\$\$[\s\S]*?\$\$|\$[^$\n]*?\$/g, (m) => {
     if (m.startsWith('`')) return m;
     let html: string;
     if (m.startsWith('$$')) {
@@ -66,6 +74,10 @@ function protectMath(text: string, katex: KatexRenderer | null): { text: string;
   };
 }
 
+function stripMathPlaceholders(s: string): string {
+  return s.replace(/\u0000MATH\d+\u0000/g, 'math');
+}
+
 function renderInline(s: string): string {
   // s is already HTML-escaped; placeholders contain NUL chars (safe).
   let out = s;
@@ -80,18 +92,16 @@ function escapeRegExp(value: string): string {
 }
 
 function markNumbers(escaped: string, numbers: string[]): string {
-  if (numbers.length === 0) return escaped;
-  // Do not touch math placeholders: they contain an index digit.
+  const unique = Array.from(new Set(numbers.filter(Boolean))).sort((a, b) => b.length - a.length);
+  if (unique.length === 0) return escaped;
+  const combined = new RegExp(`(^|[^\\w.])(${unique.map(escapeRegExp).join('|')})(?![\\w.])`, 'g');
+  // Single-pass alternation outside math placeholders so a shorter number
+  // can never match inside an already-emitted <mark> tag.
   return escaped
     .split(/(\u0000MATH\d+\u0000)/g)
     .map((part) => {
       if (part.startsWith('\u0000MATH')) return part;
-      let out = part;
-      for (const number of [...numbers].sort((a, b) => b.length - a.length)) {
-        const re = new RegExp(`(^|[^\\w.])(${escapeRegExp(number)})(?![\\w.])`, 'g');
-        out = out.replace(re, `$1<mark class="rounded-chip bg-warning-wash px-0.5 text-warning-ink">$2</mark>`);
-      }
-      return out;
+      return part.replace(combined, `$1<mark class="rounded-chip bg-warning-wash px-0.5 text-warning-ink">$2</mark>`);
     })
     .join('');
 }
@@ -192,13 +202,13 @@ function renderMarkdownText(text: string, katex: KatexRenderer | null, highlight
           const cells = r.map((c, index) => {
             const numeric = numericColumns[index] || isNumericCell(c);
             const formatted = formatNumericCell(c);
-            const title = formatted.raw ? ` title="${escapeHtml(formatted.raw)}"` : '';
+            const title = formatted.raw ? ` title="${escapeHtml(stripMathPlaceholders(formatted.raw))}"` : '';
             return `<td${title} class="px-2 py-1 align-top ${numeric ? 'text-right tabular-nums whitespace-nowrap' : 'text-label-secondary'}">${inlineRaw(formatted.text, highlights)}</td>`;
           }).join('');
           return `<tr class="border-b border-border">${cells}</tr>`;
         })
         .join('');
-      const label = `Table: ${headerCells.join(' · ')}`;
+      const label = `Table: ${headerCells.map(stripMathPlaceholders).join(' · ')}`;
       blocks.push(
         `<div class="my-2 max-w-full min-w-0 rounded-row border border-border" style="max-width:100%;min-width:0;width:100%" data-table-shell><div class="flex items-center justify-between gap-2 border-b border-border px-2 py-1"><span class="text-[11px] font-code text-muted">${escapeHtml(label)}</span><span role="button" tabindex="0" data-copy-table class="cursor-pointer select-none rounded-control-compact border border-border px-1.5 py-0.5 text-caption font-code text-muted hover:bg-fill hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent" aria-label="${escapeHtml(`Copy ${label}`)}">Copy</span></div><div class="max-w-full min-w-0 overflow-x-auto scrollbar-thin" style="max-width:100%;min-width:0;overflow-x:auto" role="region" aria-label="${escapeHtml(label)}" tabindex="0"><table style="width:max-content;min-width:${headerCells.length >= 3 ? '30rem' : '100%'}" class="text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div></div>`
       );
@@ -299,6 +309,9 @@ export function MathText({ math, text, block = false, className = '', highlightN
         return katex.renderToString(math, {
           displayMode: block,
           throwOnError: false,
+          trust: false,
+          maxExpand: 200,
+          maxSize: 10,
         });
       } catch {
         return `<span class="text-danger-ink">${escapeHtml(math)}</span>`;

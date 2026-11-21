@@ -22,6 +22,7 @@ import hashlib
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 from pathlib import Path
@@ -347,7 +348,8 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         base = key
         n = 2
         while key in used_keys:
-            key = f"{base}_{n}"[:64]
+            suffix = f"_{n}"
+            key = f"{base[:64 - len(suffix)]}{suffix}"
             n += 1
         used_keys.add(key)
         citations.append({**entry, "key": key})
@@ -399,11 +401,12 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     bibtex_entries: Dict[str, str] = {}
     for entry in citations:
         key = entry["key"]
-        authors = _latex_escape(str(entry.get("authors") or "Unknown"))
-        year = str(entry.get("year") or "n.d.")
+        cite_authors = _latex_escape(str(entry.get("authors") or "Unknown"))
+        raw_year = str(entry.get("year") or "n.d.").strip()
+        year = raw_year if re.fullmatch(r"(?:\d{4}|n\.d\.)", raw_year) else _latex_escape(raw_year)
         doi = str(entry.get("doi") or "").strip()
         fields = [
-            f"  author = {{{authors}}},",
+            f"  author = {{{cite_authors}}},",
             f"  title = {{{_latex_escape(str(entry.get('title') or key))}}},",
             f"  year = {{{year}}},",
         ]
@@ -541,22 +544,40 @@ def build_project(
             "openin_any": "p",
         }
         log: List[str] = []
-        runs = [["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"]]
+        pdflatex_cmd = ["pdflatex", "-no-shell-escape", "-interaction=nonstopmode", "-halt-on-error", "main.tex"]
+        runs = [pdflatex_cmd]
         if bibtex_entries:
             runs.append(["bibtex", "main"])
-            runs.append(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"])
-            runs.append(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"])
+            runs.append(pdflatex_cmd)
+            runs.append(pdflatex_cmd)
         else:
-            runs.append(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"])
+            runs.append(pdflatex_cmd)
         for cmd in runs:
-            proc = subprocess.run(
-                cmd, cwd=project, env=env, capture_output=True, text=True, timeout=180,
+            proc = subprocess.Popen(
+                cmd,
+                cwd=project,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
             )
+            try:
+                stdout_str, stderr_str = proc.communicate(timeout=180)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except OSError:
+                    proc.kill()
+                proc.communicate()
+                raise ManuscriptError("build_timeout", f"{cmd[0]} timed out after 180s")
+            scrubbed_out = (stdout_str or "").replace(str(project), "<project>")
+            scrubbed_err = (stderr_str or "").replace(str(project), "<project>")
             log.append(f"$ {' '.join(cmd)} (exit {proc.returncode})")
-            if proc.stdout:
-                log.append(proc.stdout[-8000:])
+            if scrubbed_out:
+                log.append(scrubbed_out[-8000:])
             if proc.returncode != 0:
-                detail = (proc.stdout or "") + (proc.stderr or "")
+                detail = scrubbed_out + scrubbed_err
                 raise ManuscriptError(
                     "build_failed",
                     f"{cmd[0]} failed: {detail[-_MAX_BUILD_LOG:]}",

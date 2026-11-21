@@ -130,18 +130,18 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	}
 	switch jobType {
 	case "hardware_experiment":
-		p.Molecule = strings.ToUpper(strings.TrimSpace(p.Molecule))
-		if p.Molecule != "H2" && p.Molecule != "LiH" && p.Molecule != "BeH2" && p.Molecule != "H2O" {
+		molUpper := strings.ToUpper(strings.TrimSpace(p.Molecule))
+		if molUpper != "H2" && molUpper != "LIH" && molUpper != "BEH2" && molUpper != "H2O" {
 			return "", 0, fmt.Errorf("hardware_experiment supports H2, LiH, BeH2, H2O; refusing %q", p.Molecule)
 		}
-		if p.Molecule != "H2" && strings.TrimSpace(p.QASM) == "" {
+		if molUpper != "H2" && strings.TrimSpace(p.QASM) == "" {
 			return "", 0, fmt.Errorf("hardware_experiment for %s requires the optimized active-space ansatz QASM", p.Molecule)
 		}
 		if p.Loop {
 			if p.MaxIterations < 1 || p.MaxIterations > 30 {
 				return "", 0, fmt.Errorf("hardware loop max_iterations must be in [1,30]")
 			}
-			if p.Molecule != "H2" && strings.TrimSpace(p.AnsatzQPY) == "" {
+			if molUpper != "H2" && strings.TrimSpace(p.AnsatzQPY) == "" {
 				return "", 0, fmt.Errorf("hardware loop for %s requires ansatz_qpy", p.Molecule)
 			}
 		}

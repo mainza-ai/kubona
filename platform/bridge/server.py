@@ -498,6 +498,11 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             # budget ceiling and spent_usd into Python's SessionStore before
             # submit_job runs preflight.
             if request.session_id and getattr(request, "session_verified", False):
+                if not os.getenv("KUBONA_BRIDGE_TOKEN") and os.getenv("KUBONA_ENV") == "production":
+                    return kubona_pb2.QuantumSubmitResponse(
+                        ok=False,
+                        error_message="session_verified requires authenticated KUBONA_BRIDGE_TOKEN in production",
+                    )
                 from kubona.mcp.servers import cost as _cost
                 raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
                 ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
@@ -923,6 +928,39 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             return kubona_pb2.ExperimentResponse(
                 ok=False, error_message="experiment spec must be a JSON object", result_json="")
         kind = str(spec.get("kind") or "").strip().lower()
+        _HARDWARE_EXPERIMENT_KINDS = {
+            "vqe_hardware",
+            "vqe_hardware_loop",
+            "qaoa_hardware",
+            "qaoa_hardware_loop",
+            "hardware_pes",
+            "spin_chain_hardware",
+        }
+        if kind in _HARDWARE_EXPERIMENT_KINDS:
+            mandate_raw = spec.get("mandate_ref_json") or spec.get("mandate_ref") or ""
+            if isinstance(mandate_raw, dict):
+                mandate_raw = _json.dumps(mandate_raw)
+            has_allowance = bool(str(spec.get("run_allowance_id") or "").strip())
+            if not mandate_raw and not has_allowance and os.getenv("KUBONA_ENV") == "production":
+                return kubona_pb2.ExperimentResponse(
+                    ok=False,
+                    error_message=f"{kind} requires mandate_ref or run_allowance_id on the bridge in production",
+                    result_json="",
+                )
+            if mandate_raw:
+                estimated_cost = float(spec.get("max_cost_usd", 0.0) or 0.0)
+                ok_m, m_err = _verify_spend_mandate(
+                    str(mandate_raw),
+                    tenant_id=str(spec.get("tenant_id") or ""),
+                    expected_job_hash=str(spec.get("job_hash") or ""),
+                    estimated_cost=estimated_cost,
+                )
+                if not ok_m:
+                    return kubona_pb2.ExperimentResponse(
+                        ok=False,
+                        error_message=f"hardware experiment mandate refused: {m_err}",
+                        result_json="",
+                    )
         from kubona.hardware_pin import bind_vendor_pin, reset_vendor_pin
         pin_token = bind_vendor_pin(str(spec.get("kubona_job_id") or ""), request.session_id or "")
         try:
@@ -1243,6 +1281,11 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             if auth is None:
                 return kubona_pb2.WorkflowStepResponse(ok=False, error_message=refusal)
             if request.session_id and getattr(request, "session_verified", False):
+                if not os.getenv("KUBONA_BRIDGE_TOKEN") and os.getenv("KUBONA_ENV") == "production":
+                    return kubona_pb2.WorkflowStepResponse(
+                        ok=False,
+                        error_message="session_verified requires authenticated KUBONA_BRIDGE_TOKEN in production",
+                    )
                 from kubona.mcp.servers import cost as _cost
                 raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
                 ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
@@ -1367,6 +1410,12 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     workflow_id="",
                 )
             if request.session_id and getattr(request, "session_verified", False):
+                if not os.getenv("KUBONA_BRIDGE_TOKEN") and os.getenv("KUBONA_ENV") == "production":
+                    return kubona_pb2.WorkflowRunResponse(
+                        ok=False,
+                        error_message="session_verified requires authenticated KUBONA_BRIDGE_TOKEN in production",
+                        workflow_id="",
+                    )
                 from kubona.mcp.servers import cost as _cost
                 raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
                 ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
@@ -1481,6 +1530,12 @@ def serve(port: int = 50051, socket_path: str | None = None,
     token = token if token is not None else os.getenv("KUBONA_BRIDGE_TOKEN", "")
     sock = socket_path or os.getenv("KUBONA_BRIDGE_SOCKET")
 
+    if os.getenv("KUBONA_ENV") == "production" and not token:
+        raise SystemExit(
+            "refusing bridge start in KUBONA_ENV=production without KUBONA_BRIDGE_TOKEN: "
+            "bridge auth and session-assertion HMAC require KUBONA_BRIDGE_TOKEN even over UDS"
+        )
+
     if not token and not sock and bind not in ("127.0.0.1", "localhost", "::1"):
         raise SystemExit(
             "refusing non-loopback bridge without KUBONA_BRIDGE_TOKEN: "
@@ -1498,8 +1553,15 @@ def serve(port: int = 50051, socket_path: str | None = None,
         )
 
     interceptors = [_AuthInterceptor(token)] if token else []
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=8),
-                         interceptors=interceptors)
+    max_msg_bytes = 36 * 1024 * 1024  # covers 32 MiB manuscript artifact cap + overhead
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=8),
+        interceptors=interceptors,
+        options=[
+            ("grpc.max_send_message_length", max_msg_bytes),
+            ("grpc.max_receive_message_length", max_msg_bytes),
+        ],
+    )
     kubona_pb2_grpc.add_QuantumBridgeServiceServicer_to_server(QuantumBridgeServicer(), server)
 
     if sock:

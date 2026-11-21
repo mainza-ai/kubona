@@ -288,18 +288,35 @@ func (s *HindsightStore) loadFromDB() {
 	if limit <= 0 {
 		limit = 1000
 	}
-	// Bounded startup: the global budget is the only total cap, so do not
-	// materialize an unbounded table just to evict it afterwards. The
-	// highest-scoring rows win; low-value rows remain on disk for retention.
-	rows, err := s.db.Query(`SELECT id, tenant_id, readership, bank, content, tokens_estimate, importance, effective_score, created_at, last_accessed_at, retracted_at, retract_reason, valid_from, valid_to, superseded_by, helpful_count, harmful_count FROM hindsight_memories ORDER BY effective_score DESC LIMIT ?`, limit)
+	// Single LEFT JOIN guarantees loaded memories and vectors match one snapshot.
+	rows, err := s.db.Query(`SELECT m.id, m.tenant_id, m.readership, m.bank, m.content,
+		m.tokens_estimate, m.importance, m.effective_score, m.created_at, m.last_accessed_at,
+		m.retracted_at, m.retract_reason, m.valid_from, m.valid_to, m.superseded_by,
+		m.helpful_count, m.harmful_count,
+		v.embedding, v.embedding_int8, COALESCE(v.embedding_scale, 0), COALESCE(v.embedding_model, 'lexical-hash-v1')
+		FROM hindsight_memories m
+		LEFT JOIN hindsight_vectors v ON v.memory_id = m.id
+		ORDER BY m.effective_score DESC LIMIT ?`, limit)
 	if err == nil {
 		defer rows.Close()
+		type backfill struct {
+			id    string
+			q     []int8
+			scale float32
+		}
+		var toBackfill []backfill
 		for rows.Next() {
 			var item MemoryItem
-			var bankStr string
+			var bankStr, model string
 			var retracted, validFrom, validTo sql.NullTime
 			var superseded sql.NullString
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content, &item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt, &retracted, &item.RetractReason, &validFrom, &validTo, &superseded, &item.HelpfulCount, &item.HarmfulCount); err == nil {
+			var f32blob, i8blob []byte
+			var scale float64
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.Readership, &bankStr, &item.Content,
+				&item.TokensEstimate, &item.Importance, &item.EffectiveScore, &item.CreatedAt, &item.LastAccessedAt,
+				&retracted, &item.RetractReason, &validFrom, &validTo, &superseded,
+				&item.HelpfulCount, &item.HarmfulCount,
+				&f32blob, &i8blob, &scale, &model); err == nil {
 				item.Bank = MemoryBank(bankStr)
 				if retracted.Valid {
 					t := retracted.Time
@@ -314,37 +331,25 @@ func (s *HindsightStore) loadFromDB() {
 				}
 				item.SupersededBy = superseded.String
 				s.items[item.ID] = &item
+				if len(i8blob) > 0 {
+					s.vectors[item.ID] = DecodeInt8(i8blob)
+					s.vectorScales[item.ID] = float32(scale)
+					s.vectorModels[item.ID] = model
+				} else if len(f32blob) > 0 {
+					if vec, derr := DecodeEmbedding(f32blob); derr == nil {
+						q, qscale := QuantizeEmbedding(vec)
+						s.vectors[item.ID] = q
+						s.vectorScales[item.ID] = qscale
+						s.vectorModels[item.ID] = model
+						toBackfill = append(toBackfill, backfill{id: item.ID, q: q, scale: qscale})
+					}
+				}
 			}
 		}
-	}
-
-	vecRows, err := s.db.Query(`SELECT v.memory_id, v.embedding, v.embedding_int8, COALESCE(v.embedding_scale, 0), COALESCE(v.embedding_model, 'lexical-hash-v1')
-		FROM hindsight_vectors v JOIN hindsight_memories m ON m.id = v.memory_id
-		ORDER BY m.effective_score DESC LIMIT ?`, limit)
-	if err == nil {
-		defer vecRows.Close()
-		for vecRows.Next() {
-			var memID, model string
-			var f32blob, i8blob []byte
-			var scale float64
-			if err := vecRows.Scan(&memID, &f32blob, &i8blob, &scale, &model); err == nil {
-				if len(i8blob) > 0 {
-					s.vectors[memID] = DecodeInt8(i8blob)
-					s.vectorScales[memID] = float32(scale)
-					s.vectorModels[memID] = model
-					continue
-				}
-				if vec, derr := DecodeEmbedding(f32blob); derr == nil {
-					q, qscale := QuantizeEmbedding(vec)
-					s.vectors[memID] = q
-					s.vectorScales[memID] = qscale
-					s.vectorModels[memID] = model
-					// Backfill the compact form so the next boot does not
-					// decode f32 again.
-					_, _ = s.db.Exec(`UPDATE hindsight_vectors SET embedding_int8 = ?, embedding_scale = ? WHERE memory_id = ?`,
-						EncodeInt8(q), qscale, memID)
-				}
-			}
+		rows.Close()
+		for _, bf := range toBackfill {
+			_, _ = s.db.Exec(`UPDATE hindsight_vectors SET embedding_int8 = ?, embedding_scale = ? WHERE memory_id = ?`,
+				EncodeInt8(bf.q), bf.scale, bf.id)
 		}
 	}
 }
@@ -403,12 +408,12 @@ func (s *HindsightStore) RetainScoped(
 	// useful history. Exact content is matched cheaply; near-duplicates use
 	// the embedding already computed above.
 	for _, existing := range s.items {
-		if existing.RetractedAt != nil || existing.Bank != bank ||
+		if existing.RetractedAt != nil || existing.ValidTo != nil || existing.Bank != bank ||
 			existing.TenantID != tenantID || existing.Readership != readership {
 			continue
 		}
 		duplicate := existing.Content == content
-		if !duplicate && len(embQ) > 0 && len(s.vectors[existing.ID]) == len(embQ) {
+		if !duplicate && len(embQ) > 0 && len(s.vectors[existing.ID]) == len(embQ) && s.vectorModels[existing.ID] == embModel {
 			duplicate = CosineSimilarityInt8(embQ, s.vectors[existing.ID]) >= 0.97
 		}
 		if !duplicate {
@@ -474,7 +479,8 @@ func (s *HindsightStore) enforceGlobalBudgetLocked() int {
 	if s.cfg.MaxTotalItems <= 0 && s.cfg.MaxTotalBytes <= 0 {
 		return 0
 	}
-	if len(s.items) <= s.cfg.MaxTotalItems && s.totalBytesLocked() <= s.cfg.MaxTotalBytes {
+	totalBytes := s.totalBytesLocked()
+	if len(s.items) <= s.cfg.MaxTotalItems && totalBytes <= s.cfg.MaxTotalBytes {
 		return 0
 	}
 	perTenant := 1
@@ -507,9 +513,11 @@ func (s *HindsightStore) enforceGlobalBudgetLocked() int {
 	})
 	evicted := 0
 	for _, c := range cands {
-		if len(s.items) <= s.cfg.MaxTotalItems && s.totalBytesLocked() <= s.cfg.MaxTotalBytes {
+		if len(s.items) <= s.cfg.MaxTotalItems && totalBytes <= s.cfg.MaxTotalBytes {
 			break
 		}
+		itemBytes := int64(len(c.item.Content)) + 128 + int64(len(s.vectors[c.item.ID]))
+		totalBytes -= itemBytes
 		delete(s.items, c.item.ID)
 		delete(s.vectors, c.item.ID)
 		delete(s.vectorScales, c.item.ID)
@@ -597,6 +605,7 @@ func (s *HindsightStore) evictIfExceededLocked(bank MemoryBank, tenantID, reader
 		delete(s.items, toPurge.ID)
 		delete(s.vectors, toPurge.ID)
 		delete(s.vectorScales, toPurge.ID)
+		delete(s.vectorModels, toPurge.ID)
 
 		if s.db != nil {
 			_, _ = s.db.Exec(`DELETE FROM hindsight_memories WHERE id = ?`, toPurge.ID)
@@ -709,7 +718,7 @@ func (s *HindsightStore) SemanticRecallScoped(
 ) []*ScoredMemoryItem {
 	// Embed before taking the store lock (F4). A slow endpoint delays this
 	// query, not every other tenant's memory operations.
-	queryVec, _ := s.embedFor(queryText)
+	queryVec, queryModel := s.embedFor(queryText)
 	lexicalQueryVec := GenerateSemanticEmbedding(queryText)
 	queryInt8, _ := QuantizeEmbedding(queryVec)
 	lexicalInt8, _ := QuantizeEmbedding(lexicalQueryVec)
@@ -773,8 +782,13 @@ func (s *HindsightStore) SemanticRecallScoped(
 		}
 
 		qv := queryInt8
-		if len(qv) != len(itemVec) && len(lexicalInt8) == len(itemVec) {
+		itemModel := s.vectorModels[id]
+		if (len(qv) != len(itemVec) || (itemModel != "" && queryModel != "" && itemModel != queryModel && itemModel != "custom")) &&
+			len(lexicalInt8) == len(itemVec) && (itemModel == "" || itemModel == LexicalEmbeddingModel) {
 			qv = lexicalInt8
+		}
+		if itemModel != "" && queryModel != "" && itemModel != queryModel && itemModel != "custom" && itemModel != LexicalEmbeddingModel {
+			continue
 		}
 		sim := CosineSimilarityInt8(qv, itemVec)
 		if sim >= minSimilarity {
@@ -795,7 +809,8 @@ func (s *HindsightStore) SemanticRecallScoped(
 		return scored[i].Rank > scored[j].Rank
 	})
 
-	// Pack items up to token budget
+	// Pack items up to token budget, returning detached copies so callers
+	// never race on internal MemoryItem pointers.
 	var budgeted []*ScoredMemoryItem
 	currentTokens := 0
 	for _, entry := range scored {
@@ -803,7 +818,12 @@ func (s *HindsightStore) SemanticRecallScoped(
 			break
 		}
 		entry.Item.LastAccessedAt = time.Now().UTC()
-		budgeted = append(budgeted, entry)
+		cp := *entry.Item
+		budgeted = append(budgeted, &ScoredMemoryItem{
+			Item:       &cp,
+			Similarity: entry.Similarity,
+			Rank:       entry.Rank,
+		})
 		currentTokens += entry.Item.TokensEstimate
 	}
 
@@ -880,6 +900,7 @@ func (s *HindsightStore) RetractScoped(tenantID, id, reason string) error {
 	item.TokensEstimate = 1
 	delete(s.vectors, id)
 	delete(s.vectorScales, id)
+	delete(s.vectorModels, id)
 	if s.db != nil {
 		_, _ = s.db.Exec(`UPDATE hindsight_memories SET content = ?, tokens_estimate = 1, retracted_at = ?, retract_reason = ? WHERE id = ?`,
 			item.Content, now, reason, id)
@@ -1043,6 +1064,11 @@ func (s *HindsightStore) Decay(elapsedHours float64) {
 	defer s.mu.Unlock()
 
 	now := time.Now().UTC()
+	type scoreUpdate struct {
+		id    string
+		score float64
+	}
+	var updates []scoreUpdate
 	for _, item := range s.items {
 		if item.Bank == BankExperiences {
 			effectiveHours := elapsedHours
@@ -1054,7 +1080,21 @@ func (s *HindsightStore) Decay(elapsedHours float64) {
 			factor := math.Max(0.1, 1.0-s.cfg.DecayRatePerHour*effectiveHours)
 			item.EffectiveScore = item.Importance * factor
 			if s.db != nil {
-				_, _ = s.db.Exec(`UPDATE hindsight_memories SET effective_score = ? WHERE id = ?`, item.EffectiveScore, item.ID)
+				updates = append(updates, scoreUpdate{id: item.ID, score: item.EffectiveScore})
+			}
+		}
+	}
+	if s.db != nil && len(updates) > 0 {
+		if tx, err := s.db.Begin(); err == nil {
+			stmt, serr := tx.Prepare(`UPDATE hindsight_memories SET effective_score = ? WHERE id = ?`)
+			if serr == nil {
+				for _, u := range updates {
+					_, _ = stmt.Exec(u.score, u.id)
+				}
+				_ = stmt.Close()
+				_ = tx.Commit()
+			} else {
+				_ = tx.Rollback()
 			}
 		}
 	}

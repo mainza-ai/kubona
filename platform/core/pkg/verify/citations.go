@@ -91,8 +91,11 @@ func VerifyCitations(ctx context.Context, citations []Citation, resolver Resolve
 			out = append(out, f)
 			continue
 		}
+		// DOI-first lookup: when a DOI is supplied, resolve by DOI first so
+		// exact identifiers aren't drowned out by generic title search hits;
+		// fall back to title lookup if the DOI query returns no hits.
 		query := title
-		if query == "" {
+		if doi != "" {
 			query = c.DOI
 		}
 		works, err := resolver.Resolve(ctx, query)
@@ -102,12 +105,23 @@ func VerifyCitations(ctx context.Context, citations []Citation, resolver Resolve
 			out = append(out, f)
 			continue
 		}
+		if len(works) == 0 && doi != "" && title != "" {
+			if fallbackWorks, ferr := resolver.Resolve(ctx, title); ferr == nil {
+				works = fallbackWorks
+			}
+		}
 		if doi != "" {
 			for _, w := range works {
 				if NormalizeDOI(w.ID) == doi {
-					f.Status = CitationVerifiedDOI
-					f.MatchedID, f.MatchedTitle = w.ID, w.Title
-					f.Similarity = titleSimilarity(title, w.Title)
+					sim := titleSimilarity(title, w.Title)
+					if title != "" && sim < 0.40 {
+						f.Status = CitationDOIMismatch
+						f.MatchedID, f.MatchedTitle, f.Similarity = w.ID, w.Title, sim
+						f.Note = "DOI resolved, but its title does not match the cited title"
+					} else {
+						f.Status = CitationVerifiedDOI
+						f.MatchedID, f.MatchedTitle, f.Similarity = w.ID, w.Title, sim
+					}
 					break
 				}
 			}
@@ -175,7 +189,17 @@ func titleSimilarity(a, b string) float64 {
 			shared++
 		}
 	}
-	return float64(shared) / float64(len(at))
+	containment := float64(shared) / float64(len(at))
+	recall := float64(shared) / float64(len(bt))
+	// Reject degenerate 1-token spoofing against a long resolved title while
+	// preserving legitimate shortened titles (e.g. missing subtitle).
+	if len(at) == 1 && len(bt) > 2 {
+		return recall
+	}
+	if recall < 0.40 {
+		return 2.0 * float64(shared) / float64(len(at)+len(bt))
+	}
+	return containment
 }
 
 var citationStopwords = map[string]bool{

@@ -250,13 +250,10 @@ func QuantizeEmbedding(vec []float32) ([]int8, float32) {
 // vectors. Different per-vector scales cancel, so no dequantization is
 // needed for ranking.
 func CosineSimilarityInt8(a, b []int8) float64 {
-	n := len(a)
-	if len(b) < n {
-		n = len(b)
-	}
-	if n == 0 {
+	if len(a) == 0 || len(a) != len(b) {
 		return 0
 	}
+	n := len(a)
 	var dot, na, nb float64
 	for i := 0; i < n; i++ {
 		x, y := float64(a[i]), float64(b[i])

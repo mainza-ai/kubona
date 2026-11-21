@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 )
 
@@ -97,10 +98,24 @@ func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) error {
 	}
 
 	pCorr := cp.ProbabilityCorroborated()
-	cp.Collapsed = (pCorr >= 0.75 && len(cp.Sources) >= 2 && cp.ChemicalAccuracyDeltaMHa <= 1.6)
+	cp.Collapsed = (pCorr >= 0.75 && countAttestedSources(cp.Sources) >= 2 && cp.ChemicalAccuracyDeltaMHa <= 1.6)
 
 	g.claims[cp.ClaimID] = &cp
 	return nil
+}
+
+// countAttestedSources counts distinct, attested evidence sources (excluding
+// explicitly unattested markers like literature:pending-review).
+func countAttestedSources(sources []string) int {
+	seen := make(map[string]struct{}, len(sources))
+	for _, s := range sources {
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" || trimmed == "literature:pending-review" {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+	}
+	return len(seen)
 }
 
 // CanAssert determines whether an agent is mathematically allowed to assert the claim as established truth
@@ -120,9 +135,9 @@ func (g *EpistemicGate) CanAssert(claimID string) (bool, string) {
 		return false, fmt.Sprintf("uncollapsed claim: P_corr=%.3f < 0.75 threshold", cw.ProbabilityCorroborated())
 	}
 
-	if len(cw.Sources) < 2 {
+	if attested := countAttestedSources(cw.Sources); attested < 2 {
 		g.refusalCount++
-		return false, fmt.Sprintf("insufficient source diversity: %d sources < 2 required", len(cw.Sources))
+		return false, fmt.Sprintf("insufficient source diversity: %d attested sources < 2 required", attested)
 	}
 
 	if cw.ChemicalAccuracyDeltaMHa > 1.6 {

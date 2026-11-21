@@ -238,15 +238,20 @@ func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid notification state request: %v", err), nil)
 			return
 		}
-		if req.SessionID == "" || len(req.Keys) == 0 {
-			WriteAPIError(w, "bad_request", "session_id and keys are required", nil)
+		if req.SessionID == "" || len(req.Keys) == 0 || len(req.Keys) > 200 {
+			WriteAPIError(w, "bad_request", "session_id and 1..200 keys are required", nil)
 			return
 		}
 		if req.Action != "read" && req.Action != "resolve" {
 			WriteAPIError(w, "bad_request", "action must be read or resolve", nil)
 			return
 		}
-		if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		sess, ok := s.authorizeKnownSession(w, r, req.SessionID)
+		if !ok {
+			return
+		}
+		if sess == nil {
+			WriteAPIError(w, "not_found", "unknown session", nil)
 			return
 		}
 		if err := s.ledger.MarkNotifications(req.SessionID, req.Keys, req.Action == "resolve"); err != nil {
@@ -293,7 +298,16 @@ func (s *Server) handleNotificationPreferences(w http.ResponseWriter, r *http.Re
 	if req.SessionID == "" {
 		req.SessionID = sessionID
 	}
-	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+	if strings.TrimSpace(req.SessionID) == "" {
+		WriteAPIError(w, "bad_request", "session_id is required", nil)
+		return
+	}
+	sess, ok := s.authorizeKnownSession(w, r, req.SessionID)
+	if !ok {
+		return
+	}
+	if sess == nil {
+		WriteAPIError(w, "not_found", "unknown session", nil)
 		return
 	}
 	for _, kind := range req.MutedKinds {

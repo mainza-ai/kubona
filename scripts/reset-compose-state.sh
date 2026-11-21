@@ -15,13 +15,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE=(docker compose --env-file "$ROOT/.env" -f "$ROOT/platform/docker/compose.prod.yml")
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 APPLY=0
+EXPECT_SINGLE_LAB=0
 ARCHIVE_DIR="${ARCHIVE_DIR:-$HOME/.kubona/reset-$TS}"
 
-usage() { echo "usage: $0 [--yes] [--archive-dir /abs/path]" >&2; }
+usage() { echo "usage: $0 [--yes] [--expect-single-lab] [--archive-dir /abs/path]" >&2; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) APPLY=1 ;;
+    --expect-single-lab) EXPECT_SINGLE_LAB=1 ;;
     --archive-dir) shift; ARCHIVE_DIR="${1:-}" ;;
     --archive-dir=*) ARCHIVE_DIR="${1#*=}" ;;
     -h|--help) usage; exit 0 ;;
@@ -35,12 +37,12 @@ case "$ARCHIVE_DIR" in
   *) echo "reset-compose-state: --archive-dir must be absolute" >&2; exit 1 ;;
 esac
 
-PROJECT="$(docker inspect kubona-prod-kubonad-1 --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)"
-if [ -z "$PROJECT" ]; then
-  echo "reset-compose-state: the kubona-prod kubonad container is not running" >&2
+KUBONAD_CID="$("${COMPOSE[@]}" ps -q kubonad 2>/dev/null | head -n 1 || true)"
+if [ -z "$KUBONAD_CID" ]; then
+  echo "reset-compose-state: no running kubonad container found for compose stack" >&2
   exit 1
 fi
-STATE_VOL="$(docker inspect kubona-prod-kubonad-1 --format '{{range .Mounts}}{{if eq .Destination "/home/kubona/.kubona"}}{{.Name}}{{end}}{{end}}')"
+STATE_VOL="$(docker inspect "$KUBONAD_CID" --format '{{range .Mounts}}{{if eq .Destination "/home/kubona/.kubona"}}{{.Name}}{{end}}{{end}}')"
 if [ -z "$STATE_VOL" ]; then
   echo "reset-compose-state: cannot identify the state volume" >&2
   exit 1
@@ -49,11 +51,12 @@ ARCHIVE_VOL="${STATE_VOL}-archive-${TS}"
 
 cat <<PLAN
 reset-compose-state plan:
+  kubonad ctr:    $KUBONAD_CID
   state volume:   $STATE_VOL
   archive volume: $ARCHIVE_VOL
   archive dir:    $ARCHIVE_DIR
-  steps: verified backup -> copy state volume -> stop kubonad ->
-         remove kubona.db{,-wal,-shm} -> start stack -> assert single-lab
+  steps: verified backup -> stop all state writers (kubonad/backup/mcp/bridge) ->
+         copy state volume -> remove kubona.db{,-wal,-shm} -> start stack -> check /api/access
 PLAN
 if [ "$APPLY" != 1 ]; then
   echo "reset-compose-state: dry run (pass --yes to execute)"
@@ -64,19 +67,19 @@ mkdir -p "$ARCHIVE_DIR"
 INNER="/home/kubona/.kubona/reset-$TS.db"
 
 echo "reset-compose-state: taking a verified backup"
-docker exec kubona-prod-kubonad-1 kubonad backup \
+docker exec "$KUBONAD_CID" kubonad backup \
   --db /home/kubona/.kubona/kubona.db --out "$INNER"
-docker exec kubona-prod-kubonad-1 kubonad verify --db "$INNER"
-docker cp "kubona-prod-kubonad-1:$INNER" "$ARCHIVE_DIR/kubona.db"
-docker exec kubona-prod-kubonad-1 rm -f "$INNER"
+docker exec "$KUBONAD_CID" kubonad verify --db "$INNER"
+docker cp "$KUBONAD_CID:$INNER" "$ARCHIVE_DIR/kubona.db"
+docker exec "$KUBONAD_CID" rm -f "$INNER"
+
+echo "reset-compose-state: stopping all state writers (kubonad, backup, mcp, bridge)"
+"${COMPOSE[@]}" stop kubonad backup mcp bridge >/dev/null 2>&1 || "${COMPOSE[@]}" stop kubonad >/dev/null
 
 echo "reset-compose-state: archiving the state volume"
 docker volume create "$ARCHIVE_VOL" >/dev/null
 docker run --rm -v "$STATE_VOL:/from:ro" -v "$ARCHIVE_VOL:/to" \
   --entrypoint sh kubona/kubonad:prod -c 'cp -a /from/. /to/'
-
-echo "reset-compose-state: stopping kubonad"
-"${COMPOSE[@]}" stop kubonad >/dev/null
 
 echo "reset-compose-state: removing the live ledger files"
 docker run --rm -v "$STATE_VOL:/state" --entrypoint sh kubona/kubonad:prod \
@@ -88,8 +91,14 @@ for _ in $(seq 1 60); do
   if curl -fsS --max-time 3 http://127.0.0.1:8080/api/ready >/dev/null 2>&1; then break; fi
   sleep 2
 done
-curl -fsS http://127.0.0.1:8080/api/access
-echo
+ACCESS_JSON="$(curl -fsS http://127.0.0.1:8080/api/access)"
+echo "$ACCESS_JSON"
+if [ "$EXPECT_SINGLE_LAB" = 1 ]; then
+  echo "$ACCESS_JSON" | grep -q '"single_lab":true' || {
+    echo "reset-compose-state: expected single_lab=true in /api/access" >&2
+    exit 1
+  }
+fi
 echo "reset-compose-state: archived DB: $ARCHIVE_DIR/kubona.db"
 echo "reset-compose-state: archived volume: $ARCHIVE_VOL"
 echo "reset-compose-state: re-enter sealed provider keys and reviewer key settings as needed"

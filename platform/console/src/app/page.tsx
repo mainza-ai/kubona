@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, createTasksBatch, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, hasOperatorBearer, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, settleSessionLoops, createTask, createTasksBatch, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, hasOperatorBearer, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
@@ -554,6 +554,7 @@ export default function Home() {
   const [deleteDraft, setDeleteDraft] = useState<{ id: string; name: string } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBlockers, setDeleteBlockers] = useState<string[]>([]);
   const deleteWrite = useWriteSettlement();
 
   const handleDeleteSession = useCallback(
@@ -562,6 +563,7 @@ export default function Home() {
       const sessionToDelete = sessions.find((s) => s.id === sessionId);
       const name = sessionToDelete?.title || 'this campaign';
       setDeleteError(null);
+      setDeleteBlockers([]);
       setDeleteDraft({ id: sessionId, name });
     },
     [sessions]
@@ -572,6 +574,7 @@ export default function Home() {
     const sessionId = deleteDraft.id;
     setDeleteBusy(true);
     setDeleteError(null);
+    setDeleteBlockers([]);
     const requestId = deleteWrite.begin(`deleting campaign ${sessionId.slice(0, 8)}`);
     try {
       const result = await deleteSession(sessionId);
@@ -581,6 +584,7 @@ export default function Home() {
           ? `${result.error} Blockers: ${result.blockers.join('; ')}.`
           : result.error;
         deleteWrite.refused(requestId, detail);
+        setDeleteBlockers(result.blockers);
         setDeleteError(`Delete refused — ${detail}`);
         return;
       }
@@ -611,6 +615,61 @@ export default function Home() {
       });
       setDeleteDraft(null);
       setDeleteError(null);
+      setDeleteBlockers([]);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign, setSessions, deleteWrite]);
+
+  const handleSettleAndDelete = useCallback(async () => {
+    if (!deleteDraft || deleteBusy) return;
+    const sessionId = deleteDraft.id;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const requestId = deleteWrite.begin(`settling sleeping loops for ${sessionId.slice(0, 8)}`);
+    try {
+      const settled = await settleSessionLoops(sessionId);
+      if (!settled.ok) {
+        deleteWrite.refused(requestId, settled.error);
+        setDeleteError(`Could not settle loops — ${settled.error}`);
+        return;
+      }
+      const result = await deleteSession(sessionId);
+      if (!result.ok) {
+        const detail = result.blockers.length > 0
+          ? `${result.error} Blockers: ${result.blockers.join('; ')}.`
+          : result.error;
+        deleteWrite.refused(requestId, detail);
+        setDeleteBlockers(result.blockers);
+        setDeleteError(`Settled ${settled.settled.length} sleeping loop(s), but delete was refused — ${detail}`);
+        return;
+      }
+      deleteWrite.applied(requestId, `campaign ${sessionId.slice(0, 8)} deleted`);
+      setToast({
+        key: Date.now(),
+        text: `Settled ${settled.settled.length} sleeping loop(s) and deleted campaign ${sessionId.slice(0, 8)}.`,
+      });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
+      setSessions((prev) => {
+        const filtered = prev.filter((s) => s.id !== sessionId);
+        if (currentSessionId === sessionId) {
+          const nextSession = filtered[0];
+          if (nextSession) {
+            switchSession(nextSession.id);
+            fetchCampaignState(nextSession.id).then((c) => {
+              if (c) setCampaign(c);
+            });
+          } else {
+            switchSession('');
+            setCampaign(null);
+          }
+        }
+        return filtered;
+      });
+      setDeleteDraft(null);
+      setDeleteError(null);
+      setDeleteBlockers([]);
     } finally {
       setDeleteBusy(false);
     }
@@ -1286,10 +1345,27 @@ export default function Home() {
           open
           title={`Delete "${deleteDraft.name}"?`}
           body={
-            <span>
-              This will permanently remove its state and transcripts. Type{' '}
-              <code className="rounded-chip bg-fill text-text px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
-            </span>
+            <div className="space-y-2">
+              <p>
+                This will permanently remove its state and transcripts. Type{' '}
+                <code className="rounded-chip bg-fill text-text px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
+              </p>
+              {deleteBlockers.includes('live loops') && (
+                <div className="rounded-control border border-warning-edge bg-warning-wash p-2.5 space-y-2 text-label">
+                  <p className="text-warning-ink">
+                    Loops paused across a daemon restart stay in <code>sleeping</code> state until explicitly settled.
+                  </p>
+                  <Button
+                    size="compact"
+                    variant="secondary"
+                    pending={deleteBusy}
+                    onClick={() => void handleSettleAndDelete()}
+                  >
+                    Settle sleeping loops &amp; delete
+                  </Button>
+                </div>
+              )}
+            </div>
           }
           requireText={deleteDraft.id.slice(0, 8)}
           confirmLabel="Delete campaign"
@@ -1301,6 +1377,7 @@ export default function Home() {
             if (deleteBusy) return;
             setDeleteDraft(null);
             setDeleteError(null);
+            setDeleteBlockers([]);
           }}
         />
       )}
@@ -1874,7 +1951,7 @@ export default function Home() {
         copilot={
           <CopilotDrawer
             controller={copilotChat}
-            dockComposer
+            dockComposer={surface === 'arena'}
             sessionId={currentSessionId}
             campaign={campaign}
             isExpanded={isCopilotExpanded}

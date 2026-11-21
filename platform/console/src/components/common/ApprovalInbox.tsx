@@ -17,6 +17,7 @@ import {
 } from '@/domain/oversight';
 import { Button } from '@/components/ui/Button';
 import { Field, TextArea } from '@/components/ui/Forms';
+import { subscribeInvalidation } from '@/lib/invalidation';
 
 function riskTone(risk?: string): string {
   if (risk === 'high') return 'text-warning-ink';
@@ -53,14 +54,21 @@ export function ApprovalInbox({ sessionId }: { sessionId: string }) {
   const [openEditors, setOpenEditors] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const applyPlans = (out: Awaited<ReturnType<typeof fetchApprovals>>) => {
-    if (!out) return;
+    if (!out) {
+      setLoadError('Unable to load pending plan approvals.');
+      return;
+    }
     setPending(out.pending);
     setDeferred(out.deferred);
   };
   const applyTools = (out: Awaited<ReturnType<typeof fetchToolApprovals>>) => {
-    if (!out) return;
+    if (!out) {
+      setLoadError('Unable to load pending tool approvals.');
+      return;
+    }
     setToolPending(out.pending);
     const recent = out.recent ?? [];
     setToolCounts({
@@ -72,21 +80,32 @@ export function ApprovalInbox({ sessionId }: { sessionId: string }) {
 
   const load = useCallback(async () => {
     if (!sessionId) return;
-    applyPlans(await fetchApprovals(sessionId));
-    applyTools(await fetchToolApprovals(sessionId));
+    setLoadError(null);
+    const [plansOut, toolsOut] = await Promise.all([
+      fetchApprovals(sessionId),
+      fetchToolApprovals(sessionId),
+    ]);
+    applyPlans(plansOut);
+    applyTools(toolsOut);
   }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
     let live = true;
-    fetchApprovals(sessionId).then((out) => {
-      if (live) applyPlans(out);
+    void Promise.all([fetchApprovals(sessionId), fetchToolApprovals(sessionId)]).then(([plansOut, toolsOut]) => {
+      if (!live) return;
+      setLoadError(null);
+      applyPlans(plansOut);
+      applyTools(toolsOut);
     });
-    fetchToolApprovals(sessionId).then((out) => {
-      if (live) applyTools(out);
+    const unsub = subscribeInvalidation(['approvals'], () => {
+      if (live) void load();
     });
-    return () => { live = false; };
-  }, [sessionId]);
+    return () => {
+      live = false;
+      unsub();
+    };
+  }, [sessionId, load]);
 
   const editDraft = (plan: ApprovalPlan, patch: Partial<Draft>) => {
     setDrafts((prev) => ({ ...prev, [plan.id]: { ...(prev[plan.id] ?? draftFor(plan)), ...patch } }));
@@ -291,13 +310,19 @@ export function ApprovalInbox({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="w-full rounded-card border border-border bg-surface p-4 space-y-2" aria-label="Approval inbox">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <span className="text-label font-semibold text-text">Approvals</span>
           <p className="text-[12px] text-faint">Proposed plans wait for a human; decisions are durable and accepted once.</p>
         </div>
-        <span className="font-code text-[11px] text-muted">{pending.length} pending · {deferred.length} deferred</span>
+        <div className="flex items-center gap-2">
+          <span className="font-code text-[11px] text-muted">{pending.length} pending · {deferred.length} deferred</span>
+          <Button variant="ghost" size="compact" disabled={busy !== null} onClick={() => void load()}>
+            Refresh
+          </Button>
+        </div>
       </div>
+      {loadError && <p role="alert" className="text-[12px] text-danger-ink">{loadError}</p>}
       {notice && <p role="status" className="text-[12px] text-label-secondary">{notice}</p>}
       {pending.length === 0 && deferred.length === 0 && (
         <p className="text-[12px] text-muted">No pending approvals.</p>

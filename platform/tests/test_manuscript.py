@@ -48,8 +48,11 @@ def test_create_and_export_discovery_manuscript(tmp_path):
     intro = (export_dir / "sections" / "introduction.tex").read_text()
     assert intro.startswith(r"\section{Introduction and Physical System}")
     anchors = (export_dir / "sections" / "analytical_anchors.tex").read_text()
-    assert "Haldane_Spin_1_Chain" in anchors
-    assert "Barren_Plateau" in (export_dir / "sections" / "results_and_reproducibility.tex").read_text()
+    assert r"Haldane\_Spin\_1\_Chain" in anchors
+    assert "Haldane_Spin_1_Chain" not in anchors
+    results_tex = (export_dir / "sections" / "results_and_reproducibility.tex").read_text()
+    assert r"Barren\_Plateau" in results_tex
+    assert "Barren_Plateau" not in results_tex
 
 
 def test_compile_refuses_unincludable_figure_formats(tmp_path):
@@ -215,7 +218,7 @@ def test_signoff_verifies_and_stages_deposit(tmp_path):
         title="T", target_system="H2", authors=["A"], abstract="B",
         analytical_anchor_name="H2", analytical_anchor_val=-1.137,
         measured_val=-1.137, lean4_proof_hash="0xHASH")
-    content_hash = hashlib.sha256(ms.compile_latex().encode()).hexdigest()
+    content_hash = ms.content_hash()
     sk = SigningKey.generate()
     expiry = "2030-01-01T00:00:00Z"
     payload = f"manuscript-signoff:{ms.manuscript_id}:{content_hash}:{expiry}".encode()
@@ -236,6 +239,15 @@ def test_signoff_verifies_and_stages_deposit(tmp_path):
     manifest = json.loads(out.read_text())
     assert manifest["state"] == "staged-needs-human-upload"
     assert manifest["auto_publish"] is False
+
+    # Mutating a section body after sign-off must invalidate deposit staging.
+    ms.sections[0].latex_content += " TAMPERED"
+    try:
+        ManuscriptGenerator.stage_zenodo_deposit(tmp_path / "deposit_tampered", ms, review,
+                                                 creators=[{"name": "A"}])
+        raise AssertionError("deposit must refuse after section tamper")
+    except ValueError as exc:
+        assert "changed after sign-off" in str(exc)
 
 
 def test_deposit_refused_without_accept_or_signoff(tmp_path):

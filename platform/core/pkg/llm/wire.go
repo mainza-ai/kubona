@@ -242,7 +242,29 @@ func isRetryableNetError(ctx context.Context, err error) bool {
 		return false
 	}
 	var netErr net.Error
-	return errors.As(err, &netErr) || strings.Contains(lower, "eof") || strings.Contains(lower, "connection reset")
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return false
+		}
+		return true
+	}
+	return strings.Contains(lower, "eof") || strings.Contains(lower, "connection reset")
+}
+
+// wrapTransportError preserves an explicit WireError or context cancellation/
+// deadline error instead of masking policy refusals/timeouts as FaultUnreachable.
+func wrapTransportError(ctx context.Context, endpoint string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var wireErr *WireError
+	if errors.As(err, &wireErr) {
+		return wireErr
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
 }
 
 func sleepWithContext(ctx context.Context, d time.Duration) error {
@@ -296,16 +318,25 @@ func newGuardedHTTPClient(settings *Settings) *http.Client {
 		KeepAlive: 30 * time.Second,
 	}
 	tr := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			if settings != nil {
+				snap := settings.GetSnapshot()
+				if snap.AirGapped || productionCloudWithoutOptIn(false) {
+					return nil, nil
+				}
+			}
+			return http.ProxyFromEnvironment(req)
+		},
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          32,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   15 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			host, _, err := net.SplitHostPort(addr)
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				host = addr
+				port = ""
 			}
 			blockNonLocal := false
 			reason := ""
@@ -320,20 +351,18 @@ func newGuardedHTTPClient(settings *Settings) *http.Client {
 				}
 			}
 			if blockNonLocal {
-				if addrIP, perr := netip.ParseAddr(strings.Trim(host, "[]")); perr == nil {
+				trimmed := strings.Trim(host, "[]")
+				if addrIP, perr := netip.ParseAddr(trimmed); perr == nil {
 					if !IsLocalHost(addrIP.String()) {
 						return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: addr, Message: reason}
 					}
+					if port != "" {
+						addr = net.JoinHostPort(addrIP.String(), port)
+					}
 				} else if !IsLocalHost(host) {
-					ips, rerr := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-					if rerr != nil {
-						return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: addr, Message: reason}
-					}
-					for _, ip := range ips {
-						if !IsLocalHost(ip.String()) {
-							return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: addr, Message: fmt.Sprintf("%s (%s resolved to non-local %s)", reason, host, ip)}
-						}
-					}
+					// Refuse non-local hostnames without performing external DNS lookup
+					// (prevents DNS exfiltration in air-gap mode and DNS-rebinding TOCTOU).
+					return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: addr, Message: fmt.Sprintf("%s (non-local host %q)", reason, host)}
 				}
 			}
 			return dialer.DialContext(ctx, network, addr)
@@ -372,6 +401,7 @@ type wireRequest struct {
 	TopP            *float64
 	Seed            *int64
 	MaxTokens       int
+	HardMaxTokens   bool
 	ReasoningEffort string
 	NumCtx          int
 	PromptCacheKey  string

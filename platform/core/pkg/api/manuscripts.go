@@ -34,6 +34,8 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/prov"
+	"github.com/mainza-ai/kubona/core/pkg/verify"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -163,6 +165,10 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 	}
 	if strings.HasSuffix(rest, "/verify") {
 		s.handleManuscriptVerification(w, r, sessionID, strings.TrimSuffix(rest, "/verify"))
+		return
+	}
+	if strings.HasSuffix(rest, "/export") {
+		s.handleManuscriptExport(w, r, sessionID, strings.TrimSuffix(rest, "/export"))
 		return
 	}
 	if idx := strings.Index(rest, "/annotations"); idx > 0 {
@@ -613,6 +619,13 @@ func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscrip
 
 func (s *Server) handleManuscriptReviews(w http.ResponseWriter, r *http.Request, sessionID, id string) {
 	if r.Method == http.MethodGet {
+		if _, err := s.ledger.GetManuscript(sessionID, id); errors.Is(err, ledger.ErrManuscriptNotFound) {
+			WriteAPIError(w, "not_found", "unknown manuscript", nil)
+			return
+		} else if err != nil {
+			WriteAPIError(w, "internal", "manuscript read failed", nil)
+			return
+		}
 		reviews, err := s.ledger.ListManuscriptReviews(id)
 		if err != nil {
 			WriteAPIError(w, "internal", "review read failed", nil)
@@ -1371,6 +1384,12 @@ func (s *Server) handleManuscriptAnnotations(w http.ResponseWriter, r *http.Requ
 // durable spool fallback. A failure means neither the ledger nor the spool
 // accepted it, so the caller refuses instead of leaving silent state.
 func (s *Server) recordManuscriptEvent(sessionID, eventType string, payload map[string]any) error {
+	// Commit-class events (e.g. manuscript_deleted) MUST be Ed25519-signed so
+	// VerifyChain stays clean across future schema migrations.
+	if ledger.CommitEventTypes[eventType] && len(s.signerPrivKey) == ed25519.PrivateKeySize {
+		_, err := s.ledger.AppendSignedEvent(sessionID, eventType, payload, s.signerPrivKey)
+		return err
+	}
 	// A spooled event is durable and replays on the next open; only a failure
 	// of BOTH the ledger and the spool refuses the request.
 	_, err := s.ledger.AppendEventWithSpool(sessionID, eventType, payload)
@@ -1647,4 +1666,152 @@ func (s *Server) handleManuscriptCitations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	s.writeManuscriptDetail(w, sessionID, id, http.StatusOK)
+}
+
+// handleManuscriptExport serves a read-only RO-Crate 1.1 + W3C PROV-JSON +
+// CRediT attribution bundle for a stored manuscript over HTTP so the Console
+// and external archival tools have parity with `kubonad manuscript-export`.
+func (s *Server) handleManuscriptExport(w http.ResponseWriter, r *http.Request, sessionID, id string) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "manuscript export is GET-only", nil)
+		return
+	}
+	ms, err := s.ledger.GetManuscript(sessionID, id)
+	if errors.Is(err, ledger.ErrManuscriptNotFound) {
+		WriteAPIError(w, "not_found", "unknown manuscript", nil)
+		return
+	}
+	if err != nil {
+		WriteAPIError(w, "internal", "manuscript lookup failed", nil)
+		return
+	}
+	bundle := prov.Bundle{
+		SessionID: sessionID, ManuscriptID: ms.ID, Title: ms.Title,
+		ContentHash: ms.ContentHash, CreatedAt: ms.CreatedAt,
+	}
+	if strings.TrimSpace(ms.AuthorsJSON) != "" {
+		_ = json.Unmarshal([]byte(ms.AuthorsJSON), &bundle.Authors)
+	}
+	if claims, err := s.ledger.ListClaimRecords(sessionID, 200); err == nil {
+		for _, c := range claims {
+			var ref struct {
+				JobID string `json:"job_id"`
+			}
+			_ = json.Unmarshal([]byte(c.Evidence), &ref)
+			bundle.Claims = append(bundle.Claims, prov.Claim{
+				ID: c.ID, Statement: c.Statement, Verdict: c.Verdict,
+				CreatedAt: c.CreatedAt, JobID: ref.JobID,
+			})
+		}
+	}
+	if jobsList, err := s.ledger.ListJobRecords(sessionID, 200); err == nil {
+		for _, j := range jobsList {
+			bundle.Jobs = append(bundle.Jobs, prov.Job{
+				ID: j.ID, Type: j.JobType, Status: j.Status,
+				CreatedAt: j.CreatedAt, CompletedAt: j.CompletedAt,
+			})
+		}
+	}
+	if hyps, err := s.ledger.ListHypotheses(sessionID, 200); err == nil {
+		for _, h := range hyps {
+			bundle.Hypotheses = append(bundle.Hypotheses, prov.Hypothesis{
+				ID: h.ID, Statement: h.Statement, Status: h.Status,
+				Source: h.Source, ClaimID: h.ClaimID,
+			})
+		}
+	}
+	if plansList, err := s.ledger.ListPlans(sessionID, 200); err == nil {
+		for _, p := range plansList {
+			bundle.Plans = append(bundle.Plans, prov.Plan{
+				ID: p.ID, HypothesisID: p.HypothesisID, Status: p.Status, JobID: p.JobID,
+			})
+		}
+	}
+	if strings.TrimSpace(ms.VerificationJSON) != "" {
+		var rep verify.Report
+		if json.Unmarshal([]byte(ms.VerificationJSON), &rep) == nil {
+			bundle.Verification = &prov.Verification{
+				Status: rep.Summary.Status, CheckedAt: rep.CheckedAt,
+			}
+		}
+	}
+	if ms.Signoff != nil {
+		bundle.Signoff = &prov.Signoff{
+			Signer: ms.Signoff.SignerPubKey, SignedAt: ms.Signoff.SignedAt,
+			ContentHash: ms.Signoff.ContentHash,
+		}
+	}
+	provJSON := prov.BuildPROVJSON(bundle)
+	credit := map[string]any{
+		"version":      "credit-v1",
+		"contributors": prov.Contributors(bundle),
+	}
+	artifactHashes := map[string]string{}
+	for _, a := range ms.Artifacts {
+		if a.Name != "" {
+			artifactHashes["artifacts/"+strings.TrimPrefix(a.Name, "/")] = a.SHA256
+		}
+	}
+	graph := []map[string]any{
+		{
+			"@id":        "ro-crate-metadata.json",
+			"@type":      "CreativeWork",
+			"conformsTo": map[string]any{"@id": "https://w3id.org/ro/crate/1.1"},
+			"about":      map[string]any{"@id": "./"},
+		},
+		{
+			"@id":           "./",
+			"@type":         "Dataset",
+			"name":          ms.Title,
+			"description":   ms.Abstract,
+			"datePublished": ms.CreatedAt,
+			"identifier":    ms.ID,
+			"contentHash":   ms.ContentHash,
+		},
+	}
+	if ms.Signoff != nil {
+		graph = append(graph, map[string]any{
+			"@id": "#signoff", "@type": "EndorsementRating",
+			"signer": ms.Signoff.SignerPubKey, "signature": ms.Signoff.Signature,
+			"contentHash": ms.Signoff.ContentHash, "expiry": ms.Signoff.Expiry,
+			"datePublished": ms.Signoff.SignedAt,
+		})
+	}
+	names := make([]string, 0, len(artifactHashes))
+	for name := range artifactHashes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	hasPart := make([]map[string]any, 0, len(names)+1)
+	for _, name := range names {
+		hasPart = append(hasPart, map[string]any{"@id": name})
+		base := name
+		if idx := strings.LastIndex(name, "/"); idx >= 0 {
+			base = name[idx+1:]
+		}
+		graph = append(graph, map[string]any{
+			"@id": name, "@type": "File", "name": base, "sha256": artifactHashes[name],
+		})
+	}
+	if ms.Signoff != nil {
+		hasPart = append(hasPart, map[string]any{"@id": "#signoff"})
+	}
+	graph[1]["hasPart"] = hasPart
+	graph = append(graph, prov.ProvOGraph(bundle)...)
+	roCrate := map[string]any{
+		"@context": []any{
+			"https://w3id.org/ro/crate/1.1/context",
+			map[string]any{"prov": "http://www.w3.org/ns/prov#", "kubona": "https://kubona.ai/ns#"},
+		},
+		"@graph": graph,
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"manuscript_id":   ms.ID,
+		"session_id":      sessionID,
+		"content_hash":    ms.ContentHash,
+		"artifact_hashes": artifactHashes,
+		"ro_crate":        roCrate,
+		"prov_json":       provJSON,
+		"credit":          credit,
+	})
 }

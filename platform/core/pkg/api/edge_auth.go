@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/alerts"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
 
 // Edge auth (B0-2): the trust boundary in front of spend-authority
@@ -51,6 +52,43 @@ func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
 		default:
 			WriteAPIError(w, "unauthorized", "missing or invalid bearer token or session: log in or pass a bearer token", nil)
+		}
+	}
+}
+
+// requireOperatorBearer gates global control-plane routes on operator
+// authority: the shared KUBONA_API_TOKEN bearer (`tenant == ""`), or in a
+// declared single-lab local-private deployment the default lab's admin session
+// cookie. In multi-lab mode, a lab session cookie is refused with 403 so Lab B
+// cannot mutate global LLM/skills/HF/metrics/ledger operator controls.
+func (s *Server) requireOperatorBearer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenant, _, code := s.checkAuth(r)
+		switch code {
+		case http.StatusOK:
+			if tenant != "" && !(tenant == tenants.DefaultTenantID && s.singleTenantStore()) {
+				WriteAPIError(w, "forbidden", "operator authority required: lab session cannot access global control-plane route", nil)
+				return
+			}
+			next(w, r)
+		case http.StatusServiceUnavailable:
+			WriteAPIError(w, "server_misconfigured", "API token not configured: set KUBONA_API_TOKEN or log in", nil)
+		case http.StatusForbidden:
+			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
+		default:
+			WriteAPIError(w, "unauthorized", "missing or invalid bearer token or session: log in or pass a bearer token", nil)
+		}
+	}
+}
+
+func (s *Server) requireOperatorBearerForWrites(next http.HandlerFunc) http.HandlerFunc {
+	gated := s.requireOperatorBearer(next)
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+			gated(w, r)
+		default:
+			next(w, r)
 		}
 	}
 }

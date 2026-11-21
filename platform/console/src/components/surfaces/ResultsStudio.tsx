@@ -26,6 +26,8 @@ import { numericClaimGuard } from '@/lib/resultNarrative';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { LiteraturePanel } from './LiteraturePanel';
 import { PublicationPanel } from './PublicationPanel';
+import { ResearchPipelinePanel } from './ResearchPipelinePanel';
+import { Button } from '@/components/ui/Button';
 import { MeasuredOutputs } from '../MeasuredOutputs';
 import { ClaimHistory } from '@/components/common/ClaimHistory';
 import { Chart } from '@/components/data/LazyChart';
@@ -331,7 +333,9 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
 export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [copiedBibtex, setCopiedBibtex] = useState(false);
   const [exported, setExported] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature'>('manuscript');
+  const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature' | 'pipeline'>('manuscript');
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [pubOpen, setPubOpen] = useState(false);
   const [selectedAnchor, setSelectedAnchor] = useState<string>('§Abstract');
   const [newComment, setNewComment] = useState('');
   const [submittingAnnotation, setSubmittingAnnotation] = useState(false);
@@ -847,6 +851,38 @@ ${bibtex}
             Projected corridors and template values are not shown here as results.
           </p>
         </div>
+        {sessionId && (
+          <div className="space-y-3">
+            <details
+              open={pipelineOpen}
+              onToggle={(e) => setPipelineOpen(e.currentTarget.open)}
+              className="rounded-card border border-border bg-surface p-4"
+            >
+              <summary className="text-label font-semibold text-text cursor-pointer">
+                Research pipeline (Hypotheses, Plans, Graph &amp; Lab Knowledge)
+              </summary>
+              {pipelineOpen && (
+                <div className="mt-4">
+                  <ResearchPipelinePanel sessionId={sessionId} />
+                </div>
+              )}
+            </details>
+            <details
+              open={pubOpen}
+              onToggle={(e) => setPubOpen(e.currentTarget.open)}
+              className="rounded-card border border-border bg-surface p-4"
+            >
+              <summary className="text-label font-semibold text-text cursor-pointer">
+                Publication drafts, verification &amp; RO-Crate export
+              </summary>
+              {pubOpen && (
+                <div className="mt-4">
+                  <PublicationPanel sessionId={sessionId} />
+                </div>
+              )}
+            </details>
+          </div>
+        )}
       </div>
     );
   }
@@ -910,6 +946,13 @@ ${bibtex}
             >
               Literature
             </button>
+            <Button
+              size="compact"
+              variant={activeTab === 'pipeline' ? 'primary' : 'ghost'}
+              onClick={() => setActiveTab('pipeline')}
+            >
+              Research Pipeline
+            </Button>
           </div>
 
           <button
@@ -1138,6 +1181,10 @@ ${bibtex}
 
           {activeTab === 'literature' && (
             <LiteraturePanel initialQuery={target} />
+          )}
+
+          {activeTab === 'pipeline' && (
+            <ResearchPipelinePanel sessionId={sessionId ?? null} />
           )}
         </div>
 

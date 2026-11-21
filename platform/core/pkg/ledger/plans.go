@@ -108,8 +108,8 @@ func (l *Ledger) CreatePlan(sessionID, tenantID string, p *ExperimentPlan) error
 	if !validPlanStatus(p.Status) {
 		return fmt.Errorf("plan status %q is not proposed|approved|running|completed|rejected|failed", p.Status)
 	}
-	if p.BudgetUSD <= 0 {
-		p.BudgetUSD = 1.0
+	if p.BudgetUSD < 0 {
+		return fmt.Errorf("plan budget_usd must be non-negative")
 	}
 	if p.Executor == "" {
 		p.Executor = "bridge"
@@ -224,6 +224,20 @@ func (l *Ledger) SetPlanStatus(sessionID, id, status string) error {
 		return ErrPlanNotFound
 	}
 	return nil
+}
+
+// CASPlanRunning atomically transitions a plan from proposed|approved into
+// running so concurrent /execute requests cannot launch duplicate jobs.
+func (l *Ledger) CASPlanRunning(sessionID, id string) (bool, error) {
+	res, err := l.DB().Exec(`UPDATE experiment_plans SET status = ?,
+		deferred_until = '', defer_reason = '', updated_at = ?
+		WHERE session_id = ? AND id = ? AND status IN ('proposed', 'approved')`,
+		PlanRunning, nowUTC(), sessionID, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // SetPlanDeferral parks a proposed plan until a future time without changing

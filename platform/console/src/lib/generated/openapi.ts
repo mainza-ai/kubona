@@ -1265,6 +1265,145 @@ export type LlmKeyDelete = {
 };
 };
 
+export type ManuscriptsVerify = {
+  "report"?: unknown;
+  "status": string;
+};
+
+export type ManuscriptsDelete = {
+  "ok": boolean;
+  "deleted"?: string;
+};
+
+export type ManuscriptsExport = {
+  "manuscript_id": string;
+  "session_id": string;
+  "content_hash": string;
+  "artifact_hashes": unknown;
+  "ro_crate": unknown;
+  "prov_json": unknown;
+  "credit": unknown;
+};
+
+export type FormalList = {
+  "verifications": unknown[];
+};
+
+export type FormalRecord = {
+  "ok": boolean;
+  "proof_hash"?: unknown;
+  "event_id"?: number;
+  "entry_hash"?: string;
+};
+
+export type HypothesesList = {
+  "hypotheses": unknown[];
+};
+
+export type HypothesesGenerate = {
+  "hypotheses": unknown[];
+  "llm"?: unknown;
+};
+
+export type HypothesesTournament = {
+  "hypotheses": unknown[];
+  "rounds"?: number;
+};
+
+export type HypothesesStatus = {
+  "ok": boolean;
+  "id": string;
+  "status": string;
+};
+
+export type HypothesesCollapse = {
+  "ok": boolean;
+  "hypothesis"?: unknown;
+  "claim"?: unknown;
+};
+
+export type PlansList = {
+  "plans": unknown[];
+};
+
+export type PlansCreate = {
+  "plan": unknown;
+};
+
+export type PlansStatus = {
+  "ok": boolean;
+  "id": string;
+  "status": string;
+};
+
+export type PlansExecute = {
+  "plan"?: unknown;
+  "job_id"?: string;
+  "status": string;
+};
+
+export type ResearchGraphDetail = {
+  "session_id": string;
+  "nodes"?: unknown[];
+  "edges"?: unknown[];
+};
+
+export type LabKnowledgeList = {
+  "tenant_id": string;
+  "entries": unknown[];
+};
+
+export type AutonomyPolicy = {
+  "policy": unknown;
+  "source"?: string;
+};
+
+export type AutonomyHalt = {
+  "policy": unknown;
+  "cancelled_jobs"?: number;
+  "paused_loops"?: number;
+};
+
+export type AutonomyHistory = {
+  "session_id": string;
+  "entries": unknown[];
+};
+
+export type AutonomyRollback = {
+  "policy": unknown;
+  "source_event_id"?: number;
+};
+
+export type ReceiptsList = {
+  "session_id": string;
+  "receipts": unknown[];
+};
+
+export type ReceiptsUndo = {
+  "ok": boolean;
+  "target_id": string;
+  "action": string;
+};
+
+export type OpsScience = Record<string, unknown>;
+
+export type TenantsAgenticDefault = {
+  "tenant_id": string;
+  "enabled"?: unknown;
+  "source": string;
+};
+
+export type MemoryRetract = {
+  "ok": boolean;
+  "id": string;
+  "retracted": boolean;
+};
+
+export type LoopsSettle = {
+  "settled": string[];
+  "session_id": string;
+};
+
 export type ApiOperationResponse = {
   appendLedgerEvent: LedgerAppend;
   applyMetasearchProposal: MetasearchChange;
@@ -1284,16 +1423,19 @@ export type ApiOperationResponse = {
   clearLLMProviderKey: LlmKeyDelete;
   clearMessages: MessagesClear;
   closeObligation: ObligationsClose;
+  collapseHypothesis: HypothesesCollapse;
   createCustomAgent: AgentOne;
   createLab: Lab;
   createManuscript: ManuscriptsCreate;
   createManuscriptAnnotation: ManuscriptsAnnotation;
+  createPlan: PlansCreate;
   createSession: SessionCreate;
   createTask: Task;
   createTasksBatch: TasksBatch;
   decideApproval: ApprovalDecision;
   decideToolApproval: ToolApprovalDecision;
   deleteCustomAgent: AgentsCustomDelete;
+  deleteManuscript: ManuscriptsDelete;
   deleteSession: SessionDelete;
   discoverLocalLLMProviders: LlmDiscover;
   dismissProposal: ProposalDismiss;
@@ -1302,11 +1444,15 @@ export type ApiOperationResponse = {
   evaluateCodesignBatch: CodesignBatch;
   evaluateDiscoveryPipeline: Discovery;
   evaluatePrediction: PredictionEvaluate;
+  executePlan: PlansExecute;
   exportLedger: LedgerExportDocument;
+  exportManuscriptBundle: ManuscriptsExport;
   exportSession: SessionExport;
   fetchAccess: Access;
   fetchAgenticDigest: AgenticDigest;
   fetchApprovals: ApprovalInbox;
+  fetchAutonomyHistory: AutonomyHistory;
+  fetchAutonomyPolicy: AutonomyPolicy;
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
   fetchCalibration: VaultCalibration;
@@ -1326,11 +1472,14 @@ export type ApiOperationResponse = {
   fetchExperimentExport: ExperimentExport;
   fetchFidelity: Fidelity;
   fetchFleet: Fleet;
+  fetchFormalVerifications: FormalList;
+  fetchHypotheses: HypothesesList;
   fetchJob: Job;
   fetchJobsResult: JobsList;
   fetchLLMEvalStatus: LlmEvalStatus;
   fetchLLMModels: LlmModels;
   fetchLLMSettings: LlmSettings;
+  fetchLabKnowledge: LabKnowledgeList;
   fetchLabs: LabsList;
   fetchLatestPrediction: VaultLatest;
   fetchLedgerExport: LedgerExportDocument;
@@ -1350,6 +1499,7 @@ export type ApiOperationResponse = {
   fetchNotifications: NotificationsList;
   fetchObservatoryLensStatus: LensStatus;
   fetchOpenObligations: ObligationsOpen;
+  fetchPlans: PlansList;
   fetchPredictionHistory: VaultHistory;
   fetchProposals: ProposalsList;
   fetchQirCompile: QirCompile;
@@ -1357,18 +1507,24 @@ export type ApiOperationResponse = {
   fetchQuantumJob: QuantumJob;
   fetchQuantumSettings: QuantumSettings;
   fetchRadar: Radar;
+  fetchResearchGraph: ResearchGraphDetail;
   fetchRunAllowances: RunAllowancesList;
+  fetchScienceTelemetry: OpsScience;
   fetchSession: Session;
   fetchSessionAgentic: SessionAgentic;
   fetchSessionContext: SessionContext;
+  fetchSessionReceipts: ReceiptsList;
   fetchSessionsResult: SessionsList;
   fetchSkills: Skills;
   fetchSystemAgents: AgentsSystem;
   fetchTasksResult: TasksList;
+  fetchTenantAgenticDefault: TenantsAgenticDefault;
   fetchToolApprovals: ToolApprovalInbox;
   fetchWorkbenchLayout: WorkbenchLayout;
   fetchWorkbenchView: WorkbenchView;
+  generateHypotheses: HypothesesGenerate;
   getHFModelDetails: HfDetails;
+  haltAutonomy: AutonomyHalt;
   importSession: SessionImport;
   installSkill: SkillsInstall;
   issueTenantGrant: TenantGrant;
@@ -1405,6 +1561,7 @@ export type ApiOperationResponse = {
   resumeAutoresearchLoop: AutoresearchLoop;
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
+  retractMemory: MemoryRetract;
   reviewClaim: ClaimsReview;
   reviewManuscript: ManuscriptsReview;
   revokeRunAllowance: RunAllowanceRevoke;
@@ -1412,10 +1569,12 @@ export type ApiOperationResponse = {
   revokeTenantGrant: TenantGrantRevoke;
   revokeVaultLease: VaultLeaseRevoke;
   rewriteChat: ChatRewrite;
+  rollbackAutonomyPolicy: AutonomyRollback;
   routeMultimodalPayload: MeshRoute;
   runDiscoveryProtocol: DiscoveryRun;
   runExperiment: ExperimentSubmit;
   runFamilySearch: CodesignFamilies;
+  runHypothesisTournament: HypothesesTournament;
   runQuantumCanary: QuantumCanary;
   runTribunal: TribunalRun;
   runWorkflow: WorkflowRun;
@@ -1431,12 +1590,16 @@ export type ApiOperationResponse = {
   searchLiterature: Literature;
   sendChatMessage: ChatSend;
   sendFeedback: ChatFeedback;
+  setHypothesisStatus: HypothesesStatus;
   setLLMAirGap: SettingsUpdate;
   setManuscriptAnnotationStatus: ManuscriptsDetail;
+  setPlanStatus: PlansStatus;
   setSessionAgentic: SessionAgenticUpdate;
+  setTenantAgenticDefault: TenantsAgenticDefault;
   setTenantAutonomy: TenantWrite;
   setTenantCeiling: TenantWrite;
   setTenantStatus: TenantWrite;
+  settleSessionLoops: LoopsSettle;
   signoffManuscript: ManuscriptsSignoff;
   stageManuscriptDeposit: ManuscriptsDeposit;
   startAutoresearchLoop: AutoresearchLoop;
@@ -1446,15 +1609,20 @@ export type ApiOperationResponse = {
   stepAutoresearchLoop: AutoresearchStep;
   stopAutoresearchLoop: AutoresearchLoop;
   streamChatMessage: ChatStreamDone;
+  submitFormalVerification: FormalRecord;
   submitQuantumJob: QuantumSubmit;
   synthesizeCampaign: Campaign;
   testLLM: LlmTest;
   toggleSkill: SkillsToggle;
+  undoSessionReceipt: ReceiptsUndo;
+  updateAutonomyPolicy: AutonomyPolicy;
   updateLoopSteer: LoopSteerUpdate;
+  updateManuscriptDraft: ManuscriptsDetail;
   updateTaskStatus: Task;
   uploadObservatoryAsset: LensAsset;
   verifyLLMProvider: LlmVerify;
   verifyLedger: LedgerVerify;
+  verifyManuscript: ManuscriptsVerify;
   verifySpendMandate: MandateVerify;
   wakeAutoresearchLoop: AutoresearchLoop;
 };
@@ -1478,16 +1646,19 @@ export const API_OPERATIONS = {
   clearLLMProviderKey: { method: "delete", path: "/api/llm/providers/{provider}/key", response: "llm.key.delete" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
   closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
+  collapseHypothesis: { method: "post", path: "/api/sessions/{sessionId}/hypotheses/{id}/collapse", response: "hypotheses.collapse" },
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts", response: "manuscripts.create" },
   createManuscriptAnnotation: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations", response: "manuscripts.annotation" },
+  createPlan: { method: "post", path: "/api/sessions/{sessionId}/plans", response: "plans.create" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   createTask: { method: "post", path: "/api/tasks", response: "task" },
   createTasksBatch: { method: "post", path: "/api/tasks/batch", response: "tasks.batch" },
   decideApproval: { method: "post", path: "/api/sessions/{sessionId}/approvals/{planId}", response: "approval.decision" },
   decideToolApproval: { method: "post", path: "/api/sessions/{sessionId}/tool-approvals/{approvalId}", response: "tool_approval.decision" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
+  deleteManuscript: { method: "delete", path: "/api/sessions/{sessionId}/manuscripts/{id}", response: "manuscripts.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   discoverLocalLLMProviders: { method: "get", path: "/api/llm/discover", response: "llm.discover" },
   dismissProposal: { method: "post", path: "/api/proposals/{id}/dismiss", response: "proposal.dismiss" },
@@ -1496,11 +1667,15 @@ export const API_OPERATIONS = {
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
   evaluateDiscoveryPipeline: { method: "post", path: "/api/discovery/pipeline", response: "discovery" },
   evaluatePrediction: { method: "post", path: "/api/vault/predictions/evaluate", response: "prediction.evaluate" },
+  executePlan: { method: "post", path: "/api/sessions/{sessionId}/plans/{id}/execute", response: "plans.execute" },
   exportLedger: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
+  exportManuscriptBundle: { method: "get", path: "/api/sessions/{sessionId}/manuscripts/{id}/export", response: "manuscripts.export" },
   exportSession: { method: "post", path: "/api/sessions/export", response: "session.export" },
   fetchAccess: { method: "get", path: "/api/access", response: "access" },
   fetchAgenticDigest: { method: "get", path: "/api/sessions/{sessionId}/agentic/digest", response: "agentic.digest" },
   fetchApprovals: { method: "get", path: "/api/sessions/{sessionId}/approvals", response: "approval.inbox" },
+  fetchAutonomyHistory: { method: "get", path: "/api/sessions/{sessionId}/autonomy/history", response: "autonomy.history" },
+  fetchAutonomyPolicy: { method: "get", path: "/api/sessions/{sessionId}/autonomy", response: "autonomy.policy" },
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },
@@ -1520,11 +1695,14 @@ export const API_OPERATIONS = {
   fetchExperimentExport: { method: "get", path: "/api/sessions/{sessionId}/experiment-export", response: "experiment.export" },
   fetchFidelity: { method: "get", path: "/api/fidelity", response: "fidelity" },
   fetchFleet: { method: "get", path: "/api/fleet", response: "fleet" },
+  fetchFormalVerifications: { method: "get", path: "/api/sessions/{sessionId}/formal-verifications", response: "formal.list" },
+  fetchHypotheses: { method: "get", path: "/api/sessions/{sessionId}/hypotheses", response: "hypotheses.list" },
   fetchJob: { method: "get", path: "/api/jobs/{id}", response: "job" },
   fetchJobsResult: { method: "get", path: "/api/jobs", response: "jobs.list" },
   fetchLLMEvalStatus: { method: "get", path: "/api/evals/llm", response: "llm.eval.status" },
   fetchLLMModels: { method: "get", path: "/api/llm/models", response: "llm.models" },
   fetchLLMSettings: { method: "get", path: "/api/llm/settings", response: "llm.settings" },
+  fetchLabKnowledge: { method: "get", path: "/api/sessions/{sessionId}/lab-knowledge{qs}", response: "lab_knowledge.list" },
   fetchLabs: { method: "get", path: "/api/tenants", response: "labs.list" },
   fetchLatestPrediction: { method: "get", path: "/api/vault/predictions/latest", response: "vault.latest" },
   fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
@@ -1544,6 +1722,7 @@ export const API_OPERATIONS = {
   fetchNotifications: { method: "get", path: "/api/notifications", response: "notifications.list" },
   fetchObservatoryLensStatus: { method: "get", path: "/api/observatory/lens", response: "lens.status" },
   fetchOpenObligations: { method: "get", path: "/api/obligations/open", response: "obligations.open" },
+  fetchPlans: { method: "get", path: "/api/sessions/{sessionId}/plans", response: "plans.list" },
   fetchPredictionHistory: { method: "get", path: "/api/vault/predictions/history", response: "vault.history" },
   fetchProposals: { method: "get", path: "/api/proposals", response: "proposals.list" },
   fetchQirCompile: { method: "post", path: "/api/qir/compile", response: "qir.compile" },
@@ -1551,18 +1730,24 @@ export const API_OPERATIONS = {
   fetchQuantumJob: { method: "get", path: "/api/quantum/jobs/{id}", response: "quantum.job" },
   fetchQuantumSettings: { method: "get", path: "/api/quantum/settings", response: "quantum.settings" },
   fetchRadar: { method: "get", path: "/api/radar", response: "radar" },
+  fetchResearchGraph: { method: "get", path: "/api/sessions/{sessionId}/research-graph", response: "research_graph.detail" },
   fetchRunAllowances: { method: "get", path: "/api/run-allowances", response: "runAllowances.list" },
+  fetchScienceTelemetry: { method: "get", path: "/api/ops/science", response: "ops.science" },
   fetchSession: { method: "get", path: "/api/sessions/{id}", response: "session" },
   fetchSessionAgentic: { method: "get", path: "/api/sessions/{sessionId}/agentic", response: "session.agentic" },
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
+  fetchSessionReceipts: { method: "get", path: "/api/sessions/{sessionId}/receipts", response: "receipts.list" },
   fetchSessionsResult: { method: "get", path: "/api/sessions", response: "sessions.list" },
   fetchSkills: { method: "get", path: "/api/skills", response: "skills" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchTasksResult: { method: "get", path: "/api/tasks", response: "tasks.list" },
+  fetchTenantAgenticDefault: { method: "get", path: "/api/tenants/agentic-default", response: "tenants.agentic_default" },
   fetchToolApprovals: { method: "get", path: "/api/sessions/{sessionId}/tool-approvals", response: "tool_approval.inbox" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   fetchWorkbenchView: { method: "get", path: "/api/workbench/view", response: "workbench.view" },
+  generateHypotheses: { method: "post", path: "/api/sessions/{sessionId}/hypotheses", response: "hypotheses.generate" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
+  haltAutonomy: { method: "post", path: "/api/sessions/{sessionId}/autonomy/halt", response: "autonomy.halt" },
   importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
   installSkill: { method: "post", path: "/api/skills", response: "skills.install" },
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
@@ -1599,6 +1784,7 @@ export const API_OPERATIONS = {
   resumeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/resume", response: "autoresearch.loop" },
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
+  retractMemory: { method: "post", path: "/api/memory/retract", response: "memory.retract" },
   reviewClaim: { method: "post", path: "/api/sessions/{sessionId}/claims/{claimId}/review", response: "claims.review" },
   reviewManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/reviews", response: "manuscripts.review" },
   revokeRunAllowance: { method: "post", path: "/api/run-allowances/{id}/revoke", response: "runAllowance.revoke" },
@@ -1606,10 +1792,12 @@ export const API_OPERATIONS = {
   revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
   revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
   rewriteChat: { method: "post", path: "/api/chat/rewrite", response: "chat.rewrite" },
+  rollbackAutonomyPolicy: { method: "post", path: "/api/sessions/{sessionId}/autonomy/rollback", response: "autonomy.rollback" },
   routeMultimodalPayload: { method: "post", path: "/api/mesh/route", response: "mesh.route" },
   runDiscoveryProtocol: { method: "post", path: "/api/discovery/run", response: "discovery.run" },
   runExperiment: { method: "post", path: "/api/experiments", response: "experiment.submit" },
   runFamilySearch: { method: "post", path: "/api/codesign/families", response: "codesign.families" },
+  runHypothesisTournament: { method: "post", path: "/api/sessions/{sessionId}/hypotheses/tournament", response: "hypotheses.tournament" },
   runQuantumCanary: { method: "get", path: "/api/quantum/canary", response: "quantum.canary" },
   runTribunal: { method: "post", path: "/api/chat/tribunal", response: "tribunal.run" },
   runWorkflow: { method: "post", path: "/api/workflows/run", response: "workflow.run" },
@@ -1625,12 +1813,16 @@ export const API_OPERATIONS = {
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },
   sendChatMessage: { method: "post", path: "/api/chat/messages", response: "chat.send" },
   sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
+  setHypothesisStatus: { method: "patch", path: "/api/sessions/{sessionId}/hypotheses/{id}", response: "hypotheses.status" },
   setLLMAirGap: { method: "patch", path: "/api/llm/settings", response: "settings.update" },
   setManuscriptAnnotationStatus: { method: "patch", path: "/api/sessions/{sessionId}/manuscripts/{id}/annotations/{annotationId}", response: "manuscripts.detail" },
+  setPlanStatus: { method: "patch", path: "/api/sessions/{sessionId}/plans/{id}", response: "plans.status" },
   setSessionAgentic: { method: "put", path: "/api/sessions/{sessionId}/agentic", response: "session.agentic.update" },
+  setTenantAgenticDefault: { method: "put", path: "/api/tenants/agentic-default", response: "tenants.agentic_default" },
   setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
   setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
   setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },
+  settleSessionLoops: { method: "post", path: "/api/sessions/{sessionId}/loops/settle", response: "loops.settle" },
   signoffManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/signoff", response: "manuscripts.signoff" },
   stageManuscriptDeposit: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/deposit", response: "manuscripts.deposit" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
@@ -1640,15 +1832,20 @@ export const API_OPERATIONS = {
   stepAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/step", response: "autoresearch.step" },
   stopAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/stop", response: "autoresearch.loop" },
   streamChatMessage: { method: "post", path: "/api/chat/stream", response: "chat.stream.done" },
+  submitFormalVerification: { method: "post", path: "/api/sessions/{sessionId}/formal-verifications", response: "formal.record" },
   submitQuantumJob: { method: "post", path: "/api/quantum/jobs", response: "quantum.submit" },
   synthesizeCampaign: { method: "post", path: "/api/sessions/{id}/campaign/synthesize", response: "campaign" },
   testLLM: { method: "post", path: "/api/llm/test", response: "llm.test" },
   toggleSkill: { method: "put", path: "/api/skills/{name}", response: "skills.toggle" },
+  undoSessionReceipt: { method: "post", path: "/api/sessions/{sessionId}/receipts/{receiptId}/undo", response: "receipts.undo" },
+  updateAutonomyPolicy: { method: "put", path: "/api/sessions/{sessionId}/autonomy", response: "autonomy.policy" },
   updateLoopSteer: { method: "patch", path: "/api/loops/{loopId}/steers/{steerId}", response: "loop.steer.update" },
+  updateManuscriptDraft: { method: "put", path: "/api/sessions/{sessionId}/manuscripts/{id}", response: "manuscripts.detail" },
   updateTaskStatus: { method: "post", path: "/api/tasks/{id}", response: "task" },
   uploadObservatoryAsset: { method: "post", path: "/api/observatory/assets", response: "lens.asset" },
   verifyLLMProvider: { method: "post", path: "/api/llm/providers/{provider}/verify", response: "llm.verify" },
   verifyLedger: { method: "get", path: "/api/ledger/verify", response: "ledger.verify" },
+  verifyManuscript: { method: "post", path: "/api/sessions/{sessionId}/manuscripts/{id}/verify", response: "manuscripts.verify" },
   verifySpendMandate: { method: "post", path: "/api/mandates/verify", response: "mandate.verify" },
   wakeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/wake", response: "autoresearch.loop" },
 } as const;

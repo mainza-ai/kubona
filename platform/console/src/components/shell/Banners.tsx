@@ -84,12 +84,18 @@ function useExpiredBannerState() {
   const authPhase = useAuthPhase();
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const show = () => setEventVisible(true);
+    const show = () => {
+      setDismissed(false);
+      setEventVisible(true);
+    };
     window.addEventListener(UNAUTH_EVENT, show);
     return () => window.removeEventListener(UNAUTH_EVENT, show);
   }, []);
+  const effectiveVisible = authPhase === 'authenticated'
+    ? false
+    : !dismissed && (authPhase === 'expired' || eventVisible);
   return {
-    visible: !dismissed && (authPhase === 'expired' || eventVisible),
+    visible: effectiveVisible,
     dismiss: () => { setDismissed(true); setEventVisible(false); },
   };
 }

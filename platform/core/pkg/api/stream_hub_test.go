@@ -72,3 +72,43 @@ func TestStreamHubResumesFromCursor(t *testing.T) {
 		t.Fatal("no frame after cursor")
 	}
 }
+
+func TestStreamHubDropsSlowClientWithoutPanicking(t *testing.T) {
+	l, err := ledger.OpenLedger(filepath.Join(t.TempDir(), "slow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	for i := 0; i < 160; i++ {
+		if err := l.AppendEvent("sess-slow", "annotation", map[string]int{"i": i}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := newStreamHub(l)
+	sub, unsub := h.subscribe("sess-slow", 0)
+	defer unsub()
+	// Wait for the initial poll to complete while never draining sub.ch:
+	// the hub must fill 128 frames and close/drop sub cleanly on frame 129
+	// instead of panicking on a send to the closed channel.
+	waitPoll := time.Now().Add(4 * time.Second)
+	for h.pollCount() == 0 && time.Now().Before(waitPoll) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	deadline := time.After(4 * time.Second)
+	drained := 0
+	for {
+		select {
+		case _, ok := <-sub.ch:
+			if !ok {
+				if drained != 128 {
+					t.Fatalf("expected 128 buffered frames before drop, got %d", drained)
+				}
+				return
+			}
+			drained++
+		case <-deadline:
+			t.Fatalf("slow client was not dropped (drained=%d)", drained)
+		}
+	}
+}

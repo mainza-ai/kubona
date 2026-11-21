@@ -17,14 +17,20 @@ type pattern struct {
 
 var patterns = []pattern{
 	{"private_key", regexp.MustCompile(`-----BEGIN [A-Z ]*PRIV` + `ATE KEY-----[\s\S]*?-----END [A-Z ]*PRIV` + `ATE KEY-----`)},
+	{"age_secret_key", regexp.MustCompile(`AGE-SECRET-KEY-1[A-Z0-9]{40,}`)},
 	{"jwt", regexp.MustCompile(`eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`)},
 	{"openai_key", regexp.MustCompile(`sk-[A-Za-z0-9_-]{16,}`)},
-	{"github_token", regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{20,}`)},
+	{"gemini_key", regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)},
+	{"huggingface_token", regexp.MustCompile(`hf_[A-Za-z0-9]{20,}`)},
+	{"vault_token", regexp.MustCompile(`hvs\.[A-Za-z0-9_-]{20,}`)},
+	{"github_token", regexp.MustCompile(`(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{22,})`)},
 	{"aws_access_key", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
 	{"slack_token", regexp.MustCompile(`xox[baprs]-[A-Za-z0-9-]{10,}`)},
 	{"bearer_token", regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._-]{16,}`)},
-	// Assignment shapes: keep the key name, redact the value.
-	{"credential_assignment", regexp.MustCompile(`(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret)\b\s*[:=]\s*("[^"]{6,}"|'[^']{6,}'|[^\s,;]{6,})`)},
+	// Assignment shapes: match both bare keys (api_key=...) and underscore-
+	// prefixed env vars (OPENAI_API_KEY=..., KUBONA_API_TOKEN=...,
+	// KUBONA_REVIEWER_PRIVKEY_HEX=..., AWS_SECRET_ACCESS_KEY=...).
+	{"credential_assignment", regexp.MustCompile(`(?i)(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]*(?:api[_-]?key|api[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret[_-]?key|secret[_-]?access[_-]?key|privkey[_-]?hex|password|passwd|secret))\s*[:=]\s*("[^"]{6,}"|'[^']{6,}'|[^\s,;]{6,})`)},
 }
 
 // Detect reports the first secret shape found in text.

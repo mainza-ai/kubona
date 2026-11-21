@@ -516,6 +516,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/hypotheses/{id}/collapse": {
+      "post": {
+        "operationId": "collapseHypothesis",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hypotheses.collapse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hypotheses.collapse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents/custom": {
       "post": {
         "operationId": "createCustomAgent",
@@ -724,6 +762,64 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/plans": {
+      "post": {
+        "operationId": "createPlan",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: plans.create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/plans.create"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchPlans",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: plans.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/plans.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions": {
       "post": {
         "operationId": "createSession",
@@ -919,6 +1015,116 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/agents.custom.delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}": {
+      "delete": {
+        "operationId": "deleteManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.delete"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.detail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateManuscriptDraft",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.detail"
                 }
               }
             }
@@ -1134,6 +1340,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/plans/{id}/execute": {
+      "post": {
+        "operationId": "executePlan",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: plans.execute",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/plans.execute"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ledger/export": {
       "post": {
         "operationId": "exportLedger",
@@ -1147,6 +1391,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ledger.export.document"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}/export": {
+      "get": {
+        "operationId": "exportManuscriptBundle",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.export"
                 }
               }
             }
@@ -1247,6 +1529,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/approval.inbox"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/autonomy/history": {
+      "get": {
+        "operationId": "fetchAutonomyHistory",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autonomy.history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autonomy.history"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/autonomy": {
+      "get": {
+        "operationId": "fetchAutonomyPolicy",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autonomy.policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autonomy.policy"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateAutonomyPolicy",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autonomy.policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autonomy.policy"
                 }
               }
             }
@@ -1716,6 +2086,122 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/formal-verifications": {
+      "get": {
+        "operationId": "fetchFormalVerifications",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: formal.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/formal.list"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "submitFormalVerification",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: formal.record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/formal.record"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/hypotheses": {
+      "get": {
+        "operationId": "fetchHypotheses",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hypotheses.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hypotheses.list"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "generateHypotheses",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hypotheses.generate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hypotheses.generate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/{id}": {
       "get": {
         "operationId": "fetchJob",
@@ -1862,6 +2348,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/lab-knowledge{qs}": {
+      "get": {
+        "operationId": "fetchLabKnowledge",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "qs",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lab_knowledge.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lab_knowledge.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vault/predictions/latest": {
       "get": {
         "operationId": "fetchLatestPrediction",
@@ -1975,44 +2499,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/loops.list"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{sessionId}/manuscripts/{id}": {
-      "get": {
-        "operationId": "fetchManuscript",
-        "tags": [
-          "sessions"
-        ],
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: manuscripts.detail",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/manuscripts.detail"
                 }
               }
             }
@@ -2420,6 +2906,36 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/research-graph": {
+      "get": {
+        "operationId": "fetchResearchGraph",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: research_graph.detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/research_graph.detail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/run-allowances": {
       "get": {
         "operationId": "fetchRunAllowances",
@@ -2451,6 +2967,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/runAllowance.mint"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ops/science": {
+      "get": {
+        "operationId": "fetchScienceTelemetry",
+        "tags": [
+          "ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: ops.science",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ops.science"
                 }
               }
             }
@@ -2536,6 +3072,36 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/receipts": {
+      "get": {
+        "operationId": "fetchSessionReceipts",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: receipts.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/receipts.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skills": {
       "get": {
         "operationId": "fetchSkills",
@@ -2587,6 +3153,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/agents.system"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/agentic-default": {
+      "get": {
+        "operationId": "fetchTenantAgenticDefault",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenants.agentic_default",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenants.agentic_default"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setTenantAgenticDefault",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenants.agentic_default",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenants.agentic_default"
                 }
               }
             }
@@ -2723,6 +3327,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.details"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/autonomy/halt": {
+      "post": {
+        "operationId": "haltAutonomy",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autonomy.halt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autonomy.halt"
                 }
               }
             }
@@ -3444,6 +4078,26 @@
         }
       }
     },
+    "/api/memory/retract": {
+      "post": {
+        "operationId": "retractMemory",
+        "tags": [
+          "memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: memory.retract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/memory.retract"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}/claims/{claimId}/review": {
       "post": {
         "operationId": "reviewClaim",
@@ -3630,6 +4284,36 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/autonomy/rollback": {
+      "post": {
+        "operationId": "rollbackAutonomyPolicy",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autonomy.rollback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autonomy.rollback"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mesh/route": {
       "post": {
         "operationId": "routeMultimodalPayload",
@@ -3703,6 +4387,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/codesign.families"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/hypotheses/tournament": {
+      "post": {
+        "operationId": "runHypothesisTournament",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hypotheses.tournament",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hypotheses.tournament"
                 }
               }
             }
@@ -3870,6 +4584,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/hypotheses/{id}": {
+      "patch": {
+        "operationId": "setHypothesisStatus",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hypotheses.status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hypotheses.status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}/manuscripts/{id}/annotations/{annotationId}": {
       "patch": {
         "operationId": "setManuscriptAnnotationStatus",
@@ -3909,6 +4661,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/manuscripts.detail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/plans/{id}": {
+      "patch": {
+        "operationId": "setPlanStatus",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: plans.status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/plans.status"
                 }
               }
             }
@@ -3969,6 +4759,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/loops/settle": {
+      "post": {
+        "operationId": "settleSessionLoops",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loops.settle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loops.settle"
                 }
               }
             }
@@ -4302,6 +5122,44 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/receipts/{receiptId}/undo": {
+      "post": {
+        "operationId": "undoSessionReceipt",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: receipts.undo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/receipts.undo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{id}": {
       "post": {
         "operationId": "updateTaskStatus",
@@ -4395,6 +5253,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ledger.verify"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/manuscripts/{id}/verify": {
+      "post": {
+        "operationId": "verifyManuscript",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: manuscripts.verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/manuscripts.verify"
                 }
               }
             }
@@ -8648,6 +9544,399 @@
                 "properties": {}
               }
             }
+          }
+        }
+      },
+      "manuscripts.verify": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "report": {},
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "manuscripts.delete": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "string"
+          }
+        }
+      },
+      "manuscripts.export": {
+        "type": "object",
+        "required": [
+          "manuscript_id",
+          "session_id",
+          "content_hash",
+          "artifact_hashes",
+          "ro_crate",
+          "prov_json",
+          "credit"
+        ],
+        "properties": {
+          "manuscript_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "artifact_hashes": {},
+          "ro_crate": {},
+          "prov_json": {},
+          "credit": {}
+        }
+      },
+      "formal.list": {
+        "type": "object",
+        "required": [
+          "verifications"
+        ],
+        "properties": {
+          "verifications": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "formal.record": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "proof_hash": {},
+          "event_id": {
+            "type": "number"
+          },
+          "entry_hash": {
+            "type": "string"
+          }
+        }
+      },
+      "hypotheses.list": {
+        "type": "object",
+        "required": [
+          "hypotheses"
+        ],
+        "properties": {
+          "hypotheses": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "hypotheses.generate": {
+        "type": "object",
+        "required": [
+          "hypotheses"
+        ],
+        "properties": {
+          "hypotheses": {
+            "type": "array",
+            "items": {}
+          },
+          "llm": {}
+        }
+      },
+      "hypotheses.tournament": {
+        "type": "object",
+        "required": [
+          "hypotheses"
+        ],
+        "properties": {
+          "hypotheses": {
+            "type": "array",
+            "items": {}
+          },
+          "rounds": {
+            "type": "number"
+          }
+        }
+      },
+      "hypotheses.status": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "hypotheses.collapse": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "hypothesis": {},
+          "claim": {}
+        }
+      },
+      "plans.list": {
+        "type": "object",
+        "required": [
+          "plans"
+        ],
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "plans.create": {
+        "type": "object",
+        "required": [
+          "plan"
+        ],
+        "properties": {
+          "plan": {}
+        }
+      },
+      "plans.status": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "plans.execute": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "plan": {},
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "research_graph.detail": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {}
+          },
+          "edges": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "lab_knowledge.list": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "entries"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "autonomy.policy": {
+        "type": "object",
+        "required": [
+          "policy"
+        ],
+        "properties": {
+          "policy": {},
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "autonomy.halt": {
+        "type": "object",
+        "required": [
+          "policy"
+        ],
+        "properties": {
+          "policy": {},
+          "cancelled_jobs": {
+            "type": "number"
+          },
+          "paused_loops": {
+            "type": "number"
+          }
+        }
+      },
+      "autonomy.history": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "entries"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "autonomy.rollback": {
+        "type": "object",
+        "required": [
+          "policy"
+        ],
+        "properties": {
+          "policy": {},
+          "source_event_id": {
+            "type": "number"
+          }
+        }
+      },
+      "receipts.list": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "receipts"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "receipts": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "receipts.undo": {
+        "type": "object",
+        "required": [
+          "ok",
+          "target_id",
+          "action"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
+      "ops.science": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "tenants.agentic_default": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "source"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string"
+          },
+          "enabled": {},
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "memory.retract": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "retracted"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "retracted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "loops.settle": {
+        "type": "object",
+        "required": [
+          "settled",
+          "session_id"
+        ],
+        "properties": {
+          "settled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "session_id": {
+            "type": "string"
           }
         }
       }

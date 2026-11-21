@@ -159,11 +159,36 @@ func (c *Client) screenCloudPrompt(providerType ProviderType, messages []ChatMes
 	if c.isProviderLocal(providerType) {
 		return nil
 	}
-	for _, message := range messages {
-		if kind, found := secret.Detect(message.Content); found {
+	check := func(s string) error {
+		if s == "" {
+			return nil
+		}
+		if kind, found := secret.Detect(s); found {
 			return &WireError{
 				Fault:   FaultSecretInPrompt,
 				Message: "prompt contains a credential shape (" + kind + "); refusing cloud egress",
+			}
+		}
+		return nil
+	}
+	for _, message := range messages {
+		if err := check(message.Content); err != nil {
+			return err
+		}
+		if err := check(message.ReasoningContent); err != nil {
+			return err
+		}
+		for _, tc := range message.ToolCalls {
+			if err := check(tc.Arguments); err != nil {
+				return err
+			}
+		}
+		for _, p := range message.Parts {
+			if err := check(p.Text); err != nil {
+				return err
+			}
+			if err := check(p.ToolArgs); err != nil {
+				return err
 			}
 		}
 	}
@@ -449,6 +474,7 @@ func (c *Client) runCompletionAttempt(ctx context.Context, providerType Provider
 
 	// B3: bound the call against the budget before anything leaves the host.
 	// The release runs after the measured spend has been recorded.
+	hardMaxTokens := false
 	if ceiling, release, rerr := c.reserveCall(providerType, model, messages, opts.MaxTokens); rerr != nil {
 		return "", nil, nil, 0, rerr
 	} else {
@@ -457,6 +483,7 @@ func (c *Client) runCompletionAttempt(ctx context.Context, providerType Provider
 		}
 		if ceiling > 0 {
 			opts.MaxTokens = ceiling
+			hardMaxTokens = true
 		}
 	}
 	temp := opts.Temperature
@@ -472,11 +499,19 @@ func (c *Client) runCompletionAttempt(ctx context.Context, providerType Provider
 		TopP:            opts.TopP,
 		Seed:            opts.Seed,
 		MaxTokens:       opts.MaxTokens,
+		HardMaxTokens:   hardMaxTokens,
 		ReasoningEffort: opts.ReasoningEffort,
 	}
 
+	callCtx := ctx
+	if provConfig.TimeoutSec > 0 {
+		var cancel context.CancelFunc
+		callCtx, cancel = context.WithTimeout(ctx, time.Duration(provConfig.TimeoutSec)*time.Second)
+		defer cancel()
+	}
+
 	start := time.Now()
-	wresp, err := c.executeWire(ctx, wr)
+	wresp, err := c.executeWire(callCtx, wr)
 	duration := time.Since(start)
 	if err != nil {
 		var wireErr *WireError
@@ -643,8 +678,16 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 			}
 		}
 
+		callCtx := ctx
+		var cancelCall context.CancelFunc
+		if provConfig.TimeoutSec > 0 {
+			callCtx, cancelCall = context.WithTimeout(ctx, time.Duration(provConfig.TimeoutSec)*time.Second)
+		}
 		start := time.Now()
-		wresp, err := c.streamWire(ctx, wr, wrappedOnToken)
+		wresp, err := c.streamWire(callCtx, wr, wrappedOnToken)
+		if cancelCall != nil {
+			cancelCall()
+		}
 		dur := time.Since(start)
 		totalDur += dur
 		if err != nil {
@@ -663,7 +706,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 				// Tokens already left the provider. Bill that spend on the
 				// same ladder as success: reported usage, else the token
 				// ceiling, else an unmetered flag. Never a silent zero.
-				c.reportSpendMap(hop.Provider, hop.Model, usage)
+				c.reportSpendMapWithCeiling(hop.Provider, hop.Model, usage, maxTokens)
 				releaseHop()
 				return &StreamResult{Text: text, Finish: finish, Duration: totalDur, Usage: usage}, err
 			}
@@ -674,7 +717,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 		}
 
 		usage := buildUsageMap(wresp)
-		c.reportSpendMap(hop.Provider, hop.Model, usage)
+		c.reportSpendMapWithCeiling(hop.Provider, hop.Model, usage, maxTokens)
 		releaseHop()
 		c.settings.RecordSuccess(hop.Provider)
 		meta := c.buildInvocationMeta(hop.Provider, wire, hop.Model, wresp, totalDur, completionAttemptOpts{
@@ -700,8 +743,12 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 // non-local streams without usage take the ceiling-or-refuse rule (W0.19);
 // without a ceiling the unmetered record is flagged, never priced zero.
 func (c *Client) reportSpendMap(providerType ProviderType, model string, usage map[string]any) {
+	c.reportSpendMapWithCeiling(providerType, model, usage, 0)
+}
+
+func (c *Client) reportSpendMapWithCeiling(providerType ProviderType, model string, usage map[string]any, ceilingOverride int) {
 	if usage == nil {
-		if err := c.requireMeteredUsage(providerType, model, false, 0); err != nil {
+		if err := c.requireMeteredUsage(providerType, model, false, ceilingOverride); err != nil {
 			c.reportUnmetered(providerType, model)
 		}
 		return
@@ -722,7 +769,7 @@ func (c *Client) reportSpendMap(providerType ProviderType, model string, usage m
 		c.reportSpendWithCache(providerType, model, pt, ct, cachedIn, cacheWrite, true)
 		return
 	}
-	if err := c.requireMeteredUsage(providerType, model, false, 0); err != nil {
+	if err := c.requireMeteredUsage(providerType, model, false, ceilingOverride); err != nil {
 		c.reportUnmetered(providerType, model)
 	}
 }
@@ -941,6 +988,15 @@ func (c *Client) FetchModels(ctx context.Context, providerType ProviderType) ([]
 	provConfig, ok := snap.Providers[providerType]
 	if !ok {
 		return nil, fmt.Errorf("unknown provider %s", providerType)
+	}
+	isLocal := provConfig.IsLocal && IsLocalEndpoint(provConfig.BaseURL)
+	if !isLocal {
+		if snap.AirGapped {
+			return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: provConfig.BaseURL, Message: "Sovereign Air-Gap blocks cloud model discovery"}
+		}
+		if productionCloudWithoutOptIn(false) {
+			return nil, &WireError{Fault: FaultAirGapBlocked, Endpoint: provConfig.BaseURL, Message: "production KUBONA_LLM_CLOUD=1 opt-in required for cloud model discovery"}
+		}
 	}
 	return c.fetchModelsWithKey(ctx, providerType, provConfig, provConfig.APIKey, true)
 }

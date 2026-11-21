@@ -40,7 +40,7 @@ func hasNoCredentials(r *http.Request) bool {
 }
 
 // singleTenantStore reports whether the sessions table holds at most one
-// distinct tenant. Errors fail closed (false = treat as multi-tenant).
+// distinct tenant and single-lab mode is declared. Errors fail closed.
 func (s *Server) singleTenantStore() bool {
 	if !singleLabDeclared() {
 		return false
@@ -129,9 +129,21 @@ func (s *Server) authorizeSessionRead(w http.ResponseWriter, r *http.Request, se
 // each endpoint's legacy ghost behavior (404 or empty list) continues
 // untouched — the gate only narrows what was previously cross-tenant.
 func (s *Server) authorizeKnownSession(w http.ResponseWriter, r *http.Request, sessionID string) (*session.Session, bool) {
+	// In multi-lab mode, require valid caller credentials BEFORE checking
+	// whether sessionID exists so unauthenticated probes cannot enumerate
+	// session IDs or write against ghost session IDs.
+	if !s.singleTenantStore() && hasNoCredentials(r) {
+		WriteAPIError(w, "unauthorized", "multi-lab store: log in or present the operator token to touch sessions", nil)
+		return nil, false
+	}
 	sess, err := s.sessionMgr.GetSession(sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "session not found") {
+			if !s.singleTenantStore() {
+				if _, ok := s.checkCallerAuth(w, r); !ok {
+					return nil, false
+				}
+			}
 			return nil, true
 		}
 		http.Error(w, "session lookup failed", http.StatusInternalServerError)

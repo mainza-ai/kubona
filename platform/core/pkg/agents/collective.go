@@ -78,26 +78,30 @@ type ObservedCall struct {
 }
 
 // observeTurn runs a single plan→tool→observe round for one tribunal turn
-// and returns the augmented history plus the observed dispatches. Any
-// failure returns base unchanged with no calls — the turn then proceeds
-// exactly as before, never blocked. Callers own auditing: the collective
-// has no ledger, so observed calls must be recorded by the caller (the
-// copilot path's tool_called events are the shape to mirror).
+// and returns the augmented history plus the observed dispatches. When the
+// model answers directly without calling any tools, directText/directResp/
+// directDur carry that answer so the caller can reuse it without making a
+// redundant second completion call.
 func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Client, role string, base []llm.ChatMessage) ([]llm.ChatMessage, []ObservedCall) {
+	hist, obs, _, _, _ := ac.observeTurnWithDirect(ctx, llmClient, role, base)
+	return hist, obs
+}
+
+func (ac *AgentCollective) observeTurnWithDirect(ctx context.Context, llmClient *llm.Client, role string, base []llm.ChatMessage) ([]llm.ChatMessage, []ObservedCall, string, *llm.ChatCompletionResponse, time.Duration) {
 	if ac == nil || ac.Tools == nil || llmClient == nil {
-		return base, nil
+		return base, nil, "", nil, 0
 	}
 	if len(ac.Tools.DefinitionsForLLM(role)) == 0 {
-		return base, nil
+		return base, nil, "", nil, 0
 	}
-	text, calls, _, _, err := llmClient.CompleteWithTools(ctx, role, base, ac.Tools.DefinitionsForLLM(role))
+	text, calls, resp, dur, err := llmClient.CompleteWithTools(ctx, role, base, ac.Tools.DefinitionsForLLM(role))
 	if err != nil {
-		return base, nil
+		return base, nil, "", nil, 0
 	}
 	if len(calls) == 0 {
 		calls = llm.ParseDSMLInvokes(text)
 		if len(calls) == 0 {
-			return base, nil
+			return base, nil, text, resp, dur
 		}
 	}
 	hist := append([]llm.ChatMessage(nil), base...)
@@ -144,7 +148,7 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 			Content: body,
 		})
 	}
-	return hist, observed
+	return hist, observed, "", nil, 0
 }
 
 // firstFailedObserved names the first failed dispatch for the planner
@@ -640,11 +644,19 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		slog.Info("tribunal turn-telemetry", "idx", idx, "role", role, "prompt_runes", len([]rune(prompt)), "reply_runes", len([]rune(reply)), "dur_ms", dur.Milliseconds(), "timeout_ms", llmTimeout.Milliseconds(), "turn_cap", turnCap, "authored", authored, "call_err", callErr, "extra", extra)
 	}
 
-	// Associative memory recall via Hindsight
+	// Resolve session owning tenant for strict cross-tenant memory isolation.
+	tribunalTenant := "default"
+	if ac.Ledger != nil {
+		tribunalTenant = ac.Ledger.ResolveSessionTenant(sessionID)
+	}
+	tribunalLabel := tribunalTenant
+
+	// Associative memory recall via Hindsight (tenant-scoped)
 	var memoryContext string
 	if store != nil {
-		recalled := store.SemanticRecall(memory.BankExperiences, userPrompt+" "+mol+" ansatz barren plateau",
-			llm.DefaultBudgetConfig().RecallTokens, llm.DefaultBudgetConfig().RecallMinSimilarity)
+		recalled := store.SemanticRecallScoped(memory.BankExperiences, userPrompt+" "+mol+" ansatz barren plateau",
+			llm.DefaultBudgetConfig().RecallTokens, llm.DefaultBudgetConfig().RecallMinSimilarity,
+			tribunalTenant, []string{tribunalLabel})
 		if len(recalled) > 0 {
 			var snippets []string
 			for _, r := range recalled {
@@ -672,8 +684,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "system", Content: ac.systemPrompt(RoleAnsatzScout)},
 			{Role: "user", Content: turn1Prompt},
 		}
-		turnMsgs, obs1 = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
-		reply, resp1, turnDur1, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
+		var direct1 string
+		var resp1 *llm.ChatCompletionResponse
+		var turnDur1 time.Duration
+		turnMsgs, obs1, direct1, resp1, turnDur1 = ac.observeTurnWithDirect(tCtx, llmClient, "ansatz-scout", turnMsgs)
+		reply := direct1
+		var err error
+		if len(obs1) > 0 || len(reply) <= 20 {
+			reply, resp1, turnDur1, err = llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
+		}
 		tCancel()
 		if resp1 != nil {
 			llmMeta1 = resp1.Meta
@@ -724,8 +743,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "system", Content: ac.systemPrompt(RoleDisconfirmationOfficer)},
 			{Role: "user", Content: turn2Prompt},
 		}
-		turnMsgs, obs2 = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
-		reply, resp2, turnDur2, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
+		var direct2 string
+		var resp2 *llm.ChatCompletionResponse
+		var turnDur2 time.Duration
+		turnMsgs, obs2, direct2, resp2, turnDur2 = ac.observeTurnWithDirect(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
+		reply := direct2
+		var err error
+		if len(obs2) > 0 || len(reply) <= 20 {
+			reply, resp2, turnDur2, err = llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
+		}
 		tCancel()
 		if resp2 != nil {
 			llmMeta2 = resp2.Meta
@@ -797,8 +823,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "system", Content: ac.systemPrompt(RoleDeviceAuditor)},
 				{Role: "user", Content: turn3Prompt},
 			}
-			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
-			reply, resp3, turnDur3, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
+			var direct3 string
+			var resp3 *llm.ChatCompletionResponse
+			var turnDur3 time.Duration
+			turnMsgs, obs3, direct3, resp3, turnDur3 = ac.observeTurnWithDirect(tCtx, llmClient, "device-auditor", turnMsgs)
+			reply := direct3
+			var err error
+			if len(obs3) > 0 || len(reply) <= 20 {
+				reply, resp3, turnDur3, err = llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
+			}
 			tCancel()
 			if resp3 != nil {
 				llmMeta3 = resp3.Meta
@@ -833,6 +866,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		ev3 := seal(t3, authored3)
 		if bad := firstFailedObserved(obs3); bad != "" && contestedReason == "" {
 			contestedReason = "turn 3 tool observation failed: " + bad
+			if wired {
+				_ = ac.Ledger.RecordObligationCase(obID, ledger.ObligationCase{
+					CaseKind: "deliberation-turn-3", Verdict: "fail", Authority: "collective", Evidence: contestedReason,
+				})
+			}
 		}
 
 		// Turn 4: Epistemic Scribe
@@ -850,8 +888,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "system", Content: ac.systemPrompt(RoleEpistemicScribe)},
 				{Role: "user", Content: turn4Prompt},
 			}
-			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
-			reply, resp4, turnDur4, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
+			var direct4 string
+			var resp4 *llm.ChatCompletionResponse
+			var turnDur4 time.Duration
+			turnMsgs, obs4, direct4, resp4, turnDur4 = ac.observeTurnWithDirect(tCtx, llmClient, "epistemic-scribe", turnMsgs)
+			reply := direct4
+			var err error
+			if len(obs4) > 0 || len(reply) <= 20 {
+				reply, resp4, turnDur4, err = llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
+			}
 			tCancel()
 			if resp4 != nil {
 				llmMeta4 = resp4.Meta
@@ -893,6 +938,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		_ = seal(t4, authored4)
 		if bad := firstFailedObserved(obs4); bad != "" && contestedReason == "" {
 			contestedReason = "turn 4 tool observation failed: " + bad
+			if wired {
+				_ = ac.Ledger.RecordObligationCase(obID, ledger.ObligationCase{
+					CaseKind: "deliberation-turn-4", Verdict: "fail", Authority: "collective", Evidence: contestedReason,
+				})
+			}
 		}
 
 	}
@@ -954,9 +1004,9 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 
 	if store != nil {
 		if result.ConsensusPassed {
-			store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal consensus for %s (%s): %s. Spend: %s on %s.", target, mol, fciAnchor, budget, tier), 0.85)
+			store.RetainScoped(tribunalTenant, tribunalLabel, memory.BankExperiences, fmt.Sprintf("Tribunal consensus for %s (%s): %s. Spend: %s on %s.", target, mol, fciAnchor, budget, tier), 0.85, nil)
 		} else {
-			store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal contested for %s (%s): %s.", target, mol, contestedReason), 0.5)
+			store.RetainScoped(tribunalTenant, tribunalLabel, memory.BankExperiences, fmt.Sprintf("Tribunal contested for %s (%s): %s.", target, mol, contestedReason), 0.5, nil)
 		}
 	}
 

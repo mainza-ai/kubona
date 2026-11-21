@@ -177,12 +177,22 @@ def evaluate_claim_credibility(
                 f"REJECTED: Advantage claim refused — credibility prior is not corroborated "
                 f"(α={alpha:.3f}, β={beta:.3f}, γ={gamma:.3f})."
             )
-        elif passes_chemical_accuracy and float(quantum_value) < float(classical_anchor_value):
-            advantage_verified = True
-            verdict = "Verified: Quantum state found lower bound beyond classical FCI with chemical precision."
+        elif float(quantum_value) < float(classical_anchor_value) - 1e-6:
+            # Variational principle: no valid physical state can beat exact FCI
+            # in the same basis. A value below FCI is a variational violation
+            # (shot noise, unphysical mitigation, or bug), never quantum advantage.
+            advantage_verified = False
+            verdict = (
+                f"REJECTED: Variational violation — quantum_value ({quantum_value:.6f}) lies "
+                f"below exact FCI anchor ({classical_anchor_value:.6f}, Delta = {delta_mha:.3f} mHa). "
+                "Cannot claim quantum advantage from a sub-FCI energy."
+            )
         else:
             advantage_verified = False
-            verdict = f"REJECTED: Advantage claim failed classical benchmark (Delta = {delta_mha:.3f} mHa exceeds 1.6 mHa limit)."
+            verdict = (
+                f"REJECTED: Advantage claim refused — matching exact FCI within {delta_mha:.3f} mHa "
+                "does not demonstrate quantum advantage over a classically solved system."
+            )
     else:
         if passes_chemical_accuracy and corroborated_dominant:
             verdict = f"Validated: Calculation aligns with classical physics anchor within {delta_mha:.3f} mHa."

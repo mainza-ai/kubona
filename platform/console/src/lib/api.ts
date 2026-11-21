@@ -140,7 +140,6 @@ function notifyApiProblem(input: RequestInfo | URL, status: number | null, messa
   if (key === lastProblemKey && now - lastProblemAt < 5000) return;
   lastProblemKey = key;
   lastProblemAt = now;
-  if (status === 403) setAuthPhase('forbidden');
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent<ApiProblem>(API_PROBLEM_EVENT, {
       detail: { path, status, message: message.slice(0, 240), at: now, ...(need ? { need } : {}) },
@@ -177,7 +176,16 @@ function notifyUnauthorized(): void {
 // credentials are orthogonal (the server checks cookie first, then bearer).
 /** Rewrite one console path to the versioned alias when the rollout flag is on. */
 export function versionedApiPath(path: string, enabled: boolean = API_VERSIONED): string {
-  if (!enabled || !path.startsWith('/api/') || path.startsWith('/api/v1/')) return path;
+  if (
+    !enabled ||
+    !path.startsWith('/api/') ||
+    path.startsWith('/api/v1/') ||
+    path === '/api/config' ||
+    path === '/api/lens-image' ||
+    path.startsWith('/api/lens-image?')
+  ) {
+    return path;
+  }
   return `/api/v1${path.slice(4)}`;
 }
 
@@ -215,7 +223,6 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
   }
   return fetch(request, withCredentials(withTimeout)).then((res) => {
     if (res.status === 401) notifyUnauthorized();
-    else if (res.status === 403) setAuthPhase('forbidden');
     else if (res.status >= 500) notifyApiProblem(request, res.status, res.statusText || `HTTP ${res.status}`);
     return res;
   }).catch((err) => {
@@ -734,17 +741,32 @@ export async function streamChatMessage(
     throw accepted ? new StreamAcceptedError(message) : new Error(message);
   };
   let lastFrameAt = Date.now();
-  const stallAfter = (ms: number): Promise<never> =>
-    new Promise((_, reject) => {
-      const t = setTimeout(() => reject(new Error('stream stalled — retry')), ms);
-      if (typeof (t as unknown as { unref?: unknown }).unref === 'function') {
-        (t as unknown as { unref(): void }).unref();
-      }
-    });
+  const readWithStallTimeout = async (ms: number): Promise<ReadableStreamReadResult<Uint8Array>> => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(accepted ? new StreamAcceptedError('stream stalled — retry') : new Error('stream stalled — retry'));
+            void reader.cancel().catch(() => undefined);
+          }, ms);
+          if (typeof (timer as unknown as { unref?: unknown }).unref === 'function') {
+            (timer as unknown as { unref(): void }).unref();
+          }
+        }),
+      ]);
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+    }
+  };
   for (;;) {
     const remaining = STREAM_STALL_MS - (Date.now() - lastFrameAt);
-    if (remaining <= 0) throw new Error('stream stalled — retry');
-    const { value, done: readerDone } = await Promise.race([reader.read(), stallAfter(remaining)]);
+    if (remaining <= 0) {
+      void reader.cancel().catch(() => undefined);
+      fail('stream stalled — retry');
+    }
+    const { value, done: readerDone } = await readWithStallTimeout(remaining);
     // Bytes arriving at all proves the transport is alive (server comment
     // heartbeats carry no data: frames); parsed frames refresh it too.
     // Only a fully silent socket trips the stall detector.
@@ -4438,6 +4460,7 @@ export async function fetchManuscript(sessionId: string, id: string): Promise<Ma
   }
 }
 
+
 export async function createManuscript(
   sessionId: string,
   body: {
@@ -4608,6 +4631,7 @@ export async function setManuscriptAnnotationStatus(
 }
 
 
+
 /**
  * Download an artifact through the authenticated transport. A plain anchor
  * works with the session cookie but not a bearer-only console, so the bytes
@@ -4677,5 +4701,705 @@ export async function replaceManuscriptCitations(
     return { ok: true, data: contract('manuscripts.detail', payload) as unknown as ManuscriptDetail };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface ManuscriptVerificationReport {
+  report: {
+    content_hash?: string;
+    checked_at?: string;
+    summary?: {
+      status?: string;
+      numbers_checked?: number;
+      citations_checked?: number;
+      blocking?: number;
+      unverified?: number;
+    };
+    numbers?: Array<{
+      text: string;
+      value: number;
+      unit?: string;
+      status: string;
+      matched_path?: string;
+      source_id?: string;
+    }>;
+    citations?: Array<{
+      key: string;
+      title?: string;
+      doi?: string;
+      status: string;
+      note?: string;
+      error?: string;
+    }>;
+  } | null;
+  status: string;
+}
+
+export async function verifyManuscript(
+  sessionId: string,
+  id: string,
+): Promise<ManuscriptResult<ManuscriptVerificationReport>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/verify`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.verify', payload) as unknown as ManuscriptVerificationReport };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function updateManuscriptDraft(
+  sessionId: string,
+  id: string,
+  patch: { title?: string; abstract?: string; authors?: string[] },
+): Promise<ManuscriptResult<ManuscriptDetail>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}`,
+      {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(patch),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.detail', payload) as unknown as ManuscriptDetail };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function deleteManuscript(
+  sessionId: string,
+  id: string,
+): Promise<ManuscriptResult<{ ok: boolean; deleted?: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}`,
+      { method: 'DELETE', cache: 'no-store', headers: authHeaders() },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.delete', payload) as unknown as { ok: boolean; deleted?: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface ManuscriptExportBundle {
+  manuscript_id: string;
+  session_id: string;
+  content_hash: string;
+  artifact_hashes: Record<string, string>;
+  ro_crate: Record<string, unknown>;
+  prov_json: Record<string, unknown>;
+  credit: { version: string; contributors: Array<Record<string, unknown>> };
+}
+
+export async function exportManuscriptBundle(
+  sessionId: string,
+  id: string,
+): Promise<ManuscriptResult<ManuscriptExportBundle>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/export`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('manuscripts.export', payload) as unknown as ManuscriptExportBundle };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface FormalVerificationEntry {
+  event_id?: number;
+  timestamp?: string;
+  proof_hash?: string;
+  theorem_names?: string[];
+  axioms_used?: string[];
+  verdict?: string;
+}
+
+export async function fetchFormalVerifications(
+  sessionId: string,
+): Promise<{ verifications: FormalVerificationEntry[] } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/formal-verifications`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('formal.list', payload) as unknown as { verifications: FormalVerificationEntry[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function submitFormalVerification(
+  sessionId: string,
+  body: { payload: Record<string, unknown>; signature: string; pubkey_hex: string },
+): Promise<ManuscriptResult<{ ok: boolean; proof_hash?: string; event_id?: number; entry_hash?: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/formal-verifications`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('formal.record', payload) as unknown as { ok: boolean; proof_hash?: string; event_id?: number; entry_hash?: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface HypothesisRecord {
+  id: string;
+  statement: string;
+  rationale?: string;
+  falsifier?: string;
+  experiment_kind?: string;
+  experiment_hint?: string;
+  novelty_status?: string;
+  novelty_distance?: number | null;
+  score: number;
+  status: string;
+  source?: string;
+  claim_id?: string;
+  created_at?: string;
+}
+
+export async function fetchHypotheses(sessionId: string): Promise<{ hypotheses: HypothesisRecord[] } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/hypotheses`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('hypotheses.list', payload) as unknown as { hypotheses: HypothesisRecord[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function generateHypotheses(
+  sessionId: string,
+  body: { goal?: string; count?: number; use_llm?: boolean },
+): Promise<ManuscriptResult<{ hypotheses: HypothesisRecord[]; llm?: Record<string, unknown> }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/hypotheses`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('hypotheses.generate', payload) as unknown as { hypotheses: HypothesisRecord[]; llm?: Record<string, unknown> } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function runHypothesisTournament(
+  sessionId: string,
+): Promise<ManuscriptResult<{ hypotheses: HypothesisRecord[]; rounds?: number }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/hypotheses/tournament`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('hypotheses.tournament', payload) as unknown as { hypotheses: HypothesisRecord[]; rounds?: number } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function setHypothesisStatus(
+  sessionId: string,
+  id: string,
+  status: string,
+): Promise<ManuscriptResult<{ ok: boolean; id: string; status: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/hypotheses/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('hypotheses.status', payload) as unknown as { ok: boolean; id: string; status: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function collapseHypothesis(
+  sessionId: string,
+  id: string,
+  body: { plan_id?: string; claim_id?: string },
+): Promise<ManuscriptResult<{ ok: boolean; hypothesis?: HypothesisRecord; claim?: Record<string, unknown> }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/hypotheses/${encodeURIComponent(id)}/collapse`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('hypotheses.collapse', payload) as unknown as { ok: boolean; hypothesis?: HypothesisRecord; claim?: Record<string, unknown> } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface ExperimentPlanRecord {
+  id: string;
+  hypothesis_id?: string;
+  statement: string;
+  method: string;
+  observable: string;
+  acceptance_metric: string;
+  tolerance: number;
+  stop_rule: string;
+  budget_usd: number;
+  status: string;
+  risk?: string;
+  job_id?: string;
+  spec?: string;
+  result?: string;
+  created_at?: string;
+}
+
+export async function fetchPlans(sessionId: string): Promise<{ plans: ExperimentPlanRecord[] } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/plans`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('plans.list', payload) as unknown as { plans: ExperimentPlanRecord[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function createPlan(
+  sessionId: string,
+  body: {
+    hypothesis_id?: string;
+    statement?: string;
+    method?: string;
+    observable: string;
+    acceptance_metric: string;
+    tolerance: number;
+    stop_rule: string;
+    budget_usd?: number;
+    spec?: Record<string, unknown>;
+    acknowledge_prior_negative?: boolean;
+  },
+): Promise<ManuscriptResult<{ plan: ExperimentPlanRecord }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/plans`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('plans.create', payload) as unknown as { plan: ExperimentPlanRecord } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function setPlanStatus(
+  sessionId: string,
+  id: string,
+  status: 'approved' | 'rejected' | 'proposed',
+): Promise<ManuscriptResult<{ ok: boolean; id: string; status: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/plans/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('plans.status', payload) as unknown as { ok: boolean; id: string; status: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function executePlan(
+  sessionId: string,
+  id: string,
+): Promise<ManuscriptResult<{ plan?: ExperimentPlanRecord; job_id?: string; status: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/plans/${encodeURIComponent(id)}/execute`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('plans.execute', payload) as unknown as { plan?: ExperimentPlanRecord; job_id?: string; status: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface ResearchGraphPayload {
+  session_id: string;
+  nodes?: Array<Record<string, unknown>>;
+  edges?: Array<Record<string, unknown>>;
+  summary?: Record<string, unknown>;
+  counts?: Record<string, number>;
+}
+
+export async function fetchResearchGraph(sessionId: string): Promise<ResearchGraphPayload | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/research-graph`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('research_graph.detail', payload) as unknown as ResearchGraphPayload;
+  } catch {
+    return null;
+  }
+}
+
+export interface LabKnowledgeEntry {
+  id: string;
+  kind: string;
+  title: string;
+  statement: string;
+  session_id?: string;
+  created_at?: string;
+}
+
+export async function fetchLabKnowledge(
+  sessionId: string,
+  query?: string,
+): Promise<{ tenant_id: string; entries: LabKnowledgeEntry[] } | null> {
+  try {
+    const qs = query ? `?q=${encodeURIComponent(query)}` : '';
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/lab-knowledge${qs}`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('lab_knowledge.list', payload) as unknown as { tenant_id: string; entries: LabKnowledgeEntry[] };
+  } catch {
+    return null;
+  }
+}
+
+export interface AutonomyPolicyRecord {
+  stages: Record<string, string>;
+  max_act_budget_usd: number;
+  agentic_enabled?: boolean;
+  agentic_locked: boolean;
+  tool_permissions?: Record<string, string>;
+  updated_at?: string;
+}
+
+export async function fetchAutonomyPolicy(
+  sessionId: string,
+): Promise<{ session_id?: string; policy: AutonomyPolicyRecord; source?: string } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/autonomy`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('autonomy.policy', payload) as unknown as { session_id?: string; policy: AutonomyPolicyRecord; source?: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function updateAutonomyPolicy(
+  sessionId: string,
+  body: {
+    stages?: Record<string, string>;
+    max_act_budget_usd?: number;
+    agentic_enabled?: boolean;
+    agentic_locked?: boolean;
+    tool_permissions?: Record<string, string>;
+  },
+): Promise<ManuscriptResult<{ policy: AutonomyPolicyRecord; source?: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/autonomy`,
+      {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('autonomy.policy', payload) as unknown as { policy: AutonomyPolicyRecord; source?: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function haltAutonomy(
+  sessionId: string,
+  reason: string,
+): Promise<ManuscriptResult<{ policy: AutonomyPolicyRecord; cancelled_jobs?: number; paused_loops?: number }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/autonomy/halt`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ reason }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('autonomy.halt', payload) as unknown as { policy: AutonomyPolicyRecord; cancelled_jobs?: number; paused_loops?: number } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface AutonomyHistoryEntry {
+  event_id: number;
+  event_type: string;
+  timestamp: string;
+  payload?: Record<string, unknown>;
+}
+
+export async function fetchAutonomyHistory(
+  sessionId: string,
+): Promise<{ session_id: string; entries: AutonomyHistoryEntry[] } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/autonomy/history`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('autonomy.history', payload) as unknown as { session_id: string; entries: AutonomyHistoryEntry[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function rollbackAutonomyPolicy(
+  sessionId: string,
+  eventId: number,
+): Promise<ManuscriptResult<{ policy: AutonomyPolicyRecord; source_event_id?: number }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/autonomy/rollback`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ event_id: eventId }),
+      },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('autonomy.rollback', payload) as unknown as { policy: AutonomyPolicyRecord; source_event_id?: number } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export interface ActionReceipt {
+  id: string;
+  event_type: string;
+  timestamp: string;
+  summary?: string;
+  undoable: boolean;
+  undo_hint?: string;
+}
+
+export async function fetchSessionReceipts(
+  sessionId: string,
+): Promise<{ session_id: string; receipts: ActionReceipt[] } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/receipts`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('receipts.list', payload) as unknown as { session_id: string; receipts: ActionReceipt[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function undoSessionReceipt(
+  sessionId: string,
+  receiptId: string,
+): Promise<ManuscriptResult<{ ok: boolean; target_id: string; action: string }>> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/receipts/${encodeURIComponent(receiptId)}/undo`,
+      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({}) },
+    );
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('receipts.undo', payload) as unknown as { ok: boolean; target_id: string; action: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function fetchScienceTelemetry(): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/ops/science`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('ops.science', payload) as unknown as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTenantAgenticDefault(
+  tenantId: string,
+): Promise<{ tenant_id: string; enabled: boolean | null; source: string } | null> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/tenants/agentic-default?tenant_id=${encodeURIComponent(tenantId)}`,
+      { method: 'GET', cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return contract('tenants.agentic_default', payload) as unknown as { tenant_id: string; enabled: boolean | null; source: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function setTenantAgenticDefault(
+  tenantId: string,
+  enabled: boolean,
+): Promise<ManuscriptResult<{ tenant_id: string; enabled: boolean; source: string }>> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/tenants/agentic-default`, {
+      method: 'PUT',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ tenant_id: tenantId, enabled }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return manuscriptFailure(res, payload);
+    return { ok: true, data: contract('tenants.agentic_default', payload) as unknown as { tenant_id: string; enabled: boolean; source: string } };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280), status: 0 };
+  }
+}
+
+export async function retractMemory(
+  sessionId: string,
+  memoryId: string,
+  reason = 'retracted from console',
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/memory/retract`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, memory_id: memoryId, reason }),
+    });
+    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return { ok: false, error: typeof payload.message === 'string' ? payload.message : `retract failed (${res.status})` };
+    }
+    contract('memory.retract', payload);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 200) };
+  }
+}
+
+export async function settleSessionLoops(
+  sessionId: string,
+): Promise<{ ok: true; settled: string[] } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/loops/settle`,
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders(),
+      },
+    );
+    const text = await res.text().catch(() => '');
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    } catch {
+      payload = {};
+    }
+    if (!res.ok) {
+      const msg =
+        typeof payload.message === 'string' && payload.message
+          ? payload.message
+          : typeof payload.error === 'string' && payload.error
+            ? payload.error
+            : text.trim() || `settle failed (${res.status})`;
+      return { ok: false, error: msg };
+    }
+    const checked = contract('loops.settle', payload) as { settled: string[]; session_id: string };
+    return { ok: true, settled: Array.isArray(checked.settled) ? checked.settled : [] };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 200) };
   }
 }

@@ -59,11 +59,44 @@ const (
 	NumberUnverifiable = "unverifiable"
 )
 
-var unitNumber = regexp.MustCompile(`(?i)([-+]?\d+(?:\.\d+)?)\s*(mha|kcal/mol|angstroms?|seconds?|milliseconds?|qubits?|shots?|ha|ev|ms|å|%)`)
+var unitNumber = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_])([-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*((?:mha|kcal/mol|angstroms?|seconds?|milliseconds?|qubits?|shots?|ha|ev|ms)\b|%|å)`)
 
 // The sign must be captured with the digits: a leading \b before an optional
 // sign would match "1.13" inside "-1.13" and silently drop the minus.
 var bareDecimal = regexp.MustCompile(`[-+]?\b\d+\.\d{3,}\b`)
+
+// nonMeasurementConfigKeys are parameter/metadata keys that must not
+// accidentally validate an energy/measurement claim in manuscript prose.
+var nonMeasurementConfigKeys = map[string]bool{
+	"seed": true, "layers": true, "max_iterations": true,
+	"max_geometry_steps": true, "max_cost_usd": true, "budget_usd": true,
+	"repeats": true, "steps": true, "timeout": true, "timeout_s": true,
+	"schema_version": true, "version": true, "attempt_count": true,
+	"http_status": true, "port": true,
+}
+
+func unitCompatiblePath(unit, path string) bool {
+	if unit == "" {
+		return true
+	}
+	p := strings.ToLower(path)
+	switch unit {
+	case "ha", "mha", "kcal/mol", "ev":
+		// Energy claims must not match shot counts, qubit counts, or durations.
+		if strings.Contains(p, "shot") || strings.Contains(p, "qubit") || strings.Contains(p, "duration") || strings.Contains(p, "time_ms") {
+			return false
+		}
+		return true
+	case "shots", "shot":
+		return strings.Contains(p, "shot")
+	case "qubits", "qubit":
+		return strings.Contains(p, "qubit") || strings.Contains(p, "n_sites")
+	case "ms", "millisecond", "milliseconds", "s", "second", "seconds":
+		return strings.Contains(p, "time") || strings.Contains(p, "duration") || strings.Contains(p, "latency") || strings.Contains(p, "sec") || strings.Contains(p, "ms")
+	default:
+		return true
+	}
+}
 
 // ExtractedNumber is one candidate measurement in text.
 type ExtractedNumber struct {
@@ -133,6 +166,9 @@ func VerifyNumbers(text string, ev Evidence) []NumericFinding {
 		}
 		best, bestDiff := EvidenceValue{}, math.Inf(1)
 		for _, v := range values {
+			if !unitCompatiblePath(n.Unit, v.Path) {
+				continue
+			}
 			diff := math.Abs(v.Value - n.Value)
 			if diff < bestDiff {
 				best, bestDiff = v, diff
@@ -186,6 +222,9 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
+			if nonMeasurementConfigKeys[strings.ToLower(k)] {
+				continue
+			}
 			path := k
 			if prefix != "" {
 				path = prefix + "." + k

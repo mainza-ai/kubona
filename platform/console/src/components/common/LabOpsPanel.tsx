@@ -13,6 +13,8 @@ import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction'
 import { getOrCreateSigner, peekSignerPubkeyHex } from '@/lib/custody';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Lab } from '@/types';
+import { Button } from '@/components/ui/Button';
+import { fetchTenantAgenticDefault, setTenantAgenticDefault } from '@/domain/oversight';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
@@ -61,6 +63,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   // contract). The refund above keeps the typed "$X.XX" gate: irreversible.
   const [ceilingDraft, setCeilingDraft] = useState<number | null>(null);
   const [statusDraft, setStatusDraft] = useState<'active' | 'suspended' | null>(null);
+  const [agenticDefault, setAgenticDefault] = useState<boolean | null>(null);
 
   const [browserPub, setBrowserPub] = useState<string | null>(null);
   // First-run bootstrap is the one tenant write that cannot use a lab-admin
@@ -264,6 +267,51 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
         >
           Set autonomy
         </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[12px] text-muted">Agentic session default</span>
+        <Button
+          size="compact"
+          variant="secondary"
+          disabled={busy !== null}
+          onClick={() => void (async () => {
+            setBusy('agentic-default-read');
+            setNotice(null);
+            try {
+              const res = await fetchTenantAgenticDefault(lab.id);
+              if (!res) setNotice('Unable to read tenant agentic default.');
+              else setAgenticDefault(res.enabled ?? false);
+            } finally {
+              setBusy(null);
+            }
+          })()}
+        >
+          {agenticDefault === null ? 'Check default' : agenticDefault ? 'Default: Agentic ON' : 'Default: Manual'}
+        </Button>
+        {agenticDefault !== null && (
+          <Button
+            size="compact"
+            variant="ghost"
+            disabled={busy !== null || suspended}
+            onClick={() => void (async () => {
+              const next = !agenticDefault;
+              setBusy('agentic-default-write');
+              setNotice(null);
+              try {
+                const res = await setTenantAgenticDefault(lab.id, next);
+                if (!res.ok) setNotice(`refused: ${res.error}`);
+                else {
+                  setAgenticDefault(res.data.enabled);
+                  setNotice(`Tenant agentic default set to ${res.data.enabled ? 'ON' : 'Manual'}.`);
+                }
+              } finally {
+                setBusy(null);
+              }
+            })()}
+          >
+            {agenticDefault ? 'Switch default to Manual' : 'Switch default to Agentic'}
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input

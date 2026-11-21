@@ -5,6 +5,8 @@
 use std::collections::BTreeMap;
 use std::io::{self, Read};
 
+const MAX_INPUT_BYTES: u64 = 4 * 1024 * 1024;
+
 fn main() {
     let mut json_mode = false;
     let mut file_path = None;
@@ -31,15 +33,38 @@ fn main() {
     }
 
     let source = match file_path {
-        Some(path) => std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| { eprintln!("error reading {path}: {e}"); std::process::exit(1); }),
+        Some(path) => {
+            let meta = std::fs::metadata(&path).unwrap_or_else(|e| {
+                eprintln!("error reading {path}: {e}");
+                std::process::exit(1);
+            });
+            if meta.len() > MAX_INPUT_BYTES {
+                eprintln!("input file exceeds {} byte limit", MAX_INPUT_BYTES);
+                std::process::exit(1);
+            }
+            std::fs::read_to_string(&path).unwrap_or_else(|e| {
+                eprintln!("error reading {path}: {e}");
+                std::process::exit(1);
+            })
+        }
         None => {
-            let mut buf = String::new();
-            if io::stdin().read_to_string(&mut buf).is_err() {
+            let mut raw = Vec::new();
+            if io::stdin()
+                .take(MAX_INPUT_BYTES + 1)
+                .read_to_end(&mut raw)
+                .is_err()
+            {
                 eprintln!("error reading stdin");
                 std::process::exit(1);
             }
-            buf
+            if (raw.len() as u64) > MAX_INPUT_BYTES {
+                eprintln!("stdin input exceeds {} byte limit", MAX_INPUT_BYTES);
+                std::process::exit(1);
+            }
+            String::from_utf8(raw).unwrap_or_else(|_| {
+                eprintln!("stdin input is not valid UTF-8");
+                std::process::exit(1);
+            })
         }
     };
 

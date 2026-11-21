@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -72,8 +73,9 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     if _is_airgapped():
         return []
 
-    # Live query
-    url = f"https://export.arxiv.org/api/query?search_query=all:{query}&max_results={max_results}&sortBy=relevance"
+    # Live query (URL-encoded via urlencode while keeping httpx.get(url, timeout=) signature)
+    qs = urllib.parse.urlencode({"search_query": f"all:{query}", "max_results": max_results, "sortBy": "relevance"})
+    url = f"https://export.arxiv.org/api/query?{qs}"
     results = []
     try:
         resp = httpx.get(url, timeout=5.0)
@@ -88,7 +90,7 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 authors = [a.find("atom:name", ns).text for a in entry.findall("atom:author", ns) if a.find("atom:name", ns) is not None]
 
                 title = title_elem.text.strip().replace("\n", " ") if title_elem is not None and title_elem.text else "Untitled"
-                summary = summary_elem.text.strip().replace("\n", " ") if summary_elem.text else ""
+                summary = summary_elem.text.strip().replace("\n", " ") if summary_elem is not None and summary_elem.text else ""
                 paper_id = id_elem.text.strip() if id_elem is not None and id_elem.text else ""
                 pub_elem = entry.find("atom:published", ns)
                 year = 0

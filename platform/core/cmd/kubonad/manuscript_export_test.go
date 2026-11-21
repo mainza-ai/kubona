@@ -57,13 +57,14 @@ func TestManuscriptExportWritesVerifiableEvidence(t *testing.T) {
 		'2026-11-18T10:01:00Z', '2026-11-18T10:02:00Z')`); err != nil {
 		t.Fatalf("job row: %v", err)
 	}
-	if _, err := l.MintClaimRecord("s1", "claim_eval", "H2 measured", 0.9, 0.05, 0.05,
-		"verified", `{"job_id":"job1"}`); err != nil {
+	claim, err := l.MintClaimRecord("s1", "claim_eval", "H2 measured", 0.9, 0.05, 0.05,
+		"verified", `{"job_id":"job1"}`)
+	if err != nil {
 		t.Fatalf("claim: %v", err)
 	}
 	if err := l.CreateHypothesis("s1", "default", &ledger.Hypothesis{
 		ID: "hyp1", Statement: "The ansatz is under-expressive", Falsifier: "more layers do not help",
-		ExperimentKind: "vqe", Source: "llm", Status: ledger.HypothesisCollapsed, ClaimID: "clm-s1-0001",
+		ExperimentKind: "vqe", Source: "llm", Status: ledger.HypothesisCollapsed, ClaimID: claim.ID,
 	}); err != nil {
 		t.Fatalf("hypothesis: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestManuscriptExportWritesVerifiableEvidence(t *testing.T) {
 		}
 	}
 	entities := provDoc["entity"].(map[string]any)
-	for _, id := range []string{"kubona:manuscript/ms1", "kubona:claim/clm-s1-0001", "kubona:job/job1", "kubona:verification/ms1"} {
+	for _, id := range []string{"kubona:manuscript/ms1", "kubona:claim/" + claim.ID, "kubona:job/job1", "kubona:verification/ms1"} {
 		if _, ok := entities[id]; !ok {
 			t.Fatalf("prov entity %q missing: %v", id, entities)
 		}

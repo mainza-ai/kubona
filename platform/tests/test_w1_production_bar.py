@@ -53,11 +53,23 @@ def test_epistemics_consts_and_heuristic_label(b_epistemics):
 
 def test_epistemics_advantage_requires_fci_exact(b_epistemics):
     m = b_epistemics
+    # Variational principle: an energy below exact FCI (-1.138 < -1.137) is a
+    # variational violation (shot noise or unphysical mitigation), NEVER
+    # verified quantum advantage.
     kw = dict(claim_id="c", statement="quantum advantage", quantum_value=-1.138,
               classical_anchor_value=-1.137, source_platforms=["a", "b", "c", "d"],
               total_engagement=5000, contradiction_signal=0.0, claim_type="advantage")
-    ok = m.evaluate_claim_credibility(**kw, anchor_method="FCI-exact")
-    assert ok["quantum_advantage_verified"] is True
+    sub_fci = m.evaluate_claim_credibility(**kw, anchor_method="FCI-exact")
+    assert sub_fci["quantum_advantage_verified"] is False
+    assert "Variational violation" in sub_fci["verdict_reason"]
+    # Even matching exact FCI from above does not demonstrate quantum advantage
+    # over a classically solved system (quantum-advantage-realism policy).
+    matched = m.evaluate_claim_credibility(
+        **{**kw, "quantum_value": -1.1365}, anchor_method="FCI-exact",
+    )
+    assert matched["quantum_advantage_verified"] is False
+    assert "does not demonstrate quantum advantage" in matched["verdict_reason"]
+    # Non-FCI anchors are still explicitly refused for missing FCI-exact anchor.
     for bad in ("CASCI(6,6)", "RHF", "unknown", ""):
         refused = m.evaluate_claim_credibility(**kw, anchor_method=bad)
         assert refused["quantum_advantage_verified"] is False

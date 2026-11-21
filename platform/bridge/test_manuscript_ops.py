@@ -251,3 +251,22 @@ def test_verified_kernel_proof_can_reach_accept():
     assert resp["ok"], resp
     assert resp["review"]["recommendation"] == "ACCEPT"
     assert resp["review"]["hygiene"] == 10.0
+
+
+def test_64_char_citation_key_collision_and_author_preservation_and_year_escape():
+    long_prefix = "a" * 64
+    resp = manuscript_ops.run(_req(
+        authors=["Ada Lovelace", "Grace Hopper"],
+        citations=[
+            {"key": long_prefix + "_first", "title": "Paper 1", "authors": "Cited One", "year": "2026}, note={\\write18{id}"},
+            {"key": long_prefix + "_second", "title": "Paper 2", "authors": "Cited Two", "year": "2025"},
+        ],
+    ))
+    assert resp["ok"], resp
+    keys = [c["key"] for c in resp["citations"]]
+    assert len(set(keys)) == 2
+    assert all(len(k) <= 64 for k in keys)
+    # Manuscript authors must not be overwritten by citation author string.
+    assert r"\author{Ada Lovelace \and Grace Hopper}" in resp["main_tex"]
+    # Crafted year must be escaped so it cannot break out of BibTeX braces.
+    assert r"\write18" not in resp["bibtex"]

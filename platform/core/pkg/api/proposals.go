@@ -302,6 +302,10 @@ func (s *Server) handleProposals(w http.ResponseWriter, r *http.Request) {
 	// (offered or already decided) instead of growing the table.
 	if req.Source == "message" && strings.TrimSpace(req.MessageID) != "" {
 		if existing, ferr := s.ledger.GetProposalForMessage(req.MessageID); ferr == nil && existing != nil {
+			if existing.SessionID != sid {
+				WriteAPIError(w, "not_found", "message not found in session", nil)
+				return
+			}
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "proposal": proposalViewFrom(existing)})
 			return
 		}

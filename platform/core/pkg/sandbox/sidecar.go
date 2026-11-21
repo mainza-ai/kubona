@@ -174,8 +174,10 @@ func (s *SidecarServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *SidecarServer) available() (bool, string) {
-	if strings.TrimSpace(s.Runtime) != "runsc" {
-		return false, "sandbox runtime must be runsc (gVisor): configure --runtime runsc"
+	rt := strings.TrimSpace(s.Runtime)
+	allowRunc := strings.TrimSpace(os.Getenv("KUBONA_SANDBOX_ALLOW_RUNC")) == "1"
+	if rt != "runsc" && !(rt == "runc" && allowRunc) {
+		return false, "sandbox runtime must be runsc (gVisor) — or runc with KUBONA_SANDBOX_ALLOW_RUNC=1 on non-gVisor hosts"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -183,8 +185,8 @@ func (s *SidecarServer) available() (bool, string) {
 	if err != nil {
 		return false, "Docker daemon is not reachable from sandboxd"
 	}
-	if !bytes.Contains(out, []byte(`"runsc"`)) {
-		return false, "Docker daemon does not advertise the runsc runtime (install gVisor and register runsc)"
+	if !bytes.Contains(out, []byte(`"`+rt+`"`)) {
+		return false, fmt.Sprintf("Docker daemon does not advertise the %s runtime", rt)
 	}
 	return true, ""
 }
@@ -280,6 +282,7 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	if err := os.MkdirAll(workDir, 0777); err != nil {
 		return SidecarResponse{Sandboxed: false, Error: err.Error(), ExitCode: 1}
 	}
+	_ = os.Chmod(workDir, 0777)
 	if err := os.WriteFile(filepath.Join(benchDir, "eval.py"), []byte(req.Benchmark), 0644); err != nil {
 		return SidecarResponse{Sandboxed: false, Error: err.Error(), ExitCode: 1}
 	}
@@ -314,9 +317,10 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	cmd.Cancel = func() error {
 		return killProcessGroup(cmd)
 	}
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := &limitedBuffer{limit: maxSandboxOutputSize}
+	stderr := &limitedBuffer{limit: maxSandboxOutputSize}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	start := time.Now()
 	runErr := cmd.Run()
 	duration := time.Since(start)

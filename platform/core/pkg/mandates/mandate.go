@@ -115,7 +115,9 @@ func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requeste
 		return ErrMandateExpired
 	}
 
-	if requestedCostUSD > m.MaxBudgetUSD {
+	if math.IsNaN(requestedCostUSD) || math.IsInf(requestedCostUSD, 0) || requestedCostUSD < 0 ||
+		math.IsNaN(m.MaxBudgetUSD) || math.IsInf(m.MaxBudgetUSD, 0) || m.MaxBudgetUSD <= 0 ||
+		requestedCostUSD > m.MaxBudgetUSD {
 		return ErrMandateExceeded
 	}
 

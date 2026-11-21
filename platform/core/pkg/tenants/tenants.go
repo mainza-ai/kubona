@@ -196,7 +196,44 @@ func (m *Manager) verifyAdmin(action *AdminAction) (*Tenant, error) {
 	if !ed25519.Verify(ed25519.PublicKey(pubBytes), action.CanonicalPayload(), sigBytes) {
 		return nil, fmt.Errorf("admin signature verification failed")
 	}
+	switch action.Action {
+	case "refund_spend", "session_refund_spend", "set_admin_key", "set_ceiling", "set_status", "revoke_autonomy", "grant_autonomy":
+		if err := m.recordAdminActionReplay(action); err != nil {
+			return nil, err
+		}
+	}
 	return t, nil
+}
+
+// recordAdminActionReplay enforces single-use on signed AdminAction envelopes
+// within their TTL window so captured signed mutations (e.g. RefundSpend)
+// cannot be replayed.
+func (m *Manager) recordAdminActionReplay(action *AdminAction) error {
+	if m.ledger == nil || m.ledger.DB() == nil {
+		return nil
+	}
+	db := m.ledger.DB()
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS admin_action_replays (
+		sig_hash TEXT PRIMARY KEY,
+		expires_at TEXT NOT NULL
+	)`)
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	_, _ = db.Exec(`DELETE FROM admin_action_replays WHERE expires_at < ?`, nowStr)
+	sum := sha256.Sum256([]byte(strings.Join([]string{
+		action.TenantID, action.Action, action.ParamsHash,
+		action.Expiry.UTC().Format(time.RFC3339), strings.ToLower(strings.TrimSpace(action.SignatureHex)),
+	}, "|")))
+	res, err := db.Exec(
+		`INSERT OR IGNORE INTO admin_action_replays (sig_hash, expires_at) VALUES (?, ?)`,
+		hex.EncodeToString(sum[:]), action.Expiry.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return fmt.Errorf("admin replay guard failed: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("admin action replay detected: refused")
+	}
+	return nil
 }
 
 // VerifyAdminAction fully verifies an admin envelope (tenant match, active
@@ -214,13 +251,19 @@ func (m *Manager) SetAdminKey(tenantID, newPubkeyHex string, action *AdminAction
 	if err != nil {
 		return nil, err
 	}
-	if _, err := hex.DecodeString(newPubkeyHex); err != nil {
-		return nil, fmt.Errorf("invalid pubkey hex")
+	newPubkeyHex = strings.TrimSpace(newPubkeyHex)
+	rawPub, err := hex.DecodeString(newPubkeyHex)
+	if err != nil || len(rawPub) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid pubkey hex: expected %d-byte Ed25519 public key", ed25519.PublicKeySize)
 	}
 	if t.AdminPubkeyHex == "" {
-		// Bootstrap: first write wins, sealed in the ledger.
-		if _, err := m.ledger.DB().Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ?`, newPubkeyHex, tenantID); err != nil {
+		// Bootstrap: atomic first-write-wins, sealed in the ledger.
+		res, err := m.ledger.DB().Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ? AND admin_pubkey_hex = ''`, newPubkeyHex, tenantID)
+		if err != nil {
 			return nil, err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return nil, ErrAdminKeySet
 		}
 		m.ledger.AppendEvent(tenantID, "tenant_admin_bootstrapped", map[string]string{"tenant_id": tenantID, "admin_pubkey_hex": newPubkeyHex, "admin_fp": Fingerprint(newPubkeyHex)})
 		return m.GetTenant(tenantID)
@@ -231,7 +274,17 @@ func (m *Manager) SetAdminKey(tenantID, newPubkeyHex string, action *AdminAction
 	if _, err := m.verifyAdmin(action); err != nil {
 		return nil, err
 	}
-	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ?`, newPubkeyHex, tenantID); err != nil {
+	tx, err := m.ledger.DB().Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ?`, newPubkeyHex, tenantID); err != nil {
+		return nil, err
+	}
+	// Revoke all existing auth_sessions minted under the rotated-out admin key.
+	_, _ = tx.Exec(`UPDATE auth_sessions SET revoked = 1 WHERE tenant_id = ?`, tenantID)
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	m.ledger.AppendEvent(tenantID, "tenant_admin_rotated", map[string]string{"tenant_id": tenantID, "admin_fp": Fingerprint(action.PubkeyHex)})

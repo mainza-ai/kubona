@@ -156,12 +156,19 @@ func (st *AuthSessionStore) validateToken(token string) (tenantID, fp string, ok
 		return "", "", false
 	}
 	sum := sha256.Sum256([]byte(token))
-	var tid, f string
-	var exp string
+	var tid, f, exp, adminPub string
 	err := st.db.QueryRow(
-		`SELECT tenant_id, pubkey_fp, expires_at FROM auth_sessions WHERE token_hash = ? AND revoked = 0`,
-		hex.EncodeToString(sum[:])).Scan(&tid, &f, &exp)
+		`SELECT a.tenant_id, a.pubkey_fp, a.expires_at, COALESCE(t.admin_pubkey_hex, '')
+		 FROM auth_sessions a
+		 LEFT JOIN tenants t ON t.id = a.tenant_id
+		 WHERE a.token_hash = ? AND a.revoked = 0`,
+		hex.EncodeToString(sum[:])).Scan(&tid, &f, &exp, &adminPub)
 	if err != nil {
+		return "", "", false
+	}
+	// If the tenant's admin key was rotated or cleared after this session was
+	// minted, invalidate immediately instead of waiting up to defaultSessionTTL.
+	if adminPub != "" && tenants.Fingerprint(adminPub) != f {
 		return "", "", false
 	}
 	// SQLite timestamp formats vary; parse leniently, fail closed.

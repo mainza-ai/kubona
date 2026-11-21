@@ -376,6 +376,34 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 	}
 }
 
+// StaleProfiles returns live hardware profiles registered on this FidelityGate
+// that are older than the shared freshness budget. Unlike package-level
+// StaleCalibrations (which inspects the static contract), this honors live
+// refreshes applied via UpdateProfile.
+func (fg *FidelityGate) StaleProfiles(now time.Time) []DeviceProfile {
+	c := loadFidelityContract()
+	maxAge := c.MaxCalibrationAgeHours
+	if maxAge <= 0 {
+		maxAge = 24.0
+	}
+	fg.mu.RLock()
+	defer fg.mu.RUnlock()
+	out := []DeviceProfile{}
+	for _, p := range fg.profiles {
+		if p.Name == "local-simulator" {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339, p.CalibratedAt)
+		if err != nil {
+			at, err = time.Parse("2006-01-02", p.CalibratedAt)
+		}
+		if err != nil || now.Sub(at).Hours() > maxAge {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // StaleCalibrations returns hardware profiles older than the shared
 // freshness budget. A missing/unparseable calibrated_at is stale: an unknown
 // timestamp must never be treated as fresh. Local simulators are excluded

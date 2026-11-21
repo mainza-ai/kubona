@@ -16,5 +16,7 @@ scratch
 **/node_modules
 **/.next
 **/target
+**/.lake
+submodules/math/lean/.lake
 platform/core/bin
 platform/core/kubonad

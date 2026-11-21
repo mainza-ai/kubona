@@ -16,6 +16,10 @@
     "auth.login",
     "auth.sessions",
     "auth.whoami",
+    "autonomy.halt",
+    "autonomy.history",
+    "autonomy.policy",
+    "autonomy.rollback",
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
@@ -54,6 +58,8 @@
     "fidelity",
     "fleet",
     "fleet.calibration",
+    "formal.list",
+    "formal.record",
     "hardware.launch",
     "hardware.prepare",
     "hf.cancel",
@@ -61,9 +67,15 @@
     "hf.download",
     "hf.downloads",
     "hf.search",
+    "hypotheses.collapse",
+    "hypotheses.generate",
+    "hypotheses.list",
+    "hypotheses.status",
+    "hypotheses.tournament",
     "job",
     "jobs.list",
     "lab",
+    "lab_knowledge.list",
     "labs.list",
     "ledger.append",
     "ledger.export.document",
@@ -88,19 +100,24 @@
     "loop.steer.update",
     "loop.steers",
     "loops.list",
+    "loops.settle",
     "mandate.sign",
     "mandate.verify",
     "manuscripts.annotation",
     "manuscripts.annotations",
     "manuscripts.build",
     "manuscripts.create",
+    "manuscripts.delete",
     "manuscripts.deposit",
     "manuscripts.detail",
+    "manuscripts.export",
     "manuscripts.list",
     "manuscripts.review",
     "manuscripts.signoff",
+    "manuscripts.verify",
     "memory.recall",
     "memory.retain",
+    "memory.retract",
     "mesh.route",
     "messages.clear",
     "messages.list",
@@ -112,6 +129,11 @@
     "notifications.state",
     "obligations.close",
     "obligations.open",
+    "ops.science",
+    "plans.create",
+    "plans.execute",
+    "plans.list",
+    "plans.status",
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
@@ -126,6 +148,9 @@
     "quantum.settings",
     "quantum.submit",
     "radar",
+    "receipts.list",
+    "receipts.undo",
+    "research_graph.detail",
     "runAllowance.mint",
     "runAllowance.revoke",
     "runAllowances.list",
@@ -150,6 +175,7 @@
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
+    "tenants.agentic_default",
     "tool_approval.decision",
     "tool_approval.inbox",
     "tribunal.resume",
@@ -183,6 +209,10 @@
     "auth.login",
     "auth.sessions",
     "auth.whoami",
+    "autonomy.halt",
+    "autonomy.history",
+    "autonomy.policy",
+    "autonomy.rollback",
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
@@ -221,6 +251,8 @@
     "fidelity",
     "fleet",
     "fleet.calibration",
+    "formal.list",
+    "formal.record",
     "hardware.launch",
     "hardware.prepare",
     "hf.cancel",
@@ -228,9 +260,15 @@
     "hf.download",
     "hf.downloads",
     "hf.search",
+    "hypotheses.collapse",
+    "hypotheses.generate",
+    "hypotheses.list",
+    "hypotheses.status",
+    "hypotheses.tournament",
     "job",
     "jobs.list",
     "lab",
+    "lab_knowledge.list",
     "labs.list",
     "ledger.append",
     "ledger.export.document",
@@ -255,19 +293,24 @@
     "loop.steer.update",
     "loop.steers",
     "loops.list",
+    "loops.settle",
     "mandate.sign",
     "mandate.verify",
     "manuscripts.annotation",
     "manuscripts.annotations",
     "manuscripts.build",
     "manuscripts.create",
+    "manuscripts.delete",
     "manuscripts.deposit",
     "manuscripts.detail",
+    "manuscripts.export",
     "manuscripts.list",
     "manuscripts.review",
     "manuscripts.signoff",
+    "manuscripts.verify",
     "memory.recall",
     "memory.retain",
+    "memory.retract",
     "mesh.route",
     "messages.clear",
     "messages.list",
@@ -279,6 +322,11 @@
     "notifications.state",
     "obligations.close",
     "obligations.open",
+    "ops.science",
+    "plans.create",
+    "plans.execute",
+    "plans.list",
+    "plans.status",
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
@@ -293,6 +341,9 @@
     "quantum.settings",
     "quantum.submit",
     "radar",
+    "receipts.list",
+    "receipts.undo",
+    "research_graph.detail",
     "runAllowance.mint",
     "runAllowance.revoke",
     "runAllowances.list",
@@ -317,6 +368,7 @@
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
+    "tenants.agentic_default",
     "tool_approval.decision",
     "tool_approval.inbox",
     "tribunal.resume",
@@ -444,6 +496,12 @@
       "contract": "obligations.close"
     },
     {
+      "function": "collapseHypothesis",
+      "path": "/api/sessions/:sessionId/hypotheses/:id/collapse",
+      "method": "POST",
+      "contract": "hypotheses.collapse"
+    },
+    {
       "function": "createCustomAgent",
       "path": "/api/agents/custom",
       "method": "POST",
@@ -466,6 +524,12 @@
       "path": "/api/sessions/:sessionId/manuscripts/:id/annotations",
       "method": "POST",
       "contract": "manuscripts.annotation"
+    },
+    {
+      "function": "createPlan",
+      "path": "/api/sessions/:sessionId/plans",
+      "method": "POST",
+      "contract": "plans.create"
     },
     {
       "function": "createSession",
@@ -502,6 +566,12 @@
       "path": "/api/agents/custom/:id",
       "method": "DELETE",
       "contract": "agents.custom.delete"
+    },
+    {
+      "function": "deleteManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id",
+      "method": "DELETE",
+      "contract": "manuscripts.delete"
     },
     {
       "function": "deleteSession",
@@ -552,10 +622,22 @@
       "contract": "prediction.evaluate"
     },
     {
+      "function": "executePlan",
+      "path": "/api/sessions/:sessionId/plans/:id/execute",
+      "method": "POST",
+      "contract": "plans.execute"
+    },
+    {
       "function": "exportLedger",
       "path": "/api/ledger/export",
       "method": "POST",
       "contract": "ledger.export.document"
+    },
+    {
+      "function": "exportManuscriptBundle",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/export",
+      "method": "GET",
+      "contract": "manuscripts.export"
     },
     {
       "function": "exportSession",
@@ -580,6 +662,18 @@
       "path": "/api/sessions/:sessionId/approvals",
       "method": "GET",
       "contract": "approval.inbox"
+    },
+    {
+      "function": "fetchAutonomyHistory",
+      "path": "/api/sessions/:sessionId/autonomy/history",
+      "method": "GET",
+      "contract": "autonomy.history"
+    },
+    {
+      "function": "fetchAutonomyPolicy",
+      "path": "/api/sessions/:sessionId/autonomy",
+      "method": "GET",
+      "contract": "autonomy.policy"
     },
     {
       "function": "fetchAutoresearchHarnesses",
@@ -696,6 +790,18 @@
       "contract": "fleet"
     },
     {
+      "function": "fetchFormalVerifications",
+      "path": "/api/sessions/:sessionId/formal-verifications",
+      "method": "GET",
+      "contract": "formal.list"
+    },
+    {
+      "function": "fetchHypotheses",
+      "path": "/api/sessions/:sessionId/hypotheses",
+      "method": "GET",
+      "contract": "hypotheses.list"
+    },
+    {
       "function": "fetchJob",
       "path": "/api/jobs/:id",
       "method": "GET",
@@ -724,6 +830,12 @@
       "path": "/api/llm/settings",
       "method": "GET",
       "contract": "llm.settings"
+    },
+    {
+      "function": "fetchLabKnowledge",
+      "path": "/api/sessions/:sessionId/lab-knowledge:qs",
+      "method": "GET",
+      "contract": "lab_knowledge.list"
     },
     {
       "function": "fetchLabs",
@@ -840,6 +952,12 @@
       "contract": "obligations.open"
     },
     {
+      "function": "fetchPlans",
+      "path": "/api/sessions/:sessionId/plans",
+      "method": "GET",
+      "contract": "plans.list"
+    },
+    {
       "function": "fetchPredictionHistory",
       "path": "/api/vault/predictions/history",
       "method": "GET",
@@ -882,10 +1000,22 @@
       "contract": "radar"
     },
     {
+      "function": "fetchResearchGraph",
+      "path": "/api/sessions/:sessionId/research-graph",
+      "method": "GET",
+      "contract": "research_graph.detail"
+    },
+    {
       "function": "fetchRunAllowances",
       "path": "/api/run-allowances",
       "method": "GET",
       "contract": "runAllowances.list"
+    },
+    {
+      "function": "fetchScienceTelemetry",
+      "path": "/api/ops/science",
+      "method": "GET",
+      "contract": "ops.science"
     },
     {
       "function": "fetchSession",
@@ -904,6 +1034,12 @@
       "path": "/api/sessions/context",
       "method": "GET",
       "contract": "session.context"
+    },
+    {
+      "function": "fetchSessionReceipts",
+      "path": "/api/sessions/:sessionId/receipts",
+      "method": "GET",
+      "contract": "receipts.list"
     },
     {
       "function": "fetchSessionsResult",
@@ -930,6 +1066,12 @@
       "contract": "tasks.list"
     },
     {
+      "function": "fetchTenantAgenticDefault",
+      "path": "/api/tenants/agentic-default",
+      "method": "GET",
+      "contract": "tenants.agentic_default"
+    },
+    {
       "function": "fetchToolApprovals",
       "path": "/api/sessions/:sessionId/tool-approvals",
       "method": "GET",
@@ -948,10 +1090,22 @@
       "contract": "workbench.view"
     },
     {
+      "function": "generateHypotheses",
+      "path": "/api/sessions/:sessionId/hypotheses",
+      "method": "POST",
+      "contract": "hypotheses.generate"
+    },
+    {
       "function": "getHFModelDetails",
       "path": "/api/hf/models/:id",
       "method": "GET",
       "contract": "hf.details"
+    },
+    {
+      "function": "haltAutonomy",
+      "path": "/api/sessions/:sessionId/autonomy/halt",
+      "method": "POST",
+      "contract": "autonomy.halt"
     },
     {
       "function": "importSession",
@@ -1170,6 +1324,12 @@
       "contract": "memory.retain"
     },
     {
+      "function": "retractMemory",
+      "path": "/api/memory/retract",
+      "method": "POST",
+      "contract": "memory.retract"
+    },
+    {
       "function": "reviewClaim",
       "path": "/api/sessions/:sessionId/claims/:claimId/review",
       "method": "POST",
@@ -1212,6 +1372,12 @@
       "contract": "chat.rewrite"
     },
     {
+      "function": "rollbackAutonomyPolicy",
+      "path": "/api/sessions/:sessionId/autonomy/rollback",
+      "method": "POST",
+      "contract": "autonomy.rollback"
+    },
+    {
       "function": "routeMultimodalPayload",
       "path": "/api/mesh/route",
       "method": "POST",
@@ -1234,6 +1400,12 @@
       "path": "/api/codesign/families",
       "method": "POST",
       "contract": "codesign.families"
+    },
+    {
+      "function": "runHypothesisTournament",
+      "path": "/api/sessions/:sessionId/hypotheses/tournament",
+      "method": "POST",
+      "contract": "hypotheses.tournament"
     },
     {
       "function": "runQuantumCanary",
@@ -1326,6 +1498,12 @@
       "contract": "chat.feedback"
     },
     {
+      "function": "setHypothesisStatus",
+      "path": "/api/sessions/:sessionId/hypotheses/:id",
+      "method": "PATCH",
+      "contract": "hypotheses.status"
+    },
+    {
       "function": "setLLMAirGap",
       "path": "/api/llm/settings",
       "method": "PATCH",
@@ -1338,10 +1516,22 @@
       "contract": "manuscripts.detail"
     },
     {
+      "function": "setPlanStatus",
+      "path": "/api/sessions/:sessionId/plans/:id",
+      "method": "PATCH",
+      "contract": "plans.status"
+    },
+    {
       "function": "setSessionAgentic",
       "path": "/api/sessions/:sessionId/agentic",
       "method": "PUT",
       "contract": "session.agentic.update"
+    },
+    {
+      "function": "setTenantAgenticDefault",
+      "path": "/api/tenants/agentic-default",
+      "method": "PUT",
+      "contract": "tenants.agentic_default"
     },
     {
       "function": "setTenantAutonomy",
@@ -1360,6 +1550,12 @@
       "path": "/api/tenants/status",
       "method": "POST",
       "contract": "tenant.write"
+    },
+    {
+      "function": "settleSessionLoops",
+      "path": "/api/sessions/:sessionId/loops/settle",
+      "method": "POST",
+      "contract": "loops.settle"
     },
     {
       "function": "signoffManuscript",
@@ -1416,6 +1612,12 @@
       "contract": "chat.stream.done"
     },
     {
+      "function": "submitFormalVerification",
+      "path": "/api/sessions/:sessionId/formal-verifications",
+      "method": "POST",
+      "contract": "formal.record"
+    },
+    {
       "function": "submitQuantumJob",
       "path": "/api/quantum/jobs",
       "method": "POST",
@@ -1440,10 +1642,28 @@
       "contract": "skills.toggle"
     },
     {
+      "function": "undoSessionReceipt",
+      "path": "/api/sessions/:sessionId/receipts/:receiptId/undo",
+      "method": "POST",
+      "contract": "receipts.undo"
+    },
+    {
+      "function": "updateAutonomyPolicy",
+      "path": "/api/sessions/:sessionId/autonomy",
+      "method": "PUT",
+      "contract": "autonomy.policy"
+    },
+    {
       "function": "updateLoopSteer",
       "path": "/api/loops/:loopId/steers/:steerId",
       "method": "PATCH",
       "contract": "loop.steer.update"
+    },
+    {
+      "function": "updateManuscriptDraft",
+      "path": "/api/sessions/:sessionId/manuscripts/:id",
+      "method": "PUT",
+      "contract": "manuscripts.detail"
     },
     {
       "function": "updateTaskStatus",
@@ -1468,6 +1688,12 @@
       "path": "/api/ledger/verify",
       "method": "GET",
       "contract": "ledger.verify"
+    },
+    {
+      "function": "verifyManuscript",
+      "path": "/api/sessions/:sessionId/manuscripts/:id/verify",
+      "method": "POST",
+      "contract": "manuscripts.verify"
     },
     {
       "function": "verifySpendMandate",

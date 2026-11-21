@@ -11,19 +11,39 @@
 #   KUBONAD_BIN=/usr/local/bin/kubonad scripts/backup-restore-check.sh /backups
 set -euo pipefail
 
-dir="${1:-${KUBONA_BACKUP_DIR:-/backups}}"
+target="${1:-${KUBONA_BACKUP_DIR:-/backups}}"
 kubonad="${KUBONAD_BIN:-kubonad}"
 
-if [ ! -d "$dir" ]; then
-  echo "backup-restore-check: no such backup directory: $dir" >&2
+if [ -f "$target" ]; then
+  source="$target"
+elif [ -d "$target" ]; then
+  source="$(find "$target" -maxdepth 1 -type f -name '*.backup-*' ! -name '*.sha256' -print0 2>/dev/null \
+    | xargs -0 ls -1t 2>/dev/null | head -1 || true)"
+  if [ -z "$source" ]; then
+    echo "backup-restore-check: no backup artifact in $target" >&2
+    exit 1
+  fi
+else
+  echo "backup-restore-check: no such backup file or directory: $target" >&2
   exit 1
 fi
 
-source="$(find "$dir" -maxdepth 1 -type f -name '*.backup-*' ! -name '*.sha256' -print0 2>/dev/null \
-  | xargs -0 ls -1t 2>/dev/null | head -1 || true)"
-if [ -z "$source" ]; then
-  echo "backup-restore-check: no backup artifact in $dir" >&2
-  exit 1
+if [ -f "${source}.sha256" ]; then
+  if command -v sha256sum >/dev/null 2>&1; then
+    expected="$(awk '{print $1}' "${source}.sha256")"
+    actual="$(sha256sum "$source" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    expected="$(awk '{print $1}' "${source}.sha256")"
+    actual="$(shasum -a 256 "$source" | awk '{print $1}')"
+  else
+    echo "backup-restore-check: sha256 sidecar present but neither sha256sum nor shasum is installed" >&2
+    exit 1
+  fi
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    echo "backup-restore-check: sha256 mismatch for $source (expected $expected, got $actual)" >&2
+    exit 1
+  fi
+  echo "backup-restore-check: sha256 verified ($actual)"
 fi
 
 # Encrypted artifacts need the private age key; restoring ciphertext as a

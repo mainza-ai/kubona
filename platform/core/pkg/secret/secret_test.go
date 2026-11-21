@@ -22,6 +22,17 @@ func TestDetectAndRedactCredentialShapes(t *testing.T) {
 		{"jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuv", "jwt"},
 		{"bearer", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz", "bearer_token"},
 		{"assignment", "api_key = super-secret-value-123", "credential_assignment"},
+		{"env_openai", "OPENAI_API_KEY=plain-opaque-secret-value-999", "credential_assignment"},
+		{"env_kubona_token", "KUBONA_API_TOKEN=operator-local-token-xyz", "credential_assignment"},
+		{"env_kubona_secret", "KUBONA_SECRET_KEY=0123456789abcdef0123456789abcdef", "credential_assignment"},
+		{"env_privkey_hex", "KUBONA_REVIEWER_PRIVKEY_HEX=deadbeef0123456789abcdef", "credential_assignment"},
+		{"env_aws_secret", "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCY", "credential_assignment"},
+		{"env_db_pass", "DATABASE_PASSWORD=my-prod-password-42", "credential_assignment"},
+		{"gemini", "key AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz0123456", "gemini_key"},
+		{"hf", "token hf_abcdefghijklmnopqrstuvwxyz1234", "huggingface_token"},
+		{"vault", "token hvs.CAESIJ1234567890abcdefghij", "vault_token"},
+		{"github_pat", "pat github_pat_" + "11ABCDEFG0123456789_abcdefghijklmnop", "github_token"},
+		{"age_key", "AGE-SECRET-KEY-" + "1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ", "age_secret_key"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

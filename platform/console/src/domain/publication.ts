@@ -4,7 +4,10 @@ export {
   buildManuscript,
   createManuscript,
   createManuscriptAnnotation,
+  deleteManuscript,
   downloadManuscriptArtifact,
+  exportManuscriptBundle,
+  fetchFormalVerifications,
   fetchManuscript,
   fetchManuscripts,
   replaceManuscriptCitations,
@@ -13,5 +16,14 @@ export {
   setManuscriptAnnotationStatus,
   signoffManuscript,
   stageManuscriptDeposit,
+  submitFormalVerification,
+  updateManuscriptDraft,
+  verifyManuscript,
 } from '@/lib/api';
-export type { ManuscriptDetail, ManuscriptSummary } from '@/lib/api';
+export type {
+  FormalVerificationEntry,
+  ManuscriptDetail,
+  ManuscriptExportBundle,
+  ManuscriptSummary,
+  ManuscriptVerificationReport,
+} from '@/lib/api';

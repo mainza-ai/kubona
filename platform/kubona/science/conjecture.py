@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -251,6 +252,8 @@ def _external_literature_matches(law: str, timeout: float = 5.0) -> dict[str, An
     lookup ran, and any matching work titles/DOIs. A failed/offline lookup is
     ``unavailable``; it never becomes ``novel``.
     """
+    if os.getenv("KUBONA_AIRGAP", "").strip() == "1" or os.getenv("KUBONA_OFFLINE", "").strip() == "1":
+        return {"status": "unavailable", "source": "openalex", "error": "air-gap/offline mode active", "matches": []}
     query = urllib.parse.urlencode({
         "search": f"sequence {law}",
         "per-page": 5,
@@ -331,19 +334,22 @@ def discover_sequence_laws(
         coeffs = _fit_recurrence(train, order)
         if coeffs is None:
             continue
-        def eval_rec(n: int) -> Fraction:
-            if n < len(train):
-                return train[n]
-            total = coeffs[order]
+        # Iterative O(N * order) generation from the initial `order` seed terms
+        # so both training residuals (order..len(train)-1) and holdout terms are
+        # genuinely validated without exponential recursion.
+        generated = list(train[:order])
+        total_needed = len(seq) + 5
+        while len(generated) < total_needed:
+            nxt = coeffs[order]
             for lag, coeff in enumerate(coeffs[:order], start=1):
-                total += coeff * eval_rec(n - lag)
-            return total
-        if any(eval_rec(n) != train[n] for n in range(len(train))):
+                nxt += coeff * generated[-lag]
+            generated.append(nxt)
+        if any(generated[n] != train[n] for n in range(len(train))):
             continue
-        holdout_ok = all(eval_rec(len(train) + i) == value for i, value in enumerate(test))
+        holdout_ok = all(generated[len(train) + i] == value for i, value in enumerate(test))
         if not holdout_ok:
             continue
-        predictions = [_format_fraction(eval_rec(len(seq) + i)) for i in range(5)]
+        predictions = [_format_fraction(generated[len(seq) + i]) for i in range(5)]
         law = f"a(n) = {_format_recurrence(coeffs, order)}"
         novelty_status, known_as, catalog_matches = _novelty(law)
         candidates.append(ConjectureCandidate(

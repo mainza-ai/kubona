@@ -49,14 +49,26 @@ func (s *Server) handleFormalVerification(w http.ResponseWriter, r *http.Request
 		WriteAPIError(w, "method_not_allowed", "formal verification attestations are POST-only", nil)
 		return
 	}
+	if !s.verifyLimiter.allow(clientKey(r)) {
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
+		return
+	}
+	sess, ok := s.authorizeKnownSession(w, r, sessionID)
+	if !ok {
+		return
+	}
+	if sess == nil {
+		WriteAPIError(w, "not_found", "unknown session", nil)
+		return
+	}
 	configured := strings.ToLower(strings.TrimSpace(os.Getenv("KUBONA_COMPARATOR_PUBKEY_HEX")))
 	if configured == "" {
 		WriteAPIError(w, "comparator_unconfigured",
 			"no comparator public key is configured; a kernel proof cannot be attested", nil)
 		return
 	}
-	if _, err := s.sessionMgr.GetSession(sessionID); err != nil {
-		WriteAPIError(w, "not_found", "unknown session", nil)
+	if !s.reviewerKeyConfigured && !ephemeralAllowed() {
+		WriteAPIError(w, "server_misconfigured", "reviewer signing key is required to seal formal verifications in production", nil)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormalVerificationBody)
@@ -102,12 +114,28 @@ func (s *Server) handleFormalVerification(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	sigTrimmed := strings.ToLower(strings.TrimSpace(body.SignatureHex))
+	if prior, perr := s.ledger.GetRecentEvents(sessionID, 500); perr == nil {
+		for _, ev := range prior {
+			if ev.EventType != "formal_verification" {
+				continue
+			}
+			var prev map[string]any
+			if json.Unmarshal([]byte(ev.Payload), &prev) == nil {
+				if ps, _ := prev["comparator_signature_hex"].(string); strings.EqualFold(strings.TrimSpace(ps), sigTrimmed) {
+					WriteAPIError(w, "conflict", "formal verification attestation already recorded (replay refused)", nil)
+					return
+				}
+			}
+		}
+	}
+
 	eventPayload := map[string]any{}
 	for k, v := range body.Payload {
 		eventPayload[k] = v
 	}
 	eventPayload["comparator_pubkey_hex"] = pubHex
-	eventPayload["comparator_signature_hex"] = strings.TrimSpace(body.SignatureHex)
+	eventPayload["comparator_signature_hex"] = sigTrimmed
 	rec, err := s.ledger.AppendSignedEvent(sessionID, "formal_verification", eventPayload, s.signerPrivKey)
 	if err != nil {
 		WriteAPIError(w, "internal", "formal verification event failed: "+err.Error(), nil)
@@ -146,16 +174,25 @@ func validateFormalPayload(payload map[string]any, sessionID string) error {
 	if clean, ok := payload["axioms_clean"].(bool); !ok || !clean {
 		return fmt.Errorf("axioms_clean must be true")
 	}
-	axioms, _ := payload["axioms_used"].([]any)
+	axioms, ok := payload["axioms_used"].([]any)
+	if !ok {
+		return fmt.Errorf("axioms_used must be an array of axiom names")
+	}
 	for _, raw := range axioms {
-		name, _ := raw.(string)
-		if !permittedAxioms[name] {
+		name, ok := raw.(string)
+		if !ok || !permittedAxioms[name] {
 			return fmt.Errorf("axiom %q is outside the permitted whitelist", name)
 		}
 	}
-	theorems, _ := payload["theorem_names"].([]any)
-	if len(theorems) == 0 {
+	theorems, ok := payload["theorem_names"].([]any)
+	if !ok || len(theorems) == 0 {
 		return fmt.Errorf("theorem_names must name at least one checked theorem")
+	}
+	for _, raw := range theorems {
+		name, ok := raw.(string)
+		if !ok || strings.TrimSpace(name) == "" {
+			return fmt.Errorf("theorem_names entries must be non-empty strings")
+		}
 	}
 	return nil
 }

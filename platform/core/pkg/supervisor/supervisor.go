@@ -435,19 +435,22 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	stepCount := loop.StepCount
 	diverged := loop.Diverged
 	updatedAt := loop.UpdatedAt
-	s.mu.Unlock()
-
-	s.ledger.DB().Exec(
+	sessionID := loop.SessionID
+	// Serialize the loops table update under the lock so concurrent steps
+	// cannot regress persisted step_count/status out of order.
+	_, _ = s.ledger.DB().Exec(
 		`UPDATE loops SET status = ?, step_count = ?, diverged = ?, updated_at = ? WHERE id = ?`,
 		status, stepCount, diverged, updatedAt, loopID,
 	)
+	s.mu.Unlock()
+
 	// C10: pending operator steers are consumed at this step boundary.
-	s.applySteers(loopID, loop.SessionID)
+	s.applySteers(loopID, sessionID)
 	partState := "done"
 	if diverged {
 		partState = "failed"
 	}
-	_, _ = s.RecordPart(loop.SessionID, LoopPart{
+	_, _ = s.RecordPart(sessionID, LoopPart{
 		LoopID: loopID, Helper: "lead",
 		Title:   fmt.Sprintf("Optimizer step %d", stepCount),
 		State:   partState,
@@ -456,6 +459,29 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	})
 
 	return status, nil
+}
+
+// PauseSessionLoops pauses every running/rescoped supervisor loop owned by
+// sessionID and returns the number of loops paused.
+func (s *Supervisor) PauseSessionLoops(sessionID string) int {
+	if s == nil || sessionID == "" {
+		return 0
+	}
+	s.mu.RLock()
+	var ids []string
+	for id, loop := range s.loops {
+		if loop != nil && loop.SessionID == sessionID && (loop.Status == LoopRunning || loop.Status == LoopRescoped) {
+			ids = append(ids, id)
+		}
+	}
+	s.mu.RUnlock()
+	paused := 0
+	for _, id := range ids {
+		if err := s.Pause(id); err == nil {
+			paused++
+		}
+	}
+	return paused
 }
 
 // transitionLoop applies a lifecycle transition with the state machine

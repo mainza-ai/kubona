@@ -6,6 +6,62 @@
 
 use std::fmt;
 
+/// Hard upper bounds on register sizes so untrusted QASM cannot trigger OOM.
+pub const MAX_QUBITS: usize = 1024;
+pub const MAX_CLBITS: usize = 4096;
+
+fn parse_angle(raw: &str) -> Result<f64, String> {
+    use std::f64::consts::PI;
+    let s: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+    if s.is_empty() {
+        return Err("bad param".into());
+    }
+    let (neg, body) = if let Some(rest) = s.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = s.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, s.as_str())
+    };
+    let lower = body.to_ascii_lowercase();
+    let val = if lower == "pi" {
+        PI
+    } else if let Some((num, den)) = lower.split_once('/') {
+        let n = parse_angle_factor(num)?;
+        let d = parse_angle_factor(den)?;
+        if d == 0.0 {
+            return Err("bad param: division by zero".into());
+        }
+        n / d
+    } else if lower.contains('*') {
+        parse_angle_factor(&lower)?
+    } else {
+        body.parse::<f64>().map_err(|_| "bad param")?
+    };
+    let signed = if neg { -val } else { val };
+    if signed.is_nan() || signed.is_infinite() {
+        return Err("bad param: NaN or infinite value".into());
+    }
+    Ok(signed)
+}
+
+fn parse_angle_factor(expr: &str) -> Result<f64, String> {
+    use std::f64::consts::PI;
+    let mut acc = 1.0f64;
+    for part in expr.split('*') {
+        if part.is_empty() {
+            return Err("bad param".into());
+        }
+        let v = if part == "pi" {
+            PI
+        } else {
+            part.parse::<f64>().map_err(|_| "bad param")?
+        };
+        acc *= v;
+    }
+    Ok(acc)
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Gate {
     pub name: String,
@@ -95,8 +151,16 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             if qregs.iter().any(|(existing, _, _)| existing == &name) {
                 return Err(format!("duplicate qreg '{name}'"));
             }
+            let next_qubits = num_qubits
+                .checked_add(size)
+                .ok_or("qubit register overflow")?;
+            if next_qubits > MAX_QUBITS {
+                return Err(format!(
+                    "total qubits {next_qubits} exceeds limit {MAX_QUBITS}"
+                ));
+            }
             qregs.push((name, num_qubits, size));
-            num_qubits += size;
+            num_qubits = next_qubits;
             continue;
         }
         if lname == "qubit" || lname.starts_with("qubit[") {
@@ -107,6 +171,9 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                     .trim()
                     .parse()
                     .map_err(|_| "bad qubit register size")?;
+                if size == 0 {
+                    return Err("qubit register size must be positive".into());
+                }
                 (rest[end + 1..].trim().to_string(), size)
             } else {
                 (rest.to_string(), 1)
@@ -117,8 +184,16 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             if qregs.iter().any(|(existing, _, _)| existing == &name) {
                 return Err(format!("duplicate qreg '{name}'"));
             }
+            let next_qubits = num_qubits
+                .checked_add(size)
+                .ok_or("qubit register overflow")?;
+            if next_qubits > MAX_QUBITS {
+                return Err(format!(
+                    "total qubits {next_qubits} exceeds limit {MAX_QUBITS}"
+                ));
+            }
             qregs.push((name, num_qubits, size));
-            num_qubits += size;
+            num_qubits = next_qubits;
             continue;
         }
         if lname == "creg" {
@@ -127,8 +202,16 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             if cregs.iter().any(|(existing, _, _)| existing == &name) {
                 return Err(format!("duplicate creg '{name}'"));
             }
+            let next_clbits = num_clbits
+                .checked_add(size)
+                .ok_or("classical register overflow")?;
+            if next_clbits > MAX_CLBITS {
+                return Err(format!(
+                    "total classical bits {next_clbits} exceeds limit {MAX_CLBITS}"
+                ));
+            }
             cregs.push((name, num_clbits, size));
-            num_clbits += size;
+            num_clbits = next_clbits;
             continue;
         }
         if lname == "bit" || lname.starts_with("bit[") {
@@ -139,6 +222,9 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                     .trim()
                     .parse()
                     .map_err(|_| "bad bit register size")?;
+                if size == 0 {
+                    return Err("bit register size must be positive".into());
+                }
                 (rest[end + 1..].trim().to_string(), size)
             } else {
                 (rest.to_string(), 1)
@@ -149,8 +235,16 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             if cregs.iter().any(|(existing, _, _)| existing == &name) {
                 return Err(format!("duplicate creg '{name}'"));
             }
+            let next_clbits = num_clbits
+                .checked_add(size)
+                .ok_or("classical register overflow")?;
+            if next_clbits > MAX_CLBITS {
+                return Err(format!(
+                    "total classical bits {next_clbits} exceeds limit {MAX_CLBITS}"
+                ));
+            }
             cregs.push((name, num_clbits, size));
-            num_clbits += size;
+            num_clbits = next_clbits;
             continue;
         }
 
@@ -158,7 +252,10 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         let body = statement;
         let open = body.find('(');
         let (name, param_part, q_part) = if let Some(o) = open {
-            let close = body.find(')').ok_or("missing ')'")?;
+            let close = body[o + 1..]
+                .find(')')
+                .map(|rel| o + 1 + rel)
+                .ok_or("missing ')'")?;
             (&body[..o], Some(&body[o + 1..close]), &body[close + 1..])
         } else {
             let sp = body.find(' ').ok_or_else(|| format!("bad gate line {body}"))?;
@@ -168,13 +265,7 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         let params = match param_part {
             Some(p) if !p.trim().is_empty() => p
                 .split(',')
-                .map(|x| {
-                    let v = x.trim().parse::<f64>().map_err(|_| "bad param")?;
-                    if v.is_nan() || v.is_infinite() {
-                        return Err("bad param: NaN or infinite value".into());
-                    }
-                    Ok(v)
-                })
+                .map(parse_angle)
                 .collect::<Result<Vec<_>, String>>()?,
             _ => Vec::new(),
         };
@@ -260,7 +351,7 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             }
         }
         let want_qubits = match name.as_str() {
-            "h" | "x" | "y" | "z" | "s" | "t" | "rx" | "ry" | "rz" | "u1" | "u2" | "u3" | "id" | "reset" => Some(1),
+            "h" | "x" | "y" | "z" | "s" | "sdg" | "t" | "tdg" | "rx" | "ry" | "rz" | "u1" | "u2" | "u3" | "id" | "reset" => Some(1),
             "cx" | "cz" | "swap" | "cnot" => Some(2),
             "ccx" | "toffoli" => Some(3),
             _ => None,
@@ -274,7 +365,7 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             "u1" | "rx" | "ry" | "rz" => Some(1),
             "u2" => Some(2),
             "u3" => Some(3),
-            "h" | "x" | "y" | "z" | "s" | "t" | "cx" | "cz" | "swap" | "cnot" | "id" | "reset" => Some(0),
+            "h" | "x" | "y" | "z" | "s" | "sdg" | "t" | "tdg" | "cx" | "cz" | "swap" | "cnot" | "id" | "reset" => Some(0),
             _ => None,
         };
         if let Some(expected) = want_params {
@@ -347,6 +438,12 @@ pub fn transpile_to_native(c: &Circuit) -> Result<Circuit, String> {
                     ));
                 }
                 gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![g.params[0]], cbit: None });
+            }
+            "sdg" => {
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![-PI / 2.0], cbit: None });
+            }
+            "tdg" => {
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![-PI / 4.0], cbit: None });
             }
             // Toffoli has no BaseProfile QIS intrinsic, so (like u1/u2/u3)
             // it is decomposed here: the parse -> transpile -> emit pipeline
@@ -731,5 +828,31 @@ mod phase1_tests {
         assert!(ok_ccx.gates.len() > 1);
         let ok_plain = transpile_to_native(&mk("h", vec![1], vec![])).unwrap();
         assert_eq!(ok_plain.gates.len(), 1);
+    }
+
+    #[test]
+    fn hardens_malformed_parens_zero_qasm3_and_register_limits() {
+        // Reversed parens must return Err, never slice-panic.
+        assert!(parse("qreg q[1];\nrz)0.5( q[0];").is_err());
+        // Zero-sized QASM3 registers must be refused.
+        assert!(parse("OPENQASM 3.0;\nqubit[0] q;").is_err());
+        assert!(parse("OPENQASM 3.0;\nqubit[1] q;\nbit[0] c;").is_err());
+        // Excessive register size must fail closed before allocation.
+        assert!(parse("qreg q[999999999];").is_err());
+        assert!(parse("OPENQASM 3.0;\nqubit[2048] q;").is_err());
+    }
+
+    #[test]
+    fn supports_pi_angles_and_sdg_tdg_lowering() {
+        let qasm = "OPENQASM 2.0;\nqreg q[1];\nrz(pi/2) q[0];\nrx(-3*pi/4) q[0];\nsdg q[0];\ntdg q[0];";
+        let c = parse(qasm).unwrap();
+        assert_eq!(c.gates.len(), 4);
+        assert!((c.gates[0].params[0] - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+        assert!((c.gates[1].params[0] + 3.0 * std::f64::consts::FRAC_PI_4).abs() < 1e-12);
+        let native = transpile_to_native(&c).unwrap();
+        let ir = emit_llvm_ir(&native).unwrap();
+        assert!(ir.contains("@__quantum__qis__rz__body"));
+        assert!(!ir.contains("sdg"));
+        assert!(!ir.contains("tdg"));
     }
 }

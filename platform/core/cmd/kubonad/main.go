@@ -28,6 +28,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tracing"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 	"google.golang.org/grpc"
@@ -206,9 +207,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sandboxd" {
 		os.Exit(runSandboxd(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version" || os.Args[1] == "-version") {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
 
 	port := flag.Int("port", 8080, "HTTP API gateway port")
-	dbPath := flag.String("db", "", "Path to SQLite WAL ledger (default: ~/.kubona/kubona.db)")
+	dbPath := flag.String("db", "", "Path to SQLite WAL ledger (default: $KUBONA_DB_PATH or ~/.kubona/kubona.db)")
 	bridgeAddr := flag.String("bridge", "localhost:50051", "Python gRPC bridge address")
 	// K6: bind/TLS posture. Default bind is loopback (fail-closed network
 	// posture matching the rest of the edge: bearer 503s, opt-in host
@@ -221,11 +226,20 @@ func main() {
 	tlsRequired := flag.Bool("tls-required", false, "Refuse to serve without TLS material (strict edge posture)")
 	flag.Parse()
 
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "kubonad: unknown subcommand or unexpected argument %q\n", flag.Arg(0))
+		fmt.Fprintf(os.Stderr, "Known subcommands: keygen, grants, eval-llm, verify-calibration, verify, backup, backup-prune, backup-status, vacuum, memory-status, memory-feedback, memory-graph, restore, restore-drill, offhost-drill, fk-audit, fk-repair-plan, fk-quarantine, rates-audit, manuscript-export, preflight, seal-secrets, sandboxd, version\n")
+		os.Exit(2)
+	}
+
 	if err := validateServeConfig(*bindAddr, *tlsCert, *tlsKey, *tlsRequired); err != nil {
 		log.Fatalf("Serve configuration refused: %v", err)
 	}
 
 	resolvedDB := *dbPath
+	if resolvedDB == "" {
+		resolvedDB = strings.TrimSpace(os.Getenv("KUBONA_DB_PATH"))
+	}
 	if resolvedDB == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

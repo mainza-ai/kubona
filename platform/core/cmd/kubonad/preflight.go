@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -50,10 +51,21 @@ func runPreflight(args []string) int {
 	}
 
 	if *checkRate {
+		cloudEnabled := strings.TrimSpace(os.Getenv("KUBONA_LLM_CLOUD")) == "1"
+		paidHW := strings.TrimSpace(os.Getenv("KUBONA_IBM_QISKIT_TOKEN")) != "" ||
+			strings.TrimSpace(os.Getenv("WORLDLABS_API_KEY")) != ""
 		if err := rates.ConfigureFromEnv(context.Background()); err != nil {
-			report("rate card", false, err.Error())
+			if errors.Is(err, rates.ErrStale) && !cloudEnabled && !paidHW {
+				warn("rate card", err.Error()+" (air-gapped/local-only mode: non-blocking)")
+			} else {
+				report("rate card", false, err.Error())
+			}
 		} else if err := rates.Validate(time.Now().UTC()); err != nil {
-			report("rate card", false, err.Error())
+			if errors.Is(err, rates.ErrStale) && !cloudEnabled && !paidHW {
+				warn("rate card", err.Error()+" (air-gapped/local-only mode: non-blocking)")
+			} else {
+				report("rate card", false, err.Error())
+			}
 		} else {
 			report("rate card", true, fmt.Sprintf("source=%s version=%d", rates.Source(), rates.CardSnapshot().Version))
 		}

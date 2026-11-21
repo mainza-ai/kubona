@@ -17,6 +17,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/plans"
+	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
 func planSubpath(id string) (sessionID, rest string, ok bool) {
@@ -76,13 +77,28 @@ func (s *Server) handlePlanRoute(w http.ResponseWriter, r *http.Request, session
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid status: %v", err), nil)
 		return
 	}
-	switch strings.ToLower(strings.TrimSpace(body.Status)) {
+	nextStatus := strings.ToLower(strings.TrimSpace(body.Status))
+	switch nextStatus {
 	case ledger.PlanApproved, ledger.PlanRejected, ledger.PlanProposed:
 	default:
 		WriteAPIError(w, "bad_request", "plan status must be approved, rejected, or proposed", nil)
 		return
 	}
-	if err := s.ledger.SetPlanStatus(sessionID, parts[0], body.Status); err != nil {
+	curPlan, gerr := s.ledger.GetPlan(sessionID, parts[0])
+	if errors.Is(gerr, ledger.ErrPlanNotFound) {
+		WriteAPIError(w, "not_found", "unknown plan", nil)
+		return
+	}
+	if gerr != nil {
+		WriteAPIError(w, "internal", "plan read failed", nil)
+		return
+	}
+	switch curPlan.Status {
+	case ledger.PlanRunning, ledger.PlanCompleted, ledger.PlanFailed:
+		WriteAPIError(w, "conflict", fmt.Sprintf("cannot transition plan from %q to %q", curPlan.Status, nextStatus), nil)
+		return
+	}
+	if err := s.ledger.SetPlanStatus(sessionID, parts[0], nextStatus); err != nil {
 		if errors.Is(err, ledger.ErrPlanNotFound) {
 			WriteAPIError(w, "not_found", "unknown plan", nil)
 			return
@@ -91,12 +107,12 @@ func (s *Server) handlePlanRoute(w http.ResponseWriter, r *http.Request, session
 		return
 	}
 	if err := s.recordManuscriptEvent(sessionID, "plan_status_changed", map[string]any{
-		"plan_id": parts[0], "status": body.Status,
+		"plan_id": parts[0], "status": nextStatus,
 	}); err != nil {
 		WriteAPIError(w, "internal", "plan event failed: "+err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": parts[0], "status": body.Status})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": parts[0], "status": nextStatus})
 }
 
 func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessionID, tenantID string) {
@@ -108,7 +124,7 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		AcceptanceMetric string          `json:"acceptance_metric"`
 		Tolerance        float64         `json:"tolerance"`
 		StopRule         string          `json:"stop_rule"`
-		BudgetUSD        float64         `json:"budget_usd"`
+		BudgetUSD        *float64        `json:"budget_usd"`
 		Executor         string          `json:"executor"`
 		Spec             json.RawMessage `json:"spec"`
 		// AcknowledgePriorNegative is the explicit override when the registry
@@ -126,6 +142,14 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 	if body.Tolerance < 0 {
 		WriteAPIError(w, "bad_request", "tolerance must be >= 0", nil)
 		return
+	}
+	budgetUSD := 1.0
+	if body.BudgetUSD != nil {
+		if *body.BudgetUSD < 0 {
+			WriteAPIError(w, "bad_request", "budget_usd must be >= 0", nil)
+			return
+		}
+		budgetUSD = *body.BudgetUSD
 	}
 	var hypothesis *ledger.Hypothesis
 	if body.HypothesisID != "" {
@@ -225,7 +249,7 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 	// force at that moment.
 	policy, _ := s.loadAutonomyPolicy(sessionID)
 	risk := autonomy.Classify(autonomy.RiskInput{
-		Method: method, Spec: spec, BudgetUSD: body.BudgetUSD,
+		Method: method, Spec: spec, BudgetUSD: budgetUSD,
 		Statement: body.Statement, Target: campaign.TargetSystem,
 		MaxActBudgetUSD: policy.MaxActBudgetUSD,
 	})
@@ -238,7 +262,7 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 		AcceptanceMetric: strings.TrimSpace(body.AcceptanceMetric),
 		Tolerance:        body.Tolerance,
 		StopRule:         strings.TrimSpace(body.StopRule),
-		BudgetUSD:        body.BudgetUSD,
+		BudgetUSD:        budgetUSD,
 		Executor:         strings.TrimSpace(body.Executor),
 		SpecJSON:         string(rawSpec),
 		SpecBasis:        specBasis,
@@ -267,6 +291,9 @@ func (s *Server) handlePlanCreate(w http.ResponseWriter, r *http.Request, sessio
 func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessionID, id string) {
 	if r.Method != http.MethodPost {
 		WriteAPIError(w, "method_not_allowed", "plan execution is POST-only", nil)
+		return
+	}
+	if s.refuseIfDiskBlocked(w) {
 		return
 	}
 	plan, err := s.ledger.GetPlan(sessionID, id)
@@ -320,19 +347,27 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		WriteAPIError(w, "bad_request", "unknown plan method: "+plan.Method, nil)
 		return
 	}
+	claimed, cerr := s.ledger.CASPlanRunning(sessionID, id)
+	if cerr != nil {
+		WriteAPIError(w, "internal", "plan lock failed: "+cerr.Error(), nil)
+		return
+	}
+	if !claimed {
+		WriteAPIError(w, "conflict", "plan is already running or completed", nil)
+		return
+	}
 	job, err := s.jobRunner.SubmitJob(sessionID, jobType, spec)
 	if err != nil {
 		_ = s.ledger.SetPlanResult(sessionID, id, ledger.PlanFailed, "", `{"error":"submission refused"}`)
 		WriteAPIError(w, "bad_request", "plan submission refused: "+err.Error(), nil)
 		return
 	}
-	_ = s.ledger.SetPlanStatus(sessionID, id, ledger.PlanRunning)
 	_ = s.recordManuscriptEvent(sessionID, "plan_started", map[string]any{
 		"plan_id": id, "job_id": job.ID, "method": plan.Method,
 		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
 		"risk": decision.Risk.Level,
 	})
-	final, err := s.waitForJob(sessionID, job.ID, 10*time.Minute)
+	final, err := s.waitForJob(r.Context(), sessionID, job.ID, 10*time.Minute)
 	if err != nil {
 		_ = s.ledger.SetPlanResult(sessionID, id, ledger.PlanFailed, job.ID, `{"error":"timeout"}`)
 		WriteAPIError(w, "timeout", "plan job did not finish: "+err.Error(), nil)
@@ -342,12 +377,18 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 	if len(final.ResultJSON) > 0 {
 		_ = json.Unmarshal(final.ResultJSON, &result)
 	}
-	measured, measuredOK := numberAt(result, plan.Observable)
-	target, targetOK := numberAt(result, plan.AcceptanceMetric)
-	accepted := measuredOK && targetOK && absFloat(measured-target) <= plan.Tolerance
-	status := ledger.PlanRejected
-	if accepted {
-		status = ledger.PlanCompleted
+	var measured, target float64
+	var measuredOK, targetOK, accepted bool
+	status := ledger.PlanFailed
+	if final.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
+		measured, measuredOK = numberAt(result, plan.Observable)
+		target, targetOK = numberAt(result, plan.AcceptanceMetric)
+		accepted = measuredOK && targetOK && absFloat(measured-target) <= plan.Tolerance
+		if accepted {
+			status = ledger.PlanCompleted
+		} else {
+			status = ledger.PlanRejected
+		}
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"job_id": job.ID, "job_status": final.Status.String(),
@@ -366,7 +407,9 @@ func (s *Server) handlePlanExecute(w http.ResponseWriter, r *http.Request, sessi
 		"auto_approved": decision.AutoApprove, "notify": decision.Notify,
 		"risk": decision.Risk.Level,
 	})
-	if status == ledger.PlanRejected || status == ledger.PlanFailed {
+	// Only publish scientific negative results when the job actually completed
+	// and failed its registered hypothesis metric (never infrastructure crashes).
+	if status == ledger.PlanRejected {
 		s.publishPlanNegative(sessionID, plan, status, string(payload))
 	}
 	updated, _ := s.ledger.GetPlan(sessionID, id)

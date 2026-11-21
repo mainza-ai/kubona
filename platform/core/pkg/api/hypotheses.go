@@ -60,6 +60,9 @@ func (s *Server) handleHypothesisRoute(w http.ResponseWriter, r *http.Request, s
 					limit = n
 				}
 			}
+			if limit > 200 {
+				limit = 200
+			}
 			items, err := s.ledger.ListHypotheses(sessionID, limit)
 			if err != nil {
 				WriteAPIError(w, "internal", "hypothesis list failed", nil)
@@ -143,6 +146,9 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 	candidates := hypotheses.Generate(&campaign, refs, body.Count)
 	llmInfo := map[string]any{"requested": body.UseLLM, "used": false}
 	if body.UseLLM {
+		if !s.requireAgentic(w, sessionID) {
+			return
+		}
 		if s.hypothesisCompleter == nil {
 			llmInfo["error"] = "no LLM provider is configured"
 		} else {
@@ -367,6 +373,10 @@ func (s *Server) handleHypothesisCollapse(w http.ResponseWriter, r *http.Request
 		WriteAPIError(w, "bad_request", "a rejected hypothesis cannot be collapsed", nil)
 		return
 	}
+	if h.Status == ledger.HypothesisCollapsed {
+		WriteAPIError(w, "conflict", "hypothesis is already collapsed", nil)
+		return
+	}
 	claimID := strings.TrimSpace(body.ClaimID)
 	planID := strings.TrimSpace(body.PlanID)
 	var evidence map[string]any
@@ -395,6 +405,11 @@ func (s *Server) handleHypothesisCollapse(w http.ResponseWriter, r *http.Request
 		}
 		if err != nil {
 			WriteAPIError(w, "internal", "plan read failed", nil)
+			return
+		}
+		if plan.HypothesisID != "" && plan.HypothesisID != id {
+			WriteAPIError(w, "hypothesis_not_evidenced",
+				fmt.Sprintf("plan %s belongs to hypothesis %s, not %s", planID, plan.HypothesisID, id), nil)
 			return
 		}
 		if plan.Status != ledger.PlanCompleted {

@@ -198,6 +198,7 @@
         "restarts": 8
       },
       "extract": "approximation_ratio",
+      "comparator": "gte",
       "target": 0.85,
       "tolerance": 0.05,
       "budget_usd": 1.0
@@ -216,6 +217,7 @@
         "restarts": 8
       },
       "extract": "approximation_ratio",
+      "comparator": "gte",
       "target": 0.9,
       "tolerance": 0.05,
       "budget_usd": 1.0

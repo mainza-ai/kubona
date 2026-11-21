@@ -160,8 +160,11 @@ def test_go_rail_carries_seccomp_default_on():
     assert hits, "expected the unconfined rejection guard in docker.go"
     for i in hits:
         line = code.splitlines()[i]
-        assert 'SeccompProfile == "unconfined"' in line or "prohibited" in line, \
-            f"unconfined literal outside the rejection guard (line {i + 1}): {line}"
+        assert (
+            'SeccompProfile == "unconfined"' in line
+            or 'strings.EqualFold(prof, "unconfined")' in line
+            or "prohibited" in line
+        ), f"unconfined literal outside the rejection guard (line {i + 1}): {line}"
 
 
 def test_container_path_uses_pinned_image_by_default(monkeypatch):

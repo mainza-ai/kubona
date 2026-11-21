@@ -71,28 +71,31 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 - **Condensed-Matter & Tensor Networks:** Simulate 1D Heisenberg, anisotropic `XXZ` ($\Delta$), and `TFIM` spin chains (`COBYLA` + multi-start `L-BFGS-B`), compute `quimb` `MPS`/`DMRG` finite-size scaling to the thermodynamic limit ($1/N \to 0$), and evolve exact 2D `TFIM` quench dynamics via sparse Krylov `expm_multiply`.
 - **Combinatorial, Subspace & Error-Mitigated Workflows:** Run MaxCut `QAOA` (simulator and hardware loops), Quantum Krylov subspace diagonalization, Zero-Noise Extrapolation (`ZNE`) with measurement readout mitigation, and exact finite-scope mathematical conjecture verification.
 
-### 2. Autonomous Discovery & Epistemic Governance
+### 2. Autonomous Discovery, Research Pipeline & Epistemic Governance
 
 - **Closed-Loop Research Campaigns:** Plan, dispatch, evaluate, and automatically replan multi-step scientific campaigns from natural-language research goals (`then` / `->` / `;` pipelines via `/api/discovery/{plan,run}`).
-- **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) — never claiming quantum advantage by assertion.
-- **Persistent Scientific Memory:** Tenant-scoped associative memory with semantic + lexical recall, automatic pre-turn recall, decay/consolidation, temporal supersession, dedupe, and an operator-exportable temporal graph. Hypotheses, citations, artifacts, and lineage stay linked through the ledger.
+- **Hypotheses, Pre-Registered Plans & Knowledge Registry:** Generate evidence-grounded hypotheses, run Elo tournaments, shortlist candidates, author `$0`-capable pre-registered experimental plans, track causal lineage in a byte-budgeted Research Graph, and gate repeated negative results via the tenant-scoped Lab Knowledge registry.
+- **Session Autonomy & Operator Oversight:** Per-session agentic mode (`agentic_enabled`) with stage autonomy policies (`suggest` / `approve` / `notify` / `act`), operator halt/unlock, policy history & rollback, action receipts with undo, per-tenant agentic defaults, and `/api/ops/science` telemetry.
+- **Machine-Enforced Claim Taxonomy:** Every experimental outcome is graded against its classical reference anchor (`verified`, `supported`, `plausible`, `speculative`, or `refuted`) under the Rayleigh-Ritz variational principle — never claiming quantum advantage from sub-FCI shot noise or by assertion.
+- **Persistent Scientific Memory:** Tenant-scoped associative memory with semantic + lexical recall, automatic pre-turn recall, decay/consolidation, temporal supersession, dedupe, live operator retraction (`POST /api/memory/retract`), and an operator-exportable temporal graph.
 - **Runtime Skills & Recorded Decision Evals:** Operator and seed `SKILL.md` instructions are advertised to the copilot by name/description only and read on demand through a read-only tool, with closed loader faults shown in Settings. Sha-pinned copilot decision fixtures produce Brier/ECE reports, surfaced in the model picker; an opt-in gate can require an evaluated model before a copilot change.
 
-### 3. Cryptographic Provenance & Spend Settlement
+### 3. Cryptographic Provenance, Publication & Spend Settlement
 
-- **Signed, Hash-Chained Receipts:** Every run emits a schema-validated `experiment-result-v1` payload sealed into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger.
+- **Signed, Hash-Chained Receipts:** Every run, peer review, and lifecycle action seals into an Ed25519-signed, SHA-256 hash-chained SQLite WAL ledger with SHA-256-prefixed claim/review IDs and fail-closed `AdminAction` replay protection.
+- **Server-Owned Publication & RO-Crate Export:** Draft manuscripts from stored campaign state, run automated numeric and DOI-first citation verification (`POST /verify`), compile reproducible pdfTeX builds (`-no-shell-escape`), stage Zenodo deposit manifests after operator signoff, and export complete **RO-Crate 1.1 + W3C PROV-JSON + CRediT** bundles (`GET /api/sessions/{id}/manuscripts/{mid}/export`).
 - **Pre-Dispatch Fidelity Gate:** Evaluates hardware `T₁`/`T₂`, two-qubit gate error, and calibration freshness (<24h) before a circuit is admitted to a QPU.
 - **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement for IBM Quantum, with credential-gated Quantinuum dispatch and local/simulator runtimes. IonQ, AWS Braket, Rigetti, and neutral-atom providers are catalogued capability rows that **fail closed** until a reviewed adapter lands.
 - **Machine-Checked Proofs:** 405 pre-registered Lean 4 challenges run inside a pinned, offline sandbox (Lean 4.34.1, comparator v4.34.0, `lean4export`, landrun). Only a kernel-accepted solution is attested as `live_kernel_proven`; signed attestations are verified against the configured comparator key. See [`docs/lean-comparator-runbook-2026-11-18.md`](docs/lean-comparator-runbook-2026-11-18.md).
 
 ### 4. Polyglot Core & MCP-Native Architecture
 
-- **6-Server MCP Surface (38 Tools; `stdio` + Streamable HTTP):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
-- **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), Rust native `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
+- **6-Server MCP Surface (38 Tools; `stdio` + Streamable HTTP):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) exposed both over `stdio` and as a production Streamable-HTTP gateway (`127.0.0.1:8123`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
+- **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), hardened Rust native `qir-core` (OpenQASM 2/3 to QIR LLVM IR lowering with bounded input/register limits and `pi`/`sdg`/`tdg` support) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
 
 ### 5. The Sovereign Observatory Console
 
-- **Real-Time 3D Workbench:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), interactive **Results Studio** charts, and the unified **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`).
+- **Real-Time 3D Workbench & Full Oversight Surfaces:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), **Results Studio** (charts, **Research Pipeline**, and **Publication** workflow with numeric/citation verification and RO-Crate/PROV export), **Autonomy Cockpit** (stage policy, operator halt/rollback, action receipts/undo, science telemetry), **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`), keyless first-run lab bootstrap, restart-orphan loop settlement, and an **Attention Director** presence dial (`Hands` / `Eyes` / `Ear` / `Away`) with ambient laboratory sound **muted by default**.
 
 ### 6. Performance & Memory Engineering
 
@@ -252,6 +255,10 @@ CLI=./platform/core/kubonad
 
 # One-time incremental auto-vacuum migration (takes a verified snapshot first)
 $CLI vacuum --db "$HOME/.kubona/kubona.db"
+
+# Backup, SHA-256 verification, and scratch restore drill
+$CLI backup --db "$HOME/.kubona/kubona.db" --out /tmp/kubona.db.backup
+KUBONAD_BIN="$CLI" scripts/backup-restore-check.sh /tmp/kubona.db.backup
 
 # Memory pressure / pgvector readiness, temporal graph, outcome feedback
 $CLI memory-status --db "$HOME/.kubona/kubona.db" --json

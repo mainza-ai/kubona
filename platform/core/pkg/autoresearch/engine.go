@@ -170,6 +170,18 @@ type LoopEngine struct {
 	// admissionRequestID is the caller's idempotency key, copied onto the
 	// loop row at birth. It is not part of the client-visible loop state.
 	admissionRequestID string
+	// tenantID scopes Hindsight reflection/recall for this loop's session.
+	tenantID string
+}
+
+// SetTenantID binds the loop's owning tenant for scoped memory retention.
+func (e *LoopEngine) SetTenantID(tenantID string) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	e.tenantID = tenantID
+	e.mu.Unlock()
 }
 
 // SetAdmissionRequestID records the caller key that must ride the loop row.
@@ -363,8 +375,11 @@ func RehydrateLoopEngine(
 		e.lastActivity = lastActivity
 	}
 	e.state.Drained = drained
+	e.drained = drained
 	e.state.ReservedAmount = reservedAmount
+	e.spendReservedTotal = reservedAmount
 	e.state.ConsumedAmount = consumedAmount
+	e.spendConsumed = consumedAmount
 	e.admissionRequestID = admissionRequestID
 	return e
 }
@@ -745,7 +760,9 @@ func (e *LoopEngine) TriggerAutonomousReflection(ctx context.Context, memoryStor
 			{Role: "system", Content: "You are the Epistemic Scribe and Scientific Reflection Engine. Analyze experimental stagnation and formulate durable scientific mental models."},
 			{Role: "user", Content: reflectionPrompt},
 		}
-		content, resp, _, err := e.llmClient.Complete(ctx, "critic", msgs)
+		callCtx, cancel := context.WithTimeout(ctx, 180*time.Second)
+		content, resp, _, err := e.llmClient.CompleteCapped(callCtx, "critic", msgs, 1024)
+		cancel()
 		if err == nil && content != "" {
 			if resp != nil {
 				e.recordSpend("critic", resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
@@ -759,7 +776,11 @@ func (e *LoopEngine) TriggerAutonomousReflection(ctx context.Context, memoryStor
 	}
 
 	if memoryStore != nil {
-		memoryStore.Reflect(fmt.Sprintf("[%s Stagnation Diagnosis]: %s", harnessID, reflection))
+		tenantID := e.tenantID
+		if tenantID == "" {
+			tenantID = "default"
+		}
+		memoryStore.RetainScoped(tenantID, tenantID, memory.BankMentalModels, fmt.Sprintf("[%s Stagnation Diagnosis]: %s", harnessID, reflection), 1.0, nil)
 	}
 
 	return reflection, nil

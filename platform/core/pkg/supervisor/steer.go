@@ -38,15 +38,20 @@ func (s *Supervisor) Steer(loopID, text string) (*LoopSteer, error) {
 	}
 	s.mu.RLock()
 	loop, ok := s.loops[loopID]
+	var status, sessionID string
+	if ok {
+		status = loop.Status
+		sessionID = loop.SessionID
+	}
 	s.mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("loop not found: %s", loopID)
 	}
-	if loop.Status != LoopRunning && loop.Status != LoopRescoped {
-		return nil, fmt.Errorf("loop %s is %s: steering applies only to a running run", loopID, loop.Status)
+	if status != LoopRunning && status != LoopRescoped {
+		return nil, fmt.Errorf("loop %s is %s: steering applies only to a running run", loopID, status)
 	}
 	steer := &LoopSteer{
-		ID: uuid.NewString(), LoopID: loopID, SessionID: loop.SessionID,
+		ID: uuid.NewString(), LoopID: loopID, SessionID: sessionID,
 		Text: text, Status: "pending", CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	_, err := s.ledger.DB().Exec(`INSERT INTO loop_steers (id, loop_id, session_id, text, status, created_at)
@@ -143,12 +148,17 @@ func (s *Supervisor) UpdateSteer(loopID, steerID, text string) (*LoopSteer, erro
 	}
 	s.mu.RLock()
 	loop, ok := s.loops[loopID]
+	var status, sessionID string
+	if ok {
+		status = loop.Status
+		sessionID = loop.SessionID
+	}
 	s.mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("loop not found: %s", loopID)
 	}
-	if loop.Status != LoopRunning && loop.Status != LoopRescoped && loop.Status != LoopPaused {
-		return nil, fmt.Errorf("loop %s is %s: only a live or paused run can edit a queued steer", loopID, loop.Status)
+	if status != LoopRunning && status != LoopRescoped && status != LoopPaused {
+		return nil, fmt.Errorf("loop %s is %s: only a live or paused run can edit a queued steer", loopID, status)
 	}
 	res, err := s.ledger.DB().Exec(`UPDATE loop_steers SET text = ? WHERE id = ? AND loop_id = ? AND status = 'pending'`, text, steerID, loopID)
 	if err != nil {
@@ -157,10 +167,10 @@ func (s *Supervisor) UpdateSteer(loopID, steerID, text string) (*LoopSteer, erro
 	if n, _ := res.RowsAffected(); n != 1 {
 		return nil, fmt.Errorf("steer %s is not pending", steerID)
 	}
-	_ = s.ledger.AppendEvent(loop.SessionID, "loop_steer_updated", map[string]any{
+	_ = s.ledger.AppendEvent(sessionID, "loop_steer_updated", map[string]any{
 		"loop_id": loopID, "steer_id": steerID, "text": text,
 	})
-	return &LoopSteer{ID: steerID, LoopID: loopID, SessionID: loop.SessionID, Text: text, Status: "pending"}, nil
+	return &LoopSteer{ID: steerID, LoopID: loopID, SessionID: sessionID, Text: text, Status: "pending"}, nil
 }
 
 // CancelSteer removes a pending instruction before the boundary. Applied
@@ -168,12 +178,17 @@ func (s *Supervisor) UpdateSteer(loopID, steerID, text string) (*LoopSteer, erro
 func (s *Supervisor) CancelSteer(loopID, steerID string) error {
 	s.mu.RLock()
 	loop, ok := s.loops[loopID]
+	var status, sessionID string
+	if ok {
+		status = loop.Status
+		sessionID = loop.SessionID
+	}
 	s.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("loop not found: %s", loopID)
 	}
-	if loop.Status != LoopRunning && loop.Status != LoopRescoped && loop.Status != LoopPaused {
-		return fmt.Errorf("loop %s is %s: only a live or paused run can cancel a queued steer", loopID, loop.Status)
+	if status != LoopRunning && status != LoopRescoped && status != LoopPaused {
+		return fmt.Errorf("loop %s is %s: only a live or paused run can cancel a queued steer", loopID, status)
 	}
 	res, err := s.ledger.DB().Exec(`UPDATE loop_steers SET status = 'cancelled' WHERE id = ? AND loop_id = ? AND status = 'pending'`, steerID, loopID)
 	if err != nil {
@@ -182,7 +197,7 @@ func (s *Supervisor) CancelSteer(loopID, steerID string) error {
 	if n, _ := res.RowsAffected(); n != 1 {
 		return fmt.Errorf("steer %s is not pending", steerID)
 	}
-	_ = s.ledger.AppendEvent(loop.SessionID, "loop_steer_canceled", map[string]any{
+	_ = s.ledger.AppendEvent(sessionID, "loop_steer_canceled", map[string]any{
 		"loop_id": loopID, "steer_id": steerID,
 	})
 	return nil

@@ -13,6 +13,7 @@ import { MetasearchPanel } from '@/components/common/MetasearchPanel';
 import { ObligationsPanel } from '@/components/common/ObligationsPanel';
 import { AgenticDigestPanel } from '@/components/common/AgenticDigestPanel';
 import { ApprovalInbox } from '@/components/common/ApprovalInbox';
+import { OversightGovernancePanel } from '@/components/common/OversightGovernancePanel';
 import { AutoresearchPanel } from '@/components/common/AutoresearchPanel';
 import { WorkflowPanel } from '@/components/common/WorkflowPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
@@ -457,6 +458,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         <MetasearchPanel />
         <AgenticDigestPanel sessionId={session?.id ?? ''} />
         <ApprovalInbox sessionId={session?.id ?? ''} />
+        <OversightGovernancePanel sessionId={session?.id ?? ''} />
         <AutoresearchPanel sessionId={session?.id ?? ''} />
         <WorkflowPanel sessionId={session?.id ?? ''} />
         <ObligationsPanel />

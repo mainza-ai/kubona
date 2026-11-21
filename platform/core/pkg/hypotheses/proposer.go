@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/untrusted"
 )
 
 // Completer is the narrow LLM seam. Production passes an adapter over
@@ -138,7 +139,8 @@ Rules:
 - "experiment_kind" is one of: vqe, spin_chain, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, thermodynamic_limit, conjecture, lattice_dynamics, mitigate, calibration, anchor, literature, scaling.
 - "experiment_hint" is a concrete next run for the same platform.
 - Never assert novelty, citations, or measured values. Only use the facts supplied.
-- Return between 1 and ` + fmt.Sprint(count) + ` items.`
+- Return between 1 and ` + fmt.Sprint(count) + ` items.
+` + untrusted.SystemRule
 
 	user := buildProposalPrompt(opts, count)
 	reply, err := c.Complete(ctx, "copilot", []llm.ChatMessage{
@@ -164,6 +166,7 @@ func buildProposalPrompt(opts ProposeOptions, count int) string {
 	fmt.Fprintf(&b, "- hardware run: %t; claimable: %t\n", opts.Hardware, opts.Claimable)
 	if len(opts.Literature) > 0 {
 		b.WriteString("- retrieved prior art (titles only; do not invent citations):\n")
+		var litBuf strings.Builder
 		for i, ref := range opts.Literature {
 			if i >= 8 {
 				break
@@ -172,8 +175,9 @@ func buildProposalPrompt(opts ProposeOptions, count int) string {
 			if title == "" {
 				title = ref.ID
 			}
-			b.WriteString("  - " + truncate(title, 180) + "\n")
+			litBuf.WriteString("- " + truncate(title, 180) + "\n")
 		}
+		b.WriteString(untrusted.Wrap("literature", litBuf.String()) + "\n")
 	} else {
 		b.WriteString("- no prior art was retrieved; do not assert novelty\n")
 	}
@@ -237,6 +241,21 @@ func parseProposals(reply string, want int) ([]Candidate, error) {
 // the object, and the decoder still has to accept it.
 func extractJSONObject(reply string) (string, error) {
 	s := strings.TrimSpace(reply)
+	// Strip reasoning model <think>...</think> preamble before locating JSON braces.
+	for {
+		low := strings.ToLower(s)
+		openIdx := strings.Index(low, "<think>")
+		if openIdx < 0 {
+			break
+		}
+		closeIdx := strings.Index(low[openIdx:], "</think>")
+		if closeIdx < 0 {
+			s = s[:openIdx]
+			break
+		}
+		s = s[:openIdx] + s[openIdx+closeIdx+len("</think>"):]
+	}
+	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, "```") {
 		if idx := strings.Index(s, "\n"); idx >= 0 {
 			s = s[idx+1:]

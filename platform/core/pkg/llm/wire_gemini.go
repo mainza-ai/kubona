@@ -119,7 +119,7 @@ func buildGeminiPayload(wr wireRequest) ([]byte, error) {
 	if wr.MaxTokens > 0 {
 		genCfg["maxOutputTokens"] = wr.MaxTokens
 	}
-	if effort := strings.ToLower(strings.TrimSpace(wr.ReasoningEffort)); effort != "" {
+	if effort := normalizeReasoningEffort(wr.Provider, wr.Model, wr.ReasoningEffort); effort != "" {
 		budget := anthropicThinkingBudget(effort)
 		if budget > 0 {
 			genCfg["thinkingConfig"] = map[string]any{
@@ -201,7 +201,7 @@ func (c *Client) execGemini(ctx context.Context, wr wireRequest) (*wireResponse,
 		return req, nil
 	}, 2)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 
@@ -279,6 +279,10 @@ func (c *Client) execGemini(ctx context.Context, wr wireRequest) (*wireResponse,
 		tt = parsed.UsageMetadata.TotalTokenCount
 		cachedIn = parsed.UsageMetadata.CachedContentTokenCount
 		reasonTok = parsed.UsageMetadata.ThoughtsTokenCount
+		// Gemini bills thought tokens as output tokens alongside candidatesTokenCount.
+		if reasonTok > 0 && (tt == 0 || tt >= pt+ct+reasonTok) {
+			ct += reasonTok
+		}
 		usageOK = (pt + ct + tt) > 0
 	}
 	model := parsed.ModelVersion
@@ -317,7 +321,7 @@ func (c *Client) streamGemini(ctx context.Context, wr wireRequest, onToken func(
 		return req, nil
 	}, 2)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 
@@ -373,6 +377,9 @@ func (c *Client) streamGemini(ctx context.Context, wr wireRequest, onToken func(
 			tt = env.UsageMetadata.TotalTokenCount
 			cachedIn = env.UsageMetadata.CachedContentTokenCount
 			reasonTok = env.UsageMetadata.ThoughtsTokenCount
+			if reasonTok > 0 && (tt == 0 || tt >= pt+ct+reasonTok) {
+				ct += reasonTok
+			}
 		}
 	}
 	out := &wireResponse{

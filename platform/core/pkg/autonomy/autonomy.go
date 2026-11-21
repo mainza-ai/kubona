@@ -312,7 +312,20 @@ type Decision struct {
 func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
 	mode := policy.ModeFor(StageExecute)
 	risk := Classify(in)
-	approved := planStatus == "approved"
+	if policy.AgenticLocked || !policy.Agentic() {
+		return Decision{
+			Allowed: false, RequiresApproval: true, Risk: risk, Code: "agentic_disabled",
+			Reason: "session agentic mode is disabled or locked: autonomous plan execution is refused",
+		}
+	}
+	status := strings.ToLower(strings.TrimSpace(planStatus))
+	if status != "proposed" && status != "approved" {
+		return Decision{
+			Allowed: false, RequiresApproval: false, Risk: risk, Code: "plan_not_executable",
+			Reason: fmt.Sprintf("plan status %q is not executable (only proposed or approved plans may run)", planStatus),
+		}
+	}
+	approved := status == "approved"
 
 	if mode == ModeSuggest {
 		return Decision{

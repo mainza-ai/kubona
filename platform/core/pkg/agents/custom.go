@@ -345,7 +345,7 @@ func cloudModel(model string) bool {
 	} else {
 		lower := strings.ToLower(model)
 		// Known local patterns return false
-		for _, local := range []string{"local", "omlx", "ollama", "lmstudio", "gguf", "llama.cpp"} {
+		for _, local := range []string{"local", "omlx", "ollama", "lmstudio", "strata", "gguf", "llama.cpp"} {
 			if strings.Contains(lower, local) {
 				return false
 			}

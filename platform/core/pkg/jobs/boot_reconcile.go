@@ -124,8 +124,13 @@ func (r *Runner) ReconcileJobsOnBoot() (BootReconcile, error) {
 		if err != nil {
 			return out, err
 		}
+		// Never re-enqueue Python QuantumBridge-owned jobs onto Go's worker
+		// pool: Python already owns their vendor dispatch/lifecycle.
+		if isQuantumBridgeOwnedJob(job.ParamsJSON) {
+			continue
+		}
 		if _, err := r.ledger.DB().Exec(
-			`UPDATE jobs SET owner_epoch = ? WHERE id = ? AND owner_epoch = 0 AND status = ?`,
+			`UPDATE jobs SET owner_epoch = ? WHERE id = ? AND status = ?`,
 			out.Epoch, id, pb.JobStatus_JOB_STATUS_QUEUED.String()); err != nil {
 			return out, err
 		}
@@ -158,6 +163,19 @@ func (r *Runner) ReconcileJobsOnBoot() (BootReconcile, error) {
 		out.Requeued += len(overflow)
 	}
 	return out, nil
+}
+
+// isQuantumBridgeOwnedJob identifies rows persisted by RecordQuantumBridgeJob
+// whose execution lifecycle belongs to Python's QuantumBridgeService rather
+// than Go's local worker pool.
+func isQuantumBridgeOwnedJob(paramsJSON json.RawMessage) bool {
+	if len(paramsJSON) == 0 {
+		return false
+	}
+	var meta struct {
+		Origin string `json:"origin"`
+	}
+	return json.Unmarshal(paramsJSON, &meta) == nil && meta.Origin == "quantum_bridge_rpc"
 }
 
 // markDispatched pins the moment a vendor-reachable call is about to leave

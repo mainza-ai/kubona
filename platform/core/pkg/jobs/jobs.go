@@ -276,7 +276,6 @@ func (r *Runner) Start() {
 
 func (r *Runner) Stop() {
 	r.cancel()
-	close(r.jobQueue)
 	r.wg.Wait()
 }
 
@@ -428,7 +427,11 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		return nil, err
 	}
 
-	r.jobQueue <- j
+	select {
+	case <-r.ctx.Done():
+		return j, nil
+	case r.jobQueue <- j:
+	}
 	return j, nil
 }
 
@@ -807,11 +810,16 @@ func (r *Runner) settleTerminalFromResult(j *Job, resultJSON string) {
 		return
 	}
 	actual, usageSeconds, hardwareJobID, ok := extractTerminalUsage(resultJSON)
+	effectiveRef := hardwareJobID
+	if effectiveRef == "" {
+		effectiveRef = j.VendorRef
+	}
+	postVendor := effectiveRef != "" || (j.DispatchedAt != nil && jobMayReachVendor(j.JobType, j.ParamsJSON))
 	if j.ReservedAmount <= 0 && !ok {
 		return
 	}
 	if !ok {
-		if hardwareJobID != "" {
+		if postVendor {
 			r.emitSettlementSkipped(j, "result_unreadable")
 			return
 		}
@@ -836,7 +844,7 @@ func (r *Runner) settleTerminalFromResult(j *Job, resultJSON string) {
 		r.releaseReservation(j.ID)
 		return
 	}
-	if hardwareJobID != "" {
+	if postVendor {
 		r.emitSettlementSkipped(j, "actual_usd_missing")
 		return
 	}
@@ -1172,12 +1180,10 @@ func (r *Runner) executeJob(j *Job) {
 		j.ResultJSON = resultData
 	}
 
-	// Experiment jobs reserve a declared envelope even when the runner is a
-	// zero-cost simulator. A normal completion currently has no vendor usage
-	// block; settle it through the same funnel so the reservation is released
-	// (the old path kept the envelope after a successful VQE).
-	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED &&
-		(j.JobType == "vqe_run" || j.JobType == "geometry_optimization" || j.JobType == "vqe_repeats" || j.JobType == "vqe_pes" || j.JobType == "qaoa_run" || j.JobType == "excited_state" || j.JobType == "reaction" || j.JobType == "spin_chain" || j.JobType == "thermodynamic_limit" || j.JobType == "conjecture_run" || j.JobType == "lattice_dynamics" || j.JobType == "hardware_experiment" || j.JobType == "hardware_pes" || j.JobType == "qaoa_hardware" || j.JobType == "spin_chain_hardware") {
+	// Settle any completed job that held a reservation (both host-only
+	// simulator/chemistry/mitigation runs and hardware jobs) so envelopes
+	// never leak across tenant/session ceilings.
+	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED && j.ReservedAmount > 0 {
 		r.settleTerminalFromResult(j, string(j.ResultJSON))
 	}
 	// Attach the receipt before publishing the terminal row: a poller that
@@ -1187,10 +1193,22 @@ func (r *Runner) executeJob(j *Job) {
 	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
 		settledAppended = r.attachResultReceipt(j)
 	}
-	r.ledger.DB().Exec(
-		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
-		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
+	res, uerr := r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+		append([]any{j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID}, liveStatusArgs...)...,
 	)
+	r.mu.Lock()
+	delete(r.aborted, j.ID)
+	r.mu.Unlock()
+	updated := false
+	if uerr == nil && res != nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			updated = true
+		}
+	}
+	if !updated {
+		return
+	}
 	if !settledAppended {
 		r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 	}
@@ -1214,7 +1232,10 @@ func (r *Runner) attachResultReceipt(j *Job) bool {
 		return false
 	}
 	resultHash := sha256.Sum256(j.ResultJSON)
-	rec, err := r.ledger.AppendSignedEvent(j.SessionID, "job_settled", j, r.resultSigner)
+	r.mu.Lock()
+	signer := r.resultSigner
+	r.mu.Unlock()
+	rec, err := r.ledger.AppendSignedEvent(j.SessionID, "job_settled", j, signer)
 	if err != nil || rec == nil {
 		return false
 	}
@@ -1376,10 +1397,19 @@ func (r *Runner) failJobWithNeed(j *Job, reason string, need *Need) {
 	}
 	errRes, _ := json.Marshal(payload)
 	j.ResultJSON = errRes
-	r.ledger.DB().Exec(
-		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
-		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
+	res, uerr := r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+		append([]any{j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID}, liveStatusArgs...)...,
 	)
+	r.mu.Lock()
+	delete(r.aborted, j.ID)
+	r.mu.Unlock()
+	if uerr != nil || res == nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return
+	}
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 	r.settleTerminalFromResult(j, string(j.ResultJSON))
 	if hook := r.getFailureHook(); hook != nil {
@@ -1437,12 +1467,14 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
-		res, _ := r.ledger.DB().Exec(
+		res, execErr := r.ledger.DB().Exec(
 			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
 			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
-		if n, _ := res.RowsAffected(); n > 0 {
-			r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
+		if execErr == nil && res != nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
+			}
 		}
 	}
 	r.ledger.AppendEvent(tenantID, "tenant_jobs_aborted", map[string]any{
@@ -1484,12 +1516,14 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
-		res, _ := r.ledger.DB().Exec(
+		res, execErr := r.ledger.DB().Exec(
 			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
 			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
-		if n, _ := res.RowsAffected(); n > 0 {
-			r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
+		if execErr == nil && res != nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
+			}
 		}
 	}
 	r.ledger.AppendEvent(sessionID, "supervisor_abort", map[string]any{

@@ -279,25 +279,40 @@ func BuildPROVJSON(b Bundle) map[string]any {
 		}
 	}
 	for _, h := range b.Hypotheses {
-		entity["kubona:hypothesis/"+h.ID] = map[string]any{
+		hypID := "kubona:hypothesis/" + h.ID
+		entity[hypID] = map[string]any{
 			"prov:type": "kubona:Hypothesis", "prov:label": h.Statement,
 			"kubona:status": h.Status, "kubona:source": h.Source,
+		}
+		if strings.EqualFold(h.Source, "llm") {
+			wasAttributedTo["kubona:attr/hyp/"+h.ID] = map[string]any{
+				"prov:entity": hypID, "prov:agent": agentLLM,
+			}
 		}
 		if h.ClaimID != "" {
 			wasDerivedFrom["kubona:derived/hyp/"+h.ID] = map[string]any{
 				"prov:generatedEntity": claimID(h.ClaimID),
-				"prov:usedEntity":      "kubona:hypothesis/" + h.ID,
+				"prov:usedEntity":      hypID,
 			}
 		}
 	}
 	for _, p := range b.Plans {
-		entity["kubona:plan/"+p.ID] = map[string]any{
+		planID := "kubona:plan/" + p.ID
+		entity[planID] = map[string]any{
 			"prov:type": "kubona:ExperimentPlan", "prov:label": p.ID,
 			"kubona:status": p.Status,
 		}
+		if p.HypothesisID != "" {
+			if _, ok := entity["kubona:hypothesis/"+p.HypothesisID]; ok {
+				wasDerivedFrom["kubona:derived/plan-hyp/"+p.ID] = map[string]any{
+					"prov:generatedEntity": planID,
+					"prov:usedEntity":      "kubona:hypothesis/" + p.HypothesisID,
+				}
+			}
+		}
 		if p.JobID != "" {
 			wasDerivedFrom["kubona:derived/plan/"+p.ID] = map[string]any{
-				"prov:generatedEntity": jobID(p.JobID), "prov:usedEntity": "kubona:plan/" + p.ID,
+				"prov:generatedEntity": jobID(p.JobID), "prov:usedEntity": planID,
 			}
 		}
 	}
@@ -384,14 +399,25 @@ func ProvOGraph(b Bundle) []map[string]any {
 		})
 	}
 	if b.Verification != nil {
+		verifyActID := "kubona:verify/" + b.ManuscriptID
+		nodes = append(nodes, map[string]any{
+			"@id": verifyActID, "@type": "prov:Activity", "name": "evidence verification",
+			"prov:used":              []map[string]any{{"@id": manuscriptID(b)}},
+			"prov:wasAssociatedWith": []map[string]any{{"@id": agentCore}},
+		})
 		nodes = append(nodes, map[string]any{
 			"@id": verifyID(b), "@type": []string{"prov:Entity", "kubona:VerificationReport"},
 			"kubona:status":       b.Verification.Status,
-			"prov:wasGeneratedBy": []map[string]any{{"@id": "kubona:verify/" + b.ManuscriptID}},
+			"prov:wasGeneratedBy": []map[string]any{{"@id": verifyActID}},
 			"prov:wasDerivedFrom": []map[string]any{{"@id": manuscriptID(b)}},
 		})
 	}
 	if b.Signoff != nil {
+		nodes = append(nodes, map[string]any{
+			"@id": agentOperator, "@type": "prov:Person", "name": "Operator (reviewer key)",
+			"kubona:contributorType": "human-operator",
+			"kubona:creditRole":      []string{RoleSupervision, RoleWritingReview},
+		})
 		nodes = append(nodes, map[string]any{
 			"@id": signActivityID(b), "@type": "prov:Activity", "name": "manuscript signoff",
 			"prov:used":              []map[string]any{{"@id": manuscriptID(b)}},

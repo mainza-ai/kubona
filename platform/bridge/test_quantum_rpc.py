@@ -790,10 +790,14 @@ def test_prod_uds_bridge_allowed(monkeypatch, tmp_path):
     import stat
     monkeypatch.setenv("KUBONA_ENV", "production")
     monkeypatch.delenv("KUBONA_BRIDGE_TOKEN", raising=False)
-    # UDS paths must fit sun_path (<=103 chars): short /tmp name, not tmp_path.
     sock_path = f"/tmp/kubona_prod_{os.getpid()}.sock"
     if os.path.exists(sock_path):
         os.unlink(sock_path)
+    # Production UDS without KUBONA_BRIDGE_TOKEN must fail closed.
+    with pytest.raises(SystemExit):
+        bridge_server.serve(port=0, socket_path=sock_path)
+    monkeypatch.setenv("KUBONA_BRIDGE_TOKEN", "prod-test-token")
+    # UDS paths must fit sun_path (<=103 chars): short /tmp name, not tmp_path.
     server = bridge_server.serve(port=0, socket_path=sock_path)
     try:
         assert os.path.exists(sock_path)

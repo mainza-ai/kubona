@@ -69,25 +69,46 @@ def _shot_std_z(z: float, shots: int) -> float:
     return float(math.sqrt(var))
 
 
-def _folded_counts(qc: Any, scale: float, sim: Any, shots: int) -> Dict[str, int]:
-    # Gate-repetition folding (documents the approximation: repetition, not
-    # true U U^dag U inverse folding — the noise-scale knob, not a unitary
-    # identity). Shared by ZNE and CDR so the two scales cannot rot apart.
-    scale_qc = qc.copy()
-    if scale > 1.0:
-        n_gates = len(qc.data)
-        extra = int(round((scale - 1.0) * n_gates))
-        for i in range(extra):
-            scale_qc.data.append(qc.data[i % n_gates])
-    has_m = any(getattr(inst.operation, "name", "") == "measure" for inst in scale_qc.data)
-    if not has_m:
-        if scale_qc.num_clbits == 0:
-            scale_qc.measure_all()
-        else:
-            n_m = min(scale_qc.num_qubits, scale_qc.num_clbits)
-            for i in range(n_m):
-                scale_qc.measure(i, i)
-    return dict(sim.run(scale_qc, shots=shots).result().get_counts())
+def _folded_counts(qc: Any, scale: float, sim: Any, shots: int, seed: int = 7) -> Dict[str, int]:
+    """True unitary folding U -> U (U^dag U)^k with partial local G G^dag G tail.
+
+    Preserves the ideal unitary action while amplifying gate noise by `scale`.
+    Measurements/barriers are stripped prior to folding and re-applied at the end.
+    """
+    unitary = qc.copy()
+    unitary.remove_final_measurements(inplace=True)
+    # Build clean unitary-only circuit (skip non-unitary ops like barrier/reset/measure).
+    clean_u = QuantumCircuit(unitary.num_qubits)
+    for inst in unitary.data:
+        name = getattr(inst.operation, "name", "")
+        if name in ("measure", "barrier", "reset", "delay"):
+            continue
+        qargs = [unitary.find_bit(q).index for q in inst.qubits]
+        clean_u.append(inst.operation, qargs)
+
+    folded = clean_u.copy()
+    if scale > 1.0 and len(clean_u.data) > 0:
+        # Full global folds: each adds 2x depth (U^dag U).
+        full_folds = int((scale - 1.0) // 2.0)
+        rem_scale = (scale - 1.0) - 2.0 * full_folds
+        if full_folds > 0:
+            inv_u = clean_u.inverse()
+            for _ in range(full_folds):
+                folded.compose(inv_u, inplace=True)
+                folded.compose(clean_u, inplace=True)
+        # Partial tail fold: fold the last k gates as G^dag G (2k extra gates).
+        n_gates = len(clean_u.data)
+        partial_gates = int(round((rem_scale / 2.0) * n_gates))
+        if partial_gates > 0:
+            tail = QuantumCircuit(clean_u.num_qubits)
+            for inst in clean_u.data[-partial_gates:]:
+                qargs = [clean_u.find_bit(q).index for q in inst.qubits]
+                tail.append(inst.operation, qargs)
+            folded.compose(tail.inverse(), inplace=True)
+            folded.compose(tail, inplace=True)
+
+    folded.measure_all()
+    return dict(sim.run(folded, shots=shots, seed_simulator=seed).result().get_counts())
 
 
 def mitigate_circuit(

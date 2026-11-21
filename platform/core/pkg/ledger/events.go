@@ -84,6 +84,7 @@ var KnownEventTypes = map[string]bool{
 	"llm_provider_verified":             true,
 	"llm_settings_updated":              true,
 	"llm_spend_estimated":               true,
+	"loop_aborted":                      true,
 	"loop_completed":                    true,
 	"loop_diverged":                     true,
 	"loop_killed":                       true,

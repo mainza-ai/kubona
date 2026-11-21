@@ -41,7 +41,9 @@ while :; do
     if [ -n "$RECIPIENT" ]; then
       if ! age -r "$RECIPIENT" -o "$base.age" "$base"; then
         rm -f "$base" "$base.age"
+        printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$BACKUP_DIR/.last-failure"
         echo "backup-loop: encryption failed; removed plaintext copy" >&2
+        notify "Kubona backup encryption failed on $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         exit 1
       fi
       sha256sum "$base.age" > "$base.age.sha256"

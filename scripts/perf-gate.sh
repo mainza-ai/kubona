@@ -7,15 +7,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== Go writeJSON benchmark"
-OUT="$(cd platform/core && go test ./pkg/api -run XXX -bench 'BenchmarkWriteJSON/gzip' -benchmem -benchtime 200x 2>&1)"
-echo "$OUT" | grep -E 'BenchmarkWriteJSON'
-NS="$(echo "$OUT" | awk '/gzip/{print $3; exit}')"
-BYTES="$(echo "$OUT" | awk '/gzip/{print $5; exit}')"
-if [[ -n "$NS" && "$NS" -gt 200000 ]]; then
+OUT="$(cd platform/core && go test ./pkg/api -run '^$' -bench 'BenchmarkWriteJSON/gzip' -benchmem -benchtime 200x 2>&1)"
+echo "$OUT" | grep -E 'BenchmarkWriteJSON' || { echo "FAIL: BenchmarkWriteJSON/gzip produced no output" >&2; echo "$OUT" >&2; exit 1; }
+NS="$(echo "$OUT" | awk '/BenchmarkWriteJSON\/gzip/{print $3; exit}')"
+BYTES="$(echo "$OUT" | awk '/BenchmarkWriteJSON\/gzip/{print $5; exit}')"
+if [[ -z "$NS" || -z "$BYTES" ]] || ! awk -v ns="$NS" -v b="$BYTES" 'BEGIN { exit !(ns+0 > 0 && b+0 > 0) }'; then
+  echo "FAIL: could not parse positive benchmark metrics (NS='${NS}', BYTES='${BYTES}')" >&2
+  exit 1
+fi
+if awk -v ns="$NS" 'BEGIN { exit !(ns+0 > 200000) }'; then
   echo "FAIL: gzip writeJSON ${NS} ns/op > 200000" >&2
   exit 1
 fi
-if [[ -n "$BYTES" && "$BYTES" -gt 100000 ]]; then
+if awk -v b="$BYTES" 'BEGIN { exit !(b+0 > 100000) }'; then
   echo "FAIL: gzip writeJSON ${BYTES} B/op > 100000" >&2
   exit 1
 fi

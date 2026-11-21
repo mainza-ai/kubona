@@ -158,12 +158,25 @@ class AnnealingProvider(Provider):
 
     def _solve_via_dimod(self, Q: np.ndarray, n: int, n_samples: int,
                          seed: int | None, asymmetric: bool) -> dict[str, Any]:
-        """Real simulated annealing via dimod (seeded, labeled)."""
-        import dimod
+        """Real simulated annealing via dwave.samplers / neal / dimod (seeded, labeled)."""
+        sampler_cls = None
+        for mod_name in ("dwave.samplers", "neal", "dimod"):
+            try:
+                mod = __import__(mod_name, fromlist=["SimulatedAnnealingSampler"])
+                sampler_cls = getattr(mod, "SimulatedAnnealingSampler", None)
+                if sampler_cls is not None:
+                    break
+            except ImportError:
+                continue
+        if sampler_cls is None:
+            raise ProviderError(
+                "SimulatedAnnealingSampler unavailable: install dwave-samplers "
+                "(dimod>=0.12 moved SimulatedAnnealingSampler to dwave.samplers)"
+            )
 
         qubo = {(i, j): float(Q[i, j]) for i in range(n) for j in range(n)
                 if Q[i, j] != 0.0}
-        sampler = dimod.SimulatedAnnealingSampler()
+        sampler = sampler_cls()
         try:
             sampleset = sampler.sample_qubo(qubo, num_reads=n_samples, seed=seed)
         except TypeError:

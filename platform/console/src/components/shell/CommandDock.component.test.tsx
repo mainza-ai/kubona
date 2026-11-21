@@ -62,6 +62,8 @@ function installFetch(options: { settings?: () => LlmSettings } = {}) {
         return json({ snippets: [], tenant: 'default' });
       case '/api/memory/retain':
         return json({ id: 'mem-1234567890abcd', bank: 'experiences', importance: 0.5 });
+      case '/api/memory/retract':
+        return json({ ok: true, id: 'mem-1234567890abcd', retracted: true });
       default:
         throw new Error(`unexpected fetch ${method} ${path}`);
     }
@@ -263,8 +265,8 @@ describe('CommandDock in a real browser', () => {
     await expect.poll(() => onOpenInspector.mock.calls.length).toBe(1);
   });
 
-  it('tracks Remembered counter in CommandDock and fails closed on append-only MemoryPanel undo unless onRetract is supplied', async () => {
-    installFetch();
+  it('tracks Remembered counter in CommandDock and wires live memory retraction by default', async () => {
+    const calls = installFetch();
     const screen = await render(<CommandDock onSubmit={vi.fn()} sessionId="s1" />);
 
     const memToggle = () => screen.getByRole('button', { name: 'Session memory', exact: true });
@@ -280,16 +282,25 @@ describe('CommandDock in a real browser', () => {
     await expect.poll(() => memToggle().element().textContent).toContain('Remembered (1)');
     const receipt = screen.container.querySelector('[data-testid="remembered-receipt"]');
     expect(receipt).not.toBeNull();
-    const appendOnlyUndo = receipt!.querySelector('button') as HTMLButtonElement;
-    expect(appendOnlyUndo.disabled).toBe(true);
-    expect(appendOnlyUndo.textContent).toContain('Undo (ledger append-only)');
+    const liveUndo = receipt!.querySelector('button') as HTMLButtonElement;
+    expect(liveUndo.disabled).toBe(false);
+    expect(liveUndo.textContent).toContain('Undo');
     const restore = screen.container.querySelector(
       '[title="Restore last retained text into the draft field to supersede or revise"]',
     );
     expect(restore!.textContent).toContain('Restore draft');
 
-    // When onRetract IS supplied, Undo invokes real retraction. The dock is
-    // unmounted first so exactly one memory panel exists in the document.
+    await userEvent.click(liveUndo);
+    await expect.poll(() => calls.some((c) => c.method === 'POST' && c.path === '/api/memory/retract')).toBe(true);
+    const retractCall = calls.find((c) => c.method === 'POST' && c.path === '/api/memory/retract')!;
+    expect(JSON.parse(String(retractCall.body))).toEqual({
+      session_id: 's1',
+      memory_id: 'mem-1234567890abcd',
+      reason: 'retracted from console',
+    });
+    await expect.poll(() => liveUndo.textContent).toContain('Undone');
+
+    // A custom onRetract prop overrides the default transport when supplied.
     await screen.unmount();
     const onRetract = vi.fn(async () => ({ ok: true }));
     const panel = await render(<MemoryPanel sessionId="s1" defaultOpen onRetract={onRetract} />);

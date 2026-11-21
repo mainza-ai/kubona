@@ -92,7 +92,7 @@ func (l *Ledger) PublishKnowledge(e *KnowledgeEntry) (*KnowledgeEntry, error) {
 		return nil, fmt.Errorf("knowledge entry needs tenant, session, kind, and statement")
 	}
 	if e.ID == "" {
-		e.ID = fmt.Sprintf("kn_%s", fingerprintID(e.Statement))
+		e.ID = fmt.Sprintf("kn_%s", fingerprintID(e.TenantID+"\x00"+e.Kind+"\x00"+e.Statement))
 	}
 	fp := knowledge.Fingerprint(e.Statement)
 	now := nowUTC()

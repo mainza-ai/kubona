@@ -9,10 +9,14 @@ for f in /contracts/*; do
   base="$(basename "$f")"
   case "$base" in
     fidelity-devices.json|rate-cards.json)
-      [ -e "$STATE/contracts/$base" ] || cp "$f" "$STATE/contracts/"
+      # Refresh when missing or when an image upgrade ships a newer contract,
+      # unless the operator explicitly pinned the state copy.
+      if [ ! -e "$STATE/contracts/$base" ] || { [ "${KUBONA_KEEP_STATE_CONTRACTS:-0}" != "1" ] && [ "$f" -nt "$STATE/contracts/$base" ]; }; then
+        cp -p "$f" "$STATE/contracts/$base"
+      fi
       ;;
     *)
-      cp "$f" "$STATE/contracts/"
+      cp -p "$f" "$STATE/contracts/$base"
       ;;
   esac
 done

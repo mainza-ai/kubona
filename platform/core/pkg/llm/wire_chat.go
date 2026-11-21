@@ -135,7 +135,7 @@ func (c *Client) execChatCompletions(ctx context.Context, wr wireRequest) (*wire
 		return req, nil
 	}, 2)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 
@@ -233,10 +233,14 @@ func (c *Client) execChatCompletions(ctx context.Context, wr wireRequest) (*wire
 
 func (c *Client) streamChatCompletions(ctx context.Context, wr wireRequest, onToken func(string)) (*wireResponse, error) {
 	body := map[string]any{
-		"model":          wr.Model,
-		"messages":       toOpenAIMessages(wr.Messages),
-		"stream":         true,
-		"stream_options": map[string]any{"include_usage": true},
+		"model":    wr.Model,
+		"messages": toOpenAIMessages(wr.Messages),
+		"stream":   true,
+	}
+	// Many local OpenAI-compatible servers (older llama.cpp / vLLM / Strata builds)
+	// reject stream_options with 400; send include_usage only for non-local providers.
+	if !c.isProviderLocal(wr.Provider) {
+		body["stream_options"] = map[string]any{"include_usage": true}
 	}
 	if wr.Temperature != nil {
 		body["temperature"] = *wr.Temperature
@@ -265,7 +269,7 @@ func (c *Client) streamChatCompletions(ctx context.Context, wr wireRequest, onTo
 		return req, nil
 	}, 2)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 
@@ -505,7 +509,7 @@ func (c *Client) execOllamaChat(ctx context.Context, wr wireRequest) (*wireRespo
 		return req, nil
 	}, 1)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 
@@ -579,7 +583,7 @@ func (c *Client) streamOllamaChat(ctx context.Context, wr wireRequest, onToken f
 		return req, nil
 	}, 1)
 	if err != nil {
-		return nil, &WireError{Fault: FaultUnreachable, Endpoint: endpoint, Message: err.Error(), Retryable: true}
+		return nil, wrapTransportError(ctx, endpoint, err)
 	}
 	defer resp.Body.Close()
 

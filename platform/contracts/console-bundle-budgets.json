@@ -3,8 +3,8 @@
   "note": "D7 per-route first-load budgets measured from the real Next build (`next build` \u2192 client reference manifest + build manifest). The recorded size is the measured baseline; the allowance is the growth permitted over it before the build fails (ordinary work must not need a new baseline, a new dependency must). Forbidden libraries must stay lazy. Large lazy chunks are recorded by a stable content marker plus a reason, because hashed filenames change every build. Run `node scripts/console-bundle-budgets.mjs` after `next build`.",
   "routes": {
     "/": {
-      "recorded_raw_kb": 1133.4,
-      "recorded_gzip_kb": 336.2,
+      "recorded_raw_kb": 1171.3,
+      "recorded_gzip_kb": 342.6,
       "allowance_raw_kb": 40,
       "allowance_gzip_kb": 24,
       "max_single_chunk_kb": 300,

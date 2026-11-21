@@ -44,6 +44,9 @@ export function useCampaignProjection(sessionId: string | null) {
       setFailure(result.failure);
       return current.current;
     }
+    if (result.data && result.data.session_id && result.data.session_id !== sessionId) {
+      return current.current;
+    }
     setFailure(null);
     apply(result.data);
     return result.data;
@@ -53,6 +56,8 @@ export function useCampaignProjection(sessionId: string | null) {
 
   useEffect(() => {
     let cancelled = false;
+    newestAt.current = 0;
+    current.current = null;
     void Promise.resolve().then(() => {
       if (cancelled) return;
       if (!sessionId) {
@@ -60,6 +65,7 @@ export function useCampaignProjection(sessionId: string | null) {
         setFailure(null);
         return;
       }
+      setCampaign(null);
       void reload();
     });
     return () => {

@@ -63,6 +63,9 @@ func (s *Server) handleLabKnowledgeRoute(w http.ResponseWriter, r *http.Request,
 				limit = n
 			}
 		}
+		if limit > 200 {
+			limit = 200
+		}
 		entries, err := s.ledger.ListKnowledge(tenant,
 			strings.TrimSpace(r.URL.Query().Get("kind")),
 			strings.TrimSpace(r.URL.Query().Get("q")), limit)

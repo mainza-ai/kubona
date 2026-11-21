@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { fetchMemoryRecall, retainMemory, type MemorySnippet } from '@/domain/memory';
+import { fetchMemoryRecall, retainMemory, retractMemory, type MemorySnippet } from '@/domain/memory';
 import { Field, Select } from '@/components/ui/Forms';
 import { Tip } from './common/Tip';
 
@@ -44,6 +44,8 @@ export function MemoryPanel({
   const [retractingId, setRetractingId] = useState<string | null>(null);
 
   if (!sessionId) return null;
+
+  const effectiveRetract = onRetract ?? ((id: string) => retractMemory(sessionId, id));
 
   const runRecall = async () => {
     setLoading(true);
@@ -97,10 +99,10 @@ export function MemoryPanel({
   };
 
   const runUndoReceipt = async (receipt: RetainedNoteReceipt) => {
-    if (!onRetract || !receipt.id || receipt.retracted || retractingId) return;
+    if (!effectiveRetract || !receipt.id || receipt.retracted || retractingId) return;
     setRetractingId(receipt.id);
     try {
-      const out = await onRetract(receipt.id);
+      const out = await effectiveRetract(receipt.id);
       if (out.ok) {
         setRetainedReceipts((prev) => prev.map((item) => (item.id === receipt.id ? { ...item, retracted: true } : item)));
         setStatus(`Retracted ${receipt.id.slice(0, 13)}… and restored draft.`);
@@ -250,19 +252,17 @@ export function MemoryPanel({
                   </div>
                   <button
                     type="button"
-                    disabled={!onRetract || r.retracted || retractingId === r.id}
-                    aria-disabled={!onRetract || r.retracted ? 'true' : undefined}
+                    disabled={r.retracted || retractingId === r.id}
+                    aria-disabled={r.retracted ? 'true' : undefined}
                     title={
                       r.retracted
                         ? 'Already retracted'
-                        : onRetract
-                          ? 'Retract this retained memory entry'
-                          : 'Append-only ledger: server delete/retract endpoint is not exposed'
+                        : 'Retract this retained memory entry (tombstoned in ledger)'
                     }
                     onClick={() => void runUndoReceipt(r)}
                     className="shrink-0 rounded-control-compact border border-border-strong bg-control px-2 py-1 text-[11px] text-label-secondary hover:bg-control-hover disabled:opacity-45"
                   >
-                    {r.retracted ? 'Undone' : onRetract ? (retractingId === r.id ? 'Undoing…' : 'Undo') : 'Undo (ledger append-only)'}
+                    {r.retracted ? 'Undone' : retractingId === r.id ? 'Undoing…' : 'Undo'}
                   </button>
                 </li>
               ))}

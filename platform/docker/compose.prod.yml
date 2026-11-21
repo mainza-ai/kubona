@@ -317,6 +317,8 @@ services:
       KUBONA_BACKUP_REQUIRE_ENCRYPTION: ${KUBONA_BACKUP_REQUIRE_ENCRYPTION:-0}
       KUBONA_BACKUP_PLAINTEXT_ACK: ${KUBONA_BACKUP_PLAINTEXT_ACK:-0}
       KUBONA_BACKUP_MAX_AGE: ${KUBONA_BACKUP_MAX_AGE:-26h}
+      KUBONA_BACKUP_RETRY_SECONDS: ${KUBONA_BACKUP_RETRY_SECONDS:-300}
+      KUBONA_ALERT_WEBHOOK_URL: ${KUBONA_ALERT_WEBHOOK_URL:-}
     volumes:
       - kubona-state:/home/kubona/.kubona
       - kubona-backups:/backups
@@ -348,19 +350,36 @@ services:
       dockerfile: docker/Dockerfile.bridge
     <<: *default-hardening
     working_dir: /app
-    entrypoint: ["/app/.venv/bin/python", "-m", "kubona.run", "serve-gateway"]
+    command: ["/app/.venv/bin/python", "-m", "kubona.run", "serve-gateway"]
     environment:
       KUBONA_ENV: "production"
+      KUBONA_GATEWAY_HOST: "0.0.0.0"
       KUBONA_GATEWAY_PORT: "8123"
+      KUBONA_API_URL: "http://kubonad:8080"
+      KUBONA_API_TOKEN: "${KUBONA_API_TOKEN:?KUBONA_API_TOKEN must be set}"
+      KUBONA_OPERATOR_PRIVKEY_HEX: "${KUBONA_OPERATOR_PRIVKEY_HEX:-}"
+      KUBONA_IBM_QISKIT_TOKEN: "${KUBONA_IBM_QISKIT_TOKEN:-}"
+      KUBONA_IBM_QISKIT_INSTANCE: "${KUBONA_IBM_QISKIT_INSTANCE:-}"
       KUBONA_STATE_DIR: /home/kubona/.kubona
       KUBONA_EVENT_TYPES: /app/contracts/event-types.json
       KUBONA_ERROR_CATALOG: /app/contracts/error-catalog.csv
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - kubona-state:/home/kubona/.kubona
     tmpfs:
       - /tmp
     ports:
       - "127.0.0.1:8123:8123"
+    depends_on:
+      kubonad:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8123/health', timeout=2); assert r.status == 200"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
     restart: unless-stopped
     deploy:
       resources:

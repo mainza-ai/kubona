@@ -1031,13 +1031,20 @@ func (l *Ledger) getLatestEntryHashLocked(sessionID string) string {
 		query = `SELECT entry_hash FROM ledger_events WHERE session_id = ? AND entry_hash != '' ORDER BY id DESC LIMIT 1`
 		row = l.db.QueryRow(query, sessionID)
 	} else {
-		query = `SELECT entry_hash FROM ledger_events WHERE entry_hash != '' ORDER BY id DESC LIMIT 1`
+		query = `SELECT entry_hash FROM ledger_events WHERE session_id = '' AND entry_hash != '' ORDER BY id DESC LIMIT 1`
 		row = l.db.QueryRow(query)
 	}
 	if err := row.Scan(&hash); err != nil || hash == "" {
 		return "0000000000000000000000000000000000000000000000000000000000000000"
 	}
 	return hash
+}
+
+// ResolveSessionTenant returns the owning tenant ID for a session (or "default").
+func (l *Ledger) ResolveSessionTenant(sessionID string) string {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	return l.resolveTenantLocked(sessionID)
 }
 
 // resolveTenantLocked maps a session to its owning lab tenant. Unknown or
@@ -1895,11 +1902,8 @@ func (l *Ledger) mintClaimRecord(sessionID, turnKind, statement string, alpha, b
 		return nil, err
 	}
 	seq++
-	short := sessionID
-	if len(short) > 8 {
-		short = short[:8]
-	}
-	id := fmt.Sprintf("clm-%s-%04d", short, seq)
+	sum := sha256.Sum256([]byte(sessionID))
+	id := fmt.Sprintf("clm-%s-%04d", hex.EncodeToString(sum[:4]), seq)
 	now := time.Now().UTC().Format(time.RFC3339)
 	if _, err := l.db.Exec(
 		`INSERT INTO claim_records (id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at, request_id)
@@ -1926,9 +1930,15 @@ type ClaimReview struct {
 }
 
 // MintClaimReview records a review decision and appends the corresponding
-// peer_review event. Decisions are a closed vocabulary. The claim must exist
-// in the same session (unknown/foreign claims refuse).
+// peer_review event. Prefer MintClaimReviewSigned in served paths so the
+// commit-class peer_review event carries an Ed25519 signature for VerifyChain.
 func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer, evidenceJSON string) (*ClaimReview, error) {
+	return l.MintClaimReviewSigned(sessionID, claimID, decision, reason, reviewer, evidenceJSON, nil)
+}
+
+// MintClaimReviewSigned records a review decision and seals the commit-class
+// peer_review event with privKey when provided.
+func (l *Ledger) MintClaimReviewSigned(sessionID, claimID, decision, reason, reviewer, evidenceJSON string, privKey ed25519.PrivateKey) (*ClaimReview, error) {
 	decision = strings.ToLower(strings.TrimSpace(decision))
 	switch decision {
 	case "accepted", "contested", "reopened":
@@ -1971,11 +1981,8 @@ func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer,
 		return nil, err
 	}
 	seq++
-	short := sessionID
-	if len(short) > 8 {
-		short = short[:8]
-	}
-	id := fmt.Sprintf("rev-%s-%04d", short, seq)
+	sum := sha256.Sum256([]byte(sessionID))
+	id := fmt.Sprintf("rev-%s-%04d", hex.EncodeToString(sum[:4]), seq)
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := l.db.Exec(`INSERT INTO claim_reviews (id, session_id, claim_id, decision, reason, reviewer, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, sessionID, claimID, decision, reason, reviewer, evidenceJSON, now)
@@ -1984,10 +1991,15 @@ func (l *Ledger) MintClaimReview(sessionID, claimID, decision, reason, reviewer,
 		return nil, err
 	}
 	rec := &ClaimReview{ID: id, SessionID: sessionID, ClaimID: claimID, Decision: decision, Reason: reason, Reviewer: reviewer, Evidence: evidenceJSON, CreatedAt: now}
-	_, _ = l.AppendEventWithSpool(sessionID, "peer_review", map[string]any{
+	payload := map[string]any{
 		"review_id": id, "claim_id": claimID, "decision": decision,
 		"reason": reason, "reviewer": reviewer,
-	})
+	}
+	if len(privKey) == ed25519.PrivateKeySize {
+		_, _ = l.AppendSignedEvent(sessionID, "peer_review", payload, privKey)
+	} else {
+		_, _ = l.AppendEventWithSpool(sessionID, "peer_review", payload)
+	}
 	return rec, nil
 }
 

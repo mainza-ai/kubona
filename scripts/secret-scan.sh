@@ -27,7 +27,7 @@ if [ -n "$tracked_env" ]; then
   fail=1
 fi
 
-hits=$(git grep -n -iE 'oc_sk_[A-Za-z0-9]+|ghp_[A-Za-z0-9]+|gho_[A-Za-z0-9]+|sk-ant-[A-Za-z0-9-]+|AKIA[0-9A-Z]{10,}|xox[bap]-[A-Za-z0-9-]+|-----BEGIN .*PRIV''ATE KEY-----' -- . 2>/dev/null || true)
+hits=$(git grep -n -iE 'oc_sk_[A-Za-z0-9]+|ghp_[A-Za-z0-9]+|gho_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|sk-ant-[A-Za-z0-9-]+|sk-proj-[A-Za-z0-9_-]+|nvapi-[A-Za-z0-9_-]+|AGE-SECRET-KEY-1[A-Z0-9]+|AKIA[0-9A-Z]{10,}|xox[bap]-[A-Za-z0-9-]+|-----BEGIN .*PRIV''ATE KEY-----' -- . 2>/dev/null || true)
 # NOTE: pattern lists must not contain self-matching literals. Prefix
 # classes (trailing [A-Za-z0-9]+) are safe; complete historical values
 # match their own listing. The PRIV fragment above is split as PRIV''ATE

@@ -149,6 +149,7 @@ func (s *Server) handleAutonomyHalt(w http.ResponseWriter, r *http.Request, sess
 	disabled := false
 	halted := autonomy.Policy{
 		Stages:          map[autonomy.Stage]autonomy.Mode{},
+		ToolPermissions: policy.ToolPermissions,
 		MaxActBudgetUSD: policy.MaxActBudgetUSD,
 		AgenticEnabled:  &disabled,
 		AgenticLocked:   true,
@@ -174,6 +175,8 @@ func (s *Server) handleAutonomyHalt(w http.ResponseWriter, r *http.Request, sess
 	}
 	if err := s.recordManuscriptEvent(sessionID, "autonomy_halted", map[string]any{
 		"cancelled_jobs": cancelled, "paused_loops": paused,
+		"stages":             halted.Stages,
+		"tool_permissions":   halted.ToolPermissions,
 		"max_act_budget_usd": halted.MaxActBudgetUSD,
 		"agentic_enabled":    false, "agentic_locked": true,
 	}); err != nil {
@@ -265,6 +268,7 @@ func (s *Server) handleAutonomyRollback(w http.ResponseWriter, r *http.Request, 
 	}
 	var captured struct {
 		Stages          map[string]string `json:"stages"`
+		ToolPermissions map[string]string `json:"tool_permissions"`
 		MaxActBudgetUSD float64           `json:"max_act_budget_usd"`
 		AgenticEnabled  *bool             `json:"agentic_enabled"`
 		AgenticLocked   bool              `json:"agentic_locked"`
@@ -277,8 +281,12 @@ func (s *Server) handleAutonomyRollback(w http.ResponseWriter, r *http.Request, 
 	for stage, mode := range captured.Stages {
 		stages[autonomy.Stage(stage)] = autonomy.Mode(mode)
 	}
+	toolPerms := map[string]string{}
+	for toolName, perm := range captured.ToolPermissions {
+		toolPerms[toolName] = perm
+	}
 	restored, err := autonomy.Normalize(autonomy.Policy{
-		Stages: stages, MaxActBudgetUSD: captured.MaxActBudgetUSD,
+		Stages: stages, ToolPermissions: toolPerms, MaxActBudgetUSD: captured.MaxActBudgetUSD,
 		AgenticEnabled: captured.AgenticEnabled, AgenticLocked: captured.AgenticLocked,
 	})
 	if err != nil {

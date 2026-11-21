@@ -41,7 +41,16 @@ func experimentExportKind(jobType string) bool {
 // envelope signs the canonical JSON payload (campaign + selected jobs and
 // their receipts); it never rewrites or re-signs the underlying results.
 func (s *Server) handleExperimentExport(w http.ResponseWriter, r *http.Request, sessionID string) {
-	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "experiment export is GET-only", nil)
+		return
+	}
+	sess, ok := s.authorizeKnownSession(w, r, sessionID)
+	if !ok {
+		return
+	}
+	if sess == nil {
+		WriteAPIError(w, "not_found", "unknown session", nil)
 		return
 	}
 	rawState, err := s.ledger.GetCampaignState(sessionID)
@@ -101,7 +110,7 @@ func (s *Server) handleExperimentExport(w http.ResponseWriter, r *http.Request, 
 		"signer_pubkey":  "",
 		"note":           "no signing key configured; payload SHA-256 is still recorded",
 	}
-	if len(s.signerPrivKey) == ed25519.PrivateKeySize {
+	if len(s.signerPrivKey) == ed25519.PrivateKeySize && (s.reviewerKeyConfigured || ephemeralAllowed()) {
 		sig := ed25519.Sign(s.signerPrivKey, payloadBytes)
 		envelope["signed"] = true
 		envelope["signature"] = hex.EncodeToString(sig)

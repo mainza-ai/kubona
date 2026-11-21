@@ -24,11 +24,44 @@ import (
 // incident: nine 100%-CPU workload.py containers from killed test
 // clients); only `docker stop <name>` does.
 const (
-	sandboxNamePrefix = "kubona-sandbox-"
-	sandboxManagedKey = "kubona.managed"
-	sandboxManagedVal = "sandbox"
-	sandboxRunIDKey   = "kubona.run-id"
+	sandboxNamePrefix    = "kubona-sandbox-"
+	sandboxManagedKey    = "kubona.managed"
+	sandboxManagedVal    = "sandbox"
+	sandboxRunIDKey      = "kubona.run-id"
+	maxSandboxOutputSize = 4 << 20 // 4 MiB cap per stream prevents container stdout OOM
 )
+
+type limitedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func (l *limitedBuffer) Write(p []byte) (int, error) {
+	origLen := len(p)
+	if l.limit <= 0 {
+		l.limit = maxSandboxOutputSize
+	}
+	remain := l.limit - l.buf.Len()
+	if remain > 0 {
+		if len(p) > remain {
+			_, _ = l.buf.Write(p[:remain])
+			l.truncated = true
+		} else {
+			_, _ = l.buf.Write(p)
+		}
+	} else {
+		l.truncated = true
+	}
+	return origLen, nil
+}
+
+func (l *limitedBuffer) String() string {
+	if l.truncated {
+		return l.buf.String() + "\n[output truncated at 4 MiB cap]"
+	}
+	return l.buf.String()
+}
 
 // defaultSeccompProfile is the shipped Phase-2 seccomp profile, embedded so
 // the kubonad binary carries it wherever it runs.
@@ -277,6 +310,9 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 	if err := os.MkdirAll(workspaceDir, 0777); err != nil {
 		return nil, err
 	}
+	// os.MkdirAll is masked by the host umask (typically 0022 -> 0755), which
+	// prevents UID 1000 inside the container from writing /workspace.
+	_ = os.Chmod(workspaceDir, 0777)
 
 	evalPath := filepath.Join(benchmarkDir, "eval.py")
 	if err := os.WriteFile(evalPath, []byte(benchmarkScript), 0644); err != nil {
@@ -326,9 +362,10 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		cmd.Cancel = func() error {
 			return killProcessGroup(cmd)
 		}
-		var stdoutBuf, stderrBuf bytes.Buffer
-		cmd.Stdout = &stdoutBuf
-		cmd.Stderr = &stderrBuf
+		stdoutBuf := &limitedBuffer{limit: maxSandboxOutputSize}
+		stderrBuf := &limitedBuffer{limit: maxSandboxOutputSize}
+		cmd.Stdout = stdoutBuf
+		cmd.Stderr = stderrBuf
 
 		runErr := cmd.Run()
 		duration := time.Since(startTime)
@@ -464,11 +501,12 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 // scratch dir. Any failure refuses the run (fail closed) — the caller
 // never falls back to a profile-less invocation.
 func (r *SandboxRunner) resolveSeccompProfile(tmpDir string) (string, error) {
-	if r.cfg.SeccompProfile == "unconfined" {
+	prof := strings.TrimSpace(r.cfg.SeccompProfile)
+	if strings.EqualFold(prof, "unconfined") {
 		return "", fmt.Errorf("sandbox seccomp=unconfined is prohibited: refusing to run without the profile")
 	}
-	if r.cfg.SeccompProfile != "" {
-		return r.cfg.SeccompProfile, nil
+	if prof != "" {
+		return prof, nil
 	}
 	path := filepath.Join(tmpDir, "seccomp-profile.json")
 	if err := os.WriteFile(path, defaultSeccompProfile, 0644); err != nil {
@@ -507,7 +545,7 @@ func stopSandboxContainer(name string) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "stop", "-t", "0", name)
+	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", name)
 	return cmd.Run() == nil
 }
 
@@ -566,6 +604,14 @@ func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath, runI
 	if runID == "" {
 		return nil
 	}
+	netMode := strings.TrimSpace(r.cfg.Network)
+	if netMode != "none" {
+		return nil
+	}
+	userSpec := strings.TrimSpace(r.cfg.User)
+	if userSpec == "" || strings.EqualFold(userSpec, "root") || userSpec == "0" || userSpec == "0:0" || strings.HasPrefix(userSpec, "0:") {
+		return nil
+	}
 	args := []string{
 		"run", "--rm",
 		"--name", sandboxName(runID),
@@ -576,7 +622,7 @@ func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath, runI
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"--security-opt", "seccomp=" + profilePath,
-		"--network", r.cfg.Network,
+		"--network", netMode,
 		"--memory", r.cfg.MemoryLimit,
 		"--memory-swap", r.cfg.MemorySwap,
 		"--cpus", r.cfg.CPULimit,
@@ -592,9 +638,7 @@ func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath, runI
 		args = append(args, "--runtime", r.cfg.Runtime)
 	}
 
-	if r.cfg.User != "" && r.cfg.User != "root" {
-		args = append(args, "--user", r.cfg.User)
-	}
+	args = append(args, "--user", userSpec)
 
 	return append(args, "--entrypoint", "python3", r.cfg.Image, "/benchmark/eval.py")
 }

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "source": "vendor-list-prices-2026-10-30",
-  "effective_date": "2026-10-30",
+  "source": "vendor-list-prices-2026-11-20",
+  "effective_date": "2026-11-20",
   "stale_after_days": 30,
   "heuristic": false,
   "notes": "Captured 2026-10-30; extended 2026-11-11 with cache/context/capability metadata and multi-provider reference rows. OpenAI/Anthropic/DeepSeek/OpenCode from vendor list pages; NVIDIA/xAI/Mistral/Groq/Google rows use vendor or reference list pricing. DeepSeek/OpenCode use peak rates as the ceiling. Atlas: 1,500 credits at $1.00/1,250 credits = $1.20. Runtime KUBONA_RATE_CARD_PATH/URL overrides this bootstrap; production cloud pricing refuses the embedded bootstrap.",

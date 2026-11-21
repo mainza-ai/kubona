@@ -124,16 +124,6 @@ export function LabsView() {
             <AuthPanel labs={[]} />
           </div>
           <CreateLabPanel onCreated={reload} />
-          {authed === true && (
-            <details className="rounded-card border border-border bg-surface p-3">
-              <summary className="cursor-pointer text-label font-semibold text-text">Advanced lab administration</summary>
-              <div className="mt-3 space-y-3">
-                <TenantGrantPanel labs={labs} />
-                <KeyRecoveryPanel labs={labs} />
-                <SessionRefundPanel labs={labs} sessions={sessions} />
-              </div>
-            </details>
-          )}
         </div>
       );
     }
@@ -146,12 +136,26 @@ export function LabsView() {
   }
 
   if (labs.length > 0 && authed !== true) {
+    const keylessLabs = labs.filter((lab) => !(lab.admin_pubkey_hex || '').trim());
     return (
       <div className="space-y-3">
         <p className="text-[12px] text-muted">
           Laboratories are administered by a lab admin. Sign in to manage this lab; research campaigns remain under Campaigns.
         </p>
         <AuthPanel labs={labs} />
+        {keylessLabs.length > 0 && (
+          <div className="space-y-2 rounded-card border border-warning-edge bg-surface p-3" data-testid="labs-bootstrap-panel">
+            <p className="text-label font-semibold text-text">
+              First-run lab bootstrap — register an admin key to enable sign-in
+            </p>
+            {keylessLabs.map((lab) => (
+              <div key={lab.id} className="space-y-1">
+                <div className="text-label text-muted font-mono">{lab.display_name || lab.id}</div>
+                <LabOpsPanel lab={lab} onChanged={reload} />
+              </div>
+            ))}
+          </div>
+        )}
         <CreateLabPanel onCreated={reload} />
       </div>
     );
@@ -165,7 +169,12 @@ export function LabsView() {
       <AuthPanel labs={labs} />
       <details className="rounded-card border border-border bg-surface p-3">
         <summary className="cursor-pointer text-label font-semibold text-text">Advanced lab administration</summary>
-        <div className="mt-3"><CreateLabPanel onCreated={reload} /></div>
+        <div className="mt-3 space-y-3">
+          <CreateLabPanel onCreated={reload} />
+          <TenantGrantPanel labs={labs} />
+          <KeyRecoveryPanel labs={labs} />
+          <SessionRefundPanel labs={labs} sessions={sessions} />
+        </div>
       </details>
       {labs.map((lab) => {
         const spent = typeof lab.spent_usd === 'number' && Number.isFinite(lab.spent_usd) ? lab.spent_usd : null;

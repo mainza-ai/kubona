@@ -13,6 +13,7 @@ recorded fixture in CI; live runs need a real Quantinuum account + network.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from kubona.circuits import Circuit
@@ -90,10 +91,9 @@ class TketProvider(Provider):
     def _to_tket(self, circuit: Circuit):
         """Convert a Kubona circuit to a pytket Circuit (native-set directed).
 
-        Angle units (W2.18): radians on both sides — Kubona rx/ry/rz take
-        radians (see local_simulator._rx) and pytket OpType.Rx/Ry/Rz take
-        radians, so parameters pass through verbatim. No conversion, no
-        half-turn ambiguity; per-gate passthrough is pinned by tests.
+        Angle units: Kubona rx/ry/rz take radians (see local_simulator._rx),
+        whereas pytket OpType.Rx/Ry/Rz take half-turns (multiples of pi), so
+        rotation angles are divided by math.pi on conversion.
         """
         from pytket import Circuit as TKCkt
         from pytket.circuit import OpType
@@ -106,7 +106,11 @@ class TketProvider(Provider):
             op = getattr(OpType, opattr)
             qs = list(g.qubits)
             if g.params:
-                c.add_gate(op, list(g.params), qs)
+                if g.name in ("rx", "ry", "rz"):
+                    params = [float(p) / math.pi for p in g.params]
+                else:
+                    params = list(g.params)
+                c.add_gate(op, params, qs)
             else:
                 c.add_gate(op, qs)
         c.measure_all()
@@ -148,9 +152,12 @@ class TketProvider(Provider):
         """Submit via pytket-quantinuum (documented API); result -> counts."""
         if backend_factory is None:
             try:
-                from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
-            except ImportError as e:  # pragma: no cover - SDK optional
-                raise ProviderError(f"pytket-quantinuum not installed: {e}")
+                from pytket.extensions.quantinuum import QuantinuumAPI, QuantinuumBackend
+            except ImportError:
+                try:
+                    from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
+                except ImportError as e:  # pragma: no cover - SDK optional
+                    raise ProviderError(f"pytket-quantinuum not installed: {e}")
             api = QuantinuumAPI(api_token=token)
             backend = QuantinuumBackend(device_name=self.device, api_handler=api)
         else:
@@ -194,7 +201,10 @@ class TketProvider(Provider):
             )
         try:
             if backend_factory is None:
-                from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
+                try:
+                    from pytket.extensions.quantinuum import QuantinuumAPI, QuantinuumBackend
+                except ImportError:
+                    from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
                 api = QuantinuumAPI(api_token=token)
                 backend = QuantinuumBackend(device_name=self.device, api_handler=api)
             else:

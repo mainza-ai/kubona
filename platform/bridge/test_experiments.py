@@ -338,7 +338,10 @@ def test_h2_reaction_energy_uses_two_endpoint_anchors():
     assert res["kind"] == "reaction"
     assert res["result_version"] == "experiment-result-v1"
     assert res["reaction_energy_exact"] > 0
-    assert res["reactant_energy_exact"] < res["reactant_energy"]
+    # Unbiased shot estimate around the exact ground state must satisfy the
+    # statistical variational bound (never below exact by > 3 sigma) and stay close.
+    assert res["reactant_energy"] >= res["reactant_energy_exact"] - 3.0 * res["uncertainty"]
+    assert abs(res["reactant_energy"] - res["reactant_energy_exact"]) < 0.05
     assert res["claimable"] is False
     assert res["measured"] is True
 

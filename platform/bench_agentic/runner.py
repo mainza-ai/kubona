@@ -18,6 +18,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -85,7 +86,13 @@ def score_attempt(task: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any
     effective = tolerance
     if k > 0 and isinstance(unc, (int, float)) and float(unc) >= 0:
         effective = tolerance + k * float(unc)
-    passed = delta <= effective
+    comparator = str(task.get("comparator", "approx")).lower()
+    if comparator == "gte":
+        passed = float(measured) >= (target - effective)
+    elif comparator == "lte":
+        passed = float(measured) <= (target + effective)
+    else:
+        passed = delta <= effective
     out = {"pass": passed, "failure": None if passed else "tolerance",
            "measured": float(measured), "target": target, "delta": delta,
            "tolerance": tolerance, "tolerance_effective": effective}
@@ -145,6 +152,8 @@ class Client:
                 return exc.code, json.loads(raw)
             except Exception:
                 return exc.code, {"raw": raw.decode(errors="replace")}
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            return 0, {"error": str(exc)}
 
 
 def run_task(client: Client, task: Dict[str, Any], attempt: int,
@@ -234,7 +243,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         for t in tasks:
             print(f"{t['id']}: {t['description']}")
         return 0
-    if not args.token and "127.0.0.1" not in args.api_url and "localhost" not in args.api_url:
+    host = (urllib.parse.urlparse(args.api_url).hostname or "").lower()
+    if not args.token and host not in {"127.0.0.1", "localhost", "::1"}:
         print("refusing a remote API without a token", file=sys.stderr)
         return 2
 

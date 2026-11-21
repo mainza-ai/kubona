@@ -828,6 +828,15 @@
         "loop_id"
       ]
     },
+    "loop_aborted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Supervised loop aborted by operator or supervisor guard.",
+      "required": [
+        "loop_id"
+      ]
+    },
     "loop_spend_released": {
       "emitters": [
         "go"

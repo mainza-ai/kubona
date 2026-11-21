@@ -3,13 +3,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Field, Select } from '@/components/ui/Forms';
+import { Field, Select, TextArea } from '@/components/ui/Forms';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   buildManuscript,
   createManuscript,
   createManuscriptAnnotation,
+  deleteManuscript,
   downloadManuscriptArtifact,
+  exportManuscriptBundle,
+  fetchFormalVerifications,
   fetchManuscript,
   fetchManuscripts,
   replaceManuscriptCitations,
@@ -18,8 +21,12 @@ import {
   setManuscriptAnnotationStatus,
   signoffManuscript,
   stageManuscriptDeposit,
+  updateManuscriptDraft,
+  verifyManuscript,
+  type FormalVerificationEntry,
   type ManuscriptDetail,
   type ManuscriptSummary,
+  type ManuscriptVerificationReport,
 } from '@/domain/publication';
 import type { LiteratureRecord } from '@/types';
 
@@ -63,6 +70,24 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
   const [litQuery, setLitQuery] = useState('');
   const [litResults, setLitResults] = useState<LiteratureRecord[]>([]);
   const [litBusy, setLitBusy] = useState(false);
+  const [verification, setVerification] = useState<ManuscriptVerificationReport | null>(null);
+  const [depositManifest, setDepositManifest] = useState<Record<string, unknown> | null>(null);
+  const [editingDraft, setEditingDraft] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftAbstract, setDraftAbstract] = useState('');
+  const [formalProofs, setFormalProofs] = useState<FormalVerificationEntry[] | null>(null);
+
+  const downloadJson = (filename: string, payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const load = useCallback(async (preferId?: string) => {
     if (!sessionId) {
@@ -346,6 +371,25 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             </Button>
             <Button
               size="compact"
+              pending={busy === 'verify'}
+              onClick={() => void (async () => {
+                setBusy('verify');
+                setError(null);
+                setNotice(null);
+                const res = await verifyManuscript(sessionId, selected.manuscript.id);
+                if (!res.ok) {
+                  setError(res.error);
+                } else {
+                  setVerification(res.data);
+                  setNotice(`Verification finished: ${res.data.report?.summary?.status ?? 'checked'}.`);
+                }
+                setBusy(null);
+              })()}
+            >
+              Verify numbers &amp; citations
+            </Button>
+            <Button
+              size="compact"
               variant="primary"
               pending={busy === 'build'}
               onClick={() => void run('build', async () => {
@@ -355,6 +399,63 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             >
               Build PDF
             </Button>
+            <Button
+              size="compact"
+              pending={busy === 'export-rocrate'}
+              onClick={() => void (async () => {
+                setBusy('export-rocrate');
+                setError(null);
+                setNotice(null);
+                const res = await exportManuscriptBundle(sessionId, selected.manuscript.id);
+                if (!res.ok) {
+                  setError(res.error);
+                } else {
+                  downloadJson(`kubona-rocrate-${selected.manuscript.id}.json`, res.data);
+                  setNotice('Exported RO-Crate 1.1 + W3C PROV-JSON + CRediT bundle.');
+                }
+                setBusy(null);
+              })()}
+            >
+              Export RO-Crate / PROV
+            </Button>
+            {selected.manuscript.state === 'draft' && (
+              <>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  onClick={() => {
+                    setDraftTitle(selected.manuscript.title);
+                    setDraftAbstract(selected.manuscript.abstract);
+                    setEditingDraft((v) => !v);
+                  }}
+                >
+                  {editingDraft ? 'Cancel edit' : 'Edit draft'}
+                </Button>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  pending={busy === 'delete'}
+                  onClick={() => void (async () => {
+                    setBusy('delete');
+                    setError(null);
+                    setNotice(null);
+                    const res = await deleteManuscript(sessionId, selected.manuscript.id);
+                    if (!res.ok) {
+                      setError(res.error);
+                    } else {
+                      setSelected(null);
+                      setVerification(null);
+                      setDepositManifest(null);
+                      setNotice('Draft deleted.');
+                      await load();
+                    }
+                    setBusy(null);
+                  })()}
+                >
+                  Delete draft
+                </Button>
+              </>
+            )}
             <Button
               size="compact"
               pending={busy === 'sign'}
@@ -374,6 +475,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               onClick={() => void run('deposit', async () => {
                 const res = await stageManuscriptDeposit(sessionId, selected.manuscript.id);
                 if (!res.ok) return { ok: false as const, error: res.error };
+                setDepositManifest(res.data.manifest);
                 return {
                   ok: true as const,
                   data: {
@@ -388,6 +490,98 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               Stage deposit
             </Button>
           </div>
+
+          {editingDraft && selected.manuscript.state === 'draft' && (
+            <div className="space-y-2 border border-border rounded-control p-3 bg-surface">
+              <Field
+                label="Draft title"
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+              />
+              <TextArea
+                label="Draft abstract"
+                value={draftAbstract}
+                onChange={(e) => setDraftAbstract(e.target.value)}
+                rows={4}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="compact"
+                  variant="primary"
+                  pending={busy === 'save-draft'}
+                  onClick={() => void run('save-draft', async () => {
+                    const res = await updateManuscriptDraft(sessionId, selected.manuscript.id, {
+                      title: draftTitle,
+                      abstract: draftAbstract,
+                    });
+                    if (res.ok) setEditingDraft(false);
+                    return res.ok ? res : { ok: false as const, error: res.error };
+                  }, 'Draft updated; review reset.')}
+                >
+                  Save draft
+                </Button>
+                <Button size="compact" variant="ghost" onClick={() => setEditingDraft(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {verification?.report && (
+            <div className="border border-border rounded-control p-3 space-y-2 text-label bg-surface">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">Numeric &amp; citation verification</span>
+                <Badge tone={verification.report.summary?.status === 'pass' ? 'success' : 'warning'}>
+                  {verification.report.summary?.status ?? 'checked'}
+                </Badge>
+              </div>
+              <p className="text-caption text-muted">
+                Numbers checked: {verification.report.summary?.numbers_checked ?? verification.report.numbers?.length ?? 0}
+                {' · '}Citations checked: {verification.report.summary?.citations_checked ?? verification.report.citations?.length ?? 0}
+                {' · '}Blocking: {verification.report.summary?.blocking ?? 0}
+              </p>
+              {(verification.report.numbers ?? []).filter((n) => n.status !== 'verified').length > 0 && (
+                <ul className="list-disc pl-5 text-caption text-warning-ink">
+                  {(verification.report.numbers ?? [])
+                    .filter((n) => n.status !== 'verified')
+                    .map((issue, idx) => (
+                      <li key={`num-${idx}`}>
+                        {issue.text} ({issue.status})
+                      </li>
+                    ))}
+                </ul>
+              )}
+              {(verification.report.citations ?? []).filter((c) => c.status !== 'verified').length > 0 && (
+                <ul className="list-disc pl-5 text-caption text-warning-ink">
+                  {(verification.report.citations ?? [])
+                    .filter((c) => c.status !== 'verified')
+                    .map((issue, idx) => (
+                      <li key={`cit-${idx}`}>
+                        {issue.key}: {issue.status}{issue.error ? ` — ${issue.error}` : issue.note ? ` — ${issue.note}` : ''}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {depositManifest && (
+            <div className="border border-border rounded-control p-3 space-y-2 text-label bg-surface">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">Staged Zenodo deposit manifest</span>
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  onClick={() => downloadJson(`kubona-zenodo-manifest-${selected.manuscript.id}.json`, depositManifest)}
+                >
+                  Download manifest JSON
+                </Button>
+              </div>
+              <pre className="text-caption font-mono overflow-x-auto max-h-40 p-2 rounded-control bg-page border border-border">
+                {JSON.stringify(depositManifest, null, 2)}
+              </pre>
+            </div>
+          )}
           {selected.open_annotations > 0 && (
             <p className="text-caption text-muted">
               Signoff is blocked while {selected.open_annotations} review note(s) are open.
@@ -589,6 +783,61 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
           </details>
         </article>
       )}
+
+      <details
+        className="border-t border-border pt-3"
+        onToggle={(e) => {
+          if (e.currentTarget.open && formalProofs === null && sessionId) {
+            void fetchFormalVerifications(sessionId).then((res) => {
+              setFormalProofs(res?.verifications ?? []);
+            });
+          }
+        }}
+      >
+        <summary className="text-label cursor-pointer font-medium">
+          Formal verifications (Lean 4 comparator attestations)
+        </summary>
+        <div className="mt-2 space-y-2 text-label">
+          <div className="flex justify-end">
+            <Button
+              size="compact"
+              variant="ghost"
+              pending={busy === 'formal-proofs'}
+              onClick={() => void (async () => {
+                setBusy('formal-proofs');
+                const res = await fetchFormalVerifications(sessionId);
+                setFormalProofs(res?.verifications ?? []);
+                setBusy(null);
+              })()}
+            >
+              Refresh proofs
+            </Button>
+          </div>
+          {formalProofs && formalProofs.length === 0 && (
+            <p className="text-caption text-muted">No Lean 4 formal verifications recorded for this session yet.</p>
+          )}
+          {formalProofs && formalProofs.length > 0 && (
+            <ul className="space-y-1.5">
+              {formalProofs.map((fv, idx) => (
+                <li key={fv.event_id ?? fv.proof_hash ?? idx} className="border border-border rounded-control px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="font-medium">
+                      {fv.theorem_names?.length ? fv.theorem_names.join(', ') : `Proof #${fv.event_id ?? idx + 1}`}
+                    </span>
+                    <span className="block text-caption font-mono text-muted">
+                      {fv.proof_hash ? `${fv.proof_hash.slice(0, 16)}…` : 'no hash'}
+                      {fv.timestamp ? ` · ${fv.timestamp}` : ''}
+                    </span>
+                  </div>
+                  <Badge tone={fv.verdict === 'live_kernel_proven' || fv.verdict === 'pass' ? 'success' : 'neutral'}>
+                    {fv.verdict || 'recorded'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -119,6 +120,9 @@ func (ss *sessionStream) run() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("session stream panicked", "session_id", ss.sessionID, "panic", rec)
+		}
 		ss.hub.mu.Lock()
 		if ss.hub.sessions[ss.sessionID] == ss {
 			delete(ss.hub.sessions, ss.sessionID)
@@ -177,6 +181,7 @@ func (ss *sessionStream) poll() {
 
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
+subsLoop:
 	for sub := range ss.subs {
 		for _, f := range frames {
 			if f.ID <= sub.cursor {
@@ -190,6 +195,7 @@ func (ss *sessionStream) poll() {
 				// and replays from its last acknowledged id; blocking the hub
 				// on one slow reader would stall every other dashboard.
 				ss.dropLocked(sub)
+				continue subsLoop
 			}
 		}
 	}

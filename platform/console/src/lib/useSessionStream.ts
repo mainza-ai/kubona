@@ -198,6 +198,11 @@ export function useSessionStream(
           `${API_BASE}${versionedApiPath(`/api/events/stream?session_id=${encodeURIComponent(sessionId)}${cursor}`)}`,
           { signal: controller.signal, headers: authHeaders(), cache: 'no-store' },
         );
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
+          setSessionStreamLive(false);
+          setState({ sessionId, status: 'closed' });
+          return;
+        }
         if (!res.ok) throw new Error(`stream refused (HTTP ${res.status})`);
         if (!res.body) throw new Error('stream body unavailable');
         attempt = 0;
@@ -206,8 +211,25 @@ export function useSessionStream(
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        const HEARTBEAT_WATCHDOG_MS = 45_000;
         while (!stopped) {
-          const { done, value } = await reader.read();
+          let watchdog: ReturnType<typeof setTimeout> | null = null;
+          let readRes: ReadableStreamReadResult<Uint8Array>;
+          try {
+            readRes = await Promise.race([
+              reader.read(),
+              new Promise<never>((_, reject) => {
+                watchdog = setTimeout(() => {
+                  controller?.abort();
+                  void reader.cancel().catch(() => undefined);
+                  reject(new Error('stream heartbeat timeout'));
+                }, HEARTBEAT_WATCHDOG_MS);
+              }),
+            ]);
+          } finally {
+            if (watchdog !== null) clearTimeout(watchdog);
+          }
+          const { done, value } = readRes;
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           const parsed = takeSseFrames(buffer);

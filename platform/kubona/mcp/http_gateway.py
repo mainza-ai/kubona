@@ -24,6 +24,7 @@ import time
 from typing import Any
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -81,6 +82,8 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
             body = json.loads(raw_body.decode("utf-8"))
         except Exception:  # noqa: BLE001
             return JSONResponse({"ok": False, "error": "invalid JSON body"}, status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "JSON body must be an object"}, status_code=400)
         if require_secure and "envelope" not in body:
             return JSONResponse({"ok": False, "error": "secure envelope required: refusing plaintext request"}, status_code=400)
         t0 = time.time()
@@ -91,15 +94,18 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
                     return JSONResponse({"ok": False, "error": "envelope too large"}, status_code=413)
                 # Single envelope implementation (W0.14): nonce/expiry/
                 # replay/identity-match live in SecureRpc, not here.
-                resp = SecureRpc(secure_session, gateway).handle(ct, expected_sub=outer.sub)
+                resp = await run_in_threadpool(SecureRpc(secure_session, gateway).handle, ct, expected_sub=outer.sub)
                 log_call(_rpc_logger, server="?", tool="?", status=200,
                          duration_ms=(time.time() - t0) * 1000, mode="secure",
                          principal=outer.sub)
                 return JSONResponse({"ok": True, "envelope": base64.b64encode(resp).decode()})
             # plain authenticated RPC — pass the verified bearer token so the gateway
             # re-derives the principal and applies per-call scope authorization
-            result = gateway.call(body["server"], body["tool"], body.get("args", {}),
-                                   token=bearer)
+            if not isinstance(body.get("server"), str) or not isinstance(body.get("tool"), str):
+                return JSONResponse({"ok": False, "error": "server and tool strings are required"}, status_code=400)
+            result = await run_in_threadpool(
+                gateway.call, body["server"], body["tool"], body.get("args", {}), token=bearer
+            )
             log_call(_rpc_logger, server=body["server"], tool=body["tool"], status=200,
                       duration_ms=(time.time() - t0) * 1000, mode="plain",
                       principal=outer.sub)

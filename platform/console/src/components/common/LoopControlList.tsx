@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { loopAction, type LoopAction } from '@/lib/api';
+import { loopAction, settleSessionLoops, type LoopAction } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Loop } from '@/types';
 
@@ -73,6 +74,7 @@ export function LoopControlList({
           const canPause = LIVE.has(st);
           const canResume = PAUSED.has(st);
           const canKill = LIVE.has(st) || PAUSED.has(st);
+          const canSettle = st === 'sleeping';
           return (
             <div
               key={loop.id}
@@ -82,6 +84,33 @@ export function LoopControlList({
                 {loop.id.slice(0, 8)} · {st || 'unknown'} · step {loop.step_count}/{loop.max_steps}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
+                {canSettle && (
+                  <Button
+                    size="compact"
+                    variant="secondary"
+                    disabled={isBusy}
+                    onClick={() => void (async () => {
+                      setBusy((prev) => new Set(prev).add(loop.id));
+                      setNotice(null);
+                      try {
+                        const res = await settleSessionLoops(loop.session_id);
+                        if (!res.ok) {
+                          setNotice(`loop settle refused: ${res.error}`);
+                        } else {
+                          onChanged();
+                        }
+                      } finally {
+                        setBusy((prev) => {
+                          const next = new Set(prev);
+                          next.delete(loop.id);
+                          return next;
+                        });
+                      }
+                    })()}
+                  >
+                    Settle orphan
+                  </Button>
+                )}
                 {canPause && (
                   <button
                     type="button"

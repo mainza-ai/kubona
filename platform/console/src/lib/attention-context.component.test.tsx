@@ -148,6 +148,20 @@ describe('attention context in a real browser', () => {
     await screen.unmount();
   });
 
+  it('starts muted by default and persists explicit unmute/mute toggles', async () => {
+    const screen = await render(withProvider());
+
+    await expect.element(screen.getByTestId('muted')).toHaveTextContent('muted');
+    await screen.getByRole('button', { name: 'toggle-mute' }).click();
+    await expect.element(screen.getByTestId('muted')).toHaveTextContent('audible');
+    expect(window.localStorage.getItem('kubona-ambient-muted')).toBe('0');
+
+    await screen.getByRole('button', { name: 'toggle-mute' }).click();
+    await expect.element(screen.getByTestId('muted')).toHaveTextContent('muted');
+    expect(window.localStorage.getItem('kubona-ambient-muted')).toBe('1');
+    await screen.unmount();
+  });
+
   it('tracks precision and tightens low-precision sources (R-11)', async () => {
     const screen = await render(withProvider());
     expect(screen.getByTestId('tightened').element().textContent).toBe('none');

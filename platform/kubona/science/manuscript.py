@@ -8,9 +8,36 @@ Lean 4 formal proofs into citable, reproducible arXiv-style papers.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_SLUG_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
+_LATEX_ESCAPES = (
+    ("\\", r"\textbackslash{}"),
+    ("&", r"\&"),
+    ("%", r"\%"),
+    ("$", r"\$"),
+    ("#", r"\#"),
+    ("_", r"\_"),
+    ("{", r"\{"),
+    ("}", r"\}"),
+    ("~", r"\textasciitilde{}"),
+    ("^", r"\textasciicircum{}"),
+)
+
+
+def _escape_latex(text: str) -> str:
+    out = str(text)
+    for k, v in _LATEX_ESCAPES:
+        out = out.replace(k, v)
+    return out
+
+
+def _validate_section_slug(slug: str) -> None:
+    if not _SLUG_RE.fullmatch(slug or ""):
+        raise ValueError(f"invalid section slug (expected [a-z0-9_-]{{1,64}}): {slug!r}")
 
 
 @dataclass
@@ -162,7 +189,7 @@ class ScientificManuscript:
         # Title
         full_title = self.title
         if self.bilingual_title:
-            full_title = f"{self.title} \\\\\n\\large\\textit{{{self.bilingual_title}}}"
+            full_title = f"{self.title} \\\\\n\\large\\textit{{{_escape_latex(self.bilingual_title)}}}"
         out.append(f"\\title{{{full_title}}}")
 
         author_str = " \\and ".join(self.authors)
@@ -175,10 +202,14 @@ class ScientificManuscript:
         out.append(r"\begin{abstract}")
         out.append(self.abstract)
         if self.bilingual_abstract:
-            out.append(f"\n\n\\vspace{{0.5em}}\n\\noindent\\textbf{{{self.second_language} Summary:}}\\\\\n\\textit{{{self.bilingual_abstract}}}")
+            out.append(
+                f"\n\n\\vspace{{0.5em}}\n\\noindent\\textbf{{{_escape_latex(self.second_language)} Summary:}}"
+                f"\\\\\n\\textit{{{_escape_latex(self.bilingual_abstract)}}}"
+            )
         out.append(r"\end{abstract}")
 
         for sec in self.sections:
+            _validate_section_slug(sec.slug)
             out.append(f"\\input{{sections/{sec.slug}}}")
 
         out.append(r"\bibliographystyle{unsrt}")
@@ -189,6 +220,28 @@ class ScientificManuscript:
     def compile_bibtex(self) -> str:
         """Assembles all BibTeX citations."""
         return "\n\n".join(self.bibtex_entries.values())
+
+    def content_hash(self) -> str:
+        """Canonical SHA-256 manifest hash covering main.tex, every section,
+        references.bib, and every binary figure artifact."""
+        import hashlib
+        h = hashlib.sha256()
+        def _feed(name: str, data: bytes) -> None:
+            h.update(name.encode("utf-8"))
+            h.update(b"\x00")
+            h.update(hashlib.sha256(data).hexdigest().encode("ascii"))
+            h.update(b"\n")
+        _feed("main.tex", self.compile_latex().encode("utf-8"))
+        _feed("references.bib", self.compile_bibtex().encode("utf-8"))
+        for sec in self.sections:
+            _validate_section_slug(sec.slug)
+            sec_body = f"\\section{{{sec.title}}}\n\n{sec.latex_content}".encode("utf-8")
+            _feed(f"sections/{sec.slug}.tex", sec_body)
+        for fig_name in sorted(self.figures.keys()):
+            raw = self.figures[fig_name]
+            data = raw.encode("utf-8") if isinstance(raw, str) else raw
+            _feed(f"figures/{fig_name}", data)
+        return h.hexdigest()
 
     def export_project(self, target_dir: Path) -> Path:
         """Exports the manuscript project to a structured directory.
@@ -212,7 +265,11 @@ class ScientificManuscript:
         # Write individual section files, headings included: main.tex only
         # \input-s them, so a heading-less body would erase the structure.
         for sec in self.sections:
-            (sections_dir / f"{sec.slug}.tex").write_text(
+            _validate_section_slug(sec.slug)
+            sec_path = (sections_dir / f"{sec.slug}.tex").resolve()
+            if sections_dir.resolve() not in sec_path.parents:
+                raise ValueError(f"section slug escapes sections/: {sec.slug!r}")
+            sec_path.write_text(
                 f"\\section{{{sec.title}}}\n\n{sec.latex_content}", encoding="utf-8")
 
         # Write figures (compile_latex already refused non-includable formats)
@@ -296,11 +353,14 @@ class ManuscriptGenerator:
         sections = []
         
         # Section 1: Introduction & Physical Problem
+        safe_target = _escape_latex(target_system)
+        safe_anchor = _escape_latex(analytical_anchor_name)
+        safe_proof = _escape_latex(lean4_proof_hash or "UNVERIFIED")
         sections.append(ManuscriptSection(
             slug="introduction",
             title="Introduction and Physical System",
             latex_content=(
-                f"We investigate the electronic and many-body spectral properties of {target_system}. "
+                f"We investigate the electronic and many-body spectral properties of {safe_target}. "
                 "Using the Kubona epistemic continuum engine, we integrate rigorous formal deduction with "
                 "subspace quantum diagonalization to avoid unphysical variational traps."
             ),
@@ -316,7 +376,7 @@ class ManuscriptGenerator:
             title="Exact Analytical Ground Truth & Complexity Sieve",
             latex_content=(
                 f"The physical model is calibrated against the exact analytical anchor "
-                f"\\texttt{{{analytical_anchor_name}}} with theoretical value ${analytical_anchor_val}$. "
+                f"\\texttt{{{safe_anchor}}} with theoretical value ${analytical_anchor_val}$. "
                 f"Physical simulation yielded ${measured_val}$, a discrepancy of "
                 f"{discrepancy_mha:.4f} mHa against the anchor "
                 f"(chemical accuracy requires $\\leq$ {ManuscriptGenerator.CHEMICAL_ACCURACY_MHA} mHa). "
@@ -329,10 +389,11 @@ class ManuscriptGenerator:
         # Section 3: Empirical Execution & Negative Results
         neg_text = ""
         if negative_certificates:
+            safe_negs = ", ".join(_escape_latex(str(c)) for c in negative_certificates)
             neg_text = (
                 "\\subsection{Negative Certificates and Pruned Trajectories}\n"
                 "To enforce reproducible epistemic hygiene, the following counterexamples and unviable "
-                f"parameter regimes were permanently recorded to the Merkle ledger: {', '.join(negative_certificates)}."
+                f"parameter regimes were permanently recorded to the Merkle ledger: {safe_negs}."
             )
         sections.append(ManuscriptSection(
             slug="results_and_reproducibility",
@@ -340,7 +401,7 @@ class ManuscriptGenerator:
             latex_content=(
                 f"Execution converged to a final energy of ${measured_val}$. "
                 f"The complete compilation trace is content-addressed under SHA256 AST hash "
-                f"\\texttt{{{lean4_proof_hash or 'UNVERIFIED'}}}.\n\n{neg_text}"
+                f"\\texttt{{{safe_proof}}}.\n\n{neg_text}"
             ),
             bibtex_keys=["kubona_provenance_2026"]
         ))
@@ -617,11 +678,9 @@ class ManuscriptGenerator:
     def attach_signoff(manuscript: ScientificManuscript, signoff: ManuscriptSignoff,
                        expiry: str) -> ScientificManuscript:
         """Records human approval after verifying the Ed25519 sign-off over the
-        manuscript's content hash. Invalid signatures refuse (fail-closed):
-        an unverified sign-off is never attached."""
-        import hashlib
-        content = manuscript.compile_latex().encode()
-        content_hash = hashlib.sha256(content).hexdigest()
+        manuscript's full content manifest hash (main.tex, sections, bibtex, figures).
+        Invalid signatures refuse (fail-closed): an unverified sign-off is never attached."""
+        content_hash = manuscript.content_hash()
         if signoff.manuscript_id != manuscript.manuscript_id:
             raise ValueError("sign-off manuscript_id mismatch: refused")
         if signoff.content_hash != content_hash:
@@ -650,8 +709,7 @@ class ManuscriptGenerator:
                 f"(mean {review.mean_score():.2f}, hygiene {review.axiomatic_hygiene_score})")
         if manuscript.signoff is None:
             raise ValueError("deposit refused: no verified human sign-off attached")
-        import hashlib as _hl
-        current_hash = _hl.sha256(manuscript.compile_latex().encode()).hexdigest()
+        current_hash = manuscript.content_hash()
         signoff = manuscript.signoff
         if signoff.content_hash != current_hash:
             raise ValueError("deposit refused: manuscript changed after sign-off")

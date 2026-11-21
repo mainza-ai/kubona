@@ -56,10 +56,21 @@ func buildAnthropicPayload(wr wireRequest, stream bool) ([]byte, error) {
 			thinkingCfg = map[string]any{"type": "adaptive"}
 		} else {
 			budget := anthropicThinkingBudget(effort)
-			if maxTokens <= budget {
-				maxTokens = budget + 1024
+			if wr.HardMaxTokens && wr.MaxTokens > 0 {
+				// Respect SpendGuard ceiling strictly; never inflate
+				// max_tokens above wr.MaxTokens.
+				if budget >= maxTokens {
+					budget = maxTokens - 1024
+				}
+				if budget >= 1024 {
+					thinkingCfg = map[string]any{"type": "enabled", "budget_tokens": budget}
+				}
+			} else {
+				if maxTokens <= budget {
+					maxTokens = budget + 1024
+				}
+				thinkingCfg = map[string]any{"type": "enabled", "budget_tokens": budget}
 			}
-			thinkingCfg = map[string]any{"type": "enabled", "budget_tokens": budget}
 		}
 	}
 

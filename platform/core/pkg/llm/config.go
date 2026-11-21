@@ -563,7 +563,7 @@ func DefaultSettings() *Settings {
 			DefaultModel: os.Getenv("STRATA_MODEL"),
 			Wire:         WireChatCompletions,
 			Enabled:      true,
-			IsLocal:      true,
+			IsLocal:      IsLocalEndpoint(strataBase),
 			TimeoutSec:   120,
 		},
 		ProviderCustom: {

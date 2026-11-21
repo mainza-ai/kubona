@@ -199,7 +199,11 @@ H = SparsePauliOp.from_list([
     ("XX", 0.1809312),
 ])
 try:
-    qc = QuantumCircuit.from_qasm_str(qasm)
+    try:
+        from qiskit import qasm2
+        qc = qasm2.loads(qasm)
+    except Exception:
+        qc = QuantumCircuit.from_qasm_str(qasm)
     qc.remove_final_measurements(inplace=True)
     sv = Statevector(qc)
     energy = float(np.real(sv.expectation_value(H)))
@@ -261,7 +265,7 @@ func (h *QAOACombinatorialHarness) ID() string {
 }
 
 func (h *QAOACombinatorialHarness) FixedSetup() string {
-	return "Graph: 8-node 3-regular graph, MaxCut cost Hamiltonian, Classical MaxCut optimum = 10"
+	return "Graph: 8-node 3-regular cube graph Q3 (bipartite, 12 edges), MaxCut cost Hamiltonian, Classical MaxCut optimum = 12"
 }
 
 func (h *QAOACombinatorialHarness) MutableArtifact() string {
@@ -334,7 +338,7 @@ gamma = %s
 beta = %s
 edges = [(0,1), (1,2), (2,3), (3,0), (4,5), (5,6), (6,7), (7,4), (0,4), (1,5), (2,6), (3,7)]
 n = 8
-max_cut_opt = 10.0
+max_cut_opt = 12.0
 try:
     p = len(gamma)
     qc = QuantumCircuit(n)
@@ -357,6 +361,13 @@ try:
     approx_ratio = expected_cut / max_cut_opt
     metric = 1.0 - approx_ratio
     two_q = sum(1 for inst in qc.data if inst.operation.num_qubits == 2)
+    arr = sv.data.reshape([2] * n)
+    mw = 0.0
+    for k in range(n):
+        other_axes = [i for i in range(n) if i != k]
+        rho_k = np.tensordot(arr, arr.conj(), axes=(other_axes, other_axes))
+        mw += 2.0 * (1.0 - float(np.real(np.trace(rho_k @ rho_k))))
+    mw = mw / n
     print(json.dumps({
         "valid": True,
         "metric": float(metric),
@@ -365,9 +376,9 @@ try:
         "circuit_depth": int(qc.depth()),
         "num_qubits": int(n),
         "two_qubit_gate_count": int(two_q),
-        "entanglement_score": 0.72,
-        "measurement_source": "template_constant",
-        "measured": False
+        "entanglement_score": float(mw),
+        "measurement_source": "statevector",
+        "measured": True
     }))
 except Exception as e:
     print(json.dumps({"valid": False, "error": f"Trusted QAOA evaluator error: {str(e)}"}))

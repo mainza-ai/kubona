@@ -160,11 +160,17 @@ def _energy_exact(theta: np.ndarray, h4: np.ndarray, layers: int) -> float:
 def _shot_expectation(
     qc: QuantumCircuit, term: str, shots: int, seed: int, sim: Any
 ) -> tuple[float, float]:
-    """Measure one Pauli string and return (mean, standard error)."""
-    if term == "II":
+    """Measure one Pauli string and return (mean, standard error).
+
+    Follows _pauli_matrix (np.kron(P[term[0]], P[term[1]])) and Qiskit's
+    little-endian qubit convention: term[-1] acts on qubit 0 (LSB), term[0]
+    acts on qubit n-1 (MSB).
+    """
+    if set(term) <= {"I"}:
         return 1.0, 0.0
     measured = qc.copy()
-    for q, ch in enumerate(term):
+    rev_term = term[::-1]
+    for q, ch in enumerate(rev_term):
         if ch == "X":
             measured.h(q)
         elif ch == "Y":
@@ -176,11 +182,11 @@ def _shot_expectation(
     total = sum(counts.values())
     if total <= 0:
         raise RuntimeError("measurement returned zero counts")
-    # Qiskit prints c[n-1]..c[0]; term[0] is q0, so reverse the bitstring.
+    # Qiskit prints c[n-1]..c[0]; rev_term[0] is q0, so reverse the bitstring too.
     acc = 0
     for bitstring, n in counts.items():
         bits = bitstring.replace(" ", "")[::-1]
-        parity = sum(1 for q, ch in enumerate(term) if ch != "I" and bits[q] == "1")
+        parity = sum(1 for q, ch in enumerate(rev_term) if ch != "I" and bits[q] == "1")
         acc += n * (1 if parity % 2 == 0 else -1)
     mean = acc / total
     std = math.sqrt(max(0.0, 1.0 - mean * mean) / total)
@@ -196,11 +202,11 @@ def _shot_energy(
     by_term: dict[str, Any] = {}
     energy = 0.0
     variance = 0.0
-    for term, c in sorted(coeffs.items()):
-        if term == "II":
+    for idx, (term, c) in enumerate(sorted(coeffs.items())):
+        if set(term) <= {"I"}:
             mean, std = 1.0, 0.0
         else:
-            mean, std = _shot_expectation(qc, term, shots, seed, sim)
+            mean, std = _shot_expectation(qc, term, shots, seed + idx, sim)
         by_term[term] = {"coefficient": c, "expectation": mean, "std_error": std}
         energy += c * mean
         variance += (c * std) ** 2
@@ -2751,7 +2757,22 @@ def run_nature_excited_state(
     qop = mapper.map(reduced.hamiltonian.second_q_op())
     constants = float(sum(reduced.hamiltonian.constants.values()))
     h_active = np.asarray(qop.to_matrix(), dtype=complex) + constants * np.eye(2 ** qop.num_qubits)
-    spectrum = [float(x) for x in np.linalg.eigvalsh(h_active)]
+    # Project onto the physical (n_alpha, n_beta) particle-number sector in
+    # Jordan-Wigner ordering (lower n_orb qubits = alpha, upper n_orb = beta)
+    # so ionized/wrong-electron-number states do not contaminate the spectrum.
+    n_orb = int(reduced.num_spatial_orbitals)
+    n_alpha, n_beta = int(reduced.num_particles[0]), int(reduced.num_particles[1])
+    alpha_mask = (1 << n_orb) - 1
+    sector_idx = [
+        b for b in range(1 << qop.num_qubits)
+        if bin(b & alpha_mask).count("1") == n_alpha
+        and bin(b >> n_orb).count("1") == n_beta
+    ]
+    if len(sector_idx) >= 2:
+        h_sector = h_active[np.ix_(sector_idx, sector_idx)]
+        spectrum = [float(x) for x in np.linalg.eigvalsh(h_sector)]
+    else:
+        spectrum = [float(x) for x in np.linalg.eigvalsh(h_active)]
     if len(spectrum) < 2:
         return {"success": False, "error": "active-space spectrum has no excited state"}
     hf = HartreeFock(reduced.num_spatial_orbitals, reduced.num_particles, mapper)

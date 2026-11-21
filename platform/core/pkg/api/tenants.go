@@ -22,6 +22,10 @@ func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 		// Tenant rows carry admin key ids and spend totals, so the old public
 		// list leaked the whole estate to any network reader.
 		if hasNoCredentials(r) {
+			if !singleLabDeclared() {
+				WriteAPIError(w, "unauthorized", "multi-lab mode: log in or present the operator token to list labs", nil)
+				return
+			}
 			all, err := s.tenantMgr.ListTenants()
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -111,6 +115,10 @@ func (s *Server) handleTenantByID(w http.ResponseWriter, r *http.Request) {
 	// single lab (same tenants-table count as the list); lab callers read
 	// only their own row; bearer reads all.
 	if hasNoCredentials(r) {
+		if !singleLabDeclared() {
+			WriteAPIError(w, "unauthorized", "multi-lab mode: log in or present the operator token to read labs", nil)
+			return
+		}
 		all, err := s.tenantMgr.ListTenants()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
