@@ -25,8 +25,8 @@ Deleting or wiring an entry is preferred to extending the list.
 
 These are intentional, not build output:
 
-- `assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf` (18.8 MB)
-- `assets/misc/Kubona_Platform_Overview_Infographic.png` (5.1 MB)
+- `assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf` (10.7 MB)
+- `assets/misc/Kubona_Platform_Overview_Infographic.png` (5.4 MB)
 - `platform/console/public/assets/images/Project_Chicken_Soup_Quantum_AI-slide-deck/` (~10 MB)
 
 If clone size becomes a problem, move the PDF and slide deck to release
