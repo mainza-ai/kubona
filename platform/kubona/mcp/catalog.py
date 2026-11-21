@@ -58,12 +58,12 @@ def served_entries() -> list[dict]:
     (readOnlyHint etc.) trips the digest by design: any served-surface
     change forces review.
     """
-    from kubona.mcp.servers import compiler, control, cost, execution, provenance, world
+    from kubona.mcp.servers import compiler, control, cost, execution, provenance, science, world
 
     entries = []
     for server, mod in [("compiler", compiler), ("control", control), ("cost", cost),
                         ("execution", execution), ("provenance", provenance),
-                        ("world", world)]:
+                        ("science", science), ("world", world)]:
         for tool in asyncio.run(mod.mcp.list_tools()):
             d = tool.model_dump(by_alias=True, exclude_none=True)
             d["server"] = server

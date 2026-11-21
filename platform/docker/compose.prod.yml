@@ -184,7 +184,7 @@ services:
       KUBONA_LEASE_HMAC_KEY: ${KUBONA_LEASE_HMAC_KEY:-}
       KUBONA_VAULT_REVOCATIONS: ${KUBONA_VAULT_REVOCATIONS:-/home/kubona/.kubona/vault_revocations.json}
       KUBONA_CORS_ORIGINS: ${KUBONA_CORS_ORIGINS:-}
-      KUBONA_ALLOWED_HOSTS: ${KUBONA_ALLOWED_HOSTS:-}
+      KUBONA_ALLOWED_HOSTS: ${KUBONA_ALLOWED_HOSTS:-kubonad}
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
@@ -356,17 +356,21 @@ services:
       KUBONA_GATEWAY_HOST: "0.0.0.0"
       KUBONA_GATEWAY_PORT: "8123"
       KUBONA_API_URL: "http://kubonad:8080"
+      KUBONA_CORE_URL: "http://kubonad:8080"
       KUBONA_API_TOKEN: "${KUBONA_API_TOKEN:-}"
       KUBONA_OPERATOR_PRIVKEY_HEX: "${KUBONA_OPERATOR_PRIVKEY_HEX:-}"
       KUBONA_IBM_QISKIT_TOKEN: "${KUBONA_IBM_QISKIT_TOKEN:-}"
       KUBONA_IBM_QISKIT_INSTANCE: "${KUBONA_IBM_QISKIT_INSTANCE:-}"
       KUBONA_STATE_DIR: /home/kubona/.kubona
+      KUBONA_CONTRACTS_DIR: /app/contracts
+      KUBONA_EXTERNAL_SKILLS_DIR: /app/skills
       KUBONA_EVENT_TYPES: /app/contracts/event-types.json
       KUBONA_ERROR_CATALOG: /app/contracts/error-catalog.csv
       HOME: /tmp
       XDG_CACHE_HOME: /tmp/.cache
     volumes:
       - kubona-state:/home/kubona/.kubona
+      - ../../skills:/app/skills:ro
     tmpfs:
       - /tmp
     ports:

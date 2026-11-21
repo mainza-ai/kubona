@@ -18,10 +18,10 @@ posture on the wire; this module proves the path and is what `kubona serve` wire
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import os
 import time
-from typing import Any
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -31,6 +31,7 @@ from starlette.routing import Route
 
 from kubona.mcp.auth import AuthError, Principal
 from kubona.mcp.gateway import KubonaGateway
+from kubona.mcp.unified import CURRENT_BEARER_TOKEN, PROFILES, build_unified_mcp_server
 from kubona.logging import get_logger, log_call
 from kubona.security.hybrid_transport import HybridSession, TransportError
 from kubona.security.secure_rpc import SecureRpc
@@ -131,7 +132,82 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
                       principal=outer.sub)
             return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
-    return Starlette(routes=[Route("/health", health), Route("/rpc", rpc, methods=["POST"])])
+    # Standard MCP Streamable HTTP (JSON-RPC 2.0) on /mcp alongside /rpc.
+    # Each profile gets a stateless, JSON-response MCPServer routed through
+    # the same KubonaGateway (auth + PolicyEngine + MRTR approval + audit).
+    profile_servers = {
+        prof: build_unified_mcp_server(gateway, profile=prof)
+        for prof in PROFILES
+    }
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    transport_sec = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*", "mcp:*"],
+        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+    )
+    profile_apps = {
+        prof: srv.streamable_http_app(
+            streamable_http_path="/mcp",
+            stateless_http=True,
+            json_response=True,
+            transport_security=transport_sec,
+        )
+        for prof, srv in profile_servers.items()
+    }
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette):
+        async with contextlib.AsyncExitStack() as stack:
+            for srv in profile_servers.values():
+                await stack.enter_async_context(srv.session_manager.run())
+            yield
+
+    async def mcp_endpoint(scope, receive, send):
+        request = Request(scope, receive)
+        outer = _principal(request, gateway)
+        if outer is None:
+            resp = JSONResponse({"ok": False, "error": "unauthorized: Bearer <token>"}, status_code=401)
+            await resp(scope, receive, send)
+            return
+        if require_secure:
+            resp = JSONResponse(
+                {"ok": False, "error": "secure envelope required: use /rpc with hybrid envelope"},
+                status_code=400,
+            )
+            await resp(scope, receive, send)
+            return
+        profile = (request.query_params.get("profile") or "all").strip()
+        sub_app = profile_apps.get(profile)
+        if sub_app is None:
+            resp = JSONResponse(
+                {"ok": False, "error": f"unknown MCP profile {profile!r}; allowed: {sorted(PROFILES)}"},
+                status_code=400,
+            )
+            await resp(scope, receive, send)
+            return
+        bearer = request.headers["authorization"][len("Bearer "):]
+        tok = CURRENT_BEARER_TOKEN.set(bearer)
+        try:
+            await sub_app(scope, receive, send)
+        finally:
+            CURRENT_BEARER_TOKEN.reset(tok)
+
+    class _MCPRoute(Route):
+        """ASGI route delegating /mcp directly to the authenticated MCP app."""
+
+        def __init__(self) -> None:
+            super().__init__("/mcp", endpoint=mcp_endpoint, methods=["GET", "POST", "DELETE"])
+            self.app = mcp_endpoint
+
+    return Starlette(
+        routes=[
+            Route("/health", health),
+            Route("/rpc", rpc, methods=["POST"]),
+            _MCPRoute(),
+        ],
+        lifespan=lifespan,
+    )
 
 
 def make_http_gateway(gateway: KubonaGateway | None = None,

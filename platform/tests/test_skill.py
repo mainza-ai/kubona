@@ -1,43 +1,44 @@
-"""L1 skill pins: the skill exists, stays lean, keeps its sections, and
-every path:line anchor resolves into the tree (dead traps fail here)."""
+"""L1 skill pins: all external skills under skills/*/SKILL.md stay lean,
+carry valid frontmatter and anchors, and match Kubona's live MCP, OpenAPI,
+and error-catalog contracts (via scripts/skill-lint.py)."""
 
-import re
+import importlib.util
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SKILL = REPO / "skills" / "kubona" / "SKILL.md"
+SKILLS_DIR = REPO / "skills"
+ROUTER_SKILL = SKILLS_DIR / "kubona" / "SKILL.md"
 
-REQUIRED_HEADINGS = ["## Rules", "## Router", "## First move", "## Speed patterns", "## Traps"]
-MAX_BYTES = 12 * 1024
-
-ANCHOR_RE = re.compile(
-    r"`((?:platform|bench|skills|scripts)/[\w\-/]*\.(?:py|go|json|md|sh|yaml|toml)):(\d+)`"
-)
-
-
-def _text():
-    assert SKILL.exists(), f"skill missing at {SKILL}"
-    return SKILL.read_text()
+EXPECTED_SKILLS = {
+    "kubona",
+    "kubona-connect",
+    "kubona-experiments",
+    "kubona-governance",
+    "kubona-research",
+    "kubona-ops",
+}
 
 
-def test_skill_exists_and_lean():
-    assert SKILL.exists()
-    size = SKILL.stat().st_size
-    assert size <= MAX_BYTES, f"skill grew past leanness budget: {size} > {MAX_BYTES}"
+def _load_linter():
+    spec = importlib.util.spec_from_file_location("skill_lint", REPO / "scripts" / "skill-lint.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
-def test_skill_sections():
-    text = _text()
-    for heading in REQUIRED_HEADINGS:
-        assert heading in text, f"skill missing section {heading}"
+def test_expected_skill_suite_present():
+    present = {p.name for p in SKILLS_DIR.iterdir() if p.is_dir() and (p / "SKILL.md").exists()}
+    missing = EXPECTED_SKILLS - present
+    assert not missing, f"missing expected external skills: {sorted(missing)}"
 
 
-def test_skill_anchors_resolve():
-    text = _text()
-    anchors = ANCHOR_RE.findall(text)
-    assert anchors, "skill carries no verifiable anchors"
-    for path, line in anchors:
-        target = REPO / path
-        assert target.exists(), f"anchor target missing: {path}"
-        total = sum(1 for _ in target.open())
-        assert 1 <= int(line) <= total, f"anchor line out of range: {path}:{line}"
+def test_router_skill_lean():
+    assert ROUTER_SKILL.exists()
+    assert ROUTER_SKILL.stat().st_size <= 6 * 1024
+
+
+def test_skill_lint_clean():
+    linter = _load_linter()
+    errors = linter.lint_skills()
+    assert not errors, "skill-lint failures:\n" + "\n".join(errors)

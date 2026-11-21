@@ -60,6 +60,18 @@ TOOL_SCOPES: dict[str, str] = {
     "control/pause_loop": "control:override",
     "control/resume_loop": "control:override",
     "control/kill_loop": "control:override",
+    # science & discovery (kubonad bridge rail)
+    "science/get_classical_anchor": "science:read",
+    "science/run_experiment": "science:execute",
+    "science/plan_discovery": "science:read",
+    "science/run_discovery": "science:execute",
+    "science/list_hypotheses": "science:read",
+    "science/propose_hypothesis": "science:write",
+    "science/get_research_graph": "science:read",
+    "science/recall_memory": "science:read",
+    "science/retain_memory": "science:write",
+    "science/verify_manuscript": "science:read",
+    "science/get_session_autonomy": "science:read",
 }
 
 # Operator's default full scope set (dev principal).
@@ -69,6 +81,7 @@ OPERATOR_SCOPES = ("*",)
 AGENT_RESEARCHER_SCOPES = (
     "compiler:read", "execution:submit", "execution:read", "cost:read",
     "providers:read", "provenance:write", "provenance:read", "control:read",
+    "science:read", "science:write", "science:execute",
 )
 
 

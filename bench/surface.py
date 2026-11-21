@@ -24,7 +24,15 @@ import sys
 # descriptions themselves were NOT trimmed here (agent-facing prose is a
 # separate leanness pass, not a budget dodge). Ratchet still holds: any
 # future growth past 18 KB fails until justified the same way.
-SURFACE_BUDGET_BYTES = 18 * 1024
+# 2026-11-20 composition at 21,963 bytes (7 servers / 49 tools): added the
+# `science` MCP server (11 tools: get_classical_anchor, run_experiment,
+# plan_discovery, run_discovery, list_hypotheses, propose_hypothesis,
+# get_research_graph, recall_memory, retain_memory, verify_manuscript,
+# get_session_autonomy) so external MCP agents can reach Kubona's classical
+# anchor, experiment, discovery, hypothesis, memory, publication, and autonomy
+# rails. Context-flooding countermeasure: unified MCP server supports
+# `--profile` / `?profile=` scoping (read-only, science, governance, ops, world).
+SURFACE_BUDGET_BYTES = 24 * 1024
 
 
 def _schema(fn) -> dict:

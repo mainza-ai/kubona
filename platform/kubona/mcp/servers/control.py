@@ -26,7 +26,15 @@ from kubona.control import LoopSupervisor
 from kubona.security.tenant import CrossTenantRefusal, resolve_tenant
 from kubona.session import SessionStore
 
-mcp = MCPServer("kubona-control")
+mcp = MCPServer(
+    "kubona-control",
+    instructions=(
+        "Kubona Control Plane server: supervise long-running agent loops "
+        "(`register_loop`, `step_loop`, `list_loops`, `loop_status`) and apply "
+        "operator overrides (`pause_loop`, `resume_loop`, `kill_loop`). "
+        "Stop immediately when `step_loop` returns `should_run=False`."
+    ),
+)
 
 _supervisor = LoopSupervisor(SessionStore())
 

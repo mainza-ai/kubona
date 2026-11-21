@@ -476,6 +476,10 @@ def _cli(argv: list[str] | None = None) -> int:
     if cmd in ("serve-gateway", "gateway"):
         serve_gateway()
         return 0
+    if cmd == "serve-mcp":
+        return _serve_mcp_cli(argv[2:])
+    if cmd == "mcp-config":
+        return _mcp_config_cli(argv[2:])
     if cmd == "doctor":
         args = argv[2:]
         strict = "--strict" in args
@@ -593,6 +597,114 @@ def _mandate_check(args: list[str]) -> int:
     else:
         out["admission_note"] = "ledger db missing (fresh state — nothing admitted yet)"
     print(json.dumps(out, indent=2))
+    return 0
+
+
+def _serve_mcp_cli(args: list[str]) -> int:
+    """Run the unified, profile-scoped Kubona MCP server over stdio."""
+    import argparse
+
+    from kubona.mcp.unified import PROFILES, build_unified_mcp_server
+
+    ap = argparse.ArgumentParser(prog="kubona.run serve-mcp")
+    ap.add_argument(
+        "--profile",
+        default=os.environ.get("KUBONA_MCP_PROFILE", "all"),
+        choices=sorted(PROFILES),
+        help="Tool profile to expose (reduces context flooding)",
+    )
+    ap.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="Disable gateway bearer verification (local dev/offline only)",
+    )
+    ns = ap.parse_args(args)
+    require_auth = not ns.no_auth
+    token = os.environ.get("KUBONA_MCP_TOKEN") or os.environ.get("KUBONA_API_TOKEN")
+    gw = make_gateway(require_auth=require_auth)
+    server = build_unified_mcp_server(gw, profile=ns.profile, default_token=token)
+    server.run()
+    return 0
+
+
+def _mcp_config_cli(args: list[str]) -> int:
+    """Print copy-pasteable MCP client configuration for popular AI agent hosts.
+
+    Never emits live secret values — always uses placeholder env references.
+    """
+    import argparse
+    import json
+    from pathlib import Path
+
+    from kubona.mcp.unified import PROFILES
+
+    ap = argparse.ArgumentParser(prog="kubona.run mcp-config")
+    ap.add_argument(
+        "--client",
+        default="claude-code",
+        choices=("claude-code", "claude-desktop", "cursor", "codex", "antigravity"),
+        help="Target AI agent host",
+    )
+    ap.add_argument(
+        "--transport",
+        default="http",
+        choices=("http", "stdio"),
+        help="MCP transport: http (Streamable HTTP /mcp) or stdio",
+    )
+    ap.add_argument(
+        "--profile",
+        default="science",
+        choices=sorted(PROFILES),
+        help="Tool profile (default: science)",
+    )
+    ap.add_argument(
+        "--url",
+        default="http://127.0.0.1:8123/mcp",
+        help="Streamable HTTP MCP endpoint URL (used with --transport http)",
+    )
+    ns = ap.parse_args(args)
+
+    repo_root = Path(__file__).resolve().parents[2]
+    python_bin = str(repo_root / "platform" / ".venv" / "bin" / "python")
+    url = ns.url
+    if ns.profile != "all" and "profile=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}profile={ns.profile}"
+
+    if ns.client == "codex":
+        if ns.transport == "http":
+            print(
+                "[mcp_servers.kubona]\n"
+                f'url = "{url}"\n'
+                'bearer_token_env_var = "KUBONA_API_TOKEN"\n'
+            )
+        else:
+            print(
+                "[mcp_servers.kubona]\n"
+                f'command = "{python_bin}"\n'
+                f'args = ["-m", "kubona.run", "serve-mcp", "--profile", "{ns.profile}"]\n'
+                f'cwd = "{repo_root / "platform"}"\n'
+                'env = { KUBONA_CORE_URL = "http://127.0.0.1:8080", KUBONA_API_TOKEN = "${KUBONA_API_TOKEN}" }\n'
+            )
+        return 0
+
+    if ns.transport == "http":
+        entry: dict = {
+            "type": "http" if ns.client == "claude-code" else "streamable-http",
+            "url": url,
+            "headers": {"Authorization": "Bearer ${KUBONA_API_TOKEN}"},
+        }
+    else:
+        entry = {
+            "command": python_bin,
+            "args": ["-m", "kubona.run", "serve-mcp", "--profile", ns.profile],
+            "cwd": str(repo_root / "platform"),
+            "env": {
+                "KUBONA_CORE_URL": "http://127.0.0.1:8080",
+                "KUBONA_API_TOKEN": "${KUBONA_API_TOKEN}",
+            },
+        }
+    print(json.dumps({"mcpServers": {"kubona": entry}}, indent=2))
     return 0
 
 

@@ -783,6 +783,10 @@ func (s *Server) registerRoutes() {
 	// A2A Inter-Agent Protocol & x402 payment rails
 	s.route("/api/a2a/v1", s.requireA2AAuth(s.handleA2A))
 	s.route("/api/a2a/v1/challenge", s.requireA2AAuth(s.handleA2AChallenge))
+	// Agent & API runtime discovery (public read-only, no secrets, no spend)
+	s.route("/.well-known/agent.json", s.handleWellKnownAgent)
+	s.route("/llms.txt", s.handleLLMsTxt)
+	s.route("/api/openapi.json", s.handleOpenAPI)
 
 	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
 	s.route("/api/events/stream", s.handleEventsStream)
@@ -814,6 +818,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/observatory/webhooks", s.handleObservatoryWebhook)
 
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
+	s.route("/api/chemistry/anchor", s.requireBearer(s.handleChemistryAnchor))
 	s.route("/api/chemistry/admet", s.handleChemistryADMET)
 	s.route("/api/discovery/pipeline", s.handleDiscoveryPipeline)
 	s.route("/api/discovery/plan", s.handleDiscoveryPlan)

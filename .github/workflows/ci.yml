@@ -37,6 +37,8 @@ jobs:
           enable-cache: true
       - name: Wiki structural lint (blueprint invariants)
         run: uv run --no-project --with pyyaml python3 scripts/wiki-lint.py --strict
+      - name: External agent skills contract lint
+        run: python3 scripts/skill-lint.py --strict
 
   secret-scan:
     name: Secret + local-path scan (versioned pre-commit mirror)

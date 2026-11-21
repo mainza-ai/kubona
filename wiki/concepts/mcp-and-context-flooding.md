@@ -2,7 +2,7 @@
 type: concept
 name: MCP & Context Flooding
 date: 2026-08-16
-updated: 2026-11-18
+updated: 2026-11-20
 tags: [mcp, agent-integration]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-agent-protocol-landscape-2026]
 status: adopted
@@ -53,11 +53,17 @@ eval/provenance — mounted behind a unified gateway; the shipped catalog is now
 delegating to Kubona's protocol-neutral Capability Core; capability functions accept and return
 native Python data structures uncoupled from MCP SDK types.
 
-> ⚑ Implementation update (2026-11-10, `119749e` / `de3428c`): `platform/kubona/mcp/servers/_mount.py`
-> and `platform/contracts/mcp-catalog.json` now mount **6** servers (`control`, `compiler`,
-> `execution`, `cost`, `provenance`, `world`) exposing **38** tools (`docs/repo-counts.md`),
-> and Go SSE (`/api/events/stream`) supports `Last-Event-ID` cursor replay + live Console
- > campaign/job invalidation; the `useTelemetry` hook is retired and the console uses `useSessionStream`.
+> ⚑ Implementation update (2026-11-20): `platform/kubona/mcp/servers/_mount.py`
+> and `platform/contracts/mcp-catalog.json` now mount **7** servers (`control`, `compiler`,
+> `execution`, `cost`, `provenance`, `science`, `world`) exposing **49** tools (`docs/repo-counts.md`).
+> `platform/kubona/mcp/http_gateway.py` now serves standard MCP Streamable HTTP (`POST /mcp`
+> JSON-RPC 2.0, `stateless_http=True`, `json_response=True`, Bearer-authed, DNS-rebinding-protected)
+> alongside legacy `POST /rpc`, with `?profile=read-only|science|governance|ops|world|all` context-flooding
+> scoping (`platform/kubona/mcp/unified.py`), read-only MCP Resources (`kubona://skills`,
+> `kubona://contracts/*`), 5 guided MCP Prompts, and server `instructions`. External AI agent
+> onboarding skills live under `skills/kubona*` (6 modular skills verified in CI by
+> `scripts/skill-lint.py --strict`), and `kubonad` serves runtime discovery at `/api/openapi.json`,
+> `/.well-known/agent.json`, and `/llms.txt`.
 
 ## Target revision & extension policy (Q-29, closed 2026-10-09)
 

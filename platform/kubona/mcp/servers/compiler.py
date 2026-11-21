@@ -15,7 +15,15 @@ from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import canonical_hash, parse_qasm2, to_qasm
 
-mcp = MCPServer("kubona-compiler")
+mcp = MCPServer(
+    "kubona-compiler",
+    instructions=(
+        "Kubona Compiler server: validate and canonicalize OpenQASM 2.0 circuits "
+        "into content-addressed IR (`transpile_circuit`), lower to QIR (`lower_circuit`), "
+        "or run the pass portfolio with equivalence evidence (`compile_circuit`). "
+        "Malformed QASM always refuses — never guessed."
+    ),
+)
 
 
 def transpile_circuit(circuit_qasm: str) -> dict:

@@ -14,7 +14,7 @@ from typing import Any
 from kubona.mcp.gateway import KubonaGateway
 from kubona.mcp.approval import approval_secret_from_env
 
-from . import compiler, control, cost, execution, provenance, world
+from . import compiler, control, cost, execution, provenance, science, world
 
 
 def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
@@ -70,6 +70,19 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
         "world_summon": world.world_summon,
         "world_handoff": world.world_handoff,
         "world_replay": world.world_replay,
+    })
+    gw.mount("science", {
+        "get_classical_anchor": science.get_classical_anchor,
+        "run_experiment": science.run_experiment,
+        "plan_discovery": science.plan_discovery,
+        "run_discovery": science.run_discovery,
+        "list_hypotheses": science.list_hypotheses,
+        "propose_hypothesis": science.propose_hypothesis,
+        "get_research_graph": science.get_research_graph,
+        "recall_memory": science.recall_memory,
+        "retain_memory": science.retain_memory,
+        "verify_manuscript": science.verify_manuscript,
+        "get_session_autonomy": science.get_session_autonomy,
     })
     # Phase-0 money rail: paid dispatches behind human approval. Free-tier
     # simulators auto-allow inside the builders; anything that can spend > 0

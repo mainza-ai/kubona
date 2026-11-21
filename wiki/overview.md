@@ -79,9 +79,13 @@ ledger receipt, a cited anchor), never to an assertion.
 2. **The architecture decouples peripheral protocols from a Capability Core** — [[protocol-strategy]]:
    the core houses hardware cost governance, provider federation, QIR compilation, and the
    provenance ledger. External access is provided via thin edge adapters: [[mcp-and-context-flooding|MCP]]
-   (2026-07-28 stateless core) for host/tool invocation, [[a2a|A2A]] for inter-agent delegation, and
-   [[ap2|AP2]] signed mandates for hardware spend authorization. In code-execution mode, agents write
-   Python/Rust scripts against the Capability Core inside a sandbox, reducing token overhead by up to 98.7%.
+   (2026-07-28 stateless core; 7 servers / 49 tools over unified `stdio` and standard Streamable HTTP
+   `POST /mcp?profile=...` with server `instructions`, `kubona://` Resources, and workflow Prompts,
+   paired with 6 CI-verified external skills under `skills/kubona*`), [[a2a|A2A]] for inter-agent
+   delegation (advertised at `/.well-known/agent.json`, alongside `/api/openapi.json` and `/llms.txt`),
+   and [[ap2|AP2]] signed mandates for hardware spend authorization. In code-execution mode, agents
+   write Python/Rust scripts against the Capability Core inside a sandbox, reducing token overhead by
+   up to 98.7%.
 
 3. **Cost governance and provenance are non-optional rail, not add-ons.** A single
    mis-configured VQE run can burn thousands of dollars in minutes. Mandatory simulator

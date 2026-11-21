@@ -20,7 +20,15 @@ import urllib.request
 
 from mcp.server.mcpserver import MCPServer
 
-mcp = MCPServer("kubona-world")
+mcp = MCPServer(
+    "kubona-world",
+    instructions=(
+        "Kubona Observatory World server: inspect camera/ledger context (`world_look`, "
+        "`world_replay`), estimate lens costs without executing (`world_probe`), and "
+        "append annotations (`world_anchor`, `world_gaze`, `world_handoff`, `world_summon`). "
+        "Never dispatches paid Atlas tasks directly."
+    ),
+)
 
 CORE_URL = os.environ.get("KUBONA_CORE_URL", "http://localhost:8080").rstrip("/")
 LENS_COST_USD = 0.50  # matches lensCostUSD in platform/core/pkg/api/observatory_lens.go

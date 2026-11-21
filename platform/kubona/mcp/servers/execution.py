@@ -30,7 +30,15 @@ from kubona.schema import load_provider
 from kubona.schema.provider import MODALITIES_SIMULATOR, TWO_Q_GATES
 from kubona.mcp.servers._stores import GOVERNANCE as _gov, SESSIONS as _sessions
 
-mcp = MCPServer("kubona-execution")
+mcp = MCPServer(
+    "kubona-execution",
+    instructions=(
+        "Kubona Execution server: inspect providers (`list_provider_registry`), submit "
+        "circuits (`submit_job`, `run_zne_job`, `submit_qubo_job`), poll async status "
+        "(`get_job_status`), and read results (`get_result`). Paid dispatches require "
+        "human/mandate approval (MRTR packet). Terminal jobs never re-transition."
+    ),
+)
 
 _runner = JobRunner()  # persistent, async job farm (production §4.3 abstraction)
 _fidelity = FidelityAccountingEngine()

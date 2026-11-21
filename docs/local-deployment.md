@@ -307,27 +307,58 @@ talks to the QPU vendor. Without credentials, simulators still work and the
 fleet reports the backend as credentialless (fail-closed at submit).
 Air-gap mode disables QPU cloud as well as cloud LLM.
 
-## 6b. Agent MCP layer (stdio + Streamable HTTP)
+## 6b. Agent MCP layer (unified stdio + standard Streamable HTTP) & External Skills
 
-The 6 MCP servers can be spawned as **stdio processes by the agent host**,
-or served by the optional `mcp` compose service over the 2026-07-28
-Streamable-HTTP transport. Stdio from the repo venv:
+The **7 MCP servers (49 tools)** (`compiler`, `control`, `cost`, `execution`,
+`provenance`, `science`, `world`) can be accessed either via the **unified
+profiled stdio server** or over **standard MCP Streamable HTTP (`POST /mcp`)**
+served by the `mcp` compose service on `127.0.0.1:8123`:
 
 ```bash
+# Unified stdio (profiled to prevent context flooding)
 cd platform
+.venv/bin/python -m kubona.run serve-mcp --profile science
+# Profiles: all | read-only | science | governance | ops | world
+
+# Standalone single-server stdio (still supported)
 .venv/bin/python -m kubona.mcp.servers.compiler
-# execution, cost, provenance, control, world — same pattern
+# execution, cost, provenance, control, science, world — same pattern
 ```
 
-The compose `mcp` service runs `kubona.run serve-gateway` on
-`127.0.0.1:8123` with the same OAuth2/session auth and audit JSONL. It shares
-the `kubona-state` volume and exposes no public port. Use stdio for a single
-local agent, or the HTTP gateway when several clients need a shared session
-pool. Both paths use the same contracts and tools.
+The compose `mcp` service runs `kubona.run serve-gateway` on `127.0.0.1:8123`
+with OAuth2 bearer auth, DNS-rebinding protection, `PolicyEngine` scope checks,
+MRTR paid-execution approval gates, and audit JSONL:
+- **Standard MCP Streamable HTTP:** `POST http://127.0.0.1:8123/mcp?profile=science`
+  (JSON-RPC 2.0, `stateless_http=True`, `json_response=True`, Bearer auth required;
+  unknown profiles fail closed with `400`).
+- **Legacy HTTP RPC:** `POST http://127.0.0.1:8123/rpc` (`{server, tool, args}`
+  or post-quantum X25519+ML-KEM `{envelope}`).
+- **MCP-native onboarding:** Server `instructions`, read-only Resources
+  (`kubona://skills`, `kubona://skills/{name}`, `kubona://contracts/error-catalog`,
+  `kubona://contracts/mcp-catalog`, `kubona://contracts/experiment-kinds`,
+  `kubona://contracts/rate-cards`), and 5 guided Prompts (`vqe-with-anchor`,
+  `hardware-readiness-check`, `cost-governed-submit`,
+  `audit-session-provenance`, `debug-failed-job`).
 
-The `cost` server's `codesign_rerun` tool forwards to `POST
-/api/codesign/rerun`. Set `KUBONA_API_URL` (default `http://127.0.0.1:8080`)
-and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
+Generate copy-pasteable client configs (zero secret leakage — placeholders only)
+and install the 6 external agent skills (`skills/kubona*`):
+
+```bash
+# Generate MCP client config for your host
+platform/.venv/bin/python -m kubona.run mcp-config --client claude-code --transport http --profile science
+# Supported clients: claude-code | claude-desktop | cursor | codex | antigravity
+
+# Install external SKILL.md suite into your agent host
+scripts/install-skills.sh claude        # or: cursor | codex | antigravity | project
+```
+
+`kubonad` (`127.0.0.1:8080`) also serves runtime discovery for HTTP and A2A
+agents: `GET /llms.txt`, `GET /api/openapi.json`, and `GET /.well-known/agent.json`,
+plus bearer-gated `POST /api/chemistry/anchor` for live PySCF classical anchors.
+In `compose.prod.yml`, `mcp` reaches `kubonad` via `KUBONA_CORE_URL=http://kubonad:8080`
+(with `KUBONA_ALLOWED_HOSTS=${KUBONA_ALLOWED_HOSTS:-kubonad}` on `kubonad`),
+mounts `../../skills:/app/skills:ro`, and forwards `KUBONA_API_TOKEN` so
+`science` / `world` / `codesign_rerun` fail closed without an operator token.
 
 ## 7. Data, secrets, and backup
 

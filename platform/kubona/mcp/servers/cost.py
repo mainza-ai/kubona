@@ -18,7 +18,15 @@ from kubona.cost.payment import payments_for
 from kubona.schema import load_provider
 from kubona.mcp.servers._stores import GOVERNANCE as _gov, SESSIONS as _sessions
 
-mcp = MCPServer("kubona-cost")
+mcp = MCPServer(
+    "kubona-cost",
+    instructions=(
+        "Kubona Cost Governance server: create ceilinged sessions (`create_session`), "
+        "run pre-flight estimates (`estimate_cost` — always heuristic; ceilings bind), "
+        "monitor burn (`session_burn_rate`), and manage staged approvals or x402 quotes. "
+        "NaN, Inf, and negative amounts fail closed everywhere."
+    ),
+)
 
 
 # Stored quotes (W0.16): verify_payment checks the proof against the amount

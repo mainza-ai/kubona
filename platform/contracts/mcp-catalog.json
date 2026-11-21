@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "9016e5b01552b35f5045fa0b78c4f2c75529f242219ffae05776125ddd77f8d7",
+  "digest": "a6bca160d6f68a265286be9c5e5cfe91374c2b7659f959d1a7dcfe82ce96f530",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1029,7 +1029,7 @@
       },
       "server": "execution",
       "verdict": "keep",
-      "trust_property": "Sole discovery path for MCP-only clients (~200 bytes; skill covers repo agents) — reviewed, kept deliberately",
+      "trust_property": "Sole discovery path for MCP-only clients (~200 bytes; skill covers repo agents) \u2014 reviewed, kept deliberately",
       "error_codes": [
         "unauthorized",
         "internal"
@@ -1574,6 +1574,425 @@
       ]
     },
     {
+      "name": "get_classical_anchor",
+      "description": "Compute PySCF classical reference anchor (RHF/FCI) via kubonad + bridge before claiming any quantum energy.",
+      "inputSchema": {
+        "properties": {
+          "molecule": {
+            "title": "Molecule",
+            "type": "string"
+          },
+          "bond_distance_angstrom": {
+            "default": 0.74,
+            "title": "Bond Distance Angstrom",
+            "type": "number"
+          },
+          "basis": {
+            "default": "sto-3g",
+            "title": "Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "molecule"
+        ],
+        "title": "get_classical_anchorArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Bridge-backed PySCF RHF/FCI anchor read; fails closed when kubonad or bridge is unavailable (never invents energies).",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "get_research_graph",
+      "description": "Read the byte-budgeted research graph summary for a session (resumable via since_seq).",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "since_seq": {
+            "default": 0,
+            "title": "Since Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "get_research_graphArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Byte-budgeted, resumable (since_seq) read-only session research graph summary.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "not_found",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "get_session_autonomy",
+      "description": "Read session agentic mode (agentic_enabled/locked), stage autonomy policy, and pending approvals.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "get_session_autonomyArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Read-only inspection of session agentic_enabled/agentic_locked posture, stage policy, and pending approvals.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "not_found",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "list_hypotheses",
+      "description": "List persisted hypotheses and Elo tournament state for a session.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "list_hypothesesArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Read-only session hypothesis & Elo tournament listing.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "not_found",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "plan_discovery",
+      "description": "Generate a pre-registered scientific discovery plan via kubonad.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "target_system": {
+            "title": "Target System",
+            "type": "string"
+          },
+          "goal": {
+            "default": "",
+            "title": "Goal",
+            "type": "string"
+          },
+          "budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Usd"
+          }
+        },
+        "required": [
+          "session_id",
+          "target_system"
+        ],
+        "title": "plan_discoveryArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Pre-registers a typed discovery plan via Go core without executing spend.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "ghost_session",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "propose_hypothesis",
+      "description": "Register a candidate scientific hypothesis in a session.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          },
+          "rationale": {
+            "default": "",
+            "title": "Rationale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "title",
+          "statement"
+        ],
+        "title": "propose_hypothesisArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Persists a candidate hypothesis into the session ledger; evidence-gated before collapse.",
+      "error_codes": [
+        "unauthorized",
+        "forbidden",
+        "bad_request",
+        "ghost_session",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "recall_memory",
+      "description": "Recall tenant-scoped scientific memory (hybrid lexical + semantic) for a session.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "bank": {
+            "default": "",
+            "title": "Bank",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "query"
+        ],
+        "title": "recall_memoryArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Tenant- and session-scoped hybrid lexical+semantic memory read.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "not_found",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "retain_memory",
+      "description": "Persist a verified scientific fact into tenant-scoped session memory.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "bank": {
+            "default": "world-facts",
+            "title": "Bank",
+            "type": "string"
+          },
+          "confidence": {
+            "default": 0.8,
+            "title": "Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "content"
+        ],
+        "title": "retain_memoryArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Tenant- and session-scoped memory write; subject to bearer auth and retraction audit trail.",
+      "error_codes": [
+        "unauthorized",
+        "forbidden",
+        "bad_request",
+        "ghost_session",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "run_discovery",
+      "description": "Execute a discovery plan via kubonad (subject to session autonomy and budget gates).",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          }
+        },
+        "required": [
+          "session_id",
+          "plan"
+        ],
+        "title": "run_discoveryArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Executes a pre-registered discovery plan under Go core autonomy, risk-approval, and budget gates.",
+      "error_codes": [
+        "unauthorized",
+        "forbidden",
+        "bad_request",
+        "ghost_session",
+        "agentic_disabled",
+        "agentic_locked",
+        "risk_approval_required",
+        "prior_negative_exists",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "run_experiment",
+      "description": "Run a structured Kubona experiment (vqe, pes, qaoa, spin_chain, geometry_optimization, reaction, etc.) via kubonad.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          }
+        },
+        "required": [
+          "session_id",
+          "kind"
+        ],
+        "title": "run_experimentArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Proxies structured experiment kinds through Go core admission, budget, and session autonomy gates.",
+      "error_codes": [
+        "unauthorized",
+        "forbidden",
+        "bad_request",
+        "ghost_session",
+        "agentic_disabled",
+        "agentic_locked",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
+      "name": "verify_manuscript",
+      "description": "Verify numeric claims and citations in a session manuscript before signoff.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "manuscript_id": {
+            "title": "Manuscript Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "manuscript_id"
+        ],
+        "title": "verify_manuscriptArguments",
+        "type": "object"
+      },
+      "server": "science",
+      "verdict": "keep",
+      "trust_property": "Numeric and citation verification gate that blocks signoff on fabricated numbers or dead citations.",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "not_found",
+        "evidence_verification_failed",
+        "verification_unavailable",
+        "bridge_unavailable",
+        "server_misconfigured"
+      ]
+    },
+    {
       "name": "world_anchor",
       "description": "Attach a hypothesis to a world pose. Requires evidence refs.",
       "inputSchema": {
@@ -1742,7 +2161,7 @@
     },
     {
       "name": "world_probe",
-      "description": "Cost estimate for a measurement. Never executes — dispatch stays human-driven.",
+      "description": "Cost estimate for a measurement. Never executes \u2014 dispatch stays human-driven.",
       "inputSchema": {
         "properties": {
           "session_id": {

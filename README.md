@@ -25,7 +25,7 @@
 
 **Kubona** (from Chitonga *ku-bona*, *"to see, observe, perceive"*) is an open-source, local-first quantum and scientific discovery platform built around a single rule: **no claim without a classical anchor, no execution without a budget hold, and no result without a cryptographic receipt.**
 
-It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 6-server MCP tool layer (38 tools; `stdio` + Streamable HTTP), and a Next.js 3D operator console.
+It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 7-server MCP tool layer (49 tools; unified `stdio` + standard Streamable HTTP `/mcp` with profiles, Resources, and Prompts), external AI agent skills (`skills/kubona*`), and a Next.js 3D operator console.
 
 > [!NOTE]
 > **Active Development:** A platform like this is never finished on day one; it compounds. **Kubona is in active development and becoming more capable every week** — tightening the feedback loop between what an agent proposes, what physics permits, and what the ledger can prove. Follow phased milestones in [`wiki/roadmap.md`](wiki/roadmap.md) and [`wiki/log.md`](wiki/log.md).
@@ -88,9 +88,10 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 - **Governed Spend Ledger:** Enforces operator-signed WebCrypto Ed25519 mandates, pre-execution budget holds, and measured QPU runtime settlement for IBM Quantum, with credential-gated Quantinuum dispatch and local/simulator runtimes. IonQ, AWS Braket, Rigetti, and neutral-atom providers are catalogued capability rows that **fail closed** until a reviewed adapter lands.
 - **Machine-Checked Proofs:** 405 pre-registered Lean 4 challenges run inside a pinned, offline sandbox (Lean 4.34.1, comparator v4.34.0, `lean4export`, landrun). Only a kernel-accepted solution is attested as `live_kernel_proven`; signed attestations are verified against the configured comparator key. See [`docs/lean-comparator-runbook-2026-11-18.md`](docs/lean-comparator-runbook-2026-11-18.md).
 
-### 4. Polyglot Core & MCP-Native Architecture
+### 4. Polyglot Core, MCP-Native Architecture & External Agent Skills
 
-- **6-Server MCP Surface (38 Tools; `stdio` + Streamable HTTP):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `world`) exposed both over `stdio` and as a production Streamable-HTTP gateway (`127.0.0.1:8123`) so autonomous AI agents can inspect state, launch campaigns, and audit receipts.
+- **7-Server MCP Surface (49 Tools; Unified `stdio` + Standard Streamable HTTP `/mcp`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`) exposed over standard MCP Streamable HTTP (`http://127.0.0.1:8123/mcp?profile=science|read-only|governance|ops|world|all`), unified `stdio` (`python -m kubona.run serve-mcp`), and legacy `/rpc` (including X25519+ML-KEM hybrid envelopes). Ships with server `instructions`, read-only MCP Resources (`kubona://skills`, `kubona://contracts/error-catalog`, `kubona://contracts/mcp-catalog`, `kubona://contracts/rate-cards`), and 5 guided MCP Prompts.
+- **External AI Agent Skills & Runtime Discovery:** A modular 6-skill suite under [`skills/`](skills/) (`kubona` router, `kubona-connect`, `kubona-experiments`, `kubona-governance`, `kubona-research`, `kubona-ops`) verified in CI by `scripts/skill-lint.py --strict`, installable into Claude Code / Cursor / Codex / Antigravity via `scripts/install-skills.sh <host>`, and paired with `python -m kubona.run mcp-config` plus live `kubonad` discovery endpoints (`GET /api/openapi.json`, `GET /.well-known/agent.json`, `GET /llms.txt`).
 - **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), hardened Rust native `qir-core` (OpenQASM 2/3 to QIR LLVM IR lowering with bounded input/register limits and `pi`/`sdg`/`tdg` support) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
 
 ### 5. The Sovereign Observatory Console
@@ -135,7 +136,7 @@ All 19 `experiment-result-v1` kinds execute through the governed Go job rail; th
 | [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 6 MCP servers (38 tools; `stdio` + Streamable HTTP: `execution`, `compiler`, `cost`, `provenance`, `control`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 7 MCP servers (49 tools; unified `stdio` + Streamable HTTP `/mcp` with profiles, Resources & Prompts: `execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
 | [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
 | [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
 | [`wiki/`](wiki/) | **Blueprint Wiki** | 168 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
@@ -170,6 +171,21 @@ uv sync --locked --extra dev --extra qiskit --extra chemistry
 ```
 
 Open **`http://localhost:3000`** in your browser. Press **`Cmd+E`** (`Ctrl+E`) or click **Experiment Lab** in the top bar to launch single experiments, multi-step discovery protocols, or governed QPU runs.
+
+### Connect External AI Agents (MCP, Skills & Discovery)
+
+```bash
+# Generate copy-pasteable MCP client config (Claude Code, Cursor, Codex, Antigravity)
+platform/.venv/bin/python -m kubona.run mcp-config --client claude-code --transport http --profile science
+
+# Install Kubona's 6 external agent skills into your host
+scripts/install-skills.sh claude   # or: cursor | codex | antigravity | project
+
+# Runtime HTTP/A2A discovery endpoints on kubonad (:8080)
+curl -fsS http://127.0.0.1:8080/llms.txt
+curl -fsS http://127.0.0.1:8080/.well-known/agent.json
+curl -fsS http://127.0.0.1:8080/api/openapi.json | head -c 200
+```
 
 ---
 

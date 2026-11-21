@@ -16,7 +16,14 @@ from kubona.provenance import Ledger
 from kubona.security.tenant import CrossTenantRefusal, resolve_tenant
 from kubona.session import strict_tenant_slug
 
-mcp = MCPServer("kubona-provenance")
+mcp = MCPServer(
+    "kubona-provenance",
+    instructions=(
+        "Kubona Provenance server: append and query hash-chained, tenant-scoped "
+        "ledger records (`write_record`, `query_records`). Event kinds are a closed "
+        "taxonomy; absence of rows under `requester=None` only reflects public rows."
+    ),
+)
 
 _ledger = Ledger()
 
