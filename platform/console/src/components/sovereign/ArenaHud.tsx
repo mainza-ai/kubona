@@ -91,6 +91,7 @@ export const ArenaHud = React.memo(function ArenaHud({
             <span className="text-border-strong">|</span>
             <button
               type="button"
+              data-popover-trigger="campaigns"
               onClick={onOpenCampaigns}
               aria-label="Switch campaign"
               title={campaignTitle ? `Campaign: ${campaignTitle}` : 'Switch campaign'}

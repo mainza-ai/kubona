@@ -6,6 +6,7 @@ import { ArrowUp, Brain, ChevronUp, Cpu, Paperclip, Sparkles, X } from 'lucide-r
 import type { ChatAttachment, FollowUpSpec } from '@/domain/useCopilotChat';
 import { subscribeInvalidation } from '@/domain/invalidation';
 import { fetchLLMModels, fetchLLMSettings, hasOperatorBearer, saveLLMSettings } from '@/lib/api';
+import { useDismissiblePopover } from '@/lib/useDismissiblePopover';
 import { useAuthPhase } from '@/domain/auth-state';
 import { ContextReadout } from '../common/ContextReadout';
 import { MemoryPanel } from '../MemoryPanel';
@@ -82,6 +83,9 @@ export const CommandDock = React.memo(function CommandDock({
   const [submitting, setSubmitting] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [morph, setMorph] = useState<MorphPanel>(null);
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const closeMorph = useCallback(() => setMorph(null), []);
+  useDismissiblePopover(morph !== null, dockRef, closeMorph);
   const [tribunalTopic, setTribunalTopic] = useState('');
   const [activeModelName, setActiveModelName] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
@@ -376,7 +380,7 @@ export const CommandDock = React.memo(function CommandDock({
   const effectiveModelLabel = activeModelName || modelLabel;
 
   return (
-    <div className="relative shrink-0 border-t border-border bg-chrome px-4 py-3 text-text">
+    <div ref={dockRef} className="relative shrink-0 border-t border-border bg-chrome px-4 py-3 text-text">
       {morph === 'actions' && (
         <div
           role="region"

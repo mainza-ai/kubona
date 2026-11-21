@@ -23,7 +23,7 @@ export const CampaignHeader = React.memo(function CampaignHeader({
   const cap = typeof session?.spend_limit_usd === 'number' ? session.spend_limit_usd : null;
   return (
     <header className="k-campaign-header" data-testid="campaign-header">
-      <button type="button" className="k-campaign-name" onClick={onOpenCampaigns}>
+      <button type="button" className="k-campaign-name" data-popover-trigger="campaigns" onClick={onOpenCampaigns}>
         <span className="k-campaign-title">{title}</span>
         <ChevronDown aria-hidden="true" size={14} />
       </button>
@@ -40,7 +40,7 @@ export const CampaignHeader = React.memo(function CampaignHeader({
       <span className="k-campaign-spend">
         ${spend.toFixed(2)}{cap != null ? ` / $${cap.toFixed(2)}` : ''}
       </span>
-      <button type="button" className="k-campaign-account" onClick={onOpenCampaigns}>Campaigns</button>
+      <button type="button" className="k-campaign-account" data-popover-trigger="campaigns" onClick={onOpenCampaigns}>Campaigns</button>
     </header>
   );
 });

@@ -119,6 +119,7 @@ export function ModeRail({
                     : 'Nothing waiting on you'
             }
             onClick={onOpenNeedsYou}
+            data-popover-trigger="needs-you"
             className={`relative w-9 h-9 rounded-control-compact flex items-center justify-center border hover:bg-fill focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
               needsYouOpen
                 ? 'border-warning-edge bg-warning-wash text-warning-ink'
@@ -146,6 +147,7 @@ export function ModeRail({
             aria-controls="notification-center"
             title={notificationsCount > 0 ? `${notificationsCount} unread notification(s)` : 'No unread notifications'}
             onClick={onOpenNotifications}
+            data-popover-trigger="notifications"
             className={`relative w-9 h-9 rounded-control-compact flex items-center justify-center border hover:bg-fill focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
               notificationsOpen ? 'border-info-edge bg-info-wash text-info-ink' : 'border-border text-muted hover:text-text'
             }`}
@@ -178,6 +180,7 @@ export function ModeRail({
           type="button"
           aria-label="Campaigns"
           title="Campaigns"
+          data-popover-trigger="campaigns"
           onClick={onOpenCampaigns}
           className="w-8 h-8 rounded-capsule bg-border-strong p-[1px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
         >

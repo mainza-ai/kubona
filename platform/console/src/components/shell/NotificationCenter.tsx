@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Bell, Check, X } from 'lucide-react';
 import type { NotificationPreferences, NotificationRow } from '@/lib/api';
+import { useDismissiblePopover } from '@/lib/useDismissiblePopover';
 
 const KINDS = ['job', 'run', 'proposal', 'claim', 'workflow', 'memory', 'allowance', 'obligation'];
 
@@ -27,7 +28,11 @@ export function NotificationCenter({
   prefs: NotificationPreferences;
   onUpdatePrefs: (next: NotificationPreferences) => void;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const marked = useRef(new Set<string>());
+  useDismissiblePopover(open, panelRef, onClose, {
+    ignoreSelector: '[data-popover-trigger="notifications"]',
+  });
   useEffect(() => {
     if (!open) return;
     const keys = notifications
@@ -41,8 +46,10 @@ export function NotificationCenter({
   if (!open) return null;
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-label="Notifications"
+      id="notification-center"
       data-testid="notification-center"
       className="fixed left-14 lg:left-20 bottom-20 z-50 flex max-h-[min(30rem,calc(100vh-6rem))] w-[min(24rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-card border border-border-strong bg-surface-elev shadow-[var(--shadow-float)]"
     >

@@ -28,9 +28,9 @@ func TestDetectAndRedactCredentialShapes(t *testing.T) {
 		{"env_privkey_hex", "KUBONA_REVIEWER_PRIVKEY_HEX=deadbeef0123456789abcdef", "credential_assignment"},
 		{"env_aws_secret", "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCY", "credential_assignment"},
 		{"env_db_pass", "DATABASE_PASSWORD=my-prod-password-42", "credential_assignment"},
-		{"gemini", "key AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz0123456", "gemini_key"},
-		{"hf", "token hf_abcdefghijklmnopqrstuvwxyz1234", "huggingface_token"},
-		{"vault", "token hvs.CAESIJ1234567890abcdefghij", "vault_token"},
+		{"gemini", "key AIza" + "SyAbCdEfGhIjKlMnOpQrStUvWxYz0123456", "gemini_key"},
+		{"hf", "token hf_" + "abcdefghijklmnopqrstuvwxyz1234", "huggingface_token"},
+		{"vault", "token hvs." + "CAESIJ1234567890abcdefghij", "vault_token"},
 		{"github_pat", "pat github_pat_" + "11ABCDEFG0123456789_abcdefghijklmnop", "github_token"},
 		{"age_key", "AGE-SECRET-KEY-" + "1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ", "age_secret_key"},
 	}

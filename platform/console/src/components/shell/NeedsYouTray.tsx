@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Inbox, X } from 'lucide-react';
 import { needsEscalation, waitingLabel, type NeedItem } from '@/lib/needs-you';
+import { useDismissiblePopover } from '@/lib/useDismissiblePopover';
 
 /**
  * Shell-level "Needs you" tray (report §3.1). Anything that asks the human
@@ -37,19 +38,14 @@ export function NeedsYouTray({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const decidable = items.filter((item) => item.state === 'decidable').length;
 
+  useDismissiblePopover(open, panelRef, onClose, {
+    ignoreSelector: '[data-popover-trigger="needs-you"]',
+  });
+
   useEffect(() => {
     if (!open) return;
     panelRef.current?.focus();
-    if (typeof window === 'undefined') return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

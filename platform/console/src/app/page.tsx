@@ -47,6 +47,7 @@ import { ActionGate } from '@/components/sovereign/ActionGate';
 import { Chart } from '@/components/data/LazyChart';
 import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { Button } from '@/components/ui/Button';
+import { useDismissiblePopover } from '@/lib/useDismissiblePopover';
 import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
@@ -193,6 +194,11 @@ export default function Home() {
   const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
   const workbenchRef = useRef<WorkbenchHandle>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
+  const campaignMenuRef = useRef<HTMLDivElement | null>(null);
+  const closeCampaignMenu = useCallback(() => setShowCampaignMenu(false), []);
+  useDismissiblePopover(showCampaignMenu, campaignMenuRef, closeCampaignMenu, {
+    ignoreSelector: '[data-popover-trigger="campaigns"]',
+  });
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationInbox = useNotificationsProjection(currentSessionId || null);
@@ -1477,17 +1483,33 @@ export default function Home() {
         }
         const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
         return (
-        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-card bg-surface-elev border border-border-strong shadow-[var(--shadow-float)] p-3 space-y-2">
-          <div className="flex items-center justify-between px-1">
+        <div
+          ref={campaignMenuRef}
+          role="dialog"
+          aria-label="Campaigns"
+          data-testid="campaign-menu"
+          className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-card bg-surface-elev border border-border-strong shadow-[var(--shadow-float)] p-3 space-y-2"
+        >
+          <div className="flex items-center justify-between gap-2 px-1">
             <span className="text-[12px] font-code uppercase tracking-wider text-muted">
               Campaigns ({sessions.length})
             </span>
-            <button
-              onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink text-[12px] hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
-            >
-              <Plus className="w-3 h-3" /> New <kbd className="font-code text-[12px]">{SHORTCUTS.newCampaign}</kbd>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-control-compact bg-info-wash border border-info-edge text-info-ink text-[12px] hover:bg-fill-hover transition-[color,background-color,border-color,box-shadow,opacity,transform,filter]"
+              >
+                <Plus className="w-3 h-3" /> New <kbd className="font-code text-[12px]">{SHORTCUTS.newCampaign}</kbd>
+              </button>
+              <Button
+                size="compact"
+                variant="ghost"
+                aria-label="Close campaigns menu"
+                onClick={() => setShowCampaignMenu(false)}
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           </div>
           <input
             data-testid="campaign-filter"
