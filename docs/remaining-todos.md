@@ -87,7 +87,16 @@ The full gap register, phased plan, and definition of done are in
       retention, sha256 receipts, and `backup-status` freshness/health.
 - [x] Verified pre-migration snapshot gate for older schemas.
 - [x] Restore/backup/upgrade documentation truth pass.
-- [ ] Operator: runtime vendor rate card before 2026-11-29.
+- [x] Operator: runtime vendor rate card before 2026-11-29 (refreshed `2026-11-20`; local-only preflight warn added when cloud LLM and paid QPU creds are unset).
+
+## Landed 2026-11-20 (Deep-Dive Production Audit & UI Parity)
+
+See [`production-audit-2026-11-20.md`](production-audit-2026-11-20.md) for the full Phase 0–5 register (`0fdba803`, `853a476e`). Highlights:
+- [x] Boot, security, multi-lab isolation, signed `peer_review`/`manuscript_deleted`, and tenant-scoped `HindsightStore` hardening.
+- [x] Pauli endianness, Fock sector projection, Rayleigh-Ritz variational enforcement, unitary ZNE folding, and `qir-core` bounds/`pi`/`sdg`/`tdg`.
+- [x] HTTP RO-Crate 1.1 + W3C PROV-JSON + CRediT export (`GET /api/sessions/{id}/manuscripts/{mid}/export`).
+- [x] Full Console `AG-1..24` & Publication UI parity (`ResearchPipelinePanel`, `OversightGovernancePanel`, `PublicationPanel` verify/export, live `MemoryPanel` retraction, `LabOpsPanel` tenant agentic default).
+- [x] Restart-orphan `sleeping` loop settlement in Delete Campaign & `LoopControlList`, muted-by-default Attention Director audio, and `useDismissiblePopover` outside-click/`Escape` dismissal.
 - [x] Historical IBM row: authenticated vendor API confirms `plan=open`,
       `pricing_type=free`; the local `$0.00` settlement stands, no rewrite.
 - [x] Local-private runtime rate card: reviewed list prices accepted; invoice

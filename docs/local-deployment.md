@@ -344,8 +344,15 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
   with the same key; it re-seals stored provider credentials and prints only
   counts.
 - Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
-  retention: [`docs/backup-restore.md`](backup-restore.md). Run
-  `kubonad restore-drill --db /abs/kubona.db` before upgrades. For the
+  retention: [`docs/backup-restore.md`](backup-restore.md). `scripts/backup-restore-check.sh`
+  accepts either a backup directory or an explicit backup file path and verifies
+  any `.sha256` sidecar before restoring into a scratch ledger. Run
+  `kubonad restore-drill --db /abs/kubona.db` before upgrades.
+- **Restart-orphan `sleeping` loops on campaign delete:** If a campaign refuses
+  deletion with `live loops` because a loop was left in `sleeping` state across
+  a daemon restart, click **Settle sleeping loops & delete** in the Console
+  confirm dialog (or `POST /api/sessions/{id}/loops/settle`) to archive the
+  orphan loop with a signed `loop_settled` receipt before deleting. For the
   routine off-host encrypted drill, point a genuinely separate mount at
   `--offhost-dir` and run:
   ```bash

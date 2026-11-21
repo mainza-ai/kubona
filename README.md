@@ -47,7 +47,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
-- **Measured engineering reports:** [`docs/performance-research-2026-11-18.md`](docs/performance-research-2026-11-18.md) · [`docs/memory-management-research-2026-11-18.md`](docs/memory-management-research-2026-11-18.md)
+- **Measured engineering reports:** [`docs/production-audit-2026-11-20.md`](docs/production-audit-2026-11-20.md) · [`docs/performance-research-2026-11-18.md`](docs/performance-research-2026-11-18.md) · [`docs/memory-management-research-2026-11-18.md`](docs/memory-management-research-2026-11-18.md)
 
 ---
 
@@ -95,7 +95,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 ### 5. The Sovereign Observatory Console
 
-- **Real-Time 3D Workbench & Full Oversight Surfaces:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), **Results Studio** (charts, **Research Pipeline**, and **Publication** workflow with numeric/citation verification and RO-Crate/PROV export), **Autonomy Cockpit** (stage policy, operator halt/rollback, action receipts/undo, science telemetry), **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`), keyless first-run lab bootstrap, restart-orphan loop settlement, and an **Attention Director** presence dial (`Hands` / `Eyes` / `Ear` / `Away`) with ambient laboratory sound **muted by default**.
+- **Real-Time 3D Workbench & Full Oversight Surfaces:** Interactive Three.js molecular, orbital, proof-DAG, and hardware QPU visualizations paired with live Server-Sent Events (`SSE`) replay (`Last-Event-ID`), **Results Studio** (charts, **Research Pipeline**, and **Publication** workflow with numeric/citation verification and RO-Crate/PROV export), **Autonomy Cockpit** (stage policy, operator halt/rollback, action receipts/undo, science telemetry), **Experiment & Discovery Lab** (`Cmd+E` / `Ctrl+E`), keyless first-run lab bootstrap, restart-orphan loop settlement, dismissible floating shell popovers (click-away / `Escape` / close button), and an **Attention Director** presence dial (`Hands` / `Eyes` / `Ear` / `Away`) with ambient laboratory sound **muted by default**.
 
 ### 6. Performance & Memory Engineering
 

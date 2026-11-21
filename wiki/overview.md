@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-18
+updated: 2026-11-20
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -345,6 +345,25 @@ production-readiness audits).
 Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
+
+> ⚑ Snapshot update (2026-11-20, `0fdba803` / `853a476e`, `docs/production-audit-2026-11-20.md`):
+> Completed the 6-phase local-private production hardening audit.
+> `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages
+> (**1167** Go test functions), **189** Python test files (**7** bridge files),
+> **160** console test files (**852** source cases; **304** Node + **549**
+> Chromium Vitest runtime), **34** Rust tests (`qir-core` + `ifc-core`), **6**
+> MCP servers (**38** tools; stdio + Streamable HTTP `:8123`), and **168** wiki
+> pages. Console contracts stand at **220 modeled / 16 client-only / 0
+> unmodeled** (`188` OpenAPI paths, `191` schemas). Added HTTP RO-Crate 1.1 +
+> W3C PROV-JSON + CRediT manuscript export, full Console `AG-1..24` / Publication
+> parity (`ResearchPipelinePanel`, `OversightGovernancePanel`, `PublicationPanel`
+> verify/export, live `MemoryPanel` retraction, `LabOpsPanel` tenant agentic
+> default, restart-orphan `sleeping` loop settlement), muted-by-default Attention
+> Director audio, `useDismissiblePopover` outside-click/`Escape` dismissal,
+> Pauli endianness / active-space Fock projection / Rayleigh-Ritz variational
+> enforcement, and hardened `qir-core` / DR / CI gates. Verified with an 18/18
+> live rebuilt stack E2E run (local Strata offline during run) and relaunched
+> `compose.prod.yml` with all 5 containers healthy.
 
 > ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):
 > `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages

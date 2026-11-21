@@ -2,7 +2,7 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-11-18
+updated: 2026-11-20
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
@@ -19,6 +19,22 @@ sources: [source-frontier-repo-audit-2026]
 > prototype does today. **Refresh duty:** re-verify node-by-node after any slice that
 > adds/removes a service, port, store — a stale map is worse than none.
 >
+> ⚑ **Node delta (2026-11-20, `0fdba803` / `853a476e`):**
+> - **Edge (`kubonad :8080`) & MCP (`:8123`):** `156` HTTP routes plus HTTP
+>   RO-Crate 1.1 / W3C PROV-JSON / CRediT manuscript export
+>   (`GET /api/sessions/{id}/manuscripts/{mid}/export`), operator-vs-tenant
+>   auth split, signed `peer_review` & `manuscript_deleted` events, and
+>   `compose.prod.yml` Streamable-HTTP `mcp` service (`127.0.0.1:8123`).
+> - **Console (`:3000`):** `220` modeled / `16` client-only / `0` unmodeled
+>   contracts (`188` OpenAPI paths, `191` schemas), **852** source cases across
+>   **160** files (`304` Node + `549` Chromium runtime); added `ResearchPipelinePanel`,
+>   `OversightGovernancePanel`, `PublicationPanel` verify/export/proofs, live
+>   `MemoryPanel` retraction, `LabOpsPanel` tenant agentic default, restart-orphan
+>   `sleeping` loop settlement (`POST /api/sessions/{id}/loops/settle`),
+>   muted-by-default Attention Director audio, and `useDismissiblePopover`.
+> - **Rust (`qir-core`):** **34** Rust tests (`25` `qir-core` + `9` `ifc-core`);
+>   bounded 4 MiB input, `MAX_QUBITS=1024`, zero-size QASM3 guard, `pi`/`sdg`/`tdg`.
+
 > ⚑ **Node delta (2026-11-18, `fe31d1af` + current working tree):**
 > - **Edge (`kubonad :8080`):** `156` HTTP routes (`docs/repo-counts.md`).
 >   The agentic oversight rail adds `/approvals` (reviewer edits + rejection

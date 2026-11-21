@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-18
+updated: 2026-11-20
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -16,6 +16,16 @@ status: tracked
 > questions live in [[questions]] — this page tracks execution leftovers
 > only. Screened-out items name their reason; nothing rots silently.
 >
+> ⚑ **State update (2026-11-20, `0fdba803` / `853a476e`):** The 6-phase
+> deep-dive production audit is closed (`docs/production-audit-2026-11-20.md`):
+> `docs/repo-counts.md` records **156** HTTP route patterns, **188** OpenAPI
+> paths (**191** schemas, **220** modeled / **16** client-only / **0** unmodeled),
+> **48** Go packages (**1167** tests), **189** Python + **7** bridge test files,
+> **160** Console test files (**852** source cases), **34** Rust tests, and
+> **168** wiki pages. Rate cards refreshed (`2026-11-20`); Console `AG-1..24`,
+> Publication, live memory retraction, restart-orphan loop settlement, muted
+> audio default, and dismissible popovers are landed and live on `compose.prod.yml`.
+
 > ⚑ **State update (2026-11-18):** `docs/repo-counts.md` records **156** HTTP
 > route patterns, **48** Go packages (**1142** Go tests), **188** Python test
 > files, **159** console test files (**850** cases), **32** Rust tests, **6**
