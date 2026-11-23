@@ -92,6 +92,11 @@ const PRESETS: MoleculePreset[] = [
 ];
 
 export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModalProps) {
+  if (!isOpen) return null;
+  return <NewCampaignModalBody onClose={onClose} onCreate={onCreate} />;
+}
+
+function NewCampaignModalBody({ onClose, onCreate }: Omit<NewCampaignModalProps, 'isOpen'>) {
   const [selectedMolecule, setSelectedMolecule] = useState<string>('H2');
   const [customMolecule, setCustomMolecule] = useState<string>('');
   const [title, setTitle] = useState<string>('H2 Ground State Potential Energy Surface');
@@ -105,19 +110,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(isOpen, modalRef);
-
-  // Reset stale modal state whenever opened cleanly.
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedMolecule('H2');
-      setCustomMolecule('');
-      setTitle(PRESETS[0].defaultTitle);
-      setTitleError(null);
-      setMoleculeError(null);
-      setSubmitError(null);
-    }
-  }, [isOpen]);
+  useFocusTrap(true, modalRef);
 
   // Auto-update title when selecting preset only if title was blank or a preset default.
   const handleSelectPreset = (preset: MoleculePreset) => {
@@ -155,15 +148,13 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
