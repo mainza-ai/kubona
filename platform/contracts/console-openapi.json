@@ -646,6 +646,24 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "build": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: manuscripts.create",
@@ -826,6 +844,33 @@
         "tags": [
           "sessions"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "target_system": {
+                    "type": "string"
+                  },
+                  "spend_limit_usd": {
+                    "type": "number"
+                  },
+                  "tenant_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: session.create",
@@ -1306,6 +1351,27 @@
         "tags": [
           "discovery"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: discovery",
@@ -1610,6 +1676,27 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agentic_enabled": {
+                    "type": "boolean"
+                  },
+                  "stages": {
+                    "type": "object"
+                  },
+                  "max_act_budget_usd": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: autonomy.policy",
@@ -2188,6 +2275,36 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "goal": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer"
+                  },
+                  "use_llm": {
+                    "type": "boolean"
+                  },
+                  "statement": {
+                    "type": "string"
+                  },
+                  "rationale": {
+                    "type": "string"
+                  },
+                  "falsifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: hypotheses.generate",
@@ -3618,6 +3735,24 @@
         "tags": [
           "discovery"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "goal": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "goal"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: discovery.plan",
@@ -4064,6 +4199,34 @@
         "tags": [
           "memory"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "bank": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "session_id",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: memory.retain",
@@ -4340,6 +4503,43 @@
         "tags": [
           "discovery"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "goal": {
+                    "type": "string"
+                  },
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "step_timeout_s": {
+                    "type": "integer"
+                  },
+                  "request_id": {
+                    "type": "string"
+                  },
+                  "allow_failure": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "session_id",
+                  "steps"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: discovery.run",
@@ -4360,6 +4560,37 @@
         "tags": [
           "experiments"
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "session_id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "spec": {
+                    "type": "object"
+                  },
+                  "budget_usd": {
+                    "type": "number"
+                  },
+                  "request_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "session_id",
+                  "spec"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Response contract: experiment.submit",
@@ -5990,10 +6221,6 @@
               "required": [
                 "claim_id",
                 "kind",
-                "job_id",
-                "result_sha256",
-                "receipt_entry_hash",
-                "source_ref",
                 "created_at"
               ],
               "properties": {
@@ -8024,9 +8251,7 @@
                 "source",
                 "message",
                 "action",
-                "created_at",
-                "read_at",
-                "resolved_at"
+                "created_at"
               ],
               "properties": {
                 "key": {
@@ -9657,16 +9882,27 @@
       },
       "hypotheses.tournament": {
         "type": "object",
-        "required": [
-          "hypotheses"
-        ],
+        "required": [],
         "properties": {
           "hypotheses": {
             "type": "array",
             "items": {}
           },
+          "ranked": {
+            "type": "array",
+            "items": {}
+          },
+          "judge": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "number"
+          },
           "rounds": {
             "type": "number"
+          },
+          "meta_review": {
+            "type": "string"
           }
         }
       },
@@ -9744,10 +9980,11 @@
       },
       "plans.execute": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "required": [],
         "properties": {
+          "ok": {
+            "type": "boolean"
+          },
           "plan": {},
           "job_id": {
             "type": "string"
@@ -9867,16 +10104,13 @@
         "type": "object",
         "required": [
           "ok",
-          "target_id",
           "action"
         ],
         "properties": {
           "ok": {
             "type": "boolean"
           },
-          "target_id": {
-            "type": "string"
-          },
+          "target_id": {},
           "action": {
             "type": "string"
           }

@@ -225,12 +225,13 @@ func normalizeDiscoveryStepSpec(goal string, step *discoveryStep) {
 	}
 }
 
-func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]discoveryStep, string, error) {
+func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]discoveryStep, string, string, error) {
 	if strings.TrimSpace(goal) == "" {
-		return nil, "", fmt.Errorf("goal is required")
+		return nil, "", "", fmt.Errorf("goal is required")
 	}
 	if cli == nil {
-		return planDiscovery(goal)
+		steps, reason, err := planDiscovery(goal)
+		return steps, reason, "no LLM client configured", err
 	}
 	callCtx, cancel := context.WithTimeout(ctx, discoveryLLMTimeout())
 	defer cancel()
@@ -241,7 +242,12 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 		},
 		{Role: "user", Content: goal},
 	}, 1024)
-	if err == nil && strings.TrimSpace(content) != "" {
+	fallbackReason := ""
+	if err != nil {
+		fallbackReason = "llm error: " + err.Error()
+	} else if strings.TrimSpace(content) == "" {
+		fallbackReason = "llm returned empty response"
+	} else {
 		var parsed struct {
 			Reason string          `json:"reason"`
 			Steps  []discoveryStep `json:"steps"`
@@ -252,11 +258,16 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 				raw = raw[idx : end+1]
 			}
 		}
-		if json.Unmarshal([]byte(raw), &parsed) == nil && len(parsed.Steps) >= 1 && len(parsed.Steps) <= 5 {
+		if uerr := json.Unmarshal([]byte(raw), &parsed); uerr != nil {
+			fallbackReason = "llm output was not valid JSON plan"
+		} else if len(parsed.Steps) < 1 || len(parsed.Steps) > 5 {
+			fallbackReason = "llm plan step count outside 1..5"
+		} else {
 			valid := true
 			for i := range parsed.Steps {
 				if !allowedDiscoveryKinds[parsed.Steps[i].Kind] || parsed.Steps[i].Spec == nil {
 					valid = false
+					fallbackReason = fmt.Sprintf("llm emitted unsupported step kind %q", parsed.Steps[i].Kind)
 					break
 				}
 				normalizeDiscoveryStepSpec(goal, &parsed.Steps[i])
@@ -266,11 +277,12 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 				if reason == "" {
 					reason = "llm-structured discovery plan"
 				}
-				return parsed.Steps, reason, nil
+				return parsed.Steps, reason, "", nil
 			}
 		}
 	}
-	return planDiscovery(goal)
+	steps, reason, perr := planDiscovery(goal)
+	return steps, reason, fallbackReason, perr
 }
 
 func terminalJobStatus(status pb.JobStatus) bool {
@@ -339,7 +351,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	steps := req.Steps
 	plannedBy := "caller"
 	if len(steps) == 0 {
-		planned, reason, perr := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
+		planned, reason, _, perr := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
 		if perr != nil {
 			WriteAPIError(w, "bad_request", perr.Error(), nil)
 			return
@@ -525,10 +537,14 @@ func (s *Server) handleDiscoveryPlan(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid plan request: %v", err), nil)
 		return
 	}
-	steps, reason, err := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
+	steps, reason, fallbackReason, err := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
 	if err != nil {
 		WriteAPIError(w, "bad_request", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "goal": req.Goal, "planned_by": reason, "steps": steps})
+	out := map[string]any{"ok": true, "goal": req.Goal, "planned_by": reason, "steps": steps}
+	if fallbackReason != "" {
+		out["fallback_reason"] = fallbackReason
+	}
+	writeJSON(w, http.StatusOK, out)
 }

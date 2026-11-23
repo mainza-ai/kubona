@@ -177,10 +177,10 @@ export type ClaimProvenance = {
   "evidence": {
   "claim_id": string;
   "kind": string;
-  "job_id": string;
-  "result_sha256": string;
-  "receipt_entry_hash": string;
-  "source_ref": string;
+  "job_id"?: string;
+  "result_sha256"?: string;
+  "receipt_entry_hash"?: string;
+  "source_ref"?: string;
   "created_at": string;
 }[];
   "summary": {
@@ -821,8 +821,8 @@ export type NotificationsList = {
   "message": string;
   "action": string;
   "created_at": string;
-  "read_at": string;
-  "resolved_at": string;
+  "read_at"?: string;
+  "resolved_at"?: string;
 }[];
   "unread": number;
   "preferences": {
@@ -1306,8 +1306,12 @@ export type HypothesesGenerate = {
 };
 
 export type HypothesesTournament = {
-  "hypotheses": unknown[];
+  "hypotheses"?: unknown[];
+  "ranked"?: unknown[];
+  "judge"?: string;
+  "matches"?: number;
   "rounds"?: number;
+  "meta_review"?: string;
 };
 
 export type HypothesesStatus = {
@@ -1337,9 +1341,10 @@ export type PlansStatus = {
 };
 
 export type PlansExecute = {
+  "ok"?: boolean;
   "plan"?: unknown;
   "job_id"?: string;
-  "status": string;
+  "status"?: string;
 };
 
 export type ResearchGraphDetail = {
@@ -1381,7 +1386,7 @@ export type ReceiptsList = {
 
 export type ReceiptsUndo = {
   "ok": boolean;
-  "target_id": string;
+  "target_id"?: unknown;
   "action": string;
 };
 

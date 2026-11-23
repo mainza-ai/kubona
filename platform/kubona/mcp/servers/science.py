@@ -155,6 +155,8 @@ def run_experiment(
     session_id: str,
     kind: str,
     params: dict[str, Any] | None = None,
+    budget_usd: float | None = None,
+    request_id: str = "",
 ) -> dict:
     """Run a structured Kubona experiment via POST /api/experiments.
 
@@ -171,43 +173,54 @@ def run_experiment(
             "error_code": "bad_request",
             "error": f"unknown experiment kind {k!r}; allowed: {sorted(ALLOWED_EXPERIMENT_KINDS)}",
         }
-    body: dict[str, Any] = {"session_id": session_id.strip(), "kind": k}
+    spec: dict[str, Any] = {"kind": k}
     if params:
-        body.update(params)
-    return _request("POST", "/api/experiments", payload=body, timeout=120)
-
-
-def plan_discovery(
-    session_id: str,
-    target_system: str,
-    goal: str = "",
-    budget_usd: float | None = None,
-) -> dict:
-    """Generate a pre-registered discovery plan via POST /api/discovery/plan."""
-    if err := _validate_id(session_id, "session_id"):
-        return {"ok": False, "error_code": "bad_request", "error": err}
-    if not (target_system or "").strip():
-        return {"ok": False, "error_code": "bad_request", "error": "target_system is required"}
-    body: dict[str, Any] = {
-        "session_id": session_id.strip(),
-        "target_system": target_system.strip(),
-    }
-    if goal:
-        body["goal"] = goal
+        if not isinstance(params, dict):
+            return {"ok": False, "error_code": "bad_request", "error": "params must be a JSON object"}
+        spec.update(params)
+        spec["kind"] = k
+    body: dict[str, Any] = {"session_id": session_id.strip(), "kind": k, "spec": spec}
     if budget_usd is not None:
         if budget_usd < 0:
             return {"ok": False, "error_code": "bad_request", "error": "budget_usd must be >= 0"}
         body["budget_usd"] = float(budget_usd)
-    return _request("POST", "/api/discovery/plan", payload=body, timeout=60)
+    if (request_id or "").strip():
+        body["request_id"] = request_id.strip()
+    return _request("POST", "/api/experiments", payload=body, timeout=120)
 
 
-def run_discovery(session_id: str, plan: dict[str, Any]) -> dict:
-    """Execute an approved discovery plan via POST /api/discovery/run."""
+def plan_discovery(goal: str) -> dict:
+    """Generate a pre-registered discovery plan via POST /api/discovery/plan."""
+    g = (goal or "").strip()
+    if not g:
+        return {"ok": False, "error_code": "bad_request", "error": "goal is required"}
+    return _request("POST", "/api/discovery/plan", payload={"goal": g}, timeout=90)
+
+
+def run_discovery(
+    session_id: str,
+    goal: str,
+    steps: list[dict[str, Any]],
+    step_timeout_s: int = 0,
+    request_id: str = "",
+    allow_failure: bool = False,
+) -> dict:
+    """Execute a pre-registered discovery plan via POST /api/discovery/run."""
     if err := _validate_id(session_id, "session_id"):
         return {"ok": False, "error_code": "bad_request", "error": err}
-    if not isinstance(plan, dict) or not plan:
-        return {"ok": False, "error_code": "bad_request", "error": "plan object is required"}
-    body = {"session_id": session_id.strip(), "plan": plan}
+    if not isinstance(steps, list) or not steps:
+        return {"ok": False, "error_code": "bad_request", "error": "steps list is required"}
+    body: dict[str, Any] = {
+        "session_id": session_id.strip(),
+        "goal": (goal or "").strip(),
+        "steps": steps,
+    }
+    if step_timeout_s > 0:
+        body["step_timeout_s"] = int(step_timeout_s)
+    if (request_id or "").strip():
+        body["request_id"] = request_id.strip()
+    if allow_failure:
+        body["allow_failure"] = True
     return _request("POST", "/api/discovery/run", payload=body, timeout=120)
 
 
@@ -220,19 +233,44 @@ def list_hypotheses(session_id: str) -> dict:
 
 def propose_hypothesis(
     session_id: str,
-    title: str,
-    statement: str,
+    goal: str = "",
+    statement: str = "",
     rationale: str = "",
+    falsifier: str = "",
+    count: int = 3,
+    use_llm: bool = True,
 ) -> dict:
-    """Register a candidate scientific hypothesis in the session ledger."""
+    """Register a manual hypothesis (statement+rationale) or generate hypotheses (goal+use_llm)."""
     if err := _validate_id(session_id, "session_id"):
         return {"ok": False, "error_code": "bad_request", "error": err}
-    if not (title or "").strip() or not (statement or "").strip():
-        return {"ok": False, "error_code": "bad_request", "error": "title and statement are required"}
+    stmt = (statement or "").strip()
+    g = (goal or "").strip()
+    if stmt:
+        fals = (falsifier or "").strip()
+        if not fals:
+            return {
+                "ok": False,
+                "error_code": "bad_request",
+                "error": "falsifier is required when submitting a manual hypothesis",
+            }
+        payload: dict[str, Any] = {
+            "statement": stmt,
+            "rationale": (rationale or "").strip(),
+            "falsifier": fals,
+        }
+    elif g:
+        payload = {"goal": g, "count": max(1, min(int(count), 10)), "use_llm": bool(use_llm)}
+    else:
+        return {
+            "ok": False,
+            "error_code": "bad_request",
+            "error": "provide either statement (manual hypothesis) or goal (hypothesis generation)",
+        }
     return _request(
         "POST",
         f"/api/sessions/{quote(session_id.strip(), safe='')}/hypotheses",
-        payload={"title": title.strip(), "statement": statement.strip(), "rationale": rationale},
+        payload=payload,
+        timeout=120,
     )
 
 

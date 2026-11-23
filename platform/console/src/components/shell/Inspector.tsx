@@ -254,9 +254,9 @@ export const Inspector = React.memo(function Inspector({
                     <p className="mt-1 text-muted">{epistemics?.status || 'UNVERIFIED'}</p>
                   </div>
                   <dl data-provenance={epistemics || anchor?.anchor_computed ? 'measured' : undefined} className="space-y-2">
-                    <Fact label="Corroborated α" value={num(epistemics?.alpha_corroborated, 3)} />
-                    <Fact label="Contested β" value={num(epistemics?.beta_contested, 3)} />
-                    <Fact label="Unverified γ" value={num(epistemics?.gamma_unverified, 3)} />
+                    <Fact label="Corroborated α" value={typeof epistemics?.alpha_corroborated === 'number' && epistemics.alpha_corroborated >= 0 ? num(epistemics.alpha_corroborated, 3) : 'unmeasured'} />
+                    <Fact label="Contested β" value={typeof epistemics?.beta_contested === 'number' && epistemics.beta_contested >= 0 ? num(epistemics.beta_contested, 3) : 'unmeasured'} />
+                    <Fact label="Unverified γ" value={typeof epistemics?.gamma_unverified === 'number' && epistemics.gamma_unverified >= 0 ? num(epistemics.gamma_unverified, 3) : 'unmeasured'} />
                     <Fact label="FCI anchor" value={`${num(anchor?.fci_exact_energy)} Ha`} />
                     <Fact label="VQE" value={`${num(anchor?.vqe_expectation_energy)} Ha`} />
                     <Fact label="Δ" value={`${num(anchor?.discrepancy_mha, 2)} mHa`} />

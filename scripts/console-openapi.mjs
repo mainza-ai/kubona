@@ -114,6 +114,90 @@ function renderTypes(components, operations) {
   return lines.join('\n');
 }
 
+const REQUEST_BODY_SCHEMAS = {
+  'POST /api/sessions': {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      target_system: { type: 'string' },
+      spend_limit_usd: { type: 'number' },
+      tenant_id: { type: 'string' },
+    },
+    required: ['title'],
+  },
+  'POST /api/experiments': {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string' },
+      kind: { type: 'string' },
+      spec: { type: 'object' },
+      budget_usd: { type: 'number' },
+      request_id: { type: 'string' },
+    },
+    required: ['session_id', 'spec'],
+  },
+  'POST /api/discovery/plan': {
+    type: 'object',
+    properties: { goal: { type: 'string' } },
+    required: ['goal'],
+  },
+  'POST /api/discovery/run': {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string' },
+      goal: { type: 'string' },
+      steps: { type: 'array', items: { type: 'object' } },
+      step_timeout_s: { type: 'integer' },
+      request_id: { type: 'string' },
+      allow_failure: { type: 'boolean' },
+    },
+    required: ['session_id', 'steps'],
+  },
+  'POST /api/sessions/{sessionId}/hypotheses': {
+    type: 'object',
+    properties: {
+      goal: { type: 'string' },
+      count: { type: 'integer' },
+      use_llm: { type: 'boolean' },
+      statement: { type: 'string' },
+      rationale: { type: 'string' },
+      falsifier: { type: 'string' },
+    },
+  },
+  'POST /api/sessions/{sessionId}/manuscripts': {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      build: { type: 'boolean' },
+    },
+  },
+  'POST /api/discovery/pipeline': {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string' },
+      candidates: { type: 'array', items: { type: 'object' } },
+    },
+  },
+  'POST /api/memory/retain': {
+    type: 'object',
+    properties: {
+      session_id: { type: 'string' },
+      content: { type: 'string' },
+      bank: { type: 'string' },
+      confidence: { type: 'number' },
+    },
+    required: ['session_id', 'content'],
+  },
+  'PUT /api/sessions/{sessionId}/autonomy': {
+    type: 'object',
+    properties: {
+      agentic_enabled: { type: 'boolean' },
+      stages: { type: 'object' },
+      max_act_budget_usd: { type: 'number' },
+    },
+  },
+};
+
 function main() {
   const inventory = JSON.parse(fs.readFileSync(INVENTORY, 'utf8'));
   const schemas = loadSchemas();
@@ -146,10 +230,19 @@ function main() {
       required: true,
       schema: { type: 'string' },
     }));
+    const reqSchema = REQUEST_BODY_SCHEMAS[`${fn.method.toUpperCase()} ${openapiPath}`];
     paths[openapiPath][fn.method.toLowerCase()] = {
       operationId: operationId(fn.function),
       tags: [openapiPath.split('/')[2] || 'api'],
       ...(params.length ? { parameters: params } : {}),
+      ...(reqSchema
+        ? {
+            requestBody: {
+              required: true,
+              content: { 'application/json': { schema: reqSchema } },
+            },
+          }
+        : {}),
       responses: {
         '200': {
           description: `Response contract: ${fn.contract}`,

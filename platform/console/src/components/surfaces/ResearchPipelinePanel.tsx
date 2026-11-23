@@ -40,7 +40,7 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
   const [planMetric, setPlanMetric] = useState('fci_exact_energy');
   const [planTolerance, setPlanTolerance] = useState('0.01');
   const [planStopRule, setPlanStopRule] = useState('stop after 1 measured run');
-  const [planBudget, setPlanBudget] = useState('0');
+  const [planBudget, setPlanBudget] = useState('1');
   const [knowledgeQuery, setKnowledgeQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +106,11 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
     const res = await runHypothesisTournament(sessionId);
     if (!res.ok) setError(res.error);
     else {
-      setHypotheses(res.data.hypotheses ?? []);
+      if (Array.isArray(res.data.hypotheses) && res.data.hypotheses.length > 0) {
+        setHypotheses(res.data.hypotheses);
+      } else {
+        await loadAll();
+      }
       setNotice('Elo tournament completed.');
     }
     setBusy(null);
@@ -199,7 +203,7 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
     setBusy(null);
   };
 
-  const shortlisted = hypotheses.filter((h) => h.status === 'shortlist' || h.status === 'collapsed');
+  const shortlisted = hypotheses.filter((h) => h.status === 'shortlisted' || h.status === 'collapsed');
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 space-y-4" aria-label="Research pipeline">
@@ -282,7 +286,7 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="font-medium text-text">{h.statement}</div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge tone={h.status === 'collapsed' ? 'success' : h.status === 'shortlist' ? 'info' : 'neutral'}>
+                      <Badge tone={h.status === 'collapsed' ? 'success' : h.status === 'shortlisted' ? 'info' : 'neutral'}>
                         {h.status}
                       </Badge>
                       <Badge tone="neutral">score {Number(h.score ?? 0).toFixed(2)}</Badge>
@@ -291,8 +295,8 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
                   </div>
                   {h.falsifier && <p className="text-caption text-muted">Falsifier: {h.falsifier}</p>}
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {h.status !== 'shortlist' && h.status !== 'collapsed' && (
-                      <Button size="compact" variant="secondary" pending={busy === `hyp-${h.id}`} onClick={() => void handleHypStatus(h.id, 'shortlist')}>
+                    {h.status !== 'shortlisted' && h.status !== 'collapsed' && (
+                      <Button size="compact" variant="secondary" pending={busy === `hyp-${h.id}`} onClick={() => void handleHypStatus(h.id, 'shortlisted')}>
                         Shortlist
                       </Button>
                     )}
@@ -301,7 +305,7 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
                         Reject
                       </Button>
                     )}
-                    {h.status === 'shortlist' && (
+                    {h.status === 'shortlisted' && (
                       <Button size="compact" variant="primary" pending={busy === `collapse-${h.id}`} onClick={() => void handleCollapse(h)}>
                         Collapse with evidence
                       </Button>

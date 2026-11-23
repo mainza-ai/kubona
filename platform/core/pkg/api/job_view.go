@@ -34,7 +34,8 @@ type jobView struct {
 	RequestID        string          `json:"request_id,omitempty"`
 	// Need is the typed missing precondition (C2), persisted with the failure
 	// result. Omitted when the cause is not known from structured evidence.
-	Need *jobs.Need `json:"need,omitempty"`
+	Need  *jobs.Need `json:"need,omitempty"`
+	Error string     `json:"error,omitempty"`
 }
 
 func jobStatusWire(status pb.JobStatus) string {
@@ -86,7 +87,25 @@ func jobViewFrom(job *jobs.Job) *jobView {
 		VendorRef:        job.VendorRef,
 		RequestID:        job.RequestID,
 		Need:             needFromResult(job.ResultJSON),
+		Error:            errorFromResult(job.ResultJSON),
 	}
+}
+
+func errorFromResult(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var probe struct {
+		Error        string `json:"error"`
+		ErrorMessage string `json:"error_message"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return ""
+	}
+	if s := strings.TrimSpace(probe.Error); s != "" {
+		return s
+	}
+	return strings.TrimSpace(probe.ErrorMessage)
 }
 
 // needFromResult reads the persisted need and refuse-ships anything whose

@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "a6bca160d6f68a265286be9c5e5cfe91374c2b7659f959d1a7dcfe82ce96f530",
+  "digest": "3f5e3be2143d93390377f20ff1d55677503b67871387f56b0219d6d015884186",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1700,35 +1700,13 @@
       "description": "Generate a pre-registered scientific discovery plan via kubonad.",
       "inputSchema": {
         "properties": {
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          },
-          "target_system": {
-            "title": "Target System",
-            "type": "string"
-          },
           "goal": {
-            "default": "",
             "title": "Goal",
             "type": "string"
-          },
-          "budget_usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Budget Usd"
           }
         },
         "required": [
-          "session_id",
-          "target_system"
+          "goal"
         ],
         "title": "plan_discoveryArguments",
         "type": "object"
@@ -1753,11 +1731,13 @@
             "title": "Session Id",
             "type": "string"
           },
-          "title": {
-            "title": "Title",
+          "goal": {
+            "default": "",
+            "title": "Goal",
             "type": "string"
           },
           "statement": {
+            "default": "",
             "title": "Statement",
             "type": "string"
           },
@@ -1765,12 +1745,25 @@
             "default": "",
             "title": "Rationale",
             "type": "string"
+          },
+          "falsifier": {
+            "default": "",
+            "title": "Falsifier",
+            "type": "string"
+          },
+          "count": {
+            "default": 3,
+            "title": "Count",
+            "type": "integer"
+          },
+          "use_llm": {
+            "default": true,
+            "title": "Use Llm",
+            "type": "boolean"
           }
         },
         "required": [
-          "session_id",
-          "title",
-          "statement"
+          "session_id"
         ],
         "title": "propose_hypothesisArguments",
         "type": "object"
@@ -1881,15 +1874,38 @@
             "title": "Session Id",
             "type": "string"
           },
-          "plan": {
-            "additionalProperties": true,
-            "title": "Plan",
-            "type": "object"
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "step_timeout_s": {
+            "default": 0,
+            "title": "Step Timeout S",
+            "type": "integer"
+          },
+          "request_id": {
+            "default": "",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "allow_failure": {
+            "default": false,
+            "title": "Allow Failure",
+            "type": "boolean"
           }
         },
         "required": [
           "session_id",
-          "plan"
+          "goal",
+          "steps"
         ],
         "title": "run_discoveryArguments",
         "type": "object"
@@ -1935,6 +1951,23 @@
             ],
             "default": null,
             "title": "Params"
+          },
+          "budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Usd"
+          },
+          "request_id": {
+            "default": "",
+            "title": "Request Id",
+            "type": "string"
           }
         },
         "required": [

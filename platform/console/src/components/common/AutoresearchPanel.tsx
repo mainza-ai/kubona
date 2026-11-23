@@ -175,10 +175,13 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
       )}
       {loops === null && <p className="text-[12px] text-faint">Loading loops…</p>}
       {loops !== null && loops.length === 0 && <p className="text-[12px] text-muted">No autoresearch loops.</p>}
-      {(loops ?? []).map((loop) => (
+      {(loops ?? []).map((loop) => {
+        const terminal = ['aborted', 'stopped', 'completed', 'killed', 'failed'].includes(String(loop.status || '').toLowerCase());
+        return (
         <div key={loop.id} className="px-2.5 py-2 rounded-row bg-card border border-border text-[12px] space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-code text-label-secondary">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
+            {!terminal && (
             <span className="flex items-center gap-1">
               <button type="button" disabled={busy !== null} onClick={() => void run('step', () => stepAutoresearchLoop(loop.id), 'Stepped.')} className="px-2 py-1 rounded-chip bg-info-wash border border-info-edge text-info-ink disabled:opacity-40">Step</button>
               {loop.status === 'running' ? (
@@ -190,6 +193,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
               )}
               <button type="button" disabled={busy !== null} onClick={() => void run('stop', () => stopAutoresearchLoop(loop.id), 'Stopped.')} className="px-2 py-1 rounded-chip bg-danger-wash border border-danger-edge text-danger-ink disabled:opacity-40">Stop</button>
             </span>
+            )}
           </div>
           <div className="text-faint font-code">champion {loop.champion_metric?.toFixed(6) ?? '—'} · depth {loop.champion_depth ?? '—'} · 2Q {loop.champion_2q_gates ?? '—'}{loop.stagnation_reason ? ` · ${loop.stagnation_reason}` : ''}</div>
           {loop.need && (
@@ -235,7 +239,8 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

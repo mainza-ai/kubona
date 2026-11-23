@@ -4,10 +4,26 @@ import { setAuthPhase, setMultiLabAuthRequired } from '@/lib/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
 import { OperationError, failedResult, type ApiFailure } from './api-errors';
 
+function alignLoopbackApiBase(raw: string): string {
+  if (typeof window === 'undefined') return raw;
+  try {
+    const pageHost = window.location.hostname;
+    if (pageHost !== '127.0.0.1' && pageHost !== 'localhost') return raw;
+    const parsed = new URL(raw);
+    if ((parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') && parsed.hostname !== pageHost) {
+      parsed.hostname = pageHost;
+      return parsed.toString().replace(/\/$/, '');
+    }
+  } catch {
+    // non-URL relative base; leave unchanged
+  }
+  return raw;
+}
+
 // Build-time default (local dev). The runtime route /api/config can
 // override this per deployment (see configureApiBase) so one image
 // serves any backend without a rebuild.
-export let API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+export let API_BASE = alignLoopbackApiBase(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080');
 // Runtime kill switch: defaults on, disabled only by an explicit config answer.
 export let CONSOLE_WORKBENCH_ENABLED = true;
 // Opt-in v1 path alias: the server rewrites /api/v1/* to the same handlers
@@ -34,7 +50,7 @@ export async function configureApiBase(): Promise<string> {
       if (typeof data.apiUrl === 'string') {
         const trimmed = data.apiUrl.trim();
         if (trimmed === '' || trimmed.startsWith('/') || /^https?:\/\//.test(trimmed)) {
-          API_BASE = trimmed.replace(/\/$/, '');
+          API_BASE = alignLoopbackApiBase(trimmed.replace(/\/$/, ''));
         }
       }
       if (typeof data.workbench === 'boolean') CONSOLE_WORKBENCH_ENABLED = data.workbench;
@@ -89,6 +105,18 @@ function withCredentials(init: RequestInit): RequestInit {
 // loudly, never hang the UI forever: every wrapper below funnels through
 // apiFetch, so this one default covers all of them.
 export const API_TIMEOUT_MS = 15000;
+// Local reasoning LLMs (e.g. Strata) and LaTeX/autoresearch steps legitimately
+// take 30–180s. Long-running routes use this wider budget so the UI never
+// aborts a live deliberation or plan while the backend keeps running.
+export const API_LONG_TIMEOUT_MS = 240000;
+
+const LONG_TIMEOUT_PATH_RE =
+  /\/api\/(?:chat\/tribunal|discovery\/(?:plan|run)|codesign\/rerun|autoresearch\/loops\/[^/]+\/step|sessions\/[^/]+\/(?:hypotheses(?:\/tournament)?|manuscripts\/[^/]+\/(?:build|verify|reviews)))/;
+
+function defaultTimeoutFor(input: RequestInfo | URL): number {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+  return LONG_TIMEOUT_PATH_RE.test(url) ? API_LONG_TIMEOUT_MS : API_TIMEOUT_MS;
+}
 
 // Stall budget for server-sent streams: a frame (token|done|error) must
 // arrive at least this often or the stream is declared dead. The backend
@@ -215,7 +243,7 @@ function versionedInput(input: RequestInfo | URL): RequestInfo | URL {
 export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const request = versionedInput(input);
   const withTimeout: RequestInit =
-    init.signal != null ? init : { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) };
+    init.signal != null ? init : { ...init, signal: AbortSignal.timeout(defaultTimeoutFor(request)) };
   if (API_VERSIONED) {
     const headers = new Headers(withTimeout.headers);
     if (!headers.has('Kubona-API-Version')) headers.set('Kubona-API-Version', '1');
@@ -592,8 +620,11 @@ export async function fetchSessionsResult(): Promise<{ ok: true; sessions: Sessi
     contract('sessions.list', data);
     return { ok: true, sessions: data.sessions || [] };
   } catch (err) {
-    console.error('Failed to fetch sessions:', err);
-    return failedResult(err, '/api/sessions');
+    const failure = failedResult(err, '/api/sessions');
+    if (failure.failure.status !== 401) {
+      console.error('Failed to fetch sessions:', err);
+    }
+    return failure;
   }
 }
 

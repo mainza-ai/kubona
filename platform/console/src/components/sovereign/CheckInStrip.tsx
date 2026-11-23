@@ -58,9 +58,9 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
     <div
       role="status"
       aria-label={`Check-in: ${loops.length} loops, ${running} running${attention > 0 ? `, ${attention} need attention` : ''}${spend ? `, LLM spend $${spend.spent_usd.toFixed(2)}` : ''}`}
-      className={`flex min-w-0 items-center gap-3 text-[12px] font-code text-label-secondary ${compact ? 'py-0' : 'border-b border-border bg-chrome px-3 py-1'}`}
+      className={`flex min-w-0 items-center ${compact ? 'gap-2 py-0' : 'gap-3 border-b border-border bg-chrome px-3 py-1'} text-[12px] font-code text-label-secondary`}
     >
-      <span className="truncate">
+      <span className="whitespace-nowrap shrink-0">
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
       </span>
       {readOnly && (
@@ -81,7 +81,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
       )}
       {showAlert && (
         <span
-          className={`shrink-0 truncate font-medium ${
+          className={`min-w-0 max-w-[260px] truncate font-medium ${
             alert.level === 'anomalous'
               ? 'text-danger animate-pulse'
               : alert.level === 'notable'

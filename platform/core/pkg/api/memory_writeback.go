@@ -452,11 +452,12 @@ func (s *Server) resolveMemoryTenant(sessionID string) (string, error) {
 // tool queries experiences at 250 tokens / 0.35 floor; those are the
 // defaults here too, overridable per call.
 type recallParams struct {
-	bank     memory.MemoryBank
-	matchAll bool
-	tokens   int
-	minSim   float64
-	limit    int
+	bank           memory.MemoryBank
+	matchAll       bool
+	tokens         int
+	minSim         float64
+	explicitMinSim bool
+	limit          int
 }
 
 func parseRecallParams(r *http.Request) (recallParams, error) {
@@ -488,6 +489,7 @@ func parseRecallParams(r *http.Request) (recallParams, error) {
 			return p, fmt.Errorf("min_similarity must be within 0..1")
 		}
 		p.minSim = v
+		p.explicitMinSim = true
 	}
 	return p, nil
 }
@@ -547,6 +549,15 @@ func (s *Server) handleMemoryRecall(w http.ResponseWriter, r *http.Request) {
 	} else {
 		recalled := s.memoryStore.SemanticRecallScoped(
 			bank, query, params.tokens, params.minSim, tenant, []string{tenant})
+		// Air-gapped / lexical fallback: when no embedding server is active,
+		// exact keyword queries often score ~0.15-0.25 on lexical overlap.
+		// If the caller did not pin min_similarity explicitly, retry once at a
+		// lexical floor (0.10) so exact keyword matches are not silently dropped.
+		const lexicalFloor = 0.10
+		if len(recalled) == 0 && !params.explicitMinSim && params.minSim > lexicalFloor {
+			recalled = s.memoryStore.SemanticRecallScoped(
+				bank, query, params.tokens, lexicalFloor, tenant, []string{tenant})
+		}
 		for _, item := range recalled {
 			if len(out) >= params.limit {
 				break

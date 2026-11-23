@@ -80,6 +80,15 @@ const PRESETS: MoleculePreset[] = [
     defaultTitle: 'CO Dipole Ground State Optimization',
     description: '6-qubit polar molecule requiring precise multi-reference electron correlation.',
   },
+  {
+    id: 'TFIM-4q',
+    symbol: 'TFIM',
+    name: '1D Ising Spin Chain',
+    qubits: 4,
+    bondDist: 'g/J = 1.0',
+    defaultTitle: '1D TFIM Quantum Phase Transition',
+    description: '4-qubit Transverse-Field Ising Model for phase transition, finite-size scaling, and quench dynamics.',
+  },
 ];
 
 export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModalProps) {
@@ -98,13 +107,28 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(isOpen, modalRef);
 
-  // Auto-update title when selecting preset if title was defaulted
+  // Reset stale modal state whenever opened cleanly.
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedMolecule('H2');
+      setCustomMolecule('');
+      setTitle(PRESETS[0].defaultTitle);
+      setTitleError(null);
+      setMoleculeError(null);
+      setSubmitError(null);
+    }
+  }, [isOpen]);
+
+  // Auto-update title when selecting preset only if title was blank or a preset default.
   const handleSelectPreset = (preset: MoleculePreset) => {
     setSelectedMolecule(preset.id);
     setCustomMolecule('');
     setMoleculeError(null);
-    setTitle(preset.defaultTitle);
-    setTitleError(null);
+    const trimmed = title.trim();
+    if (trimmed === '' || PRESETS.some((p) => p.defaultTitle === trimmed)) {
+      setTitle(preset.defaultTitle);
+      setTitleError(null);
+    }
   };
 
   // Inline validators (Wave-2): trimmed title >= 3 chars; a non-empty custom

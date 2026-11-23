@@ -124,9 +124,14 @@ func (s *Server) handleHypothesisRoute(w http.ResponseWriter, r *http.Request, s
 
 func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request, sessionID, tenantID string) {
 	var body struct {
-		Goal   string `json:"goal"`
-		Count  int    `json:"count"`
-		UseLLM bool   `json:"use_llm"`
+		Goal           string `json:"goal"`
+		Count          int    `json:"count"`
+		UseLLM         bool   `json:"use_llm"`
+		Statement      string `json:"statement"`
+		Rationale      string `json:"rationale"`
+		Falsifier      string `json:"falsifier"`
+		ExperimentKind string `json:"experiment_kind"`
+		ExperimentHint string `json:"experiment_hint"`
 	}
 	if err := decodeStrict(r, &body); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid hypothesis request: %v", err), nil)
@@ -136,49 +141,64 @@ func (s *Server) handleHypothesisGenerate(w http.ResponseWriter, r *http.Request
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		_ = json.Unmarshal(raw, &campaign)
 	}
-	priorArt := s.hypothesisLiterature(r, campaign, body.Goal)
-	refs := make([]string, 0, len(priorArt))
-	for _, p := range priorArt {
-		if p.ID != "" {
-			refs = append(refs, p.ID)
-		}
-	}
-	candidates := hypotheses.Generate(&campaign, refs, body.Count)
+	var candidates []hypotheses.Candidate
+	var priorArt []hypotheses.PriorArt
 	llmInfo := map[string]any{"requested": body.UseLLM, "used": false}
-	if body.UseLLM {
-		if !s.requireAgentic(w, sessionID) {
+	if stmt := strings.TrimSpace(body.Statement); stmt != "" {
+		falsifier := strings.TrimSpace(body.Falsifier)
+		if falsifier == "" {
+			WriteAPIError(w, "bad_request", "falsifier is required for a manual hypothesis", nil)
 			return
 		}
-		if s.hypothesisCompleter == nil {
-			llmInfo["error"] = "no LLM provider is configured"
-		} else {
-			// The handler is synchronous, so an unbounded provider hang would
-			// hold the request open indefinitely. The default covers local
-			// reasoning models; KUBONA_HYPOTHESIS_LLM_TIMEOUT_SEC overrides it.
-			ctx, cancel := context.WithTimeout(r.Context(), s.hypothesisLLMTimeout())
-			// Model candidates are for diversity, not volume: a local
-			// reasoning model needs its completion budget for reasoning plus
-			// JSON, so asking for the full diagnostic count truncates the
-			// contract. Diagnostics still fill the requested count.
-			llmCount := body.Count
-			if llmCount <= 0 || llmCount > 4 {
-				llmCount = 4
+		kind := strings.TrimSpace(body.ExperimentKind)
+		if kind == "" {
+			kind = "vqe"
+		}
+		candidates = []hypotheses.Candidate{{
+			Statement:      stmt,
+			Rationale:      strings.TrimSpace(body.Rationale),
+			Falsifier:      falsifier,
+			ExperimentKind: kind,
+			ExperimentHint: strings.TrimSpace(body.ExperimentHint),
+			Source:         "manual",
+		}}
+	} else {
+		priorArt = s.hypothesisLiterature(r, campaign, body.Goal)
+		refs := make([]string, 0, len(priorArt))
+		for _, p := range priorArt {
+			if p.ID != "" {
+				refs = append(refs, p.ID)
 			}
-			proposed, err := hypotheses.Propose(ctx, s.hypothesisCompleter, hypotheses.ProposeOptions{
-				Goal: body.Goal, Target: campaign.TargetSystem,
-				Measured:   campaign.Measurement != nil && campaign.Measurement.Measured,
-				DeltaMHa:   campaignDeltaMHa(&campaign),
-				Hardware:   campaign.Measurement != nil && campaign.Measurement.Hardware,
-				Claimable:  campaign.Measurement != nil && campaign.Measurement.Claimable,
-				Literature: priorArt, Count: llmCount,
-			})
-			cancel()
-			if err != nil {
-				llmInfo["error"] = err.Error()
+		}
+		candidates = hypotheses.Generate(&campaign, refs, body.Count)
+		if body.UseLLM {
+			if !s.requireAgentic(w, sessionID) {
+				return
+			}
+			if s.hypothesisCompleter == nil {
+				llmInfo["error"] = "no LLM provider is configured"
 			} else {
-				llmInfo["used"] = true
-				llmInfo["count"] = len(proposed)
-				candidates = hypotheses.Merge(candidates, proposed, body.Count)
+				ctx, cancel := context.WithTimeout(r.Context(), s.hypothesisLLMTimeout())
+				llmCount := body.Count
+				if llmCount <= 0 || llmCount > 4 {
+					llmCount = 4
+				}
+				proposed, err := hypotheses.Propose(ctx, s.hypothesisCompleter, hypotheses.ProposeOptions{
+					Goal: body.Goal, Target: campaign.TargetSystem,
+					Measured:   campaign.Measurement != nil && campaign.Measurement.Measured,
+					DeltaMHa:   campaignDeltaMHa(&campaign),
+					Hardware:   campaign.Measurement != nil && campaign.Measurement.Hardware,
+					Claimable:  campaign.Measurement != nil && campaign.Measurement.Claimable,
+					Literature: priorArt, Count: llmCount,
+				})
+				cancel()
+				if err != nil {
+					llmInfo["error"] = err.Error()
+				} else {
+					llmInfo["used"] = true
+					llmInfo["count"] = len(proposed)
+					candidates = hypotheses.Merge(candidates, proposed, body.Count)
+				}
 			}
 		}
 	}

@@ -24,6 +24,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from kubona.mcp.auth import AuthError
 from kubona.mcp.gateway import KubonaGateway
 from kubona.mcp.prompts import register_prompts
 from kubona.mcp.resources import register_resources
@@ -138,7 +139,26 @@ def _make_gateway_wrapper(
         token = CURRENT_BEARER_TOKEN.get()
         if token is None:
             token = default_token
-        return gateway.call(server_name, tool_name, dict(bound.arguments), token=token)
+        try:
+            return gateway.call(server_name, tool_name, dict(bound.arguments), token=token)
+        except AuthError as e:
+            msg = str(e)
+            code = "approval_required" if "approval" in msg.lower() else "forbidden"
+            return {
+                "ok": False,
+                "error_code": code,
+                "error": msg,
+                "remediation": (
+                    "Paid execution requires human/mandate approval or configured KUBONA_APPROVAL_SECRET; "
+                    "use local-simulator / qiskit-aer-simulator for zero-cost runs."
+                    if code == "approval_required"
+                    else "Verify bearer token scopes and tenant ownership."
+                ),
+            }
+        except KeyError as e:
+            return {"ok": False, "error_code": "unknown_tool", "error": str(e)}
+        except ValueError as e:
+            return {"ok": False, "error_code": "bad_request", "error": str(e)}
 
     _wrapper.__name__ = tool_name
     _wrapper.__doc__ = fn.__doc__

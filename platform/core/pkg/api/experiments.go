@@ -43,6 +43,64 @@ func experimentJobType(kind string) (string, bool) {
 	}
 }
 
+// normalizeAndValidateExperimentSpec normalizes documented parameter aliases
+// (so callers cannot silently trigger wrong defaults) and rejects obviously
+// out-of-range parameters synchronously before queuing an async bridge job.
+func normalizeAndValidateExperimentSpec(kind string, spec map[string]any) error {
+	if spec == nil {
+		return fmt.Errorf("spec must be a JSON object")
+	}
+	// Canonical alias normalization: bond_distance_angstrom -> bond_distance
+	if v, ok := spec["bond_distance_angstrom"]; ok {
+		if _, hasCanon := spec["bond_distance"]; !hasCanon {
+			spec["bond_distance"] = v
+		}
+		delete(spec, "bond_distance_angstrom")
+	}
+	// Canonical alias normalization for QAOA: p -> layers
+	if kind == "qaoa" {
+		if v, ok := spec["p"]; ok {
+			if _, hasCanon := spec["layers"]; !hasCanon {
+				spec["layers"] = v
+			}
+			delete(spec, "p")
+		}
+	}
+	// Synchronous bounds checks (mirror bridge limits so callers get 400 immediately)
+	if bd, ok := spec["bond_distance"]; ok {
+		if f, okf := bd.(float64); !okf || f <= 0 || f > 20.0 {
+			return fmt.Errorf("bond_distance must be a number in (0, 20]")
+		}
+	}
+	if sh, ok := spec["shots"]; ok {
+		if f, okf := sh.(float64); !okf || f < 1 || f > 1_000_000 {
+			return fmt.Errorf("shots must be between 1 and 1000000")
+		}
+	}
+	if kind == "qaoa" {
+		if lv, ok := spec["layers"]; ok {
+			if f, okf := lv.(float64); !okf || f < 1 || f > 20 {
+				return fmt.Errorf("qaoa layers (p) must be between 1 and 20")
+			}
+		}
+	}
+	if kind == "thermodynamic_limit" {
+		if rawSizes, ok := spec["sizes"]; ok {
+			arr, okArr := rawSizes.([]any)
+			if !okArr || len(arr) == 0 {
+				return fmt.Errorf("thermodynamic_limit sizes must be a non-empty array of integers in [4, 40]")
+			}
+			for _, item := range arr {
+				f, okf := item.(float64)
+				if !okf || f < 4 || f > 40 || f != float64(int(f)) {
+					return fmt.Errorf("experiment refused: size %v outside [4,40]", item)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // POST /api/experiments — submit a real variational experiment (VQE or PES).
 //
 // The body carries a versioned spec; the Go worker submits a ledger-bound job
@@ -93,6 +151,10 @@ func (s *Server) handleExperiments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spec["kind"] = kind
+	if err := normalizeAndValidateExperimentSpec(kind, spec); err != nil {
+		WriteAPIError(w, "bad_request", err.Error(), nil)
+		return
+	}
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0
 	}

@@ -11,6 +11,11 @@
 # Build (repo root): docker build -f platform/docker/Dockerfile.bridge -t kubona/bridge:dev platform
 # Run (compose is the supported path): see compose.prod.yml.
 
+FROM rust:1-slim-bookworm AS qirbuild
+WORKDIR /qir
+COPY crates/qir-core ./crates/qir-core
+RUN cargo build --release --locked --manifest-path crates/qir-core/Cargo.toml
+
 FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
 # glibc arena sprawl and BLAS thread pools size themselves from the node, not
@@ -76,7 +81,10 @@ RUN chown -R kubona:kubona /app
 # entrypoint seeds the writable contract and model directories at runtime.
 RUN mkdir -p /run/kubona /home/kubona/.kubona \
     && chown -R kubona:kubona /run/kubona /home/kubona/.kubona
+COPY --from=qirbuild /qir/crates/qir-core/target/release/qir-core /usr/local/bin/qir-core
 COPY docker/bridge-entrypoint.sh /usr/local/bin/bridge-entrypoint.sh
+ENV KUBONA_QIR_CORE=/usr/local/bin/qir-core \
+    KUBONA_QIR_ALLOWED_DIRS=/usr/local/bin
 RUN chmod 0755 /usr/local/bin/bridge-entrypoint.sh
 
 USER kubona

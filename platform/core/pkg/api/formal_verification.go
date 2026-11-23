@@ -45,8 +45,41 @@ func canonicalJSON(v any) ([]byte, error) {
 }
 
 func (s *Server) handleFormalVerification(w http.ResponseWriter, r *http.Request, sessionID string) {
+	if r.Method == http.MethodGet {
+		sess, ok := s.authorizeKnownSession(w, r, sessionID)
+		if !ok {
+			return
+		}
+		if sess == nil {
+			WriteAPIError(w, "not_found", "unknown session", nil)
+			return
+		}
+		events, err := s.ledger.GetRecentEvents(sessionID, 200)
+		if err != nil {
+			WriteAPIError(w, "internal", "failed to read formal verifications", nil)
+			return
+		}
+		out := make([]map[string]any, 0)
+		for _, ev := range events {
+			if ev.EventType != "formal_verification_attested" && ev.EventType != "formal_verification" {
+				continue
+			}
+			var payload map[string]any
+			if len(ev.Payload) > 0 {
+				_ = json.Unmarshal(ev.Payload, &payload)
+			}
+			out = append(out, map[string]any{
+				"id":         ev.ID,
+				"event_type": ev.EventType,
+				"timestamp":  ev.Timestamp,
+				"payload":    payload,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"session_id": sessionID, "verifications": out})
+		return
+	}
 	if r.Method != http.MethodPost {
-		WriteAPIError(w, "method_not_allowed", "formal verification attestations are POST-only", nil)
+		WriteAPIError(w, "method_not_allowed", "formal verification attestations support GET and POST", nil)
 		return
 	}
 	if !s.verifyLimiter.allow(clientKey(r)) {

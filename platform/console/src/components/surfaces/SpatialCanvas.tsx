@@ -741,7 +741,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <span className="font-semibold text-label-secondary uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
                 <Atom className="w-4 h-4 text-success-ink" />
                 <span>Molecular Pharmacology &amp; ADMET</span>
-                <ProvenanceBadge kind="measured" detail="RDKit bridge profile." />
+                <ProvenanceBadge kind="model" detail="RDKit heuristic pharmacology profile (not wet-lab measured)." />
               </span>
               <span className="text-muted font-mono text-[12px]">
                 SMILES: <code className="text-info-ink">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}

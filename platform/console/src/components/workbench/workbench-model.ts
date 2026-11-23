@@ -1450,12 +1450,14 @@ export function buildWorkbench(
       continue;
     }
 
-    const firstEnergy = jobResultNumber(root.result, ['energy', 'ground_energy']);
-    const lastEnergy = jobResultNumber(latest.result, ['energy', 'ground_energy']);
+    const isQaoa = String(root.job.job_type || '').toLowerCase() === 'qaoa_run';
+    const energyUnit = isQaoa ? 'cut' : 'Ha';
+    const firstEnergy = jobResultNumber(root.result, ['energy', 'ground_energy', 'expected_cut', 'best_cut']);
+    const lastEnergy = jobResultNumber(latest.result, ['energy', 'ground_energy', 'expected_cut', 'best_cut']);
     const firstDelta = jobResultNumber(root.result, ['delta_mha', 'discrepancy_mha']);
     const lastDelta = jobResultNumber(latest.result, ['delta_mha', 'discrepancy_mha']);
     const measuredDelta = firstEnergy !== null && lastEnergy !== null
-      ? `${(lastEnergy - firstEnergy) >= 0 ? '+' : ''}${(lastEnergy - firstEnergy).toFixed(5)} Ha`
+      ? `${(lastEnergy - firstEnergy) >= 0 ? '+' : ''}${(lastEnergy - firstEnergy).toFixed(5)} ${energyUnit}`
       : firstDelta !== null && lastDelta !== null
         ? `${(lastDelta - firstDelta) >= 0 ? '+' : ''}${(lastDelta - firstDelta).toFixed(2)} mHa`
         : null;
@@ -1465,10 +1467,10 @@ export function buildWorkbench(
     const historyTail = olderCount > 0 ? `+${olderCount} older runs · Recent: ${recentSlice.join(' → ')}` : `Recent runs: ${recentSlice.join(' → ')}`;
 
     const runRows: WorkbenchRunItem[] = group.slice(-6).reverse().map((entry) => {
-      const energy = jobResultNumber(entry.result, ['energy', 'ground_energy']);
+      const energy = jobResultNumber(entry.result, ['energy', 'ground_energy', 'expected_cut', 'best_cut']);
       const delta = jobResultNumber(entry.result, ['delta_mha', 'discrepancy_mha']);
       const metric = energy !== null
-        ? `${energy.toFixed(5)} Ha`
+        ? `${energy.toFixed(5)} ${energyUnit}`
         : delta !== null
           ? `${delta.toFixed(2)} mHa`
           : undefined;
@@ -1510,7 +1512,16 @@ export function buildWorkbench(
     });
   }
 
-  obligations.slice(0, 32).forEach((obligation) => {
+  const activeSessionId = (campaign as { session_id?: string }).session_id || jobs[0]?.session_id;
+  const scopedObligations = activeSessionId
+    ? obligations.filter((o) => {
+        const owner = String(o.owner || '');
+        if (!owner.startsWith('session:')) return true;
+        return owner === `session:${activeSessionId}`;
+      })
+    : obligations;
+
+  scopedObligations.slice(0, 32).forEach((obligation) => {
     placeRun(2, {
       id: `approval-${obligation.id}`,
       kind: 'approval',

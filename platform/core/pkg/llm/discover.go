@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -58,12 +59,35 @@ type DiscoverLocalResult struct {
 
 // DiscoverLocalProviders probes common localhost inference ports (plus the
 // `lms` CLI when installed) in parallel under a 900ms budget per target.
+// Inside a Docker container (/.dockerenv present or KUBONA_LOCAL_DISCOVERY_HOST
+// set), it also probes host.docker.internal so host-running engines like Strata
+// or Ollama are discovered automatically.
 func DiscoverLocalProviders(ctx context.Context) DiscoverLocalResult {
 	ports := make([]int, 0, len(defaultLocalDiscoveryPorts))
 	for _, h := range defaultLocalDiscoveryPorts {
 		ports = append(ports, h.Port)
 	}
-	return discoverLocalWithTargets(ctx, "127.0.0.1", defaultLocalDiscoveryPorts, true, ports)
+	res := discoverLocalWithTargets(ctx, "127.0.0.1", defaultLocalDiscoveryPorts, true, ports)
+	extraHost := strings.TrimSpace(os.Getenv("KUBONA_LOCAL_DISCOVERY_HOST"))
+	if extraHost == "" {
+		if _, err := os.Stat("/.dockerenv"); err == nil {
+			extraHost = "host.docker.internal"
+		}
+	}
+	if extraHost != "" && extraHost != "127.0.0.1" && extraHost != "localhost" {
+		hostRes := discoverLocalWithTargets(ctx, extraHost, defaultLocalDiscoveryPorts, false, ports)
+		seen := make(map[string]bool, len(res.Servers))
+		for _, srv := range res.Servers {
+			seen[srv.BaseURL] = true
+		}
+		for _, srv := range hostRes.Servers {
+			if !seen[srv.BaseURL] {
+				seen[srv.BaseURL] = true
+				res.Servers = append(res.Servers, srv)
+			}
+		}
+	}
+	return res
 }
 
 func discoverLocalWithTargets(ctx context.Context, host string, hints []localPortHint, includeLMS bool, scanned []int) DiscoverLocalResult {
