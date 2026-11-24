@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import hmac
 import json
 import os
 import time
@@ -39,6 +40,30 @@ from kubona.security.secure_rpc import SecureRpc
 # Hard cap on inbound bodies (W0.14): unbounded request.json() is a
 # large-body DoS primitive. Envelopes are small authenticated blobs.
 MAX_BODY_BYTES = 1 * 1024 * 1024
+
+
+class _ApiTokenBridgeAuth:
+    """Wraps a gateway AuthProvider so KUBONA_API_TOKEN is also accepted as an
+    operator bearer credential on /mcp and /rpc (D-10), while preserving full
+    OAuth2 JWT verification for issued agent tokens."""
+
+    def __init__(self, inner, api_token: str) -> None:
+        self._inner = inner
+        self._api_token = api_token
+
+    def verify(self, token: str) -> Principal:
+        try:
+            return self._inner.verify(token)
+        except Exception:
+            if self._api_token and token and hmac.compare_digest(token, self._api_token):
+                from kubona.security.policy import OPERATOR_SCOPES
+                return Principal(
+                    sub="kubona-api-operator",
+                    role="operator",
+                    scopes=tuple(OPERATOR_SCOPES),
+                    tenant="default",
+                )
+            raise
 
 
 def _principal(request: Request, gateway: KubonaGateway) -> Principal | None:
@@ -223,6 +248,9 @@ def make_http_gateway(gateway: KubonaGateway | None = None,
         from kubona.run import make_gateway
 
         gateway = make_gateway(require_auth=True)
+    api_token = os.environ.get("KUBONA_API_TOKEN", "").strip()
+    if api_token and gateway.auth is not None and not isinstance(gateway.auth, _ApiTokenBridgeAuth):
+        gateway.auth = _ApiTokenBridgeAuth(gateway.auth, api_token)
     return _make_app(gateway, secure_session, require_secure)
 
 

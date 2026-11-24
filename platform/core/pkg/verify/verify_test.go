@@ -174,3 +174,32 @@ func TestShippedCalibrationAgreesWithItsLabels(t *testing.T) {
 		t.Fatalf("labeler missing: %q", rep.Labeler)
 	}
 }
+
+func TestVerifyNumbersRejectsTrajectoryThetaCoincidenceAndSupportsDerivedDeltas(t *testing.T) {
+	// D-02: trajectory[0].theta[0] = 0.00100568 (radians) must NOT certify
+	// a fabricated 0.0010 mHa energy delta claim.
+	// D-05: honest derived |energy - fci_exact_energy| (1.202 mHa) MUST verify.
+	ev := Evidence{
+		Documents: []Document{{
+			ID: "job-exp1",
+			JSON: `{
+				"energy": -1.138508,
+				"fci_exact_energy": -1.137306,
+				"trajectory": [{"step": 58, "theta": [0.00100568, 0.123456]}]
+			}`,
+		}},
+	}
+	findings := VerifyNumbers("Measured -1.138508 Ha (discrepancy 1.202 mHa; bogus 0.0010 mHa).", ev)
+	if len(findings) != 3 {
+		t.Fatalf("expected 3 findings, got %d: %+v", len(findings), findings)
+	}
+	if findings[0].Status != NumberMatched {
+		t.Fatalf("measured energy must match, got %+v", findings[0])
+	}
+	if findings[1].Status != NumberMatched {
+		t.Fatalf("derived delta 1.202 mHa must match, got %+v", findings[1])
+	}
+	if findings[2].Status != NumberUnmatched {
+		t.Fatalf("D-02 regression: 0.0010 mHa must NOT match trajectory theta radians, got %+v", findings[2])
+	}
+}

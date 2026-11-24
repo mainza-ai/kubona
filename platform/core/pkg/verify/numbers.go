@@ -65,14 +65,21 @@ var unitNumber = regexp.MustCompile(`(?i)(?:^|[^a-z0-9_])([-+]?\d+(?:\.\d+)?(?:e
 // sign would match "1.13" inside "-1.13" and silently drop the minus.
 var bareDecimal = regexp.MustCompile(`[-+]?\b\d+\.\d{3,}\b`)
 
-// nonMeasurementConfigKeys are parameter/metadata keys that must not
-// accidentally validate an energy/measurement claim in manuscript prose.
+// nonMeasurementConfigKeys are parameter/metadata/internal keys that must not
+// accidentally validate an energy/measurement claim in manuscript prose (D-02).
 var nonMeasurementConfigKeys = map[string]bool{
 	"seed": true, "layers": true, "max_iterations": true,
 	"max_geometry_steps": true, "max_cost_usd": true, "budget_usd": true,
 	"repeats": true, "steps": true, "timeout": true, "timeout_s": true,
 	"schema_version": true, "version": true, "attempt_count": true,
 	"http_status": true, "port": true,
+	// Variational parameters / internal optimizer trajectories (radians, not observables).
+	"theta": true, "angles": true, "gammas": true, "betas": true,
+	"params": true, "parameters": true, "trajectory": true,
+	"pauli_coefficients": true, "coefficients": true,
+	"iteration": true, "step": true, "index": true,
+	// Hardware calibration constants (separate domain from measured energies).
+	"calibration_max_age_hours": true, "chemical_accuracy_limit_mha": true,
 }
 
 func unitCompatiblePath(unit, path string) bool {
@@ -82,8 +89,13 @@ func unitCompatiblePath(unit, path string) bool {
 	p := strings.ToLower(path)
 	switch unit {
 	case "ha", "mha", "kcal/mol", "ev":
-		// Energy claims must not match shot counts, qubit counts, or durations.
-		if strings.Contains(p, "shot") || strings.Contains(p, "qubit") || strings.Contains(p, "duration") || strings.Contains(p, "time_ms") {
+		// Energy claims must not match shot counts, qubit counts, durations,
+		// variational angles, ratios, or bond lengths (D-02).
+		if strings.Contains(p, "shot") || strings.Contains(p, "qubit") ||
+			strings.Contains(p, "duration") || strings.Contains(p, "time_ms") ||
+			strings.Contains(p, "theta") || strings.Contains(p, "angle") ||
+			strings.Contains(p, "trajectory") || strings.Contains(p, "bond_distance") ||
+			strings.Contains(p, "ratio") || strings.Contains(p, "probability") {
 			return false
 		}
 		return true
@@ -231,6 +243,9 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 			}
 			flatten(source, path, val[k], depth+1, out)
 		}
+		// D-05: record explicit derived |measured - exact| deltas (Ha & mHa)
+		// so auto-synthesized multi-job tables verify without coincidence matching.
+		emitDerivedDeltas(source, prefix, val, out)
 	case []any:
 		for i, item := range val {
 			flatten(source, prefix+"["+strconv.Itoa(i)+"]", item, depth+1, out)
@@ -241,6 +256,49 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 		if f, err := val.Float64(); err == nil {
 			*out = append(*out, EvidenceValue{Path: prefix, Value: f, Source: source})
 		}
+	}
+}
+
+func emitDerivedDeltas(source, prefix string, obj map[string]any, out *[]EvidenceValue) {
+	pairs := [][2]string{
+		{"energy", "fci_exact_energy"},
+		{"energy", "energy_exact"},
+		{"energy", "exact_energy"},
+		{"energy_measured", "fci_exact_energy"},
+		{"reaction_energy", "reaction_energy_exact"},
+		{"ground_energy", "ground_energy_exact"},
+		{"gap", "gap_exact"},
+	}
+	numOf := func(k string) (float64, bool) {
+		raw, ok := obj[k]
+		if !ok {
+			return 0, false
+		}
+		switch t := raw.(type) {
+		case float64:
+			return t, !math.IsNaN(t) && !math.IsInf(t, 0)
+		case json.Number:
+			f, err := t.Float64()
+			return f, err == nil && !math.IsNaN(f) && !math.IsInf(f, 0)
+		default:
+			return 0, false
+		}
+	}
+	base := "derived"
+	if prefix != "" {
+		base = prefix + ".derived"
+	}
+	for _, p := range pairs {
+		a, okA := numOf(p[0])
+		b, okB := numOf(p[1])
+		if !okA || !okB {
+			continue
+		}
+		diffHa := math.Abs(a - b)
+		*out = append(*out,
+			EvidenceValue{Path: base + "." + p[0] + "_delta_ha", Value: diffHa, Source: source},
+			EvidenceValue{Path: base + "." + p[0] + "_delta_mha", Value: diffHa * 1000.0, Source: source},
+		)
 	}
 }
 

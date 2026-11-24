@@ -434,6 +434,8 @@ func NewServer(
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}
+	// D-01: sign commit-class grant_issued / grant_revoked ledger events.
+	s.tenantMgr.SetSigner(priv)
 
 	// Single tool registry: read-only observations the copilot can invoke.
 	// Writes keep flowing through the gated paths (launch, mandates).

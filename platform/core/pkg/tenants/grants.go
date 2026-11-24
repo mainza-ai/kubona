@@ -270,13 +270,13 @@ func (m *Manager) IssueGrant(sourceTenant, targetTenant string, scopes []string,
 		return nil, fmt.Errorf("failed to store grant: %w", err)
 	}
 	if n, err := res.RowsAffected(); err == nil && n > 0 {
-		m.ledger.AppendEvent(sourceTenant, "grant_issued", map[string]any{
+		_, _ = m.ledger.AppendSignedEvent(sourceTenant, "grant_issued", map[string]any{
 			"kind": "tenant_read", "grant_id": g.GrantID,
 			"source_tenant": g.SourceTenant,
 			"target_tenant": g.TargetTenant, "scopes": cp,
 			"expiry":     exp.UTC().Format(time.RFC3339),
 			"grantor_fp": Fingerprint(grantorPubkeyHex),
-		})
+		}, m.signer)
 	}
 	return m.GetGrant(g.GrantID)
 }
@@ -302,10 +302,10 @@ func (m *Manager) RevokeGrant(sourceTenant, grantID, reason, pubkeyHex, sigHex s
 	if _, err := m.ledger.DB().Exec(`UPDATE tenant_grants SET revoked = 1 WHERE grant_id = ?`, grantID); err != nil {
 		return fmt.Errorf("grant revocation failed: %w", err)
 	}
-	m.ledger.AppendEvent(sourceTenant, "grant_revoked", map[string]any{
+	_, _ = m.ledger.AppendSignedEvent(sourceTenant, "grant_revoked", map[string]any{
 		"kind": "tenant_read", "grant_id": grantID,
 		"reason": reason, "revoked_by_fp": Fingerprint(pubkeyHex),
-	})
+	}, m.signer)
 	return nil
 }
 

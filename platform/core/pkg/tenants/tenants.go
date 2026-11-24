@@ -98,10 +98,19 @@ func ParamsHashOf(params any) (string, error) {
 
 type Manager struct {
 	ledger *ledger.Ledger
+	signer ed25519.PrivateKey
 }
 
 func NewManager(l *ledger.Ledger) *Manager {
 	return &Manager{ledger: l}
+}
+
+// SetSigner configures the Ed25519 signing key used for commit-class ledger
+// events emitted by the tenant manager (grant_issued, grant_revoked — D-01).
+func (m *Manager) SetSigner(priv ed25519.PrivateKey) {
+	if len(priv) == ed25519.PrivateKeySize {
+		m.signer = priv
+	}
 }
 
 func validLevel(level string) bool {

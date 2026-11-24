@@ -369,6 +369,16 @@ type completionAttemptOpts struct {
 	AttemptCount    int
 }
 
+func isReasoningModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	return strings.Contains(m, "nemotron") ||
+		strings.Contains(m, "deepseek-r1") ||
+		strings.Contains(m, "qwq") ||
+		strings.HasPrefix(m, "o1") ||
+		strings.HasPrefix(m, "o3") ||
+		strings.HasPrefix(m, "o4")
+}
+
 func resolveAttemptMaxTokens(plan ResolvedRolePlan, maxTokensOverride int) int {
 	maxTokens := plan.MaxTokens
 	if maxTokensOverride >= 0 {
@@ -376,6 +386,12 @@ func resolveAttemptMaxTokens(plan ResolvedRolePlan, maxTokensOverride int) int {
 		if plan.HasMaxTokens && plan.MaxTokens > 0 && plan.MaxTokens < maxTokens {
 			maxTokens = plan.MaxTokens
 		}
+	}
+	// D-14 / D-18: reasoning models emit chain-of-thought inside reasoning_content
+	// before assistant content; a 1024-token ceiling causes finish_reason="length"
+	// with empty content on structured planning and tribunal turns.
+	if maxTokens > 0 && maxTokens < 4096 && len(plan.Hops) > 0 && isReasoningModel(plan.Hops[0].Model) {
+		maxTokens = 4096
 	}
 	return maxTokens
 }

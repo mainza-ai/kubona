@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"errors"
 	"fmt"
 	"net/http"
@@ -110,6 +111,8 @@ type manuscriptCiteIn struct {
 	DOI      string `json:"doi"`
 	ClaimID  string `json:"claim_id"`
 	SourceID string `json:"source_id"`
+	// D-25: accept server-emitted read-only field on round-trip PUT; ignored on write.
+	Verified *bool `json:"verified,omitempty"`
 }
 
 type manuscriptFigureIn struct {
@@ -818,9 +821,41 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		WriteAPIError(w, "source_changed", "signoff no longer matches the manuscript content", nil)
 		return
 	}
-	if rec := reviewRecommendation(ms.ReviewJSON); rec != "ACCEPT" {
-		WriteAPIError(w, "review_not_accepted", "deposit staging requires an ACCEPT review; current review is "+rec, nil)
+	var depositReq struct {
+		Track string `json:"track"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&depositReq)
+	}
+	empiricalTrack := strings.EqualFold(strings.TrimSpace(depositReq.Track), "empirical") ||
+		strings.EqualFold(strings.TrimSpace(depositReq.Track), "empirical_measured")
+	rec := reviewRecommendation(ms.ReviewJSON)
+	if rec == "REJECT" {
+		WriteAPIError(w, "review_not_accepted", "deposit staging refused: review recommendation is REJECT", nil)
 		return
+	}
+	if rec != "ACCEPT" {
+		// D-06: empirical quantum-hardware manuscripts without a Lean formal proof
+		// may stage on the explicit empirical_measured track once verification-v1
+		// is verified (0 blockers), annotations are closed, and Ed25519 signoff holds.
+		if !empiricalTrack {
+			WriteAPIError(w, "review_not_accepted", "deposit staging requires an ACCEPT review (or explicit {\"track\":\"empirical\"} for verified empirical manuscripts); current review is "+rec, nil)
+			return
+		}
+		var vrep struct {
+			Summary struct {
+				Status   string `json:"status"`
+				Blocking int    `json:"blocking"`
+			} `json:"summary"`
+		}
+		if err := json.Unmarshal([]byte(ms.VerificationJSON), &vrep); err != nil || vrep.Summary.Status != "verified" || vrep.Summary.Blocking > 0 {
+			WriteAPIError(w, "evidence_verification_failed", "empirical deposit track requires a clean verification-v1 report with 0 blockers", nil)
+			return
+		}
+		if open, _ := s.ledger.CountOpenAnnotations(sessionID, id); open > 0 {
+			WriteAPIError(w, "annotations_open", "empirical deposit track requires 0 open annotations", nil)
+			return
+		}
 	}
 	if len(ms.Artifacts) == 0 {
 		WriteAPIError(w, "build_required", "deposit staging requires a built PDF", nil)
@@ -1362,6 +1397,9 @@ func (s *Server) handleManuscriptAnnotations(w http.ResponseWriter, r *http.Requ
 	if err := decodeStrict(r, &body); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid status: %v", err), nil)
 		return
+	}
+	if strings.EqualFold(strings.TrimSpace(body.Status), "resolved") {
+		body.Status = ledger.AnnotationAddressed
 	}
 	if err := s.ledger.SetManuscriptAnnotationStatus(sessionID, manuscriptID, tail, body.Status); err != nil {
 		if errors.Is(err, ledger.ErrManuscriptNotFound) {

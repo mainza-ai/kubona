@@ -1122,11 +1122,11 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			if !resp.Ok {
 				execErr = fmt.Errorf("experiment refused: %s", resp.ErrorMessage)
-				// A structured !resp.Ok refusal with no pinned vendor id and no
-				// result payload occurred before any vendor QPU job was created;
-				// fail with explicit zero usage so the reservation releases
-				// instead of leaking tenant spend (HW-02).
-				if j.VendorRef == "" && strings.TrimSpace(resp.ResultJson) == "" {
+				// A structured !resp.Ok refusal with no pinned vendor id (neither on
+				// the job row nor inside ResultJson) occurred before any vendor QPU
+				// job was created; fail with explicit zero usage so the reservation
+				// releases instead of leaking tenant spend (HW-02 / D-04).
+				if j.VendorRef == "" && !resultHasVendorRef(resp.ResultJson) {
 					r.failPreVendorRefusal(j, execErr.Error(), needForJob(j, execErr))
 					return
 				}
@@ -1394,6 +1394,28 @@ func (r *Runner) failJob(j *Job, reason string) {
 // evidence — the error still lands, no remedy is invented.
 func (r *Runner) failJobWithNeed(j *Job, reason string, need *Need) {
 	r.failJobWithPayload(j, reason, need, false)
+}
+
+func resultHasVendorRef(resultJSON string) bool {
+	if strings.TrimSpace(resultJSON) == "" {
+		return false
+	}
+	var probe struct {
+		HardwareJobID  string   `json:"hardware_job_id"`
+		HardwareJobIDs []string `json:"hardware_job_ids"`
+	}
+	if err := json.Unmarshal([]byte(resultJSON), &probe); err != nil {
+		return false
+	}
+	if strings.TrimSpace(probe.HardwareJobID) != "" {
+		return true
+	}
+	for _, id := range probe.HardwareJobIDs {
+		if strings.TrimSpace(id) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // failPreVendorRefusal records a confirmed pre-vendor bridge refusal with

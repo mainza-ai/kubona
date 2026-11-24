@@ -126,11 +126,21 @@ func VerifyCitations(ctx context.Context, citations []Citation, resolver Resolve
 				}
 			}
 			if f.Status == "" {
-				f.Status = CitationDOIMismatch
 				if best, sim := bestTitle(works, title); sim >= 0.85 {
-					f.MatchedID, f.MatchedTitle, f.Similarity = best.ID, best.Title, sim
-					f.Note = "a record with this title exists, but not at the supplied DOI"
+					bestNorm := NormalizeDOI(best.ID)
+					if !strings.HasPrefix(bestNorm, "10.") {
+						// D-07: preprint/arXiv resolver matched the exact paper title;
+						// publisher DOI is not indexed by this resolver, not mismatched.
+						f.Status = CitationVerifiedTitle
+						f.MatchedID, f.MatchedTitle, f.Similarity = best.ID, best.Title, sim
+						f.Note = "title matched preprint/arXiv record; publisher DOI not indexed by resolver"
+					} else {
+						f.Status = CitationDOIMismatch
+						f.MatchedID, f.MatchedTitle, f.Similarity = best.ID, best.Title, sim
+						f.Note = "a record with this title exists, but not at the supplied DOI"
+					}
 				} else {
+					f.Status = CitationDOIMismatch
 					f.Note = "no resolved record carries this DOI"
 				}
 			}

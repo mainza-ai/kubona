@@ -223,6 +223,39 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !resp.Ok {
+		lowerErr := strings.ToLower(resp.ErrorMessage)
+		isAdmissionRefusal := strings.Contains(lowerErr, "fidelity") ||
+			strings.Contains(lowerErr, "below floor") ||
+			strings.Contains(lowerErr, "stale calibration") ||
+			strings.Contains(lowerErr, "qubit")
+		if isAdmissionRefusal {
+			var fid any
+			if resp.FidelityJson != "" {
+				_ = json.Unmarshal([]byte(resp.FidelityJson), &fid)
+			}
+			var est any
+			if resp.EstimateJson != "" {
+				_ = json.Unmarshal([]byte(resp.EstimateJson), &est)
+			}
+			if req.DryRun {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"ok":       true,
+					"dry_run":  true,
+					"queued":   false,
+					"admitted": false,
+					"reason":   resp.ErrorMessage,
+					"fidelity": fid,
+					"estimate": est,
+				})
+				return
+			}
+			WriteAPIError(w, "conflict", resp.ErrorMessage, map[string]any{
+				"admitted": false,
+				"fidelity": fid,
+				"estimate": est,
+			})
+			return
+		}
 		WriteAPIError(w, "bridge_unavailable", resp.ErrorMessage, nil)
 		return
 	}

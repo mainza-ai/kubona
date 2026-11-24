@@ -1514,7 +1514,7 @@ def run_hardware_pes(
             return {"success": False, "error": f"point {i} has non-finite evidence"}
         if not coeffs or any(not math.isfinite(v) for v in coeffs.values()):
             return {"success": False, "error": f"point {i} needs finite pauli_coefficients"}
-        qasm = str(point.get("ansatz_qasm") or "").strip()
+        qasm = str(point.get("ansatz_qasm") or point.get("qasm") or "").strip()
         if not qasm:
             return {"success": False, "error": f"point {i} has no bound ansatz_qasm; re-run the source PES"}
         try:

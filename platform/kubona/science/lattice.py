@@ -488,13 +488,27 @@ class SquareLatticeModel:
         quench = SquareLatticeModel(self.rows, self.cols, self.coupling, qf, self.periodic)
         hq = quench.hamiltonian()
         rows: list[dict[str, Any]] = []
+        basis = np.arange(self.dimension, dtype=np.int64)
+        bonds = self.bonds()
+        bond_signs = [
+            np.where(((basis >> (self.n_sites - 1 - i)) & 1) == ((basis >> (self.n_sites - 1 - j)) & 1), 1.0, -1.0)
+            for i, j in bonds
+        ]
         for t in values:
             psi = sparse_linalg.expm_multiply(-1j * hq * t, psi0) if t > 0 else psi0
             mag = self.magnetization_z(psi)
+            probs = np.abs(psi) ** 2
+            loschmidt = float(abs(np.vdot(psi0, psi)) ** 2)
+            zz_mean = (
+                float(np.mean([float(np.dot(probs, sign)) for sign in bond_signs]))
+                if bond_signs else 0.0
+            )
             rows.append({
                 "t": t,
                 "magnetization_z": mag,
                 "total_magnetization": float(sum(mag)),
+                "loschmidt_echo": loschmidt,
+                "zz_correlator_mean": zz_mean,
                 "energy": float(np.real(np.vdot(psi, hq.dot(psi)))),
                 "norm": float(np.linalg.norm(psi)),
             })

@@ -340,3 +340,34 @@ func TestGrantIssueSealedInLedger(t *testing.T) {
 		t.Fatal("revoke must seal grant_revoked in the ledger")
 	}
 }
+
+func TestGrantIssueRevokeSignedPassesVerifyChain(t *testing.T) {
+	// D-01 regression: with a server signer configured, grant_issued and
+	// grant_revoked must be Ed25519-signed so VerifyChain reports 0 faults.
+	m, cleanup, ownerPriv, ownerPubHex := setupGrantLabs(t)
+	defer cleanup()
+
+	_, srvPriv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	m.SetSigner(srvPriv)
+
+	expiry := time.Now().UTC().Add(time.Hour)
+	issueSig := ed25519.Sign(ownerPriv, GrantCanonicalPayload("lab-owner", "lab-guest", []string{ReadScope}, expiry))
+	g, err := m.IssueGrant("lab-owner", "lab-guest", []string{ReadScope}, expiry, ownerPubHex, hex.EncodeToString(issueSig))
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	revSig := ed25519.Sign(ownerPriv, RevokeCanonicalPayload(g.GrantID, "audit-done"))
+	if err := m.RevokeGrant("lab-owner", g.GrantID, "audit-done", ownerPubHex, hex.EncodeToString(revSig)); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	faults, err := m.ledger.VerifyChain("lab-owner")
+	if err != nil {
+		t.Fatalf("VerifyChain error: %v", err)
+	}
+	if len(faults) != 0 {
+		t.Fatalf("D-01 regression: expected 0 VerifyChain faults, got %d: %+v", len(faults), faults)
+	}
+}

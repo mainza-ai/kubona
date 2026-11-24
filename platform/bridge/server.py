@@ -53,6 +53,7 @@ _WORKFLOW_GATEWAY_SCOPES = (
     "providers:read",
     "provenance:read", "provenance:write",
     "world:read", "world:write",
+    "science:read",
     "control:read", "control:manage",
 )
 
@@ -1289,6 +1290,43 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             return kubona_pb2.ExperimentResponse(
                 ok=False, error_message=f"experiment failed: {e}", result_json="")
         reset_vendor_pin(pin_token)
+        # D-09: stamp active live calibration metadata onto every hardware result
+        # so provenance never carries null calibration fields after a fresh refresh.
+        if kind in _HARDWARE_EXPERIMENT_KINDS and isinstance(result, dict):
+            if result.get("calibration") is None or result.get("calibration_fresh") is None:
+                try:
+                    import datetime as _dt
+                    import time as _time
+                    from kubona.fidelity.accounting import (
+                        DEFAULT_MAX_CALIBRATION_AGE_HOURS,
+                        DEVICE_CATALOG,
+                        PROVIDER_DEVICE_MAP,
+                    )
+                    req_backend = str(result.get("backend") or spec.get("requested_backend") or "").strip()
+                    canon = PROVIDER_DEVICE_MAP.get("ibm-qiskit", "ibm_heron")
+                    prof = DEVICE_CATALOG.get(req_backend) or DEVICE_CATALOG.get(canon)
+                    if prof is not None:
+                        age_h = max(0.0, (_time.time() - float(prof.last_calibrated_epoch)) / 3600.0)
+                        fresh = age_h <= DEFAULT_MAX_CALIBRATION_AGE_HOURS
+                        result["calibration"] = {
+                            "device": prof.device_name,
+                            "backend": req_backend or prof.device_name,
+                            "qubits": prof.qubits,
+                            "t1_us": prof.t1_us,
+                            "t2_us": prof.t2_us,
+                            "single_qubit_error": prof.single_qubit_error,
+                            "two_qubit_error": prof.two_qubit_error,
+                            "readout_error": prof.readout_error,
+                            "source": prof.source,
+                            "version": prof.version,
+                            "calibrated_at": prof.calibrated_at,
+                        }
+                        result["calibration_fresh"] = fresh
+                        result["calibration_age_hours"] = round(age_h, 4)
+                        result["calibration_max_age_hours"] = DEFAULT_MAX_CALIBRATION_AGE_HOURS
+                        result["calibration_checked_at"] = _dt.datetime.now(_dt.timezone.utc).isoformat()
+                except Exception as cal_stamp_err:
+                    logger.warning("calibration metadata stamp skipped: %s", cal_stamp_err)
         return kubona_pb2.ExperimentResponse(
             ok=bool(result.get("success")),
             error_message=str(result.get("error") or result.get("error_message") or ""),
