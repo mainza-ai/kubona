@@ -333,12 +333,65 @@ def _render_qaoa_or_dmrg(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] |
     return None
 
 
+def _render_qec_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] | None:
+    """Render 300-DPI QEC circuit-level LER benchmark with 95% Wilson CI whiskers."""
+    qecs = [
+        r for r in rows
+        if str(r.get("kind") or "").lower() == "qec_memory_sim"
+        and r.get("ler") is not None
+    ]
+    if len(qecs) < 2:
+        return None
+    qecs = qecs[:12]
+    img, draw = _new_canvas(1600, 920)
+    box = (150, 110, 1520, 725)
+    y_max = max(max(float(r.get("ci_high", r["ler"])) for r in qecs) * 1.2, 0.05)
+    _draw_axes(
+        draw,
+        box,
+        "QEC Circuit-Level Logical Error Rate (95% Wilson CI)",
+        "Code & Noise Model (Navy: Surface Baseline, Teal: qLDPC/BB Candidate)",
+        "Logical Error Rate (LER)",
+        0.0,
+        y_max,
+        xlabel_offset=96,
+    )
+    x0, y0, x1, y1 = box
+    slot = (x1 - x0) / len(qecs)
+    bar_w = max(22, min(72, int(slot * 0.54)))
+    font_lbl = _load_font(14 if len(qecs) > 8 else 16)
+    for i, r in enumerate(qecs):
+        ler = float(r["ler"])
+        ci_lo = float(r.get("ci_low", ler))
+        ci_hi = float(r.get("ci_high", ler))
+        cx = int(x0 + (i + 0.5) * slot)
+        top = int(y1 - min(1.0, ler / y_max) * (y1 - y0))
+        name = str(r.get("code_name") or "qec")
+        color = NAVY if "surface" in name.lower() else TEAL
+        draw.rectangle([cx - bar_w // 2, top, cx + bar_w // 2, y1], fill=color, outline=INK, width=1)
+        ey0 = int(y1 - min(1.0, ci_hi / y_max) * (y1 - y0))
+        ey1 = int(y1 - min(1.0, ci_lo / y_max) * (y1 - y0))
+        draw.line([(cx, ey0), (cx, ey1)], fill=INK, width=3)
+        draw.line([(cx - 8, ey0), (cx + 8, ey0)], fill=INK, width=3)
+        draw.line([(cx - 8, ey1), (cx + 8, ey1)], fill=INK, width=3)
+        draw.text((cx, max(y0 + 18, ey0 - 6)), f"{ler:.3f}", fill=INK, font=font_lbl, anchor="mb")
+        short = name.replace("bravyi2024_", "")[:12]
+        noise_tag = "heron" if (isinstance(r.get("noise"), dict) and r["noise"].get("is_held_out")) else "si1000"
+        draw.text((cx, y1 + 12), short, fill=SLATE, font=font_lbl, anchor="mt")
+        draw.text((cx, y1 + 32), noise_tag, fill=SLATE, font=font_lbl, anchor="mt")
+    caption = (
+        f"Circuit-level logical error rate (LER) across {len(qecs)} QEC memory runs "
+        "(navy: rotated surface-code baseline, teal: qLDPC/BB code; whiskers show 95% Wilson CIs)."
+    )
+    return "fig_qec_benchmark.png", _to_png_bytes(img), caption
+
+
 def generate_campaign_figures(rows: List[Dict[str, Any]]) -> List[Tuple[str, bytes, str]]:
     """Synthesize up to 4 deterministic PNG figures from settled campaign rows."""
     if not HAS_PIL or not rows:
         return []
     out: List[Tuple[str, bytes, str]] = []
-    for fn in (_render_energy_benchmark, _render_pes_or_depth, _render_quench_dynamics, _render_qaoa_or_dmrg):
+    for fn in (_render_energy_benchmark, _render_pes_or_depth, _render_quench_dynamics, _render_qaoa_or_dmrg, _render_qec_benchmark):
         try:
             res = fn(rows)
             if res is not None:

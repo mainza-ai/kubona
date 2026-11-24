@@ -1,5 +1,10 @@
 """Kubona QEC scientific core (Phase 1 — zero-GPL Apache-2.0/MIT stack)."""
 
+from kubona.qec.campaigns import (
+    DEFAULT_HERON_R2_CALIBRATION,
+    run_campaign_a_catalog_benchmark,
+    run_campaign_b_schedule_search,
+)
 from kubona.qec.canon import are_tanner_isomorphic, canonical_fingerprint, is_lc_equivalent_css, tanner_graph_rx
 from kubona.qec.catalog import CatalogEntry, build_builtin_catalog, load_qcode_discovery_json, lookup_catalog
 from kubona.qec.claims import DiscoveryClaim, evaluate_seven_gates, reverify_claims
@@ -33,6 +38,7 @@ __all__ = [
     "BBCodeSpec",
     "CatalogEntry",
     "CircuitNoiseModel",
+    "DEFAULT_HERON_R2_CALIBRATION",
     "DiscoveryClaim",
     "DiscoveryController",
     "Island",
@@ -71,6 +77,8 @@ __all__ = [
     "prove_distance_milp",
     "relabel_qubits_css",
     "reverify_claims",
+    "run_campaign_a_catalog_benchmark",
+    "run_campaign_b_schedule_search",
     "si1000_noise",
     "simulate_memory_circuit",
     "tanner_graph_rx",

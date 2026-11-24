@@ -130,6 +130,9 @@ _NON_MEASURED_SCIENTIFIC_KINDS = frozenset({
     "conjecture",
     "conjecture_run",
     "symbolic_conjecture",
+    "qec_code_eval",
+    "qec_distance",
+    "qec_memory_sim",
 })
 
 
