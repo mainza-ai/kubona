@@ -29,9 +29,20 @@
         "spin_chain_hardware",
         "thermodynamic_limit",
         "lattice_dynamics",
-        "conjecture"
+        "conjecture",
+        "qec_code_eval",
+        "qec_distance"
       ]
     },
+    "n": { "type": "integer", "minimum": 1 },
+    "k": { "type": "integer", "minimum": 0 },
+    "d": { "type": ["integer", "null"], "minimum": 1 },
+    "d_kind": { "type": "string", "enum": ["proved", "upper_bound"] },
+    "fom": { "type": "number" },
+    "decomposable": { "type": "boolean" },
+    "canonical_hash": { "type": "string" },
+    "catalog_known": { "type": "boolean" },
+    "catalog_match": { "type": ["string", "null"] },
     "molecule": { "type": ["string", "null"] },
     "generic": { "type": "boolean" },
     "atom": { "type": "string" },

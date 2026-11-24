@@ -38,6 +38,10 @@ func experimentJobType(kind string) (string, bool) {
 		return "conjecture_run", true
 	case "lattice_dynamics":
 		return "lattice_dynamics", true
+	case "qec_code_eval":
+		return "qec_code_eval", true
+	case "qec_distance":
+		return "qec_distance", true
 	default:
 		return "", false
 	}

@@ -1327,11 +1327,46 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         energy_exact=float(spec.get("energy_exact", 0.0)),
                         backend=spec.get("requested_backend"),
                     )
+            elif kind in ("qec_code_eval", "qec_distance"):
+                import numpy as _np
+                from kubona.qec import evaluate_bb_code, evaluate_css_code
+
+                prove_dist = True if kind == "qec_distance" else bool(spec.get("prove_distance", True))
+                time_limit_s = float(spec.get("time_limit_s", 20.0))
+                bposd_trials = int(spec.get("bposd_trials", 32))
+                check_catalog = bool(spec.get("check_catalog", True))
+                if "ell" in spec and "m" in spec:
+                    a_terms = [tuple(int(x) for x in pair) for pair in (spec.get("a_terms") or [])]
+                    b_terms = [tuple(int(x) for x in pair) for pair in (spec.get("b_terms") or [])]
+                    result = evaluate_bb_code(
+                        int(spec["ell"]),
+                        int(spec["m"]),
+                        a_terms,
+                        b_terms,
+                        name=str(spec.get("code_name") or f"BB({spec['ell']},{spec['m']})"),
+                        prove_distance=prove_dist,
+                        time_limit_s=time_limit_s,
+                        bposd_trials=bposd_trials,
+                        check_catalog=check_catalog,
+                    )
+                elif "hx" in spec and "hz" in spec:
+                    result = evaluate_css_code(
+                        _np.asarray(spec["hx"], dtype=_np.uint8),
+                        _np.asarray(spec["hz"], dtype=_np.uint8),
+                        name=str(spec.get("code_name") or "custom_css"),
+                        prove_distance=prove_dist,
+                        time_limit_s=time_limit_s,
+                        bposd_trials=bposd_trials,
+                        check_catalog=check_catalog,
+                    )
+                else:
+                    raise ValueError(f"{kind} requires either (ell, m, a_terms, b_terms) or (hx, hz)")
+                result["kind"] = kind
             else:
                 reset_vendor_pin(pin_token)
                 return kubona_pb2.ExperimentResponse(
                     ok=False,
-                    error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, thermodynamic_limit, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, or qaoa_hardware",
+                    error_message=f"unknown experiment kind {kind!r}: use vqe, geometry_optimization, vqe_repeats, pes, qaoa, excited_state, reaction, spin_chain, thermodynamic_limit, lattice_dynamics, conjecture, spin_chain_hardware, vqe_hardware, qaoa_hardware, qec_code_eval, or qec_distance",
                     result_json="")
         except Exception as e:
             logger.exception("RunExperiment failed")

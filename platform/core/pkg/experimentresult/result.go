@@ -56,6 +56,11 @@ type Result struct {
 	ReactionEnergy       *float64         `json:"reaction_energy,omitempty"`
 	ReactionExact        *float64         `json:"reaction_energy_exact,omitempty"`
 	CandidateCount       *int             `json:"candidate_count,omitempty"`
+	N                    *int             `json:"n,omitempty"`
+	K                    *int             `json:"k,omitempty"`
+	D                    *int             `json:"d,omitempty"`
+	DKind                string           `json:"d_kind,omitempty"`
+	FOM                  *float64         `json:"fom,omitempty"`
 	Measured             *bool            `json:"measured,omitempty"`
 	Hardware             *bool            `json:"hardware,omitempty"`
 	HardwareJobID        string           `json:"hardware_job_id,omitempty"`
@@ -161,6 +166,8 @@ func ExpectedJobKinds() map[string][]string {
 		"spin_chain_hardware":   {"spin_chain_hardware"},
 		"krylov_json":           {"krylov"},
 		"mitigate_json":         {"mitigate"},
+		"qec_code_eval":         {"qec_code_eval"},
+		"qec_distance":          {"qec_distance", "qec_code_eval"},
 	}
 }
 
@@ -351,6 +358,19 @@ func validateVariant(kind string, r *Result) error {
 	case "conjecture":
 		if r.CandidateCount == nil || *r.CandidateCount < 0 {
 			return fmt.Errorf("experiment result kind %q requires candidate_count", kind)
+		}
+	case "qec_code_eval", "qec_distance":
+		if r.N == nil || *r.N <= 0 {
+			return fmt.Errorf("experiment result kind %q requires positive n", kind)
+		}
+		if r.K == nil || *r.K < 0 {
+			return fmt.Errorf("experiment result kind %q requires non-negative k", kind)
+		}
+		if r.DKind != "proved" && r.DKind != "upper_bound" {
+			return fmt.Errorf("experiment result kind %q requires d_kind 'proved' or 'upper_bound', got %q", kind, r.DKind)
+		}
+		if r.FOM != nil && !finite(*r.FOM) {
+			return fmt.Errorf("experiment result kind %q fom is not finite", kind)
 		}
 	case "krylov":
 		// The typed Krylov RPC owns its own required fields; the versioned

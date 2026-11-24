@@ -129,7 +129,7 @@ jobs:
       # chemistry extra was missing so RDKit coverage silently skipped).
       # uv.lock is the single resolved source for direct and transitive deps.
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       # Phase-1 depth: coverage hold-the-line floor. Measured 57% 2026-10-28
       # (fast lane: tests/ minus paper-scale slices, --cov=kubona; local
       # py3.12/macOS vs CI py3.11/ubuntu, so the floor carries epsilon).
@@ -194,7 +194,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python paper-scale A (slices 0-32)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice[12]*.py tests/test_codesign_slice[3-9].py tests/test_codesign_slice3[0-2].py --durations=20
 
@@ -216,7 +216,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python paper-scale B (slices 33-47)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice3[3-9].py tests/test_codesign_slice4[0-7].py --durations=20
 
@@ -238,7 +238,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python paper-scale C (slices 48-57, 61-62)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice4[89].py tests/test_codesign_slice5[0-7].py tests/test_codesign_slice6[12].py --durations=20
 
@@ -260,7 +260,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python paper-scale D (slice58 walks)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice58.py --durations=20
 
@@ -282,7 +282,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python paper-scale E (slice59 EEA)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m pytest -q -rs tests/test_codesign_slice59.py --durations=20
 
@@ -492,7 +492,7 @@ jobs:
           version: "0.11.28"
           enable-cache: true
       - name: Sync locked Python environment
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Hardware canary (simulator/GA providers)
         run: KUBONA_STATE_DIR="$(mktemp -d)" .venv/bin/python -m kubona.canary
       - name: Correctness-regression harness (release gate)
