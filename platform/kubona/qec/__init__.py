@@ -16,13 +16,28 @@ from kubona.qec.decoders import decode_bposd, decode_pymatching, dem_to_matrices
 from kubona.qec.distance import estimate_distance_bposd, prove_distance_milp
 from kubona.qec.evaluator import evaluate_bb_code, evaluate_css_code
 from kubona.qec.gf2 import css_logicals, css_parameters, css_validate, gf2_nullspace, gf2_rank, gf2_rref, is_decomposable_css
+from kubona.qec.search import (
+    DiscoveryController,
+    Island,
+    IslandSearchPool,
+    MapElitesQecArchive,
+    QecCandidate,
+    evaluate_bb_candidate_fast,
+    mutate_bb_terms,
+    verifier_in_loop_refine,
+)
 from kubona.qec.sim import benchmark_css_vs_surface, simulate_memory_circuit, wilson_ci_95
 
 __all__ = [
     "BBCodeSpec",
     "CatalogEntry",
     "CircuitNoiseModel",
+    "DiscoveryController",
+    "Island",
+    "IslandSearchPool",
     "KNOWN_BB_SPECS",
+    "MapElitesQecArchive",
+    "QecCandidate",
     "are_tanner_isomorphic",
     "benchmark_css_vs_surface",
     "build_bb_code",
@@ -38,6 +53,7 @@ __all__ = [
     "dem_to_matrices",
     "direct_sum_css",
     "estimate_distance_bposd",
+    "evaluate_bb_candidate_fast",
     "evaluate_bb_code",
     "evaluate_css_code",
     "gf2_nullspace",
@@ -48,6 +64,7 @@ __all__ = [
     "is_lc_equivalent_css",
     "load_qcode_discovery_json",
     "lookup_catalog",
+    "mutate_bb_terms",
     "prove_distance_milp",
     "relabel_qubits_css",
     "si1000_noise",
@@ -55,6 +72,7 @@ __all__ = [
     "tanner_graph_rx",
     "tune_ebposd_weights",
     "uniform_depolarizing_noise",
+    "verifier_in_loop_refine",
     "verify_circuit_distance",
     "wilson_ci_95",
 ]

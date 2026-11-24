@@ -1,0 +1,48 @@
+# Kubona Sovereign QEC Runner Container (Phase 3 / G2 Hardened Sandbox)
+# Zero-GPL Apache-2.0 / MIT QEC scientific stack for executing LLM-generated
+# QEC generator programs under sandboxd (seccomp, --network=none, UID 1000).
+
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b5b2149500486803e8bc534e5767af9ea65f6ce
+
+LABEL maintainer="Kubona Systems Maintainer <team@kubona.org>"
+LABEL org.opencontainers.image.title="kubona-qec-runner"
+LABEL org.opencontainers.image.description="Hardened, unprivileged zero-GPL QEC sandbox runner for autonomous discovery"
+LABEL org.opencontainers.image.version="1.0.0"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libopenblas0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pinned zero-GPL QEC stack (matches platform/pyproject.toml qec extra)
+RUN pip install --no-cache-dir \
+    "numpy==2.4.6" \
+    "scipy==1.15.3" \
+    "qldpc==0.4.1" \
+    "ldpc==2.4.1" \
+    "galois==0.4.11" \
+    "stim==1.16.0" \
+    "sinter==1.16.0" \
+    "pymatching==2.4.0" \
+    "highspy==1.16.0" \
+    "rustworkx==0.18.1"
+
+RUN groupadd -g 1000 sandbox && \
+    useradd -u 1000 -g sandbox -m -s /bin/sh sandbox
+
+RUN mkdir -p /benchmark /workspace /tmp && \
+    chown -R sandbox:sandbox /workspace /tmp && \
+    chmod 755 /benchmark && \
+    chmod 775 /workspace /tmp
+
+USER sandbox:sandbox
+WORKDIR /workspace
+
+ENTRYPOINT ["python3"]
+CMD ["--version"]
