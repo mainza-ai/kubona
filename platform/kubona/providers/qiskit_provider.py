@@ -7,6 +7,7 @@ Qiskit/Aer are NOT hard dependencies — import only when this plugin is used.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -49,44 +50,62 @@ def _transpile_level(default: int = 2) -> int:
 
 
 
-def _extract_usage_seconds(job: Any) -> float | None:
-    """Extract measured QPU execution seconds from an IBM Runtime job (W5-07).
+def _extract_usage_seconds(
+    job: Any,
+    *,
+    retry_attempts: int = 0,
+    retry_delay: float = 1.5,
+) -> float | None:
+    """Extract measured QPU execution seconds from an IBM Runtime job (W5-07/W6-04).
 
-    On Open Plan / Runtime v2, ``job.usage()`` may return 0 or None immediately
-    after completion while ``job.metrics()`` carries ``usage.quantum_seconds``
-    or ``execution.execution_spans``. Prefer the first positive reading so the
-    ledger records real QPU time even when Open Plan settles to $0.00.
+    On Open Plan / Runtime v2 (qiskit-ibm-runtime 0.52+), ``job.usage()`` may
+    return 0 or None for a few seconds right after ``DONE`` while IBM's billing
+    meter finalizes, and ``job.metrics()`` reports ``usage.qpu_charge_time_seconds``
+    (plus ``usage.quantum_seconds``, ``bss.seconds``, ``execution.execution_spans``,
+    and ``circuits_execution_time_ns``). When ``retry_attempts > 0``, perform a
+    short bounded re-poll so settled ledger rows capture the real QPU seconds.
     """
     raw_usage: float | None = None
-    try:
-        u = job.usage()
-        if u is not None:
-            raw_usage = float(u)
-            if raw_usage > 0.0:
-                return raw_usage
-    except Exception:
-        pass
-    try:
-        metrics = job.metrics() if callable(getattr(job, "metrics", None)) else None
-        if isinstance(metrics, dict):
-            u_block = metrics.get("usage")
-            if isinstance(u_block, dict):
-                for key in ("quantum_seconds", "seconds"):
-                    val = u_block.get(key)
-                    if val is not None and float(val) > 0.0:
-                        return float(val)
-            bss = metrics.get("bss")
-            if isinstance(bss, dict) and bss.get("seconds") is not None and float(bss["seconds"]) > 0.0:
-                return float(bss["seconds"])
-            exec_block = metrics.get("execution")
-            if isinstance(exec_block, dict):
-                spans = exec_block.get("execution_spans")
-                if spans is not None:
-                    dur = getattr(spans, "duration", None)
-                    if dur is not None and float(dur) > 0.0:
-                        return float(dur)
-    except Exception:
-        pass
+    exec_ns_fallback: float | None = None
+
+    for attempt in range(max(0, int(retry_attempts)) + 1):
+        if attempt > 0 and retry_delay > 0:
+            time.sleep(retry_delay)
+        try:
+            u = job.usage()
+            if u is not None:
+                raw_usage = float(u)
+                if raw_usage > 0.0:
+                    return raw_usage
+        except Exception:
+            pass
+        try:
+            metrics = job.metrics() if callable(getattr(job, "metrics", None)) else None
+            if isinstance(metrics, dict):
+                u_block = metrics.get("usage")
+                if isinstance(u_block, dict):
+                    for key in ("qpu_charge_time_seconds", "quantum_seconds", "seconds"):
+                        val = u_block.get(key)
+                        if val is not None and float(val) > 0.0:
+                            return float(val)
+                bss = metrics.get("bss")
+                if isinstance(bss, dict) and bss.get("seconds") is not None and float(bss["seconds"]) > 0.0:
+                    return float(bss["seconds"])
+                exec_block = metrics.get("execution")
+                if isinstance(exec_block, dict):
+                    spans = exec_block.get("execution_spans")
+                    if spans is not None:
+                        dur = getattr(spans, "duration", None)
+                        if dur is not None and float(dur) > 0.0:
+                            return float(dur)
+                ns = metrics.get("circuits_execution_time_ns")
+                if ns is not None and float(ns) > 0.0:
+                    exec_ns_fallback = round(float(ns) / 1e9, 3)
+        except Exception:
+            pass
+
+    if exec_ns_fallback is not None and exec_ns_fallback > 0.0:
+        return exec_ns_fallback
     return raw_usage
 
 
@@ -636,7 +655,7 @@ class QiskitProvider(Provider):
         except Exception:
             pass
         try:
-            usage = _extract_usage_seconds(job)
+            usage = _extract_usage_seconds(job, retry_attempts=0 if service_factory is not None else 4)
             if usage is not None:
                 out["usage_seconds"] = float(usage)
                 actual = self._actual_usd(float(usage))
@@ -730,7 +749,7 @@ class QiskitProvider(Provider):
         except Exception:
             pass
         try:
-            usage = _extract_usage_seconds(job)
+            usage = _extract_usage_seconds(job, retry_attempts=0 if service_factory is not None else 4)
             if usage is not None:
                 out["usage_seconds"] = float(usage)
                 actual = self._actual_usd(float(usage))
@@ -793,7 +812,7 @@ class QiskitProvider(Provider):
                 },
             }
             try:
-                usage = job.usage()
+                usage = _extract_usage_seconds(job, retry_attempts=0 if service_factory is not None else 4)
                 if usage is not None:
                     result["result"]["usage_seconds"] = float(usage)
                     actual = self._actual_usd(float(usage))
@@ -818,7 +837,7 @@ class QiskitProvider(Provider):
             # full estimate blindly. Best-effort: an unreadable meter leaves
             # the envelope without usage (unknown), never a fabricated zero.
             try:
-                usage = job.usage()
+                usage = _extract_usage_seconds(job)
                 if usage is not None:
                     out["usage_seconds"] = float(usage)
                     actual = self._actual_usd(float(usage))
@@ -834,7 +853,7 @@ class QiskitProvider(Provider):
                 "hardware_job_id": hardware_job_id,
             }
             try:
-                usage = job.usage()
+                usage = _extract_usage_seconds(job)
                 if usage is not None:
                     out["usage_seconds"] = float(usage)
                     actual = self._actual_usd(float(usage))

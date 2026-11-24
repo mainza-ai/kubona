@@ -149,9 +149,8 @@ def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, st
             draw.line([(cx - 8, ey0), (cx + 8, ey0)], fill=INK, width=3)
             draw.line([(cx - 8, ey1), (cx + 8, ey1)], fill=INK, width=3)
         draw.text((cx, max(y0 + 18, top - 6)), f"{val:.1f}", fill=INK, font=font_val, anchor="mb")
+        draw.line([(cx, y1), (cx, y1 + 6)], fill=SLATE, width=1)
         y_off = 10 if (not stagger or i % 2 == 0) else 50
-        if stagger and i % 2 == 1:
-            draw.line([(cx, y1 + 1), (cx, y1 + y_off - 3)], fill=GRID, width=1)
         line_h = 16 if n > 14 else 18
         for j, line in enumerate(label.split("\n")):
             draw.text((cx, y1 + y_off + j * line_h), line, fill=SLATE, font=font_lbl, anchor="mt")
