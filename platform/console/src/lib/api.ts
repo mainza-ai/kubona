@@ -4497,6 +4497,9 @@ export async function createManuscript(
   body: {
     request_id?: string;
     title?: string;
+    subtitle?: string;
+    document_type?: 'academic_preprint' | 'white_paper' | 'discovery_dossier' | 'technical_report';
+    auto_figures?: boolean;
     authors?: string[];
     abstract?: string;
     evidence_refs?: string[];

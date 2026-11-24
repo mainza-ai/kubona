@@ -160,6 +160,9 @@ class ScientificManuscript:
     second_language: str = "Tonga"
     figures: Dict[str, Any] = field(default_factory=dict)
     signoff: Optional[ManuscriptSignoff] = None
+    document_type: str = "academic_preprint"
+    subtitle: Optional[str] = None
+    keywords: List[str] = field(default_factory=list)
 
     def compile_latex(self) -> str:
         r"""Assembles main.tex for the modular project.
@@ -176,10 +179,48 @@ class ScientificManuscript:
                 raise ValueError(
                     f"figure {name!r} is not includable by pdfTeX "
                     f"({suffix or 'no extension'}); supply PDF/PNG or remove it")
+        doc_type = (self.document_type or "academic_preprint").strip().lower()
+        header_labels = {
+            "academic_preprint": "KUBONA SCIENTIFIC PREPRINT",
+            "white_paper": "KUBONA TECHNICAL WHITE PAPER",
+            "discovery_dossier": "KUBONA DISCOVERY & AUDIT DOSSIER",
+            "technical_report": "KUBONA TECHNICAL BENCHMARK REPORT",
+        }
+        doc_label = header_labels.get(doc_type, "KUBONA SCIENTIFIC PREPRINT")
+
         out = []
-        out.append(r"\documentclass[11pt,letterpaper]{article}")
+        out.append(r"\documentclass[10.5pt,letterpaper]{article}")
+        out.append(r"\usepackage[margin=0.85in]{geometry}")
         out.append(r"\usepackage{amsmath,amssymb}")
         out.append(r"\usepackage{graphicx}")
+        out.append(r"\usepackage{booktabs}")
+        out.append(r"\usepackage{tabularx}")
+        out.append(r"\usepackage{float}")
+        out.append(r"\usepackage{xcolor}")
+        out.append(r"\usepackage{colortbl}")
+        out.append(r"\usepackage{caption}")
+        out.append(r"\usepackage{fancyhdr}")
+        out.append(r"\usepackage{microtype}")
+        out.append(r"\definecolor{kubonaNavy}{HTML}{14213D}")
+        out.append(r"\definecolor{kubonaTeal}{HTML}{0E6B74}")
+        out.append(r"\definecolor{kubonaSlate}{HTML}{4A5568}")
+        out.append(r"\definecolor{kubonaTint}{HTML}{F4F7FA}")
+        out.append(r"\definecolor{kubonaRule}{HTML}{CBD5E1}")
+        out.append(
+            r"\usepackage[colorlinks=true,linkcolor=kubonaNavy,"
+            r"citecolor=kubonaTeal,urlcolor=kubonaTeal]{hyperref}"
+        )
+        out.append(r"\captionsetup{font=small,labelfont=bf,skip=6pt}")
+        out.append(r"\setlength{\parskip}{0.45em}")
+        out.append(r"\setlength{\parindent}{0pt}")
+        out.append(r"\pagestyle{fancy}")
+        out.append(r"\fancyhf{}")
+        out.append(rf"\fancyhead[L]{{\footnotesize\color{{kubonaSlate}}\textsc{{{doc_label}}}}}")
+        out.append(rf"\fancyhead[R]{{\footnotesize\color{{kubonaSlate}}\texttt{{{_escape_latex(self.manuscript_id)}}}}}")
+        out.append(r"\fancyfoot[L]{\footnotesize\color{kubonaSlate}Verified via Kubona Ledger \& \texttt{verification-v1}}")
+        out.append(r"\fancyfoot[R]{\footnotesize\color{kubonaSlate}Page \thepage}")
+        out.append(r"\renewcommand{\headrulewidth}{0.4pt}")
+        out.append(r"\renewcommand{\footrulewidth}{0.2pt}")
         # Reproducible-byte primitives (pdfTeX). Guarded so a different
         # engine ignores them instead of failing on an unknown primitive.
         out.append(r"\ifdefined\pdfinfoomitdate\pdfinfoomitdate=1\fi")
@@ -188,25 +229,47 @@ class ScientificManuscript:
 
         # Title
         full_title = self.title
+        if self.subtitle:
+            full_title = f"{full_title} \\\\\n\\vspace{{0.3em}}\\large\\color{{kubonaSlate}}{self.subtitle}"
         if self.bilingual_title:
-            full_title = f"{self.title} \\\\\n\\large\\textit{{{_escape_latex(self.bilingual_title)}}}"
+            full_title = f"{full_title} \\\\\n\\large\\textit{{{_escape_latex(self.bilingual_title)}}}"
         out.append(f"\\title{{{full_title}}}")
 
         author_str = " \\and ".join(self.authors)
         out.append(f"\\author{{{author_str}}}")
         out.append(r"\date{\today}")
         out.append(r"\begin{document}")
-        out.append(r"\maketitle")
-
-        # Abstract
-        out.append(r"\begin{abstract}")
-        out.append(self.abstract)
-        if self.bilingual_abstract:
+        if doc_type in ("white_paper", "discovery_dossier"):
             out.append(
-                f"\n\n\\vspace{{0.5em}}\n\\noindent\\textbf{{{_escape_latex(self.second_language)} Summary:}}"
-                f"\\\\\n\\textit{{{_escape_latex(self.bilingual_abstract)}}}"
+                r"\noindent\colorbox{kubonaNavy}{\parbox{\dimexpr\textwidth-2\fboxsep\relax}{"
+                rf"\vspace{{0.4em}}\centering\color{{white}}\small\textbf{{{doc_label}}}\vspace{{0.4em}}"
+                r"}}\vspace{-0.5em}"
             )
-        out.append(r"\end{abstract}")
+        out.append(r"\maketitle")
+        out.append(r"\thispagestyle{fancy}")
+
+        # Abstract / Executive Summary
+        if doc_type == "white_paper":
+            out.append(
+                r"\noindent\colorbox{kubonaTint}{\parbox{\dimexpr\textwidth-2\fboxsep\relax}{"
+                r"\vspace{0.5em}\textbf{\color{kubonaNavy}Executive Summary}\par\vspace{0.3em}"
+                f"{self.abstract}"
+                r"\vspace{0.5em}}}\vspace{0.8em}"
+            )
+        else:
+            out.append(r"\begin{abstract}")
+            out.append(self.abstract)
+            if self.bilingual_abstract:
+                out.append(
+                    f"\n\n\\vspace{{0.5em}}\n\\noindent\\textbf{{{_escape_latex(self.second_language)} Summary:}}"
+                    f"\\\\\n\\textit{{{_escape_latex(self.bilingual_abstract)}}}"
+                )
+            out.append(r"\end{abstract}")
+
+        if self.keywords:
+            kw = ", ".join(_escape_latex(k) for k in self.keywords if str(k).strip())
+            if kw:
+                out.append(rf"\noindent\textbf{{\small Keywords:}} {{\small {kw}}}\vspace{{0.6em}}")
 
         for sec in self.sections:
             _validate_section_slug(sec.slug)

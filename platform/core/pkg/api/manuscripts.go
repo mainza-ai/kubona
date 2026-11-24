@@ -79,6 +79,9 @@ type manuscriptBridgeBuildMeta struct {
 type manuscriptRequest struct {
 	ManuscriptID    string           `json:"manuscript_id"`
 	Title           string           `json:"title,omitempty"`
+	Subtitle        string           `json:"subtitle,omitempty"`
+	DocumentType    string           `json:"document_type,omitempty"`
+	AutoFigures     *bool            `json:"auto_figures,omitempty"`
 	Authors         []string         `json:"authors"`
 	Abstract        string           `json:"abstract,omitempty"`
 	TargetSystem    string           `json:"target_system"`
@@ -93,6 +96,9 @@ type manuscriptRequest struct {
 type manuscriptCreateBody struct {
 	RequestID        string               `json:"request_id"`
 	Title            string               `json:"title"`
+	Subtitle         string               `json:"subtitle,omitempty"`
+	DocumentType     string               `json:"document_type,omitempty"`
+	AutoFigures      *bool                `json:"auto_figures,omitempty"`
 	Authors          []string             `json:"authors"`
 	Abstract         string               `json:"abstract"`
 	EvidenceRefs     []string             `json:"evidence_refs"`
@@ -356,6 +362,9 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 	req := manuscriptRequest{
 		ManuscriptID:    id,
 		Title:           strings.TrimSpace(body.Title),
+		Subtitle:        strings.TrimSpace(body.Subtitle),
+		DocumentType:    strings.TrimSpace(body.DocumentType),
+		AutoFigures:     body.AutoFigures,
 		Authors:         authors,
 		Abstract:        strings.TrimSpace(body.Abstract),
 		TargetSystem:    campaign.TargetSystem,
@@ -1182,21 +1191,27 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 			"claimable": res["claimable"],
 		}
 		for _, k := range []string{
-			"energy", "energy_exact", "exact_energy", "fci_exact_energy",
+			"molecule", "atom", "basis", "charge", "spin", "layers",
+			"ansatz_depth", "two_qubit_gate_count", "shots", "ci95_mha",
+			"energy", "energy_exact", "exact_energy", "fci_exact_energy", "active_space_fci_energy",
 			"ground_energy", "ground_energy_exact", "ground_state_energy",
 			"reaction_energy", "reaction_energy_exact",
 			"measured_cut", "optimal_cut", "approximation_ratio",
 			"delta_mha", "delta",
-			"energy_initial", "times",
+			"energy_initial", "times", "quench_field",
 			"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
 			"points", "status", "verdict", "law", "expression",
-			"mitigated", "hardware",
+			"mitigated", "hardware", "actual_usd",
 			"backend", "requested_backend", "model",
-			"hardware_job_id", "calibration_fresh", "calibration_snapshot_id",
+			"hardware_job_id", "vendor_ref",
+			"calibration", "calibration_fresh", "calibration_checked_at", "calibration_snapshot_id",
 		} {
 			if v, ok := res[k]; ok && v != nil {
 				row[k] = v
 			}
+		}
+		if _, ok := row["vendor_ref"]; !ok && j.VendorRef != "" {
+			row["vendor_ref"] = j.VendorRef
 		}
 		if _, hasMeasured := res["measured"]; hasMeasured {
 			row["measured"] = res["measured"]
@@ -1208,6 +1223,15 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		seen[j.ID] = true
 	}
 	doc["experiments"] = exps
+	// Hydrate persisted campaign hypotheses so the manuscript Statistical Audit
+	// section can render Elo tournament rankings and evidence-gated verdicts.
+	if s.ledger != nil {
+		if hyps, herr := s.ledger.ListHypotheses(sessionID, 50); herr == nil && len(hyps) > 0 {
+			if _, already := doc["hypotheses"]; !already {
+				doc["hypotheses"] = hyps
+			}
+		}
+	}
 	enriched, err := json.Marshal(doc)
 	if err != nil {
 		return rawState

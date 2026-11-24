@@ -303,3 +303,66 @@ def test_reportable_rows_include_zne_krylov_pes_lattice_dmrg_and_conjecture():
     assert "conjecture" in results
     assert "job-placeholder" not in results
 
+
+def test_exact_anchor_prefers_fci_over_ansatz_energy_exact():
+    """Gap 2 fix: generic VQE stores noiseless ansatz expectation in energy_exact
+    and the real classical anchor in fci_exact_energy; the table must print FCI."""
+    campaign = {
+        "target_system": "Hydrogen Molecule (H2)",
+        "research_goal": "H3+ proton transfer barrier",
+        "experiments": [
+            {
+                "job_id": "34a568cf-b597-44be-b62c-2b7d157b515c",
+                "kind": "vqe",
+                "molecule": "H3+",
+                "measured": True,
+                "energy": -1.244587,
+                "energy_exact": -1.250394,
+                "fci_exact_energy": -1.262000,
+                "delta_mha": 17.4138,
+                "backend": "qiskit-aer-simulator",
+            },
+        ],
+    }
+    resp = manuscript_ops.run(_req(campaign=campaign, target_system=""))
+    assert resp["ok"], resp
+    intro = next(s for s in resp["sections"] if s["slug"] == "introduction")["latex"]
+    assert "H3+" in intro, "stale H2 default must be overridden by actual job molecule"
+    results = next(s for s in resp["sections"] if s["slug"] == "results")["latex"]
+    assert "-1.262000" in results, "table must display FCI anchor, not ansatz energy_exact"
+    assert "-1.250394" not in results
+    assert "34a568cf" in results
+    appendix = next(s for s in resp["sections"] if s["slug"] == "appendix_provenance")["latex"]
+    assert "34a568cf-b597-44be-b62c-2b7d157b515c" in appendix
+
+
+@requires_tex
+def test_white_paper_and_companion_markdown_html_with_auto_figures():
+    """Phases 2-4: white_paper compiles cleanly with auto-generated PNG figures,
+    economics/governance section, and companion paper.md + paper.html exports."""
+    campaign = {
+        "target_system": "H2",
+        "research_goal": "DARPA QBI Cross-Heron Utility Certification",
+        "experiments": [
+            {"job_id": "a7914795-c53d-4338-82fc-cf8c433e1613", "kind": "vqe_hardware", "measured": True, "hardware": True, "energy": -1.1266, "fci_exact_energy": -1.1373, "delta_mha": 10.68, "ci95_mha": 12.5, "shots": 1024, "backend": "ibm_fez", "vendor_ref": "v_fez_1", "calibration_snapshot_id": "cal_abc123"},
+            {"job_id": "b053f9f0-8ea9-44d4-a35f-3910f68cdf1f", "kind": "vqe_hardware", "measured": False, "mitigated": True, "hardware": True, "energy": -1.1281, "fci_exact_energy": -1.1373, "delta_mha": 9.24, "ci95_mha": 12.4, "shots": 1024, "backend": "ibm_kingston", "vendor_ref": "v_king_1", "calibration_snapshot_id": "cal_def456"},
+        ],
+        "hypotheses": [{"id": "hyp-1", "statement": "ZNE reduces error on ibm_kingston", "status": "supported", "elo_rating": 1542.0}],
+        "predictions": [{"claim": "Kingston ZNE < 15 mHa", "predicted_value": 10.0, "observed_value": 9.24, "z_score": -0.3}],
+    }
+    resp = manuscript_ops.run(_req(
+        campaign=campaign,
+        document_type="white_paper",
+        subtitle="Cross-Processor Benchmarking and Sovereign Governance",
+        build=True,
+        source_date_epoch=1700000000,
+    ))
+    assert resp["ok"], resp
+    assert resp["document_type"] == "white_paper"
+    slugs = {s["slug"] for s in resp["sections"]}
+    assert {"introduction", "related_work", "methods", "results", "statistical_audit", "discussion", "economics_governance", "provenance", "limitations", "appendix_provenance"} <= slugs
+    assert "fig_energy_benchmark.png" in resp["figure_sha256"]
+    names = {a["name"] for a in resp["build"]["artifacts"]}
+    assert {"main.pdf", "paper.md", "paper.html", "figures/fig_energy_benchmark.png"} <= names
+
+

@@ -230,13 +230,16 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
             "No measured result is present in the campaign projection. "
             "This section is intentionally empty rather than populated with a template value."
         )
+    from manuscript_sections import extract_anchor_energy, short_job_id
+
     lines = [
-        r"\begin{table}[h]",
-        r"\centering",
-        r"\begin{tabular}{lllrrrr}",
-        r"\hline",
-        r"Job & Kind & Status & Result & Anchor & $\Delta$ / Summary & Backend \\",
-        r"\hline",
+        r"\begin{table}[H]",
+        r"\centering\small",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{@{}lllrrrr@{}}",
+        r"\toprule",
+        r"Job & Kind & Status & Result & Exact Anchor & $\Delta$ / Summary & Backend \\",
+        r"\midrule",
     ]
     for row in rows:
         kind_s = str(row.get("kind") or "--")
@@ -301,12 +304,8 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
                     "ground_energy",
                     row.get("ground_state_energy", row.get("reaction_energy", row.get("measured_cut"))),
                 )
-            exact_v = row.get("energy_exact")
-            if exact_v is None:
-                exact_v = row.get(
-                    "ground_energy_exact",
-                    row.get("exact_energy", row.get("reaction_energy_exact", row.get("fci_exact_energy", row.get("optimal_cut")))),
-                )
+            # Gap 2 fix: prioritize true classical FCI/CASCI anchor over noiseless ansatz expectation.
+            exact_v = extract_anchor_energy(row)
             measured_str = _fmt(measured_v)
             exact_str = _fmt(exact_v)
             if is_qaoa:
@@ -329,25 +328,32 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
                     delta_str = f"{_fmt(delta_mha, 4)} mHa"
 
         lines.append(
-            f"{_latex_escape(str(row.get('job_id') or '--'))} & "
+            f"\\texttt{{{_latex_escape(short_job_id(str(row.get('job_id') or '--')))}}} & "
             f"{_latex_escape(kind_s)} & "
             f"{_latex_escape(status_s)} & "
             f"{measured_str} & {exact_str} & {delta_str} & "
             f"{_latex_escape(str(row.get('backend') or row.get('model') or '--'))} \\\\"
         )
-    lines += [r"\hline", r"\end{tabular}", r"\caption{Settled scientific results folded from the Kubona ledger.}", r"\end{table}"]
+    lines += [
+        r"\bottomrule",
+        r"\end{tabular}}",
+        r"\caption{Settled scientific results folded from the Kubona ledger (short IDs map to full UUIDs in Appendix~A).}",
+        r"\end{table}",
+    ]
     return "\n".join(lines)
 
 
-def _figures_section(figures: List[Tuple[str, bytes]]) -> str:
+def _figures_section(figures: List[Tuple[str, bytes]], captions: Optional[Dict[str, str]] = None) -> str:
     if not figures:
         return "This draft declares no figure. Figures are caller-supplied measured artifacts."
+    captions = captions or {}
     out = []
     for name, _ in figures:
-        out.append(r"\begin{figure}[h]")
+        cap = captions.get(name) or name
+        out.append(r"\begin{figure}[H]")
         out.append(r"\centering")
         out.append(rf"\includegraphics[width=0.9\linewidth]{{figures/{name}}}")
-        out.append(rf"\caption{{{_latex_escape(name)}}}")
+        out.append(rf"\caption{{{_latex_escape(cap)}}}")
         out.append(r"\end{figure}")
     return "\n".join(out)
 
@@ -408,7 +414,10 @@ def _limitations(claimable: int) -> str:
 def _new_manuscript(*, manuscript_id: str, title: str, authors: List[str],
                     abstract: str, sections: List[Any],
                     bibtex_entries: Dict[str, str],
-                    figures: List[Tuple[str, bytes]]):
+                    figures: List[Tuple[str, bytes]],
+                    document_type: str = "academic_preprint",
+                    subtitle: Optional[str] = None,
+                    keywords: Optional[List[str]] = None):
     """Build the in-memory manuscript with plain prose escaped exactly once.
 
     Section bodies are LaTeX by construction and are never escaped here;
@@ -425,6 +434,9 @@ def _new_manuscript(*, manuscript_id: str, title: str, authors: List[str],
         sections=sections,
         bibtex_entries=bibtex_entries,
         figures={name: raw for name, raw in figures},
+        document_type=document_type,
+        subtitle=_latex_escape(subtitle) if subtitle else None,
+        keywords=list(keywords or []),
     )
 
 
@@ -447,7 +459,29 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(evidence, dict):
         raise ManuscriptError("invalid_request", "evidence must be an object")
 
-    target = str(req.get("target_system") or campaign.get("target_system") or "an unrecorded target")
+    from manuscript_figures import generate_campaign_figures
+    from manuscript_sections import (
+        build_appendix_provenance,
+        build_discussion_section,
+        build_economics_governance_section,
+        build_keywords,
+        build_methods_section,
+        build_related_work_section,
+        build_results_narrative,
+        build_statistical_audit_section,
+        infer_target_system,
+        render_companion_html,
+        render_companion_markdown,
+    )
+
+    doc_type = str(req.get("document_type") or "academic_preprint").strip().lower()
+    if doc_type not in ("academic_preprint", "white_paper", "discovery_dossier", "technical_report"):
+        doc_type = "academic_preprint"
+    subtitle = str(req.get("subtitle") or "").strip() or None
+
+    measured = _measured_rows(campaign)
+    reportable = _reportable_rows(campaign)
+    target = infer_target_system(req, campaign, reportable)
     title = str(req.get("title") or f"Measured results for {target}").strip()
     if not title:
         raise ManuscriptError("invalid_request", "title is empty")
@@ -455,11 +489,10 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     if not authors:
         authors = ["Kubona Operator"]
 
-    measured = _measured_rows(campaign)
-    reportable = _reportable_rows(campaign)
     claimable = sum(1 for r in measured if bool(r.get("claimable")))
     point = _primary_point(campaign)
     abstract = str(req.get("abstract") or "").strip() or _abstract(campaign, point, target, claimable)
+    keywords = build_keywords(target, reportable, doc_type)
 
     citations: List[Dict[str, Any]] = []
     used_keys: set[str] = set()
@@ -484,6 +517,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     cite_keys = [c["key"] for c in citations]
 
     figures: List[Tuple[str, bytes]] = []
+    figure_captions: Dict[str, str] = {}
     seen = set()
     for entry in req.get("figures") or []:
         if not isinstance(entry, dict):
@@ -493,37 +527,72 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
             raise ManuscriptError("invalid_request", f"duplicate figure name {name!r}")
         seen.add(name)
         figures.append((name, raw))
+        if entry.get("caption"):
+            figure_captions[name] = str(entry["caption"])
+    auto_figures = req.get("auto_figures")
+    if auto_figures is None:
+        auto_figures = True
+    if bool(auto_figures) and reportable:
+        for fname, fbytes, fcap in generate_campaign_figures(reportable):
+            if fname not in seen:
+                seen.add(fname)
+                figures.append((fname, fbytes))
+                figure_captions[fname] = fcap
     figure_sha = [_dig(raw) for _, raw in figures]
 
+    goal_s = _latex_escape(str(campaign.get("research_goal") or "not recorded"))
     intro = (
-        f"We report the measured state of {_latex_escape(target)}. The campaign objective recorded for this "
-        f"session is: {_latex_escape(str(campaign.get('research_goal') or 'not recorded'))}. "
-        "Every value in this manuscript comes from a settled job in the Kubona ledger; "
-        "the provenance section names the receipts that were resolved."
+        f"We report a verified computational and experimental investigation of {_latex_escape(target)}. "
+        f"The campaign objective recorded for this session is: {goal_s}. "
+        "Every numerical result in this document is folded directly from settled jobs in the "
+        "Kubona ledger and anchored against exact classical solvers; the provenance and appendix "
+        "sections record every resolved receipt and hardware calibration snapshot."
     )
     if cite_keys:
         intro += " Prior work considered: " + ", ".join(rf"\cite{{{k}}}" for k in cite_keys) + "."
 
-    methods = (
-        "Experiments were executed through the Kubona bridge and settled by the Go job rail, "
-        "which records a signed result receipt and the cost/usage settlement for each job. "
-        "The campaign projection is the single source for the tables below; no number is "
-        "re-derived from prose or re-entered by the author."
-    )
+    related_work = build_related_work_section(citations)
+    methods = build_methods_section(campaign, reportable, doc_type)
 
-    results = _results_table(reportable)
+    results_parts = []
+    narrative = build_results_narrative(reportable, campaign)
+    if narrative:
+        results_parts.append(narrative)
+    results_parts.append(_results_table(reportable))
     if figures:
-        results += "\n\n" + _figures_section(figures)
+        results_parts.append(_figures_section(figures, figure_captions))
+    results = "\n\n".join(results_parts)
+
+    statistical_audit = build_statistical_audit_section(campaign)
+    discussion = build_discussion_section(reportable, campaign, doc_type)
+    appendix_prov = build_appendix_provenance(reportable)
 
     sections = [
-        ManuscriptSection(slug="introduction", title="Introduction", latex_content=intro,
-                          bibtex_keys=cite_keys),
-        ManuscriptSection(slug="methods", title="Methods and Execution", latex_content=methods),
-        ManuscriptSection(slug="results", title="Results", latex_content=results),
+        ManuscriptSection(slug="introduction", title="Introduction and Scientific Motivation",
+                          latex_content=intro, bibtex_keys=cite_keys),
+        ManuscriptSection(slug="related_work", title="Related Work and Grounded Literature",
+                          latex_content=related_work, bibtex_keys=cite_keys),
+        ManuscriptSection(slug="methods", title="Theoretical Formulation and Experimental Methodology",
+                          latex_content=methods),
+        ManuscriptSection(slug="results", title="Experimental Results and Quantitative Analysis",
+                          latex_content=results),
+        ManuscriptSection(slug="statistical_audit", title="Pre-Registration, Hypothesis Testing and Adversarial Review",
+                          latex_content=statistical_audit),
+        ManuscriptSection(slug="discussion", title="Discussion, Negative Results and Physical Interpretation",
+                          latex_content=discussion),
+    ]
+    if doc_type in ("white_paper", "discovery_dossier"):
+        sections.append(
+            ManuscriptSection(slug="economics_governance", title="Utility-vs-Cost Economics and Sovereign Governance",
+                              latex_content=build_economics_governance_section(reportable, evidence))
+        )
+    sections += [
         ManuscriptSection(slug="provenance", title="Provenance and Review Evidence",
                           latex_content=_evidence_section(evidence)),
-        ManuscriptSection(slug="limitations", title="Limitations and Claims",
+        ManuscriptSection(slug="limitations", title="Limitations, Epistemic Scope and Reproducibility",
                           latex_content=_limitations(claimable)),
+        ManuscriptSection(slug="appendix_provenance", title="Appendix A: Complete Ledger and Hardware Provenance",
+                          latex_content=appendix_prov),
     ]
 
     bibtex_entries: Dict[str, str] = {}
@@ -550,6 +619,9 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         sections=sections,
         bibtex_entries=bibtex_entries,
         figures=figures,
+        document_type=doc_type,
+        subtitle=subtitle,
+        keywords=keywords,
     )
     # Attach the proof hash only when the comparator attestation is verified;
     # a supplied-but-unverified hash must not earn reproducibility credit.
@@ -622,7 +694,12 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
             figures=figures,
             epoch=int(req.get("source_date_epoch") or 0),
             manuscript_id=manuscript.manuscript_id,
+            document_type=doc_type,
+            subtitle=subtitle,
+            keywords=keywords,
+            citations=citations,
         )
+    response["document_type"] = doc_type
     return response
 
 
@@ -640,6 +717,10 @@ def build_project(
     figures: List[Tuple[str, bytes]],
     epoch: int,
     manuscript_id: str,
+    document_type: str = "academic_preprint",
+    subtitle: Optional[str] = None,
+    keywords: Optional[List[str]] = None,
+    citations: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Compile the project and return artifacts with hashes.
 
@@ -651,6 +732,8 @@ def build_project(
             "build_unavailable",
             "pdfTeX is not installed in this compute plane; the manuscript cannot be built",
         )
+    from manuscript_sections import render_companion_html, render_companion_markdown
+
     manuscript = _new_manuscript(
         manuscript_id=manuscript_id,
         title=title,
@@ -659,8 +742,26 @@ def build_project(
         sections=sections,
         bibtex_entries=bibtex_entries,
         figures=figures,
+        document_type=document_type,
+        subtitle=subtitle,
+        keywords=keywords,
     )
     project = manuscript.export_project(Path(tempfile.mkdtemp(prefix="kubona-ms-")))
+    # Emit companion Markdown & standalone HTML alongside main.pdf (Phase 4).
+    (project / "paper.md").write_text(
+        render_companion_markdown(
+            title=title, authors=authors, abstract=abstract,
+            doc_type=document_type, sections=sections, citations=citations or [],
+        ),
+        encoding="utf-8",
+    )
+    (project / "paper.html").write_text(
+        render_companion_html(
+            title=title, authors=authors, abstract=abstract,
+            doc_type=document_type, sections=sections, citations=citations or [],
+        ),
+        encoding="utf-8",
+    )
     try:
         env = {
             "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
@@ -703,7 +804,10 @@ def build_project(
             scrubbed_err = (stderr_str or "").replace(str(project), "<project>")
             log.append(f"$ {' '.join(cmd)} (exit {proc.returncode})")
             if scrubbed_out:
-                log.append(scrubbed_out[-8000:])
+                if len(scrubbed_out) > 8500:
+                    log.append(scrubbed_out[:500] + "\n...[truncated]...\n" + scrubbed_out[-8000:])
+                else:
+                    log.append(scrubbed_out)
             if proc.returncode != 0:
                 detail = scrubbed_out + scrubbed_err
                 raise ManuscriptError(

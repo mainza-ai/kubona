@@ -75,6 +75,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
   const [editingDraft, setEditingDraft] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftAbstract, setDraftAbstract] = useState('');
+  const [documentType, setDocumentType] = useState<'academic_preprint' | 'white_paper' | 'discovery_dossier' | 'technical_report'>('academic_preprint');
   const [formalProofs, setFormalProofs] = useState<FormalVerificationEntry[] | null>(null);
 
   const downloadJson = (filename: string, payload: unknown) => {
@@ -284,21 +285,37 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             Drafts are composed from the stored campaign projection and reviewed over ledger-resolved evidence.
           </p>
         </div>
-        <Button
-          size="compact"
-          pending={busy === 'create'}
-          onClick={() => void run('create', async () => {
-            if (!sessionId) return { ok: false as const, error: 'no session' };
-            const created = await createManuscript(sessionId, {
-              request_id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                ? crypto.randomUUID()
-                : `ms-${Date.now()}`,
-            });
-            return created.ok ? created : { ok: false as const, error: created.error };
-          }, 'Draft created from the stored campaign.')}
-        >
-          New draft
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select
+            label="Document type"
+            hideLabel
+            value={documentType}
+            onChange={(e) => setDocumentType(e.target.value as 'academic_preprint' | 'white_paper' | 'discovery_dossier' | 'technical_report')}
+            options={[
+              { value: 'academic_preprint', label: 'Academic Preprint' },
+              { value: 'white_paper', label: 'Technical White Paper' },
+              { value: 'discovery_dossier', label: 'Discovery Dossier' },
+              { value: 'technical_report', label: 'Technical Report' },
+            ]}
+          />
+          <Button
+            size="compact"
+            pending={busy === 'create'}
+            onClick={() => void run('create', async () => {
+              if (!sessionId) return { ok: false as const, error: 'no session' };
+              const created = await createManuscript(sessionId, {
+                request_id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                  ? crypto.randomUUID()
+                  : `ms-${Date.now()}`,
+                document_type: documentType,
+                auto_figures: true,
+              });
+              return created.ok ? created : { ok: false as const, error: created.error };
+            }, 'Draft created from the stored campaign.')}
+          >
+            New draft
+          </Button>
+        </div>
       </div>
 
       {error && (
