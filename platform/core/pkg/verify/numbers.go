@@ -334,6 +334,36 @@ func emitDerivedDeltas(source, prefix string, obj map[string]any, out *[]Evidenc
 			EvidenceValue{Path: base + "." + p[0] + "_delta_mha", Value: diffHa * 1000.0, Source: source},
 		)
 	}
+	// W5-01: derive summary statistics over lattice_dynamics `times[]` series
+	// (min loschmidt_echo and mean zz_correlator_mean) printed in the results table.
+	if rawTimes, ok := obj["times"].([]any); ok && len(rawTimes) > 0 {
+		minLE := math.Inf(1)
+		hasLE := false
+		var sumZZ float64
+		var countZZ int
+		for _, item := range rawTimes {
+			m, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if le, ok := m["loschmidt_echo"].(float64); ok && !math.IsNaN(le) && !math.IsInf(le, 0) {
+				if le < minLE {
+					minLE = le
+					hasLE = true
+				}
+			}
+			if zz, ok := m["zz_correlator_mean"].(float64); ok && !math.IsNaN(zz) && !math.IsInf(zz, 0) {
+				sumZZ += zz
+				countZZ++
+			}
+		}
+		if hasLE {
+			*out = append(*out, EvidenceValue{Path: base + ".times_min_loschmidt_echo", Value: minLE, Source: source})
+		}
+		if countZZ > 0 {
+			*out = append(*out, EvidenceValue{Path: base + ".times_mean_zz_correlator", Value: sumZZ / float64(countZZ), Source: source})
+		}
+	}
 }
 
 func toleranceFor(decimals int) float64 {

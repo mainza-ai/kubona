@@ -184,7 +184,7 @@ class ScientificManuscript:
         header_labels = {
             "academic_preprint": "KUBONA SCIENTIFIC PREPRINT",
             "white_paper": "KUBONA TECHNICAL WHITE PAPER",
-            "discovery_dossier": "KUBONA DISCOVERY & AUDIT DOSSIER",
+            "discovery_dossier": r"KUBONA DISCOVERY \& AUDIT DOSSIER",
             "technical_report": "KUBONA TECHNICAL BENCHMARK REPORT",
         }
         doc_label = header_labels.get(doc_type, "KUBONA SCIENTIFIC PREPRINT")

@@ -129,6 +129,7 @@ def build_related_work_section(citations: List[Dict[str, Any]]) -> str:
             "recorded in the Kubona ledger."
         )
     lines = [
+        r"\begin{sloppypar}",
         "This study builds on established variational, error-mitigation, and many-body "
         "benchmarking literature grounded through Kubona's citation verification rail "
         "(\\texttt{verification-v1}). Each reference below is linked to its canonical identifier:",
@@ -143,9 +144,11 @@ def build_related_work_section(citations: List[Dict[str, Any]]) -> str:
         doi_part = ""
         if doi:
             clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
-            doi_part = rf" (\href{{https://doi.org/{clean_doi}}}{{\texttt{{doi:{latex_escape(clean_doi)}}}}})"
+            esc_doi = latex_escape(clean_doi).replace("/", "/\\allowbreak ").replace("-", "-\\allowbreak ")
+            doi_part = rf" (\href{{https://doi.org/{clean_doi}}}{{\texttt{{\footnotesize doi:\allowbreak {esc_doi}}}}})"
         lines.append(rf"\item \textbf{{{authors} ({year})}} --- \textit{{{title}}}~\cite{{{key}}}{doi_part}.")
     lines.append(r"\end{itemize}")
+    lines.append(r"\end{sloppypar}")
     return "\n".join(lines)
 
 

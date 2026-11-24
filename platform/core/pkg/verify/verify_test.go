@@ -233,4 +233,14 @@ func TestVerifyNumbersScrubsDOIsAndIndexesBeyond5000Leaves(t *testing.T) {
 			t.Fatalf("expected all 3 findings matched, got %+v", f)
 		}
 	}
+	// W5-01: derived mean(zz_correlator_mean) and min(loschmidt_echo) over
+	// lattice_dynamics times[] must verify cleanly.
+	latOnly := Evidence{Documents: []Document{{
+		ID:   "lat-60",
+		JSON: `{"kind":"lattice_dynamics","times":[{"t":0.0,"loschmidt_echo":1.0,"zz_correlator_mean":0.8},{"t":1.0,"loschmidt_echo":0.125,"zz_correlator_mean":0.136}]}`,
+	}}}
+	latFindings := VerifyNumbers("Quench reached min L=0.125 and mean ZZ=0.468.", latOnly)
+	if len(latFindings) != 2 || latFindings[0].Status != NumberMatched || latFindings[1].Status != NumberMatched {
+		t.Fatalf("W5-01 expected derived lattice min/mean matched, got %+v", latFindings)
+	}
 }

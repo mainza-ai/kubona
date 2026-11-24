@@ -403,4 +403,29 @@ def test_multi_citation_order_is_canonical_and_quench_qaoa_figures_render():
     assert "fig_qaoa_utility.png" in r1["figure_sha256"]
 
 
+@requires_tex
+def test_discovery_dossier_compiles_with_escaped_ampersand_and_conjecture_run():
+    """W5-02 + W5-03: discovery_dossier escapes & in its header banner and
+    conjecture_run rows are included in the results table."""
+    campaign = {
+        "target_system": "Flagship",
+        "research_goal": "Verify discovery_dossier build and conjecture_run inclusion",
+        "experiments": [
+            {"job_id": "vqe-1", "kind": "vqe", "measured": True, "energy": -1.137, "fci_exact_energy": -1.1373, "backend": "aer"},
+            {"job_id": "conj-1", "kind": "conjecture_run", "measured": False, "status": "no_law_verified"},
+        ],
+    }
+    resp = manuscript_ops.run(_req(
+        campaign=campaign,
+        document_type="discovery_dossier",
+        build=True,
+        source_date_epoch=1700000000,
+    ))
+    assert resp["ok"], resp
+    assert resp["build"]["build_hash"]
+    results = next(s for s in resp["sections"] if s["slug"] == "results")["latex"]
+    assert "conj-1" in results
+
+
+
 

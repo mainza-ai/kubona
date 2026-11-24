@@ -128,6 +128,8 @@ _NON_MEASURED_SCIENTIFIC_KINDS = frozenset({
     "lattice_dynamics",
     "thermodynamic_limit",
     "conjecture",
+    "conjecture_run",
+    "symbolic_conjecture",
 })
 
 
@@ -167,7 +169,7 @@ def _row_status(row: Dict[str, Any]) -> str:
         return "exact-sim"
     if kind_l == "thermodynamic_limit":
         return "dmrg"
-    if kind_l == "conjecture":
+    if kind_l in ("conjecture", "conjecture_run", "symbolic_conjecture"):
         return "conjecture"
     return "inferred"
 
@@ -292,7 +294,7 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
                 delta_str = f"bond {int(bond)}"
             elif e_site is not None and exact_site is not None:
                 delta_str = f"{abs(float(e_site) - float(exact_site)) * 1000.0:.2f} mHa"
-        elif kind_l == "conjecture":
+        elif kind_l in ("conjecture", "conjecture_run", "symbolic_conjecture"):
             st = str(row.get("status") or row.get("verdict") or "evaluated")
             measured_str = _latex_escape(st)
             law = row.get("law") or row.get("expression")
