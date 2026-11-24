@@ -124,17 +124,18 @@ def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, st
     total_pts = len(pts)
     pts = pts[:20]
     img, draw = _new_canvas(1600, 920)
-    box = (140, 110, 1520, 740)
+    n = len(pts)
+    stagger = n > 12
+    box = (140, 110, 1520, 705 if stagger else 740)
     y_max = max(max(p[1] + p[2] for p in pts) * 1.18, 2.5)
     _draw_axes(draw, box, "Energy Discrepancy vs. Exact Classical Anchor (Settled Jobs)",
                "Settled Job & Backend (Navy: Simulator, Orange: Raw QPU, Teal: ZNE Mitigated)",
-               "Error abs(E - E_anchor) (mHa)", 0.0, y_max, xlabel_offset=90)
+               "Error abs(E - E_anchor) (mHa)", 0.0, y_max, xlabel_offset=118 if stagger else 90)
     x0, y0, x1, y1 = box
-    n = len(pts)
     slot = (x1 - x0) / n
     bar_w = max(16, min(68, int(slot * 0.54)))
-    font_lbl = _load_font(14 if n > 14 else 16)
-    font_val = _load_font(14 if n > 14 else 16)
+    font_lbl = _load_font(13 if n > 14 else 16)
+    font_val = _load_font(13 if n > 14 else 16)
 
     for i, (label, val, ci, color, _, _) in enumerate(pts):
         cx = int(x0 + (i + 0.5) * slot)
@@ -147,9 +148,13 @@ def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, st
             draw.line([(cx, ey0), (cx, ey1)], fill=INK, width=3)
             draw.line([(cx - 8, ey0), (cx + 8, ey0)], fill=INK, width=3)
             draw.line([(cx - 8, ey1), (cx + 8, ey1)], fill=INK, width=3)
-        draw.text((cx - 22, max(y0 + 4, top - 24)), f"{val:.1f}", fill=INK, font=font_val)
+        draw.text((cx, max(y0 + 18, top - 6)), f"{val:.1f}", fill=INK, font=font_val, anchor="mb")
+        y_off = 10 if (not stagger or i % 2 == 0) else 50
+        if stagger and i % 2 == 1:
+            draw.line([(cx, y1 + 1), (cx, y1 + y_off - 3)], fill=GRID, width=1)
+        line_h = 16 if n > 14 else 18
         for j, line in enumerate(label.split("\n")):
-            draw.text((cx - 28, y1 + 12 + j * 18), line, fill=SLATE, font=font_lbl)
+            draw.text((cx, y1 + y_off + j * line_h), line, fill=SLATE, font=font_lbl, anchor="mt")
 
     if 1.6 < y_max:
         cy = int(y1 - (1.6 / y_max) * (y1 - y0))
@@ -317,11 +322,11 @@ def _render_qaoa_or_dmrg(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] |
             top = int(y1 - (min(1.05, max(0.0, val)) / 1.05) * (y1 - y0))
             color = ORANGE if r.get("hardware") else NAVY
             draw.rectangle([cx - bar_w // 2, top, cx + bar_w // 2, y1], fill=color, outline=INK, width=1)
-            draw.text((cx - 28, top - 26), f"{val:.3f}", fill=INK, font=font_lbl)
-            be = str(r.get("backend") or "sim").replace("qiskit-aer-simulator", "aer")[:11]
+            draw.text((cx, max(y0 + 20, top - 8)), f"{val:.3f}", fill=INK, font=font_lbl, anchor="mb")
+            be = _short_backend_label(r.get("backend"))
             jid = str(r.get("job_id") or "")[:6]
-            draw.text((cx - 34, y1 + 14), jid, fill=SLATE, font=font_lbl)
-            draw.text((cx - 34, y1 + 36), be, fill=SLATE, font=font_lbl)
+            draw.text((cx, y1 + 14), jid, fill=SLATE, font=font_lbl, anchor="mt")
+            draw.text((cx, y1 + 36), be, fill=SLATE, font=font_lbl, anchor="mt")
         caption = (
             f"QAOA MaxCut approximation ratio r across {len(qaoas)} settled simulator (navy) and QPU hardware (orange) runs."
         )
