@@ -144,8 +144,8 @@ Run everything: `uv run --locked --extra dev --extra qiskit --extra chemistry py
   (historical "what worked best per circuit hash" aggregation) on the provenance server.
 - **Console follow-ons** — REST `/api/provenance` + `/api/fleet`; Flutter web app
   now has four tabs (Cost & Approvals, Live Loops, Provenance, Fleet).
-- **Security review package** — `docs/security-review.md` (threat model, controls
-  map, third-party checklist, known gaps).
+- **Security review package** — `SECURITY.md` (threat model, controls map,
+  third-party checklist, known gaps).
 
 ## Phase 4 additions (evaluation + autoresearch engine + release prep)
 
@@ -170,7 +170,7 @@ Run everything: `uv run --locked --extra dev --extra qiskit --extra chemistry py
 - **Canary now gates releases** — the correctness-regression harness runs in
   `canary.run_all` (a failing correctness check blocks).
 - **Provider-registration SDK** (`kubona/sdk/register_provider`) — schema
-  validate + sandbox smoke-test + data write; `docs/contribution-governance.md`
+  validate + sandbox smoke-test + data write; `CONTRIBUTING.md`
   (tool-surface security boundary). The Phase-4 gate's third-party-merge proof.
 
 ## Phase 5 additions (scale & breadth)

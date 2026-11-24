@@ -47,7 +47,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 - **Executive Presentation Deck (PDF):** [`assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf`](assets/misc/Kubona_Quantum_AI_Discovery_Platform.pdf)
 - **Living Blueprint & Audit Trail:** [`wiki/overview.md`](wiki/overview.md) · [`wiki/roadmap.md`](wiki/roadmap.md) · [`docs/repo-counts.md`](docs/repo-counts.md)
-- **Measured engineering reports:** [`docs/production-audit-2026-11-20.md`](docs/production-audit-2026-11-20.md) · [`docs/performance-research-2026-11-18.md`](docs/performance-research-2026-11-18.md) · [`docs/memory-management-research-2026-11-18.md`](docs/memory-management-research-2026-11-18.md)
+- **Operator documentation:** [`docs/README.md`](docs/README.md) · [`docs/local-deployment.md`](docs/local-deployment.md) · [`docs/backup-restore.md`](docs/backup-restore.md) · [`docs/release.md`](docs/release.md)
 
 ---
 

@@ -510,7 +510,8 @@ restore a backup over a running daemon.
       `POST /api/sessions/{id}/manuscripts {"build":true}`, the returned
       `main.pdf` starts with `%PDF-` and its downloaded SHA-256 equals the
       artifact's recorded hash, and a rebuild returns the same `build_hash`
-      (see `docs/publication-pipeline-2026-11-18.md`).
+      (the contract is enforced in `platform/core/pkg/api/manuscripts.go` and
+      exercised by the Console `PublicationPanel`).
 - [ ] `/metrics` (operator bearer) shows `kubona_jobs`, `kubona_manuscripts`,
       `kubona_bridge_configured`, and `kubona_backup_age_seconds`.
 - [ ] Backups are encrypted off-host (`KUBONA_BACKUP_AGE_RECIPIENT` set,

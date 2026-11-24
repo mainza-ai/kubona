@@ -43,9 +43,9 @@ development — re-verify the gate on the exact commit before citing
 > persistence, and Qiskit result serialization; the controlled
 > `ibm_marrakesh` run settled 2 s / $3.20. Local-private runtime card now
 > defaults to the reviewed list-price card. Historical IBM evidence is
-> recorded but its monetary disposition remains operator-owned. See
-> `docs/paid-e2e-readiness-2026-10-31.md` and
-> `docs/vendor-evidence-2026-10-31.md`. The earlier
+> recorded but its monetary disposition remains operator-owned. See the
+> paid-E2E and vendor-evidence records in git history (removed from `docs/` in
+> the 2026-11-24 cleanup). The earlier
 > red nightly runs (`40854405074`, `40666624246`, `40478035440`,
 > `41000688966`, `41003185385`) are history, not current state; re-verify the
 > exact commit before citing "green". The reviewer-key claim above is
@@ -123,8 +123,8 @@ development — re-verify the gate on the exact commit before citing
 > vectors, embedding cache, sparse PPR, and `scripts/perf-gate.sh` in CI.
 > React Compiler is annotation-only (default `infer` measured +94.4 KiB and was
 > reverted); JSON v2 is a recorded no-adoption decision. Code-addressable
-> backlog is closed; operator evidence lives in
-> `docs/operator-evidence-2026-11-18.md`. Re-verify the gate on the exact
+> backlog is closed; operator evidence is tracked in `wiki/risks.md` (the dated
+> register was removed from `docs/` on 2026-11-24). Re-verify the gate on the exact
 > pushed commit before citing “green”.
 
 > ⚑ State update (2026-11-18, `develop`): the agentic-science program landed
@@ -156,14 +156,14 @@ development — re-verify the gate on the exact commit before citing
 > pinned release tarball; a live run needs a standard Linux kernel with working
 > landrun (Colima virtiofs, a Linux host, or CI), because Docker Desktop's
 > linuxkit kernel cannot run landrun. The 2026-11-18 accuracy investigation
-> (`docs/accuracy-gap-investigation-2026-11-18.md`) fixed a QAOA simulator
+> (git history) fixed a QAOA simulator
 > bit-order bug (p=2 0.788 → 0.891) and an Inspector header overlap, and
 > separated the TFIM gap into optimizer and depth causes; AG-11…AG-16 carry the
 > remaining work. The agentic workflow is now a user-controlled session mode
 > (`agentic_enabled`, with an operator `agentic_locked` halt): off pauses loops
 > and blocks agent execution while the manual experiment rail stays open.
-> Research and the oversight plan (AG-17…AG-24) are in
-> `docs/agentic-mode-toggle-2026-11-18.md`; AG-18…AG-24 and the oversight
+> Research and the oversight plan (AG-17…AG-24) are recorded in git history;
+> AG-18…AG-24 and the oversight
 > follow-ups are implemented (global mode chip, approval inbox with reviewer
 > edits and durable rejection feedback, notify digest with a console panel,
 > one-time per-tool approvals bound to the argument digest, fatigue metrics,
