@@ -7,7 +7,7 @@ dependencies = [
     # Pinned == : the suite-verified set (2026-10-12). Floors rot CI into
     # untested version combos; absent extras keep >= (unverifiable here).
     "mcp==2.3.0",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     # numpy is interpreter-sensitive: 2.5.x needs Python >=3.12 but CI runs
     # 3.11, so the pin splits by marker — each lane is the suite-verified
     # version for that interpreter (2.4.6 is what >= floors resolved on 3.11).
@@ -19,7 +19,7 @@ dependencies = [
     "PyYAML==6.0.3",
     "starlette==1.10.0",
     "uvicorn==0.54.0",
-    "grpcio==1.85.1",
+    "grpcio==1.85.3",
     "protobuf==7.36.2",
     # W2.4: scipy + pennylane were imported but undeclared (krylov needs
     # scipy.linalg; cutting/diff-stack need pennylane) — CI resolved them
@@ -35,8 +35,8 @@ kubona = "kubona.run:_cli"
 
 [project.optional-dependencies]
 dev = ["pytest==9.2.0", "pytest-asyncio==1.5.0", "pytest-cov==7.1.0"]
-qiskit = ["qiskit==2.6.2", "qiskit-aer==0.18.2", "qiskit-ibm-runtime==0.52.1", "qiskit-nature==0.8.0", "qiskit-nature-pyscf==0.4.0"]
-chemistry = ["pyscf==2.15.0", "rdkit==2026.9.2", "quimb==1.10.0"]
+qiskit = ["qiskit==2.6.2", "qiskit-aer==0.18.4", "qiskit-ibm-runtime==0.52.1", "qiskit-nature==0.8.0", "qiskit-nature-pyscf==0.4.0"]
+chemistry = ["pyscf==2.15.1", "rdkit==2026.9.2", "quimb==1.10.0"]
 providers = [
     # Pinned == : the suite-verified set (2026-10-28). Each pin names the
     # suite that verified it — a pin without a green suite is a guess, not
@@ -67,11 +67,11 @@ providers = [
     "strawberryfields==0.23.0",           # Xanadu photonic/CV (modality-gated)
     # pulser: tests/test_w2_production_bar.py::test_neutral_photonic_split_sdk_vs_wiring
     # takes the not-yet-wired branch with the SDK importable (fail-closed).
-    "pulser==1.10.0",                      # QuEra/Pasqal neutral atom (modality-gated)
+    "pulser==1.10.1",                      # QuEra/Pasqal neutral atom (modality-gated)
 ]
 # langgraph: tests/test_langgraph_shim.py (VQE StateGraph end-to-end, runs
 # for real once the extra is installed — skipped without it).
-orchestration = ["langgraph==1.2.22"]
+orchestration = ["langgraph==1.2.24"]
 # Zero-GPL QEC scientific core (Phase 0.5 / G1): Apache-2.0 & MIT only
 # (rustworkx replaces GPL python-igraph; CaDiCaL/Kissat via python-sat).
 qec = [
