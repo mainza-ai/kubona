@@ -469,6 +469,13 @@ func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 // series is the raw material for drift curves. A ledger that cannot record
 // refuses admission (no unattested spend).
 func (r *Runner) admitFidelity(sessionID, backend, qasm string) error {
+	return r.admitFidelityScaled(sessionID, backend, qasm, 1)
+}
+
+func (r *Runner) admitFidelityScaled(sessionID, backend, qasm string, scale int) error {
+	if scale < 1 {
+		scale = 1
+	}
 	device, derr := fidelityDeviceForBackend(backend)
 	if derr != nil {
 		// No profile, no prediction — but the denial itself is sealed:
@@ -491,6 +498,13 @@ func (r *Runner) admitFidelity(sessionID, backend, qasm string) error {
 		return derr
 	}
 	qubits, depth, twoQ := countQasmGates(qasm)
+	// W5-06: ZNE unitary folding multiplies circuit depth and 2Q gates by the
+	// largest noise scale factor; evaluate the admission floor on the deepest
+	// folded circuit actually dispatched to hardware.
+	if scale > 1 {
+		depth *= scale
+		twoQ *= scale
+	}
 	assessment := r.fidelityGate.EvaluateAdmissionFloorOnly(device, depth, twoQ)
 	profileSource := "builtin-bootstrap"
 	calibratedAt := ""

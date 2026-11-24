@@ -49,6 +49,47 @@ def _transpile_level(default: int = 2) -> int:
 
 
 
+def _extract_usage_seconds(job: Any) -> float | None:
+    """Extract measured QPU execution seconds from an IBM Runtime job (W5-07).
+
+    On Open Plan / Runtime v2, ``job.usage()`` may return 0 or None immediately
+    after completion while ``job.metrics()`` carries ``usage.quantum_seconds``
+    or ``execution.execution_spans``. Prefer the first positive reading so the
+    ledger records real QPU time even when Open Plan settles to $0.00.
+    """
+    raw_usage: float | None = None
+    try:
+        u = job.usage()
+        if u is not None:
+            raw_usage = float(u)
+            if raw_usage > 0.0:
+                return raw_usage
+    except Exception:
+        pass
+    try:
+        metrics = job.metrics() if callable(getattr(job, "metrics", None)) else None
+        if isinstance(metrics, dict):
+            u_block = metrics.get("usage")
+            if isinstance(u_block, dict):
+                for key in ("quantum_seconds", "seconds"):
+                    val = u_block.get(key)
+                    if val is not None and float(val) > 0.0:
+                        return float(val)
+            bss = metrics.get("bss")
+            if isinstance(bss, dict) and bss.get("seconds") is not None and float(bss["seconds"]) > 0.0:
+                return float(bss["seconds"])
+            exec_block = metrics.get("execution")
+            if isinstance(exec_block, dict):
+                spans = exec_block.get("execution_spans")
+                if spans is not None:
+                    dur = getattr(spans, "duration", None)
+                    if dur is not None and float(dur) > 0.0:
+                        return float(dur)
+    except Exception:
+        pass
+    return raw_usage
+
+
 def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] | None:
     """Median calibration from BackendProperties; missing values are skipped,
     never zero-filled. Kept separate so tests exercise the real parsing."""
@@ -595,7 +636,7 @@ class QiskitProvider(Provider):
         except Exception:
             pass
         try:
-            usage = job.usage()
+            usage = _extract_usage_seconds(job)
             if usage is not None:
                 out["usage_seconds"] = float(usage)
                 actual = self._actual_usd(float(usage))
@@ -689,7 +730,7 @@ class QiskitProvider(Provider):
         except Exception:
             pass
         try:
-            usage = job.usage()
+            usage = _extract_usage_seconds(job)
             if usage is not None:
                 out["usage_seconds"] = float(usage)
                 actual = self._actual_usd(float(usage))

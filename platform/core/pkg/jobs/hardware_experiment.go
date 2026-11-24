@@ -247,7 +247,19 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	if p.FidelityQASM == "" {
 		return "", 0, fmt.Errorf("%s requires fidelity_qasm", jobType)
 	}
-	if err := r.admitFidelity(sessionID, p.RequestedBackend, p.FidelityQASM); err != nil {
+	fidelityScale := 1
+	if strings.EqualFold(strings.TrimSpace(p.Mitigation), "ZNE") {
+		fidelityScale = 5
+		if len(p.MitigationScales) > 0 {
+			fidelityScale = 1
+			for _, s := range p.MitigationScales {
+				if s > fidelityScale {
+					fidelityScale = s
+				}
+			}
+		}
+	}
+	if err := r.admitFidelityScaled(sessionID, p.RequestedBackend, p.FidelityQASM, fidelityScale); err != nil {
 		return "", 0, err
 	}
 	if p.RunAllowanceID != "" {

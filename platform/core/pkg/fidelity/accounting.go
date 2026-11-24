@@ -117,21 +117,37 @@ func ProviderDeviceMap() map[string]string {
 // profile in platform/contracts/fidelity-devices.json (supporting exact match
 // in provider_device_map or ibm/rigetti/quantinuum vendor prefix). Unknown
 // hardware refuses as unpredictable.
+// knownIBMBackends enumerates real IBM Quantum processors and catalog aliases
+// so fabricated names like "ibm_not_a_real_backend" fail closed at admission
+// instead of passing a wildcard "ibm*" prefix check (W5-05).
+var knownIBMBackends = map[string]bool{
+	"ibm_heron": true, "ibm-heron": true,
+	"ibm_qiskit": true, "ibm-qiskit": true,
+	"ibm_quantum": true, "ibm-quantum": true,
+	"ibm_fez": true, "ibm_kingston": true, "ibm_marrakesh": true,
+	"ibm_torino": true, "ibm_brisbane": true, "ibm_kyoto": true,
+	"ibm_osaka": true, "ibm_sherbrooke": true, "ibm_kyiv": true,
+	"ibm_nazca": true, "ibm_cusco": true, "ibm_strasbourg": true,
+	"ibm_brussels": true, "ibm_aachen": true, "ibm_pittsburgh": true,
+	"ibm_miami": true, "ibm_boston": true, "ibm_test": true, "ibm_simulator": true,
+}
+
 func ResolveDeviceForBackend(backend string) (string, error) {
 	low := strings.ToLower(strings.TrimSpace(backend))
 	c := loadFidelityContract()
 	if dev, ok := c.ProviderDeviceMap[low]; ok && dev != "" {
 		return strings.ReplaceAll(dev, "-", "_"), nil
 	}
-	switch {
-	case strings.HasPrefix(low, "ibm"):
+	if knownIBMBackends[low] {
 		return "ibm_heron", nil
+	}
+	switch {
 	case strings.HasPrefix(low, "rigetti"):
 		return "rigetti_aspen", nil
 	case strings.HasPrefix(low, "quantinuum"):
 		return "quantinuum_h1", nil
 	default:
-		return "", fmt.Errorf("no fidelity profile for backend %q: unpredictable on this device — refused (register a calibrated profile first)", backend)
+		return "", fmt.Errorf("no fidelity profile for backend %q: unknown or uncalibrated device — refused at admission", backend)
 	}
 }
 
