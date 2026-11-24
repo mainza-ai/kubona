@@ -2,6 +2,7 @@
 
 from kubona.qec.canon import are_tanner_isomorphic, canonical_fingerprint, is_lc_equivalent_css, tanner_graph_rx
 from kubona.qec.catalog import CatalogEntry, build_builtin_catalog, load_qcode_discovery_json, lookup_catalog
+from kubona.qec.claims import DiscoveryClaim, evaluate_seven_gates, reverify_claims
 from kubona.qec.circuits import (
     CircuitNoiseModel,
     build_css_memory_circuit,
@@ -32,6 +33,7 @@ __all__ = [
     "BBCodeSpec",
     "CatalogEntry",
     "CircuitNoiseModel",
+    "DiscoveryClaim",
     "DiscoveryController",
     "Island",
     "IslandSearchPool",
@@ -56,6 +58,7 @@ __all__ = [
     "evaluate_bb_candidate_fast",
     "evaluate_bb_code",
     "evaluate_css_code",
+    "evaluate_seven_gates",
     "gf2_nullspace",
     "gf2_rank",
     "gf2_rref",
@@ -67,6 +70,7 @@ __all__ = [
     "mutate_bb_terms",
     "prove_distance_milp",
     "relabel_qubits_css",
+    "reverify_claims",
     "si1000_noise",
     "simulate_memory_circuit",
     "tanner_graph_rx",
