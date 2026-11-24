@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, Select } from '@/components/ui/Forms';
+import { QecDiscoveryStudio } from './QecDiscoveryStudio';
 import {
   collapseHypothesis,
   createPlan,
@@ -27,20 +28,6 @@ import {
 
 type PipelineTab = 'hypotheses' | 'plans' | 'graph' | 'knowledge' | 'qec';
 const QEC_JOB_TYPES = new Set(['qec_code_eval', 'qec_distance', 'qec_memory_sim']);
-
-function parseJobResult(job: Job): Record<string, unknown> {
-  const raw = job.result_json;
-  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
-  if (typeof raw === 'string' && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
-    } catch {
-      return {};
-    }
-  }
-  return {};
-}
 
 export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null }) {
   const [tab, setTab] = useState<PipelineTab>('hypotheses');
@@ -478,75 +465,11 @@ export function ResearchPipelinePanel({ sessionId }: { sessionId: string | null 
         </div>
       )}
       {tab === 'qec' && (
-        <div className="space-y-3" data-testid="qec-claims-panel">
-          {qecJobs.length === 0 ? (
-            <EmptyState title="No QEC discovery jobs yet">
-              Run a QEC code evaluation, distance proof, or memory simulation in the Experiment Lab to populate the 7-gate discovery ledger.
-            </EmptyState>
-          ) : (
-            <ul className="space-y-2">
-              {qecJobs.map((job) => {
-                const r = parseJobResult(job);
-                const isMemory = job.job_type === 'qec_memory_sim';
-                const hasCodeParams = r.n != null && r.k != null;
-                const dProved = r.d_kind === 'proved';
-                const hasLer = typeof r.ler === 'number';
-                const gates: Array<{ label: string; pass: boolean | null; detail: string }> = isMemory
-                  ? [
-                      { label: 'G4 Circuit LER', pass: hasLer && typeof r.ci_low === 'number' && typeof r.ci_high === 'number', detail: hasLer ? `LER ${(r.ler as number).toFixed(4)}` : 'unmeasured' },
-                      { label: 'G5 Held-out IFC', pass: r.held_out_verified === true ? true : null, detail: r.held_out_verified === true ? 'verifier sealed' : 'pending verifier' },
-                    ]
-                  : [
-                      { label: 'G0 CSS valid', pass: r.valid === true || hasCodeParams, detail: hasCodeParams ? `[[${String(r.n)},${String(r.k)},${String(r.d ?? '?')}]]` : 'unverified' },
-                      { label: 'G1 Indecomposable', pass: typeof r.decomposable === 'boolean' ? !r.decomposable : null, detail: r.decomposable === false ? 'indecomposable' : r.decomposable === true ? 'decomposable' : 'unchecked' },
-                      { label: 'G2 Distance proved', pass: dProved, detail: dProved ? 'PROVED' : 'UPPER BOUND' },
-                      { label: 'G3 Catalog novelty', pass: typeof r.catalog_known === 'boolean' ? !r.catalog_known : null, detail: r.catalog_known ? `known (${String(r.catalog_match ?? 'catalog')})` : r.catalog_known === false ? 'novel vs catalog' : 'unchecked' },
-                      { label: 'G6 Canonical hash', pass: Boolean(r.canonical_hash), detail: r.canonical_hash ? String(r.canonical_hash).slice(0, 10) : 'missing' },
-                      { label: 'G7 Formal / Lean', pass: r.lean_attestation_hash ? true : null, detail: r.lean_attestation_hash ? 'attested' : 'unsealed' },
-                    ];
-                return (
-                  <li key={job.id} className="rounded-row border border-border bg-card p-3 space-y-2 text-label">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-code text-text flex flex-wrap items-center gap-1.5">
-                        <span className="font-semibold">{job.job_type}</span>
-                        <span className="text-muted">· {job.id.slice(0, 8)}</span>
-                        {hasCodeParams && (
-                          <span>· [[{String(r.n)}, {String(r.k)}, {String(r.d ?? '?')}]]</span>
-                        )}
-                        {!isMemory && hasCodeParams && (
-                          <Badge tone={dProved ? 'success' : 'warning'}>
-                            {dProved ? 'PROVED' : 'UPPER BOUND'}
-                          </Badge>
-                        )}
-                        {typeof r.fom === 'number' && <span>· FOM {r.fom.toFixed(2)}</span>}
-                        {isMemory && hasLer && (
-                          <span>
-                            · LER {(r.ler as number).toFixed(4)}
-                            {typeof r.ci_low === 'number' && typeof r.ci_high === 'number'
-                              ? ` [${r.ci_low.toFixed(4)}, ${r.ci_high.toFixed(4)}]`
-                              : ''}
-                            {r.d_circ != null ? ` · d_circ ${String(r.d_circ)}` : ''}
-                            {typeof r.decoder_latency_us === 'number' ? ` · ${r.decoder_latency_us.toFixed(1)} µs/shot` : ''}
-                          </span>
-                        )}
-                      </div>
-                      <Badge tone={String(job.status).includes('COMPLETED') ? 'success' : String(job.status).includes('FAILED') ? 'danger' : 'info'}>
-                        {String(job.status).replace(/^JOB_STATUS_/, '')}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {gates.map((g) => (
-                        <Badge key={g.label} tone={g.pass === true ? 'success' : g.pass === false ? 'warning' : 'neutral'}>
-                          {g.label}: {g.detail}
-                        </Badge>
-                      ))}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        <QecDiscoveryStudio
+          sessionId={sessionId}
+          jobs={qecJobs}
+          onRefresh={loadAll}
+        />
       )}
     </section>
   );

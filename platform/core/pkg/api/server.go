@@ -2504,6 +2504,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		s.handleResearchGraph(w, r, sid)
 		return
 	}
+	if sid, rest, ok := discoveryClaimsSubpath(id); ok {
+		s.handleDiscoveryClaimsRoute(w, r, sid, rest)
+		return
+	}
 	if strings.HasSuffix(id, "/formal-verifications") {
 		s.handleFormalVerification(w, r, strings.TrimSuffix(id, "/formal-verifications"))
 		return
