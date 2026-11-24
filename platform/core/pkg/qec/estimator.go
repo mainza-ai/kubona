@@ -45,6 +45,10 @@ type QECResourceEstimate struct {
 	// EffectiveShotsMultiplier: 1/acceptance for postselected estimates
 	// (1.0 when no postselection). Multiply shot budgets by this.
 	EffectiveShotsMultiplier float64 `json:"effective_shots_multiplier"`
+	// Illustrative marks heuristic back-of-the-envelope scaling formulas (B9)
+	// so no downstream caller or manuscript cites them as measured QPU/sinter data.
+	Illustrative    bool   `json:"illustrative"`
+	MethodologyNote string `json:"methodology_note"`
 }
 
 // MeetsTarget reports whether the suppressed logical error meets the
@@ -130,6 +134,8 @@ func (e *ResourceEstimator) EstimateNeutralAtom(spec QECResourceSpec) (*QECResou
 		MeetsThreshold:           p < threshold,
 		EstExecutionTimeMs:       float64(spec.LogicalClifford+spec.LogicalTCount) * 0.1, // ~10 kHz shuttle + gate
 		EffectiveShotsMultiplier: multiplier,
+		Illustrative:             true,
+		MethodologyNote:          "illustrative scaling heuristic (not a circuit-level simulation or measured QPU result)",
 	}
 	est.checkTarget(spec.TargetLogicalInf)
 	return est, nil
@@ -176,6 +182,8 @@ func (e *ResourceEstimator) EstimateBivariateBicycle(spec QECResourceSpec) (*QEC
 		MeetsThreshold:           p < threshold,
 		EstExecutionTimeMs:       float64(spec.LogicalClifford+spec.LogicalTCount) * 0.002, // ~500 kHz transmon rate
 		EffectiveShotsMultiplier: multiplier,
+		Illustrative:             true,
+		MethodologyNote:          "illustrative scaling heuristic (not a circuit-level simulation or measured QPU result)",
 	}
 	est.checkTarget(spec.TargetLogicalInf)
 	return est, nil

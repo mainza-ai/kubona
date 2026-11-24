@@ -121,20 +121,35 @@ class DiscoveryCampaign:
 
         # 2b HYPOTHESIZE (local LLM, optional) — let the model seed the search
         hypotheses: list[str] = []
+        initial_theta: float | None = None
         if llm is not None and llm.available:
             try:
-                hypotheses.append(llm.complete(
+                raw_suggestion = llm.complete(
                     "You are Kubona's scientific assistant.",
                     f"Suggest one ansatz start parameter (a float near 0..4) for "
                     f"minimizing {self.hamiltonian} in a RY-RY-CX ansatz. Reply with a single number.",
-                    temperature=0.3))
+                    temperature=0.3)
+                hypotheses.append(raw_suggestion)
+                import math as _math
+                import re as _re
+                m = _re.search(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", str(raw_suggestion))
+                if m is not None:
+                    cand = float(m.group(0))
+                    if _math.isfinite(cand) and -2.0 * _math.pi <= cand <= 2.0 * _math.pi:
+                        initial_theta = cand
             except Exception:  # noqa: BLE001 — LLM failure never breaks the campaign
                 hypotheses = []
-        stages["hypothesis"] = {"llm_used": bool(hypotheses), "suggestion": hypotheses[:1]}
+                initial_theta = None
+        stages["hypothesis"] = {
+            "llm_used": bool(hypotheses),
+            "suggestion": hypotheses[:1],
+            "initial_theta": initial_theta,
+        }
         stages["hypothesis"].update(
             {"ledger_ref": ledger.append("hypothesis", {
                 "problem": self.problem, "llm_used": bool(hypotheses),
-                "suggestion": hypotheses[:1]}).record_id})
+                "suggestion": hypotheses[:1],
+                "initial_theta": initial_theta}).record_id})
 
         # 3 CLASSICAL ANCHOR FIRST — the classical bound precedes any
         # experiment: no variational number is interpreted without its anchor
@@ -147,10 +162,12 @@ class DiscoveryCampaign:
         stages["anchor"] = {"anchor": anchor.to_dict(), "ledger_ref": anchor_ref}
 
         # 4 EXPERIMENT — the autonomous ansatz search (Search Mode), scored
-        # against the anchor computed above.
-        harness = build_vqe_ansatz_harness()
+        # against the anchor computed above. Pass anchor_molecule so mismatched
+        # molecules fail closed (B1), and pass initial_theta so LLM hypotheses
+        # actually seed the search (B2).
+        harness = build_vqe_ansatz_harness(hamiltonian=anchor_molecule)
         orch = Orchestrator(harness, budget_steps=self.budget_steps, seed=7, ledger=ledger)
-        history = orch.search()
+        history = orch.search(initial=initial_theta)
         best = orch.best(history)
         if best is None:
             stages["experiment"] = {"best_theta": None, "best_metric": None,

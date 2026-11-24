@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -173,18 +174,27 @@ func planDiscovery(goal string) ([]discoveryStep, string, error) {
 	return steps, strings.Join(reasons, " -> "), nil
 }
 
-var allowedDiscoveryKinds = map[string]bool{
-	"vqe":                   true,
-	"pes":                   true,
-	"excited_state":         true,
-	"spin_chain":            true,
-	"qaoa":                  true,
-	"reaction":              true,
-	"vqe_repeats":           true,
-	"geometry_optimization": true,
-	"lattice_dynamics":      true,
-	"thermodynamic_limit":   true,
-	"conjecture_check":      true,
+// allowedDiscoveryKind delegates to experimentJobType (single source of truth,
+// Phase 0 B7) so the planner allowlist can never drift from executable job types.
+func allowedDiscoveryKind(kind string) bool {
+	_, ok := experimentJobType(kind)
+	return ok
+}
+
+// discoveryPlannerKinds returns the canonical pipe-separated list of executable
+// experiment kinds for the planner system prompt (single source of truth, B7).
+var discoveryPlannerKinds = []string{
+	"vqe",
+	"pes",
+	"excited_state",
+	"spin_chain",
+	"qaoa",
+	"reaction",
+	"vqe_repeats",
+	"geometry_optimization",
+	"lattice_dynamics",
+	"thermodynamic_limit",
+	"conjecture",
 }
 
 func discoveryLLMTimeout() time.Duration {
@@ -238,7 +248,7 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 	content, _, _, err := cli.CompleteCapped(callCtx, "copilot", []llm.ChatMessage{
 		{
 			Role:    "system",
-			Content: "You are Kubona's scientific discovery planner. Output ONLY valid JSON: {\"reason\":\"...\",\"steps\":[{\"kind\":\"vqe|pes|excited_state|spin_chain|qaoa|reaction|vqe_repeats|geometry_optimization|lattice_dynamics|thermodynamic_limit|conjecture_check\",\"spec\":{...},\"budget_usd\":0}]}. Max 5 steps. Use flat Kubona spec fields: for vqe/vqe_repeats/excited_state/geometry_optimization/reaction include \"molecule\" (e.g. \"H2\",\"LiH\",\"H2O\"), \"bond_distance\" (number), \"layers\" (int), \"shots\" (int), \"max_iterations\" (int); for pes include \"molecule\",\"r_min\",\"r_max\",\"steps\",\"layers\",\"shots\",\"max_iterations\"; for spin_chain/lattice_dynamics/thermodynamic_limit include \"num_qubits\",\"layers\",\"shots\",\"max_iterations\".",
+			Content: "You are Kubona's scientific discovery planner. Output ONLY valid JSON: {\"reason\":\"...\",\"steps\":[{\"kind\":\"" + strings.Join(discoveryPlannerKinds, "|") + "\",\"spec\":{...},\"budget_usd\":0}]}. Max 5 steps. Use flat Kubona spec fields: for vqe/vqe_repeats/excited_state/geometry_optimization/reaction include \"molecule\" (e.g. \"H2\",\"LiH\",\"H2O\"), \"bond_distance\" (number), \"layers\" (int), \"shots\" (int), \"max_iterations\" (int); for pes include \"molecule\",\"r_min\",\"r_max\",\"steps\",\"layers\",\"shots\",\"max_iterations\"; for spin_chain/lattice_dynamics/thermodynamic_limit include \"num_qubits\",\"layers\",\"shots\",\"max_iterations\".",
 		},
 		{Role: "user", Content: goal},
 	}, 1024)
@@ -265,7 +275,7 @@ func planDiscoveryWithLLM(ctx context.Context, cli *llm.Client, goal string) ([]
 		} else {
 			valid := true
 			for i := range parsed.Steps {
-				if !allowedDiscoveryKinds[parsed.Steps[i].Kind] || parsed.Steps[i].Spec == nil {
+				if !allowedDiscoveryKind(parsed.Steps[i].Kind) || parsed.Steps[i].Spec == nil {
 					valid = false
 					fallbackReason = fmt.Sprintf("llm emitted unsupported step kind %q", parsed.Steps[i].Kind)
 					break
@@ -348,6 +358,9 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgentic(w, sid) {
 		return
 	}
+	// Phase 0 B11: enforce execute-stage autonomy policy on /api/discovery/run
+	// so a session in suggest mode cannot bypass DecideExecute.
+	policy, _ := s.loadAutonomyPolicy(sid)
 	steps := req.Steps
 	plannedBy := "caller"
 	if len(steps) == 0 {
@@ -362,6 +375,27 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	if len(steps) == 0 || len(steps) > 5 {
 		WriteAPIError(w, "bad_request", "discovery protocol requires 1..5 steps", nil)
 		return
+	}
+	for _, st := range steps {
+		dec := autonomy.DecideExecute(policy, "approved", autonomy.RiskInput{
+			Method:          st.Kind,
+			Spec:            st.Spec,
+			BudgetUSD:       st.BudgetUSD,
+			Statement:       req.Goal,
+			MaxActBudgetUSD: policy.MaxActBudgetUSD,
+		})
+		if !dec.Allowed {
+			code := dec.Code
+			if code == "" {
+				code = "risk_approval_required"
+			}
+			WriteAPIError(w, code, dec.Reason, map[string]any{
+				"risk":               dec.Risk,
+				"execute_mode":       policy.ModeFor(autonomy.StageExecute),
+				"max_act_budget_usd": policy.MaxActBudgetUSD,
+			})
+			return
+		}
 	}
 	timeout := time.Duration(req.StepTimeout) * time.Second
 	if req.StepTimeout <= 0 {

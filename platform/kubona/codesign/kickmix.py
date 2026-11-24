@@ -758,14 +758,22 @@ class KickmixEvaluator:
         # NOTE: exact inversion lives in eps_upper_exact()/binom_tail() (new,
         # tested separately); this path keeps its long-pinned conservative
         # Hoeffding shape so existing receipts do not silently tighten.
-        if b == 0:
+        if enumerate_records and b == 0:
+            # B10: every input and every measurement record was checked with
+            # zero failures — exact exhaustive verification has eps = 0.0, not
+            # a statistical sampling bound.
+            eps_bound = 0.0
+            verification_method = "exhaustive"
+        elif b == 0:
             # eps <= 1 - delta^{1/k} at confidence 1-delta; report delta=0.025
             # (97.5% as in the paper's DQI gate).
             eps_bound = 1.0 - (0.025 ** (1.0 / k))
+            verification_method = "sampled"
         else:
             phat = b / k
             # Hoeffding upper tail at 97.5%: eps <= phat + sqrt(ln(40)/2k)
             eps_bound = min(1.0, phat + math.sqrt(math.log(40.0) / (2.0 * k)))
+            verification_method = "exhaustive" if enumerate_records else "sampled"
         transfer = transfer_bounds(eps_bound)
         ops = builder.emit()
         if factory is None and (code_distance is not None or cycle_us is not None):
@@ -795,6 +803,7 @@ class KickmixEvaluator:
             "toffoli": builder.toffoli_count(),
             "peak_qubits": builder.peak_qubits(),
             "eps_bound_97_5": eps_bound,
+            "verification_method": verification_method,
             "tests": k,
             "failure_details": failure_details,
             "failure_details_capped": len(failure_details) < failures,

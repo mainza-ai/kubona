@@ -29,11 +29,35 @@ def _energy(theta: float) -> float:
     return zz + 0.5 * xx
 
 
-class VQEAnsatzHarness(Harness):
-    """Mutable: the ansatz parameter theta. Fixed: H, backend, shots."""
+_SUPPORTED_TOY_HAMILTONIANS = frozenset({
+    "Z0Z1 + 0.5 X0X1",
+    "Z0Z1+0.5X0X1",
+    "H2",
+    "H2_STO3G",
+    "H2_STO-3G",
+    "H2-STO3G",
+    "H2-STO-3G",
+})
 
-    def __init__(self):
+
+class VQEAnsatzHarness(Harness):
+    """Mutable: the ansatz parameter theta. Fixed: H, backend, shots.
+
+    Only supports the 2-qubit H2 / Z0Z1 + 0.5 X0X1 Hamiltonian. Refuses
+    mismatched molecules (B1) rather than scoring a toy Hamiltonian against
+    another molecule's FCI anchor.
+    """
+
+    def __init__(self, hamiltonian: str | None = None):
         super().__init__("vqe_ansatz")
+        if hamiltonian is not None:
+            norm = hamiltonian.strip().upper().replace(" ", "")
+            allowed = {h.upper().replace(" ", "") for h in _SUPPORTED_TOY_HAMILTONIANS}
+            if norm not in allowed:
+                raise ValueError(
+                    f"vqe_ansatz harness only implements the 2-qubit H2 / Z0Z1+0.5X0X1 Hamiltonian; "
+                    f"refusing mismatched molecule/Hamiltonian {hamiltonian!r}"
+                )
         self._backend = "local-simulator"
         self._hamiltonian = "Z0Z1 + 0.5 X0X1"
         self._ground_energy = -1.118
@@ -142,8 +166,8 @@ class CorrectnessHarness(Harness):
         return {"pass": all(checks.values()), "checks": checks, "provider": self._provider}
 
 
-def build_vqe_ansatz_harness() -> Harness:
-    return VQEAnsatzHarness()
+def build_vqe_ansatz_harness(hamiltonian: str | None = None) -> Harness:
+    return VQEAnsatzHarness(hamiltonian=hamiltonian)
 
 
 def build_mitigation_harness() -> Harness:

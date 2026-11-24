@@ -351,6 +351,53 @@ def test_campaign_zne_on_best_and_measured_confidences(tmp_path):
     assert out["missing_refs"] == []
 
 
+def test_campaign_refuses_mismatched_toy_hamiltonian_and_uses_llm_seed(tmp_path):
+    """Phase 0 B1 & B2: mismatched molecule refuses; LLM suggestion seeds search."""
+    from kubona.autoresearch.harnesses import build_vqe_ansatz_harness
+    from kubona.discovery.campaign import DiscoveryCampaign
+    from kubona.provenance import Ledger
+
+    # B1: harness must refuse mismatched molecules instead of silently scoring
+    # the 2-qubit Z0Z1+0.5X0X1 toy Hamiltonian against another molecule's anchor.
+    with pytest.raises(ValueError, match="refusing mismatched molecule"):
+        build_vqe_ansatz_harness(hamiltonian="LiH")
+
+    # B2: LLM suggestion must seed the first evaluated theta in Orchestrator.search.
+    class StubLLM:
+        available = True
+
+        def complete(self, system, user, temperature=0.3):
+            return "2.25"
+
+    led = Ledger(path=str(tmp_path / "seed.jsonl"))
+    h2_camp = DiscoveryCampaign(problem="H2", hamiltonian="H2", ground_state=-1.137, budget_steps=1)
+    out = h2_camp.run(ledger=led, source="mock", llm=StubLLM())
+    assert out["stages"]["hypothesis"]["initial_theta"] == pytest.approx(2.25)
+    # First recorded trial artifact in the ledger must be the LLM-seeded 2.25.
+    import json as _json
+    rows = [_json.loads(line) for line in (tmp_path / "seed.jsonl").read_text().splitlines() if line.strip()]
+    trials = [r for r in rows if r.get("kind") == "trial"]
+    assert trials and float(trials[0]["payload"]["artifact"]) == pytest.approx(2.25)
+
+
+def test_kickmix_exhaustive_verification_reports_zero_eps():
+    """Phase 0 B10: exhaustive verification reports eps=0.0 and method=exhaustive."""
+    from kubona.codesign.kickmix import Builder, KickmixEvaluator, TaskSpec
+
+    def perm(bits):
+        out = dict(bits)
+        out[2] = bits.get(2, 0) ^ (bits.get(0, 0) & bits.get(1, 0))
+        return out
+
+    spec = TaskSpec(num_qubits=3, inputs=(0, 1), outputs=(2,), ancillas=(), target_perm=perm)
+    b = Builder(3)
+    b.ccx(0, 1, 2)
+    res = KickmixEvaluator().evaluate(b, spec, num_tests=16, max_failures=0, seed=7)
+    assert res["valid"] is True
+    assert res["verification_method"] == "exhaustive"
+    assert res["eps_bound_97_5"] == 0.0
+
+
 # ------------------------------------------------- W1.19 dialogue ---
 
 def test_dialogue_molecule_parser():

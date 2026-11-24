@@ -72,6 +72,18 @@ providers = [
 # langgraph: tests/test_langgraph_shim.py (VQE StateGraph end-to-end, runs
 # for real once the extra is installed — skipped without it).
 orchestration = ["langgraph==1.2.22"]
+# Zero-GPL QEC scientific core (Phase 0.5 / G1): Apache-2.0 & MIT only
+# (rustworkx replaces GPL python-igraph; CaDiCaL/Kissat via python-sat).
+qec = [
+    "qldpc==0.4.1",
+    "ldpc==2.4.1",
+    "galois==0.4.11",
+    "stim==1.16.0",
+    "sinter==1.16.0",
+    "pymatching==2.4.0",
+    "highspy==1.16.0",
+    "rustworkx==0.18.1",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

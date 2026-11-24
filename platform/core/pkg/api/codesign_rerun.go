@@ -33,7 +33,7 @@ import (
 const (
 	codesignRerunMaxBody          = 1 << 20
 	codesignRerunDefaultSteps     = 4
-	codesignRerunMaxSteps         = 12
+	codesignRerunMaxSteps         = 48
 	codesignRerunDefaultTokens    = 8192
 	codesignRerunMaxTokensPerStep = 8192
 	codesignRerunDefaultTests     = 64
@@ -463,6 +463,7 @@ func (s *Server) runCodesignRerun(ctx context.Context, runID string, req codesig
 	}
 	current := []codesignOp{}
 	var best *codesignTrial
+	lastFailure := ""
 	stopped := ""
 	for step := 0; step < req.BudgetSteps; step++ {
 		if !local {
@@ -475,7 +476,7 @@ func (s *Server) runCodesignRerun(ctx context.Context, runID string, req codesig
 				break
 			}
 		}
-		prompt := buildCodesignPrompt(spec.NumQubits, step, codesignRerunMaxOps, current)
+		prompt := buildCodesignPrompt(spec, req.SpecTable, step, codesignRerunMaxOps, current, lastFailure, best)
 		callCtx, cancel := context.WithTimeout(ctx, codesignRerunCallTimeout)
 		text, chatResp, _, err := s.llmClient.CompleteCapped(callCtx, "codesign", []llm.ChatMessage{
 			{Role: "system", Content: "You propose reversible Kickmix circuits. Reply with JSON only."},
@@ -500,7 +501,8 @@ func (s *Server) runCodesignRerun(ctx context.Context, runID string, req codesig
 		}
 		candidate, perr := parseCodesignProposal(text, spec.NumQubits, codesignRerunMaxOps)
 		if perr != nil {
-			resp.Trials = append(resp.Trials, codesignTrial{Step: step, Valid: false, Reason: truncateReason("proposal refused: " + perr.Error())})
+			lastFailure = truncateReason("proposal refused: " + perr.Error())
+			resp.Trials = append(resp.Trials, codesignTrial{Step: step, Valid: false, Reason: lastFailure})
 			continue
 		}
 		res, eerr := s.evaluateCodesign(ctx, req, candidate)
@@ -517,6 +519,7 @@ func (s *Server) runCodesignRerun(ctx context.Context, runID string, req codesig
 		resp.Trials = append(resp.Trials, trial)
 		resp.Steps = step + 1
 		if res.Valid {
+			lastFailure = ""
 			tq, _ := res.TQ.Float64()
 			bestTQ := 0.0
 			if best != nil {
@@ -528,6 +531,11 @@ func (s *Server) runCodesignRerun(ctx context.Context, runID string, req codesig
 			}
 			if best != nil && tq <= mustFloat(best.TQ) {
 				current = candidate
+			}
+		} else {
+			lastFailure = truncateReason(res.Reason)
+			if lastFailure == "" {
+				lastFailure = "candidate failed verification"
 			}
 		}
 		if !local && resp.EstimatedUSD >= budget {
@@ -583,20 +591,32 @@ func summarizeCodesignOps(ops []codesignOp) string {
 	return fmt.Sprintf("%dops:%s", len(ops), strings.Join(names, ","))
 }
 
-func buildCodesignPrompt(numQubits, step, maxOps int, current []codesignOp) string {
+func buildCodesignPrompt(spec codesignSpecMeta, specTable json.RawMessage, step, maxOps int, current []codesignOp, lastFailure string, best *codesignTrial) string {
 	gates := make([]string, 0, len(codesignGateArity))
 	for g := range codesignGateArity {
 		gates = append(gates, g)
 	}
 	sort.Strings(gates)
 	raw, _ := json.Marshal(wireOps(current))
-	return fmt.Sprintf("Complete the reversible Kickmix circuit. Allowed gates and qubit arity: %s. "+
-		"Only diagonal gates may carry a cond list of measurement-record ids. "+
-		"num_qubits=%d; step=%d; max_ops=%d. Current ops: %s. "+
-		"A valid AND2 result is exactly: {\"ops\":[[\"ccx\",[0,1,2],[]]]}. "+
-		"Reply with JSON only, no prose and no markdown: {\"ops\": [[name, [qubits], [cond]], ...]}. "+
-		"Do not use escaped quotes inside JSON strings.",
-		strings.Join(gates, ", "), numQubits, step, maxOps, string(raw))
+	var b strings.Builder
+	fmt.Fprintf(&b, "Synthesize or improve a reversible Kickmix circuit for spec_kind=%q (objective: minimize Toffoli*PeakQubits while passing all verification checks). ", spec.SpecKind)
+	if trimmed := strings.TrimSpace(string(specTable)); trimmed != "" && trimmed != "null" {
+		if len(trimmed) > 1024 {
+			trimmed = trimmed[:1024] + "..."
+		}
+		fmt.Fprintf(&b, "Specification table: %s. ", trimmed)
+	}
+	fmt.Fprintf(&b, "Allowed gates and qubit arity: %s. Only diagonal gates may carry a cond list of measurement-record ids. num_qubits=%d; step=%d; max_ops=%d. Current ops: %s. ",
+		strings.Join(gates, ", "), spec.NumQubits, step, maxOps, string(raw))
+	if best != nil {
+		fmt.Fprintf(&b, "Best valid frontier so far: T*Q=%s (toffoli=%d, peak_qubits=%d, ops=%s). ",
+			best.TQ.String(), best.Toffoli, best.PeakQubits, best.Candidate)
+	}
+	if strings.TrimSpace(lastFailure) != "" {
+		fmt.Fprintf(&b, "Previous proposal failed with: %s. Fix this failure and do not repeat the same invalid circuit. ", lastFailure)
+	}
+	b.WriteString(`Reply with JSON only, no prose and no markdown: {"ops": [[name, [qubits], [cond]], ...]}. Do not use escaped quotes inside JSON strings.`)
+	return b.String()
 }
 
 var codesignGateArity = map[string]int{

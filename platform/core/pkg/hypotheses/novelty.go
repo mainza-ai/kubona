@@ -14,11 +14,42 @@ package hypotheses
 // name is persisted with the distance so nobody later reads it as a semantic
 // novelty score.
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // NoveltyMethodLexicalContainmentV1 names the measure persisted alongside the
 // distance. A different measure must use a different name.
 const NoveltyMethodLexicalContainmentV1 = "lexical_containment_v1"
+
+// structuralDomains cannot be certified by lexical token overlap (Phase 0 B6).
+// Novelty for codes, circuits, schedules, and decoders requires structural
+// canonicalization + catalog comparison.
+var structuralDomains = map[string]bool{
+	"qec":          true,
+	"qec_code":     true,
+	"code_novelty": true,
+	"circuit":      true,
+	"schedule":     true,
+	"decoder":      true,
+}
+
+// IsStructuralDomain reports whether novelty in the given domain requires
+// structural canonicalization rather than lexical containment.
+func IsStructuralDomain(domain string) bool {
+	return structuralDomains[strings.ToLower(strings.TrimSpace(domain))]
+}
+
+// MeasureNoveltyForDomain refuses lexical novelty certification for structural
+// domains (B6) and delegates text/literature hypotheses to MeasureNovelty.
+func MeasureNoveltyForDomain(domain, statement string, refs []PriorArt) (distance float64, method string, ok bool, err error) {
+	if IsStructuralDomain(domain) {
+		return 0, "", false, fmt.Errorf("lexical novelty cannot certify structural domain %q: canonical form and catalog comparison required", strings.TrimSpace(domain))
+	}
+	d, m, measured := MeasureNovelty(statement, refs)
+	return d, m, measured, nil
+}
 
 // PriorArt is one retrieved record the statement is compared against.
 type PriorArt struct {
