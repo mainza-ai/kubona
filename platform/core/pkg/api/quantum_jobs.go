@@ -227,7 +227,9 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		isAdmissionRefusal := strings.Contains(lowerErr, "fidelity") ||
 			strings.Contains(lowerErr, "below floor") ||
 			strings.Contains(lowerErr, "stale calibration") ||
-			strings.Contains(lowerErr, "qubit")
+			strings.Contains(lowerErr, "qubit") ||
+			strings.Contains(lowerErr, "budget") ||
+			strings.Contains(lowerErr, "exceeds remaining")
 		if isAdmissionRefusal {
 			var fid any
 			if resp.FidelityJson != "" {
@@ -249,7 +251,7 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			WriteAPIError(w, "conflict", resp.ErrorMessage, map[string]any{
+			WriteAPIError(w, "request_conflict", resp.ErrorMessage, map[string]any{
 				"admitted": false,
 				"fidelity": fid,
 				"estimate": est,

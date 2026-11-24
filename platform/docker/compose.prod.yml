@@ -71,6 +71,10 @@ services:
       # serve authenticated RPCs (fail-closed).
       KUBONA_BRIDGE_SOCKET: /run/kubona/bridge.sock
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
+      # N-06: workflow science tools (science/get_classical_anchor, etc.) call
+      # back to kubonad over the compose network using these env vars.
+      KUBONA_CORE_URL: "http://kubonad:8080"
+      KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
       # IBM credentials are consumed by the bridge's qiskit provider, not
       # by kubonad. Keep them explicit so the private compute plane can
       # dispatch without baking secrets into the image.

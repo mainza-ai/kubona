@@ -189,23 +189,42 @@ def _results_table(measured: List[Dict[str, Any]]) -> str:
         r"\centering",
         r"\begin{tabular}{llrrrr}",
         r"\hline",
-        r"Job & Kind & Measured & Exact anchor & $\Delta$ (mHa) & Backend \\",
+        r"Job & Kind & Measured & Exact anchor & $\Delta$ / Gap & Backend \\",
         r"\hline",
     ]
     for row in measured:
+        kind_s = str(row.get("kind") or "--")
+        kind_l = kind_s.lower()
+        is_qaoa = "qaoa" in kind_l
         measured_v = row.get("energy")
         if measured_v is None:
             measured_v = row.get("ground_energy", row.get("reaction_energy", row.get("measured_cut")))
         exact_v = row.get("energy_exact")
         if exact_v is None:
-            exact_v = row.get("ground_energy_exact", row.get("reaction_energy_exact", row.get("fci_exact_energy")))
-        delta_v = row.get("delta")
-        if delta_v is None and measured_v is not None and exact_v is not None:
-            delta_v = abs(float(measured_v) - float(exact_v)) * 1000.0
+            exact_v = row.get("ground_energy_exact", row.get("reaction_energy_exact", row.get("fci_exact_energy", row.get("optimal_cut"))))
+        if is_qaoa:
+            # N-11: QAOA cut/ratio gaps are dimensionless — never label as mHa.
+            ratio_v = row.get("approximation_ratio")
+            if ratio_v is not None:
+                delta_str = f"{_fmt(ratio_v, 4)} ratio"
+            elif measured_v is not None and exact_v is not None:
+                delta_str = f"{_fmt(abs(float(measured_v) - float(exact_v)), 4)} cut"
+            else:
+                delta_str = "--"
+        else:
+            # N-10: always express Hartree energy discrepancies consistently in mHa
+            # (spin_chain_hardware stores `delta` in Ha, not mHa).
+            delta_mha = row.get("delta_mha")
+            if delta_mha is None and measured_v is not None and exact_v is not None:
+                delta_mha = abs(float(measured_v) - float(exact_v)) * 1000.0
+            elif delta_mha is None and row.get("delta") is not None:
+                raw_d = abs(float(row["delta"]))
+                delta_mha = raw_d * 1000.0 if "spin_chain" in kind_l else raw_d
+            delta_str = f"{_fmt(delta_mha, 4)} mHa" if delta_mha is not None else "--"
         lines.append(
             f"{_latex_escape(str(row.get('job_id') or '--'))} & "
-            f"{_latex_escape(str(row.get('kind') or '--'))} & "
-            f"{_fmt(measured_v)} & {_fmt(exact_v)} & {_fmt(delta_v, 4)} & "
+            f"{_latex_escape(kind_s)} & "
+            f"{_fmt(measured_v)} & {_fmt(exact_v)} & {delta_str} & "
             f"{_latex_escape(str(row.get('backend') or row.get('model') or '--'))} \\\\"
         )
     lines += [r"\hline", r"\end{tabular}", r"\caption{Measured results folded from settled jobs.}", r"\end{table}"]

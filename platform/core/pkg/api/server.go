@@ -429,7 +429,7 @@ func NewServer(
 		abortLimiter:          namedRateFromEnv("abort", "KUBONA_RATE_ABORT", 5, 15),
 		authLimiter:           namedRateFromEnv("auth", "KUBONA_RATE_AUTH", 5, 15),
 		codesignLimiter:       namedRateFromEnv("codesign", "KUBONA_RATE_CODESIGN", 1, 3),
-		manuscriptLimiter:     namedRateFromEnv("manuscript", "KUBONA_RATE_MANUSCRIPT", 0.2, 3),
+		manuscriptLimiter:     namedRateFromEnv("manuscript", "KUBONA_RATE_MANUSCRIPT", 0.5, 5),
 		manuscriptBuilds:      map[string]int64{},
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),

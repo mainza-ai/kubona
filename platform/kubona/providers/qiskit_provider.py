@@ -285,16 +285,21 @@ class QiskitProvider(Provider):
         return svc
 
     def _resolve_backend(self, service):
-        """Return the configured backend or the first operational hardware
-        backend. Backend names retire (ibm_brisbane did); a stale contract
-        name must not turn every calibration/dispatch into a hard failure.
+        """Return the explicitly requested backend (failing closed if unknown or
+        unavailable — N-01), or the least-busy operational hardware backend ONLY
+        when no specific backend name was requested.
         """
-        name = self.backend_name
+        name = (self.backend_name or "").strip()
         if name:
             try:
-                return service.backend(name)
-            except Exception:
-                pass
+                backend = service.backend(name)
+            except Exception as exc:
+                raise ProviderError(
+                    f"requested IBM backend {name!r} is unavailable or unknown: {exc}"
+                ) from exc
+            if backend is None:
+                raise ProviderError(f"requested IBM backend {name!r} returned None")
+            return backend
         try:
             return service.least_busy(operational=True, simulator=False)
         except Exception:

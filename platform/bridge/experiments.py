@@ -740,7 +740,7 @@ def run_vqe(
     if atom is not None:
         return run_generic_vqe(
             atom=str(atom), basis=str(basis), charge=int(charge), spin=int(spin),
-            ncas=ncas, nelecas=nelecas, shots=int(shots), seed=int(seed),
+            ncas=ncas, nelecas=nelecas, layers=int(layers), shots=int(shots), seed=int(seed),
             max_iterations=int(max_iterations),
         )
     mol = (molecule or "").upper()
@@ -1231,25 +1231,30 @@ def run_generic_vqe(
     spin: int = 0,
     ncas: int | None = None,
     nelecas: int | None = None,
+    layers: int = 1,
     shots: int = 8192,
     seed: int = 7,
     max_iterations: int = 80,
 ) -> dict[str, Any]:
     """Run a real active-space VQE for a caller-supplied PySCF geometry.
 
-    This is deliberately bounded: closed-shell, STO-3G, at most 8 spatial
-    orbitals for the full-FCI anchor and at most 12 active-space qubits. The
-    full-molecule FCI and active-space CASCI anchors stay separate. No
-    geometry is inferred and no energy is borrowed from a curated molecule.
+    This is deliberately bounded: closed-shell (neutral or charged ions with
+    charge in [-2, 2] and spin=0 — N-08), STO-3G, at most 8 spatial orbitals
+    for the full-FCI anchor, 1..4 UCCSD reps (`layers` — N-03), and at most 12
+    active-space qubits.
     """
     if not HAS_NATURE or not HAS_QISKIT:
         return {"success": False, "error": "qiskit-nature/pyscf unavailable: refusing generic VQE"}
     if str(basis).strip().lower() != "sto-3g":
         return {"success": False, "error": "generic VQE currently supports basis=sto-3g only"}
-    if int(charge) != 0:
-        return {"success": False, "error": "generic VQE currently supports neutral closed-shell molecules only (charge=0)"}
+    charge_i = int(charge)
+    if charge_i < -2 or charge_i > 2:
+        return {"success": False, "error": f"generic VQE supports charge in [-2, 2], got {charge_i}"}
     if int(spin) != 0:
         return {"success": False, "error": "generic VQE currently supports closed-shell molecules only (spin=0)"}
+    reps = int(layers)
+    if reps < 1 or reps > 4:
+        return {"success": False, "error": f"generic VQE layers (UCCSD reps) {reps} outside [1, 4]"}
     if ncas is None or nelecas is None:
         return {"success": False, "error": "generic VQE requires explicit ncas and nelecas"}
     ncas, nelecas = int(ncas), int(nelecas)
@@ -1279,7 +1284,7 @@ def run_generic_vqe(
         return {"success": False, "error": f"nelecas {nelecas} exceeds the molecule's {total_electrons} electrons"}
     t0 = time.perf_counter()
     try:
-        e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas, basis=str(basis), charge=0, spin=0)
+        e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas, basis=str(basis), charge=charge_i, spin=0)
         reduced = ActiveSpaceTransformer(num_electrons=nelecas, num_spatial_orbitals=ncas).transform(problem)
         mapper = JordanWignerMapper()
         qop = mapper.map(reduced.hamiltonian.second_q_op())
@@ -1287,7 +1292,7 @@ def run_generic_vqe(
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": f"active-space construction refused: {e}"}
     hf = HartreeFock(reduced.num_spatial_orbitals, reduced.num_particles, mapper)
-    ansatz = UCCSD(reduced.num_spatial_orbitals, reduced.num_particles, mapper, initial_state=hf)
+    ansatz = UCCSD(reduced.num_spatial_orbitals, reduced.num_particles, mapper, reps=reps, initial_state=hf)
     rng = np.random.default_rng(int(seed))
     x0 = rng.uniform(-0.15, 0.15, size=ansatz.num_parameters)
     trajectory: list[dict[str, Any]] = []
@@ -1326,7 +1331,7 @@ def run_generic_vqe(
         "qubit_count": int(qop.num_qubits),
         "active_space": {"ncas": ncas, "nelecas": nelecas,
                          "spatial_orbitals": spatial, "full_space": False},
-        "layers": 1,
+        "layers": reps,
         "shots": int(shots), "seed": int(seed),
         "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
                       "evaluations": int(opt.nfev), "success": bool(opt.success),

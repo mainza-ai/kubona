@@ -1327,6 +1327,26 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         result["calibration_checked_at"] = _dt.datetime.now(_dt.timezone.utc).isoformat()
                 except Exception as cal_stamp_err:
                     logger.warning("calibration metadata stamp skipped: %s", cal_stamp_err)
+            # N-07 / N-16: ensure requested_backend is recorded and per-point PES
+            # entries inherit parent batch hardware_job_id & calibration metadata.
+            if result.get("requested_backend") is None and spec.get("requested_backend"):
+                result["requested_backend"] = str(spec.get("requested_backend"))
+            if isinstance(result.get("points"), list):
+                parent_hw_id = result.get("hardware_job_id")
+                parent_cal_fresh = result.get("calibration_fresh")
+                parent_cal_age = result.get("calibration_age_hours")
+                parent_backend = result.get("backend")
+                for pt in result["points"]:
+                    if not isinstance(pt, dict):
+                        continue
+                    if pt.get("hardware_job_id") is None and parent_hw_id:
+                        pt["hardware_job_id"] = parent_hw_id
+                    if pt.get("calibration_fresh") is None and parent_cal_fresh is not None:
+                        pt["calibration_fresh"] = parent_cal_fresh
+                    if pt.get("calibration_age_hours") is None and parent_cal_age is not None:
+                        pt["calibration_age_hours"] = parent_cal_age
+                    if pt.get("backend") is None and parent_backend:
+                        pt["backend"] = parent_backend
         return kubona_pb2.ExperimentResponse(
             ok=bool(result.get("success")),
             error_message=str(result.get("error") or result.get("error_message") or ""),

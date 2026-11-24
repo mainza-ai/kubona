@@ -312,6 +312,9 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "campaign_missing", "no campaign projection exists for this session", nil)
 		return
 	}
+	// N-02: hydrate the campaign snapshot with every completed experiment job
+	// from the job ledger so deposited PDFs never omit settled measurements.
+	rawState = s.enrichCampaignWithSettledJobs(sessionID, rawState)
 	var campaign agents.CampaignState
 	if err := json.Unmarshal(rawState, &campaign); err != nil {
 		WriteAPIError(w, "campaign_invalid", "campaign projection is not decodable", nil)
@@ -1100,6 +1103,94 @@ func manuscriptContentHash(title, abstract string, sections []manuscriptBridgeSe
 func newManuscriptID() string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
 	return "ms_" + hex.EncodeToString(sum[:8])
+}
+
+// enrichCampaignWithSettledJobs merges every COMPLETED experiment job from the
+// session's job ledger into campaign["experiments"] (deduped by job_id) so the
+// synthesized manuscript table reports all settled runs, not just a truncated
+// projection (N-02).
+func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte) []byte {
+	if s.jobRunner == nil {
+		return rawState
+	}
+	allJobs, err := s.jobRunner.ListJobs(sessionID, 200)
+	if err != nil || len(allJobs) == 0 {
+		return rawState
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(rawState, &doc); err != nil || doc == nil {
+		return rawState
+	}
+	var exps []any
+	if existing, ok := doc["experiments"].([]any); ok {
+		exps = existing
+	}
+	seen := make(map[string]bool, len(exps))
+	for _, item := range exps {
+		if m, ok := item.(map[string]any); ok {
+			if jid, _ := m["job_id"].(string); jid != "" {
+				seen[jid] = true
+			}
+		}
+	}
+	for _, j := range allJobs {
+		if j == nil || j.Status != pb.JobStatus_JOB_STATUS_COMPLETED || len(j.ResultJSON) == 0 {
+			continue
+		}
+		if seen[j.ID] {
+			continue
+		}
+		var res map[string]any
+		if err := json.Unmarshal(j.ResultJSON, &res); err != nil || res == nil {
+			continue
+		}
+		kind, _ := res["kind"].(string)
+		if kind == "" {
+			kind = j.JobType
+		}
+		// Only include scientific experiment results (skip non-measurement utility jobs).
+		if _, hasEnergy := res["energy"]; !hasEnergy {
+			if _, hasGround := res["ground_energy"]; !hasGround {
+				if _, hasRxn := res["reaction_energy"]; !hasRxn {
+					if _, hasCut := res["measured_cut"]; !hasCut {
+						if _, hasPts := res["points"]; !hasPts {
+							continue
+						}
+					}
+				}
+			}
+		}
+		row := map[string]any{
+			"job_id":    j.ID,
+			"kind":      kind,
+			"measured":  true,
+			"claimable": res["claimable"],
+		}
+		for _, k := range []string{
+			"energy", "energy_exact", "fci_exact_energy", "ground_energy", "ground_energy_exact",
+			"reaction_energy", "reaction_energy_exact", "measured_cut", "optimal_cut",
+			"approximation_ratio", "delta_mha", "delta", "backend", "model",
+			"hardware_job_id", "calibration_fresh",
+		} {
+			if v, ok := res[k]; ok && v != nil {
+				row[k] = v
+			}
+		}
+		if _, hasMeasured := res["measured"]; hasMeasured {
+			row["measured"] = res["measured"]
+		}
+		if _, ok := row["backend"]; !ok && j.VendorRef != "" {
+			row["backend"] = "ibm-qiskit"
+		}
+		exps = append(exps, row)
+		seen[j.ID] = true
+	}
+	doc["experiments"] = exps
+	enriched, err := json.Marshal(doc)
+	if err != nil {
+		return rawState
+	}
+	return enriched
 }
 
 func nonEmptyJSON(raw []byte) string {
