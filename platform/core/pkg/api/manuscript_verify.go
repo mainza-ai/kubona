@@ -115,8 +115,29 @@ func (s *Server) manuscriptVerificationEvidence(sessionID string, ms *ledger.Man
 		add("campaign.live", string(raw))
 	}
 	if jobs, err := s.jobRunner.ListJobs(sessionID, 200); err == nil {
+		var totalHWShots int64
+		var totalAllShots int64
 		for _, j := range jobs {
 			add("job:"+j.ID, string(j.ResultJSON))
+			if len(j.ResultJSON) > 0 {
+				var m map[string]any
+				if json.Unmarshal(j.ResultJSON, &m) == nil {
+					if sh, ok := m["shots"].(float64); ok && sh > 0 {
+						totalAllShots += int64(sh)
+						if hw, _ := m["hardware"].(bool); hw {
+							totalHWShots += int64(sh)
+						}
+					}
+				}
+			}
+		}
+		if totalAllShots > 0 {
+			if agg, merr := json.Marshal(map[string]any{
+				"total_hardware_shots": totalHWShots,
+				"total_campaign_shots": totalAllShots,
+			}); merr == nil {
+				add("campaign.aggregates", string(agg))
+			}
 		}
 	}
 	if claims, err := s.ledger.ListClaimRecords(sessionID, 200); err == nil {

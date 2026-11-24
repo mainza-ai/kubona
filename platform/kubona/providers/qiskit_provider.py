@@ -91,6 +91,10 @@ def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] |
             if "T" in snap["calibrated_at"] and not snap["calibrated_at"].endswith(("Z", "+00:00")) and "+" not in snap["calibrated_at"][10:]:
                 snap["calibrated_at"] += "+00:00"
             snap["version"] = "live-" + snap["calibrated_at"]
+            import hashlib as _hashlib
+            _dig = _hashlib.sha256(f"{backend_name}|{snap['version']}|{snap['calibrated_at']}".encode("utf-8")).hexdigest()[:12]
+            snap["snapshot_id"] = f"cal_{_dig}"
+            snap["backend"] = backend_name
     if oneq:
         snap["single_qubit_error"] = float(statistics.median(oneq))
     if twoq:
@@ -582,6 +586,15 @@ class QiskitProvider(Provider):
             "channel": self._channel(), "layout": layout,
         }
         try:
+            cal_snap = _snapshot_from_properties(
+                backend.properties(),
+                str(getattr(backend, "name", self.backend_name or "")),
+            )
+            if cal_snap:
+                out["calibration"] = cal_snap
+        except Exception:
+            pass
+        try:
             usage = job.usage()
             if usage is not None:
                 out["usage_seconds"] = float(usage)
@@ -666,6 +679,15 @@ class QiskitProvider(Provider):
             "layout": layout,
             "plan": self._plan,
         }
+        try:
+            cal_snap = _snapshot_from_properties(
+                backend.properties(),
+                str(getattr(backend, "name", self.backend_name or "")),
+            )
+            if cal_snap:
+                out["calibration"] = cal_snap
+        except Exception:
+            pass
         try:
             usage = job.usage()
             if usage is not None:

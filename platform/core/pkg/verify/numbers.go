@@ -120,30 +120,43 @@ type ExtractedNumber struct {
 	End      int
 }
 
+// nonClaimIdentifier scrubs URLs, LaTeX \href{...}{...} commands, and DOI
+// identifiers (e.g., 10.1038/s41586-023-06096-3) before numeric claim
+// extraction so DOI prefixes like "10.1038" are never flagged as unmatched
+// measurements (W4-04).
+var nonClaimIdentifier = regexp.MustCompile(`(?i)\\href\{[^}]*\}\{[^}]*\}|https?://[^\s}]+|doi:\s*10\.\d{4,9}/[^\s},)]+|\b10\.\d{4,9}/[^\s},)]+`)
+
+func scrubNonClaimIdentifiers(text string) string {
+	return nonClaimIdentifier.ReplaceAllStringFunc(text, func(m string) string {
+		return strings.Repeat(" ", len(m))
+	})
+}
+
 // ExtractNumbers finds measurement-like numbers in text. Unit-bearing values
 // and decimals with at least three fractional digits qualify; years, small
-// enumerations, and reference markers do not.
+// enumerations, DOIs/URLs, and reference markers do not.
 func ExtractNumbers(text string) []ExtractedNumber {
+	cleaned := scrubNonClaimIdentifiers(text)
 	out := []ExtractedNumber{}
 	seen := [][2]int{}
-	for _, m := range unitNumber.FindAllStringSubmatchIndex(text, -1) {
-		raw := text[m[2]:m[3]]
+	for _, m := range unitNumber.FindAllStringSubmatchIndex(cleaned, -1) {
+		raw := cleaned[m[2]:m[3]]
 		v, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			continue
 		}
-		unit := strings.ToLower(strings.TrimSpace(text[m[4]:m[5]]))
+		unit := strings.ToLower(strings.TrimSpace(cleaned[m[4]:m[5]]))
 		out = append(out, ExtractedNumber{
 			Raw: raw, Value: v, Unit: unit, Decimals: decimals(raw),
 			Start: m[0], End: m[1],
 		})
 		seen = append(seen, [2]int{m[0], m[1]})
 	}
-	for _, m := range bareDecimal.FindAllStringIndex(text, -1) {
+	for _, m := range bareDecimal.FindAllStringIndex(cleaned, -1) {
 		if overlapsAny(m, seen) {
 			continue
 		}
-		raw := text[m[0]:m[1]]
+		raw := cleaned[m[0]:m[1]]
 		v, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			continue
@@ -214,8 +227,8 @@ func (e Evidence) Values() []EvidenceValue {
 			continue
 		}
 		flatten(doc.ID, "", v, 0, &out)
-		if len(out) > 5000 {
-			out = out[:5000]
+		if len(out) > 50000 {
+			out = out[:50000]
 			break
 		}
 	}
@@ -223,7 +236,7 @@ func (e Evidence) Values() []EvidenceValue {
 }
 
 func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
-	if depth > 12 || len(*out) > 5000 {
+	if depth > 12 || len(*out) > 50000 {
 		return
 	}
 	switch val := v.(type) {
@@ -233,6 +246,10 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
+		// W4-04: emit scalar leaves and derived deltas BEFORE descending into
+		// nested arrays/maps so large time-series (e.g. 60-step lattice_dynamics)
+		// never crowd out scalar job measurements.
+		nested := make([]string, 0, len(keys))
 		for _, k := range keys {
 			if nonMeasurementConfigKeys[strings.ToLower(k)] {
 				continue
@@ -241,11 +258,23 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 			if prefix != "" {
 				path = prefix + "." + k
 			}
-			flatten(source, path, val[k], depth+1, out)
+			switch val[k].(type) {
+			case float64, json.Number:
+				flatten(source, path, val[k], depth+1, out)
+			default:
+				nested = append(nested, k)
+			}
 		}
-		// D-05: record explicit derived |measured - exact| deltas (Ha & mHa)
+		// D-05 / W4-04: record explicit derived |measured - exact| deltas (Ha & mHa)
 		// so auto-synthesized multi-job tables verify without coincidence matching.
 		emitDerivedDeltas(source, prefix, val, out)
+		for _, k := range nested {
+			path := k
+			if prefix != "" {
+				path = prefix + "." + k
+			}
+			flatten(source, path, val[k], depth+1, out)
+		}
 	case []any:
 		for i, item := range val {
 			flatten(source, prefix+"["+strconv.Itoa(i)+"]", item, depth+1, out)
@@ -262,11 +291,16 @@ func flatten(source, prefix string, v any, depth int, out *[]EvidenceValue) {
 func emitDerivedDeltas(source, prefix string, obj map[string]any, out *[]EvidenceValue) {
 	pairs := [][2]string{
 		{"energy", "fci_exact_energy"},
+		{"energy", "active_space_fci_energy"},
 		{"energy", "energy_exact"},
 		{"energy", "exact_energy"},
 		{"energy_measured", "fci_exact_energy"},
 		{"reaction_energy", "reaction_energy_exact"},
 		{"ground_energy", "ground_energy_exact"},
+		{"ground_energy", "fci_exact_energy"},
+		{"ground_energy", "active_space_fci_energy"},
+		{"ground_state_energy", "exact_energy"},
+		{"ground_state_energy", "fci_exact_energy"},
 		{"gap", "gap_exact"},
 	}
 	numOf := func(k string) (float64, bool) {

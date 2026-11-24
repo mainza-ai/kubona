@@ -370,9 +370,13 @@ def _evidence_section(evidence: Dict[str, Any]) -> str:
         resolved = resolved[:_MAX_LISTED_RECEIPTS]
     lines = []
     if resolved:
+        brk = "job:\\allowbreak "
         lines.append(
+            r"\begin{sloppypar}"
             "The following provenance receipts were resolved against ledger records: "
-            + ", ".join(rf"\texttt{{{_latex_escape(x)}}}" for x in resolved) + "."
+            + ", ".join(r"\texttt{\footnotesize " + _latex_escape(x).replace("job:", brk) + "}" for x in resolved)
+            + "."
+            r"\end{sloppypar}"
         )
     else:
         lines.append("No provenance receipt was resolved against the ledger for this draft.")
@@ -514,9 +518,13 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
             n += 1
         used_keys.add(key)
         citations.append({**entry, "key": key})
+    # W4-03: canonicalize citation order by sanitized BibTeX key so create and
+    # SQL ORDER BY cite_key rebuilds always produce identical content hashes.
+    citations.sort(key=lambda c: c["key"])
     cite_keys = [c["key"] for c in citations]
 
     figures: List[Tuple[str, bytes]] = []
+    auto_generated_figures: List[Dict[str, str]] = []
     figure_captions: Dict[str, str] = {}
     seen = set()
     for entry in req.get("figures") or []:
@@ -538,6 +546,11 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
                 seen.add(fname)
                 figures.append((fname, fbytes))
                 figure_captions[fname] = fcap
+                auto_generated_figures.append({
+                    "name": fname,
+                    "content_b64": _b64(fbytes),
+                    "caption": fcap,
+                })
     figure_sha = [_dig(raw) for _, raw in figures]
 
     goal_s = _latex_escape(str(campaign.get("research_goal") or "not recorded"))
@@ -679,6 +692,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         "main_tex": main_tex,
         "bibtex": bibtex,
         "figure_sha256": dict(zip([n for n, _ in figures], figure_sha)),
+        "generated_figures": auto_generated_figures,
         "citations": citations,
         "review": review_json,
         "build": None,

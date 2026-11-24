@@ -30,38 +30,40 @@ type Receipt struct {
 // Result is the shared envelope. Numeric pointers preserve the difference
 // between "absent" and a measured zero.
 type Result struct {
-	ResultVersion  string           `json:"result_version"`
-	Success        bool             `json:"success"`
-	Kind           string           `json:"kind"`
-	Molecule       string           `json:"molecule,omitempty"`
-	Generic        *bool            `json:"generic,omitempty"`
-	Atom           string           `json:"atom,omitempty"`
-	Basis          string           `json:"basis,omitempty"`
-	Charge         *int             `json:"charge,omitempty"`
-	Spin           *int             `json:"spin,omitempty"`
-	Model          string           `json:"model,omitempty"`
-	NSites         int              `json:"n_sites,omitempty"`
-	Energy         *float64         `json:"energy,omitempty"`
-	EnergyExact    *float64         `json:"energy_exact,omitempty"`
-	FCIExactEnergy *float64         `json:"fci_exact_energy,omitempty"`
-	Uncertainty    *float64         `json:"uncertainty,omitempty"`
-	DeltaMHa       *float64         `json:"delta_mha,omitempty"`
-	OptimalCut     *int             `json:"optimal_cut,omitempty"`
-	MeasuredCut    *float64         `json:"measured_cut,omitempty"`
-	GroundEnergy   *float64         `json:"ground_energy,omitempty"`
-	ExcitedEnergy  *float64         `json:"excited_energy,omitempty"`
-	Gap            *float64         `json:"gap,omitempty"`
-	ReactionEnergy *float64         `json:"reaction_energy,omitempty"`
-	ReactionExact  *float64         `json:"reaction_energy_exact,omitempty"`
-	CandidateCount *int             `json:"candidate_count,omitempty"`
-	Measured       *bool            `json:"measured,omitempty"`
-	Hardware       *bool            `json:"hardware,omitempty"`
-	HardwareJobID  string           `json:"hardware_job_id,omitempty"`
-	HardwareJobIDs []string         `json:"hardware_job_ids,omitempty"`
-	Claimable      *bool            `json:"claimable,omitempty"`
-	Times          []map[string]any `json:"times,omitempty"`
-	Points         []map[string]any `json:"points,omitempty"`
-	Receipt        *Receipt         `json:"result_receipt,omitempty"`
+	ResultVersion        string           `json:"result_version"`
+	Success              bool             `json:"success"`
+	Kind                 string           `json:"kind"`
+	Molecule             string           `json:"molecule,omitempty"`
+	Generic              *bool            `json:"generic,omitempty"`
+	Atom                 string           `json:"atom,omitempty"`
+	Basis                string           `json:"basis,omitempty"`
+	Charge               *int             `json:"charge,omitempty"`
+	Spin                 *int             `json:"spin,omitempty"`
+	Model                string           `json:"model,omitempty"`
+	NSites               int              `json:"n_sites,omitempty"`
+	Energy               *float64         `json:"energy,omitempty"`
+	EnergyExact          *float64         `json:"energy_exact,omitempty"`
+	FCIExactEnergy       *float64         `json:"fci_exact_energy,omitempty"`
+	ActiveSpaceFCIEnergy *float64         `json:"active_space_fci_energy,omitempty"`
+	AnchorMode           string           `json:"anchor_mode,omitempty"`
+	Uncertainty          *float64         `json:"uncertainty,omitempty"`
+	DeltaMHa             *float64         `json:"delta_mha,omitempty"`
+	OptimalCut           *int             `json:"optimal_cut,omitempty"`
+	MeasuredCut          *float64         `json:"measured_cut,omitempty"`
+	GroundEnergy         *float64         `json:"ground_energy,omitempty"`
+	ExcitedEnergy        *float64         `json:"excited_energy,omitempty"`
+	Gap                  *float64         `json:"gap,omitempty"`
+	ReactionEnergy       *float64         `json:"reaction_energy,omitempty"`
+	ReactionExact        *float64         `json:"reaction_energy_exact,omitempty"`
+	CandidateCount       *int             `json:"candidate_count,omitempty"`
+	Measured             *bool            `json:"measured,omitempty"`
+	Hardware             *bool            `json:"hardware,omitempty"`
+	HardwareJobID        string           `json:"hardware_job_id,omitempty"`
+	HardwareJobIDs       []string         `json:"hardware_job_ids,omitempty"`
+	Claimable            *bool            `json:"claimable,omitempty"`
+	Times                []map[string]any `json:"times,omitempty"`
+	Points               []map[string]any `json:"points,omitempty"`
+	Receipt              *Receipt         `json:"result_receipt,omitempty"`
 
 	raw map[string]json.RawMessage
 }
@@ -96,8 +98,9 @@ func Decode(jobType string, data []byte) (*Result, error) {
 	r.Kind = kind
 	for name, value := range map[string]*float64{
 		"energy": r.Energy, "energy_exact": r.EnergyExact,
-		"fci_exact_energy": r.FCIExactEnergy, "uncertainty": r.Uncertainty,
-		"delta_mha": r.DeltaMHa, "measured_cut": r.MeasuredCut,
+		"fci_exact_energy": r.FCIExactEnergy, "active_space_fci_energy": r.ActiveSpaceFCIEnergy,
+		"uncertainty": r.Uncertainty,
+		"delta_mha":   r.DeltaMHa, "measured_cut": r.MeasuredCut,
 		"ground_energy": r.GroundEnergy, "excited_energy": r.ExcitedEnergy,
 		"gap": r.Gap, "reaction_energy": r.ReactionEnergy,
 		"reaction_energy_exact": r.ReactionExact,
@@ -188,8 +191,17 @@ func validateVariant(kind string, r *Result) error {
 		if err := require("energy", r.Energy); err != nil {
 			return err
 		}
-		if err := require("fci_exact_energy", r.FCIExactEnergy); err != nil {
-			return err
+		// W4-05 / W3-05: 9..14 spatial-orbital active-space VQE (e.g. N2/CO CAS(4,4))
+		// uses exact active-space CASCI as its classical anchor when full-molecule
+		// FCI exceeds local memory.
+		if kind == "vqe" && strings.EqualFold(strings.TrimSpace(r.AnchorMode), "casci_active_space") {
+			if err := require("active_space_fci_energy", r.ActiveSpaceFCIEnergy); err != nil {
+				return err
+			}
+		} else {
+			if err := require("fci_exact_energy", r.FCIExactEnergy); err != nil {
+				return err
+			}
 		}
 	case "pes":
 		var points []map[string]json.RawMessage

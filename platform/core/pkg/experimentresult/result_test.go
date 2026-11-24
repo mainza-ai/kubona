@@ -71,6 +71,16 @@ func TestDecodeRejectsTruthViolations(t *testing.T) {
 			t.Fatalf("%s: got %v, want %q", tc.name, err, tc.want)
 		}
 	}
+	// W4-05: active-space CASCI VQE (e.g. N2/CO 10 spatial orbitals) is valid with
+	// fci_exact_energy:null when anchor_mode=casci_active_space and active_space_fci_energy is finite.
+	casciRaw := base(map[string]any{
+		"fci_exact_energy":        nil,
+		"anchor_mode":             "casci_active_space",
+		"active_space_fci_energy": -107.497933,
+	})
+	if _, err := Decode("vqe_run", casciRaw); err != nil {
+		t.Fatalf("W4-05 CASCI-anchored VQE should decode cleanly, got: %v", err)
+	}
 }
 
 func TestSchemaKindEnumMatchesDecoder(t *testing.T) {

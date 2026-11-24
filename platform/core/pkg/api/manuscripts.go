@@ -55,18 +55,19 @@ type manuscriptBridgeSection struct {
 }
 
 type manuscriptBridgeResponse struct {
-	OK           bool                       `json:"ok"`
-	ErrorCode    string                     `json:"error_code"`
-	Error        string                     `json:"error"`
-	ManuscriptID string                     `json:"manuscript_id"`
-	Title        string                     `json:"title"`
-	Abstract     string                     `json:"abstract"`
-	Sections     []manuscriptBridgeSection  `json:"sections"`
-	Bibtex       string                     `json:"bibtex"`
-	FigureSHA    map[string]string          `json:"figure_sha256"`
-	Citations    []manuscriptCiteIn         `json:"citations"`
-	Review       json.RawMessage            `json:"review"`
-	Build        *manuscriptBridgeBuildMeta `json:"build"`
+	OK               bool                       `json:"ok"`
+	ErrorCode        string                     `json:"error_code"`
+	Error            string                     `json:"error"`
+	ManuscriptID     string                     `json:"manuscript_id"`
+	Title            string                     `json:"title"`
+	Abstract         string                     `json:"abstract"`
+	Sections         []manuscriptBridgeSection  `json:"sections"`
+	Bibtex           string                     `json:"bibtex"`
+	FigureSHA        map[string]string          `json:"figure_sha256"`
+	GeneratedFigures []map[string]any           `json:"generated_figures,omitempty"`
+	Citations        []manuscriptCiteIn         `json:"citations"`
+	Review           json.RawMessage            `json:"review"`
+	Build            *manuscriptBridgeBuildMeta `json:"build"`
 }
 
 type manuscriptBridgeBuildMeta struct {
@@ -385,16 +386,39 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// W4-01: merge bridge-generated auto-figures into the verified figure list
+	// so Go cryptographically verifies every byte and persists them for build.
+	if len(resp.GeneratedFigures) > 0 {
+		haveFig := make(map[string]bool, len(figures))
+		for _, f := range figures {
+			if n, _ := f["name"].(string); n != "" {
+				haveFig[n] = true
+			}
+		}
+		for _, gf := range resp.GeneratedFigures {
+			if n, _ := gf["name"].(string); n != "" && !haveFig[n] {
+				figures = append(figures, gf)
+				haveFig[n] = true
+			}
+		}
+		req.Figures = figures
+	}
 	if err := verifyBridgeFigureHashes(figures, resp.FigureSHA); err != nil {
 		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
 		return
 	}
+	// W4-02: persist document_type, subtitle, and auto_figures=false (generated
+	// figures are already persisted in FiguresJSON) so storedManuscriptRequest
+	// recomposes the exact same source and content_hash during build.
+	if req.DocumentType != "" {
+		evidence["_document_type"] = req.DocumentType
+	}
+	if req.Subtitle != "" {
+		evidence["_subtitle"] = req.Subtitle
+	}
+	evidence["_auto_figures"] = false
 	// The bridge sanitizes and deduplicates BibTeX keys; store the effective
 	// keys the PDF actually cites, not the caller's raw string.
-	if err := verifyBridgeFigureHashes(req.Figures, resp.FigureSHA); err != nil {
-		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
-		return
-	}
 	citationInput := body.Citations
 	if len(resp.Citations) > 0 {
 		citationInput = resp.Citations
@@ -977,9 +1001,18 @@ func (s *Server) storedManuscriptRequest(ms *ledger.Manuscript, build bool) (man
 			"claim_id": c.ClaimID, "source_id": c.SourceID, "verified": c.Verified,
 		})
 	}
+	docType, _ := evidence["_document_type"].(string)
+	subtitle, _ := evidence["_subtitle"].(string)
+	var autoFigs *bool
+	if v, ok := evidence["_auto_figures"].(bool); ok {
+		autoFigs = &v
+	}
 	return manuscriptRequest{
 		ManuscriptID:    ms.ID,
 		Title:           ms.Title,
+		Subtitle:        subtitle,
+		DocumentType:    docType,
+		AutoFigures:     autoFigs,
 		Authors:         authors,
 		Abstract:        ms.Abstract,
 		TargetSystem:    target,
@@ -1139,23 +1172,53 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 	if existing, ok := doc["experiments"].([]any); ok {
 		exps = existing
 	}
-	seen := make(map[string]bool, len(exps))
+	existingByID := make(map[string]map[string]any, len(exps))
 	for _, item := range exps {
 		if m, ok := item.(map[string]any); ok {
 			if jid, _ := m["job_id"].(string); jid != "" {
-				seen[jid] = true
+				existingByID[jid] = m
 			}
 		}
+	}
+	richKeys := []string{
+		"molecule", "atom", "basis", "charge", "spin", "layers",
+		"ansatz_depth", "two_qubit_gate_count", "shots", "ci95_mha",
+		"energy", "energy_exact", "exact_energy", "fci_exact_energy", "active_space_fci_energy",
+		"ground_energy", "ground_energy_exact", "ground_state_energy",
+		"reaction_energy", "reaction_energy_exact",
+		"measured_cut", "optimal_cut", "approximation_ratio",
+		"delta_mha", "delta",
+		"energy_initial", "times", "quench_field",
+		"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
+		"points", "status", "verdict", "law", "expression",
+		"mitigated", "hardware", "actual_usd",
+		"backend", "requested_backend", "model",
+		"hardware_job_id", "vendor_ref",
+		"calibration", "calibration_fresh", "calibration_checked_at", "calibration_snapshot_id",
 	}
 	for _, j := range allJobs {
 		if j == nil || j.Status != pb.JobStatus_JOB_STATUS_COMPLETED || len(j.ResultJSON) == 0 {
 			continue
 		}
-		if seen[j.ID] {
-			continue
-		}
 		var res map[string]any
 		if err := json.Unmarshal(j.ResultJSON, &res); err != nil || res == nil {
+			continue
+		}
+		// W4-01b: if the campaign replanner already stored a stripped summary row
+		// for this job_id, merge all missing rich fields (times, approximation_ratio,
+		// calibration, vendor_ref, layers, points, etc.) so figure renderers and
+		// tables always see the full settled payload.
+		if existing, ok := existingByID[j.ID]; ok {
+			for _, k := range richKeys {
+				if v, has := res[k]; has && v != nil {
+					if cur, exists := existing[k]; !exists || cur == nil {
+						existing[k] = v
+					}
+				}
+			}
+			if _, ok := existing["vendor_ref"]; !ok && j.VendorRef != "" {
+				existing["vendor_ref"] = j.VendorRef
+			}
 			continue
 		}
 		kind, _ := res["kind"].(string)
@@ -1164,13 +1227,18 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		}
 		// Include every settled scientific experiment result (VQE, ZNE hardware,
 		// PES, QAOA, spin-chain, Krylov, 2D lattice dynamics, DMRG thermodynamic
-		// limit, and symbolic conjecture — W3-01 / N-02).
+		// limit, and symbolic conjecture — W3-01 / N-02 / W4-09).
 		kindLower := strings.ToLower(strings.TrimSpace(kind))
+		jobTypeLower := strings.ToLower(strings.TrimSpace(j.JobType))
 		isKnownScientificKind := kindLower == "krylov" ||
 			kindLower == "hardware_pes" ||
 			kindLower == "lattice_dynamics" ||
 			kindLower == "thermodynamic_limit" ||
-			kindLower == "conjecture"
+			strings.Contains(kindLower, "conjecture") ||
+			strings.Contains(jobTypeLower, "conjecture")
+		if isKnownScientificKind && strings.Contains(jobTypeLower, "conjecture") && kindLower == "" {
+			kind = "conjecture"
+		}
 		if !isKnownScientificKind {
 			_, hasEnergy := res["energy"]
 			_, hasGround := res["ground_energy"]
@@ -1190,22 +1258,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 			"measured":  true,
 			"claimable": res["claimable"],
 		}
-		for _, k := range []string{
-			"molecule", "atom", "basis", "charge", "spin", "layers",
-			"ansatz_depth", "two_qubit_gate_count", "shots", "ci95_mha",
-			"energy", "energy_exact", "exact_energy", "fci_exact_energy", "active_space_fci_energy",
-			"ground_energy", "ground_energy_exact", "ground_state_energy",
-			"reaction_energy", "reaction_energy_exact",
-			"measured_cut", "optimal_cut", "approximation_ratio",
-			"delta_mha", "delta",
-			"energy_initial", "times", "quench_field",
-			"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
-			"points", "status", "verdict", "law", "expression",
-			"mitigated", "hardware", "actual_usd",
-			"backend", "requested_backend", "model",
-			"hardware_job_id", "vendor_ref",
-			"calibration", "calibration_fresh", "calibration_checked_at", "calibration_snapshot_id",
-		} {
+		for _, k := range richKeys {
 			if v, ok := res[k]; ok && v != nil {
 				row[k] = v
 			}
@@ -1220,7 +1273,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 			row["backend"] = "ibm-qiskit"
 		}
 		exps = append(exps, row)
-		seen[j.ID] = true
+		existingByID[j.ID] = row
 	}
 	doc["experiments"] = exps
 	// Hydrate persisted campaign hypotheses so the manuscript Statistical Audit

@@ -779,6 +779,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 break
         if doi_norm.startswith("10.") and "/" in doi_norm and os.getenv("KUBONA_AIR_GAPPED", "0") != "1":
             try:
+                import json
                 import urllib.request
                 import urllib.parse
                 cr_url = f"https://api.crossref.org/works/{urllib.parse.quote(doi_norm, safe='/')}"

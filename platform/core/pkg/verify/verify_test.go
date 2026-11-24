@@ -203,3 +203,34 @@ func TestVerifyNumbersRejectsTrajectoryThetaCoincidenceAndSupportsDerivedDeltas(
 		t.Fatalf("D-02 regression: 0.0010 mHa must NOT match trajectory theta radians, got %+v", findings[2])
 	}
 }
+
+func TestVerifyNumbersScrubsDOIsAndIndexesBeyond5000Leaves(t *testing.T) {
+	// W4-04: DOI strings (10.1038/s41586-023-06096-3) must not be flagged as
+	// unmatched measurements, and large 60-step lattice arrays must not crowd out
+	// spin_chain_hardware or excited_state derived deltas.
+	bigTimes := make([]string, 60)
+	for i := range bigTimes {
+		bigTimes[i] = `{"t":0.1,"loschmidt_echo":0.5,"zz_correlator_mean":0.4,"m0":0.1,"m1":0.2,"m2":0.3,"m3":0.4,"m4":0.5,"m5":0.6,"m6":0.7,"m7":0.8}`
+	}
+	latticeDoc := `{"kind":"lattice_dynamics","times":[` + strings.Join(bigTimes, ",") + `]}`
+	docs := []Document{}
+	for i := 0; i < 10; i++ {
+		docs = append(docs, Document{ID: "lattice-" + string(rune('0'+i)), JSON: latticeDoc})
+	}
+	docs = append(docs,
+		Document{ID: "spin-hw", JSON: `{"kind":"spin_chain_hardware","energy":-3.611328,"energy_exact":-5.226252}`},
+		Document{ID: "exc-1", JSON: `{"kind":"excited_state","ground_energy":-7.836872,"fci_exact_energy":-7.882402}`},
+	)
+	prose := `Prior work \href{https://doi.org/10.1038/s41586-023-06096-3}{doi:10.1038/s41586-023-06096-3} ` +
+		`and 10.1038/nature23879. Spin chain measured -3.611328 Ha (1614.924 mHa). ` +
+		`Excited state ground delta 45.530 mHa.`
+	findings := VerifyNumbers(prose, Evidence{Documents: docs})
+	if len(findings) != 3 {
+		t.Fatalf("expected exactly 3 measurement findings (DOIs scrubbed), got %d: %+v", len(findings), findings)
+	}
+	for _, f := range findings {
+		if f.Status != NumberMatched {
+			t.Fatalf("expected all 3 findings matched, got %+v", f)
+		}
+	}
+}

@@ -51,7 +51,7 @@ def _load_font(size: int):
 
 def _to_png_bytes(img: "Image.Image") -> bytes:
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=False, compress_level=6)
+    img.save(buf, format="PNG", optimize=False, compress_level=6, dpi=(300, 300))
     return buf.getvalue()
 
 

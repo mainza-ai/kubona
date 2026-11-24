@@ -364,5 +364,43 @@ def test_white_paper_and_companion_markdown_html_with_auto_figures():
     assert "fig_energy_benchmark.png" in resp["figure_sha256"]
     names = {a["name"] for a in resp["build"]["artifacts"]}
     assert {"main.pdf", "paper.md", "paper.html", "figures/fig_energy_benchmark.png"} <= names
+    # W4-01 + W4-11: generated_figures returned with 300-DPI PNG metadata
+    assert any(gf["name"] == "fig_energy_benchmark.png" for gf in resp["generated_figures"])
+    from PIL import Image
+    import io
+    raw_png = base64.b64decode(resp["generated_figures"][0]["content_b64"])
+    im = Image.open(io.BytesIO(raw_png))
+    dpi = im.info.get("dpi")
+    assert dpi and round(dpi[0]) == 300 and round(dpi[1]) == 300, f"expected 300 DPI, got {dpi}"
+
+
+def test_multi_citation_order_is_canonical_and_quench_qaoa_figures_render():
+    """W4-03 + W4-01b: multi-citation order is canonicalized by key, and
+    lattice_dynamics (with times) + qaoa (with approximation_ratio) generate
+    fig_quench_dynamics.png and fig_qaoa_utility.png."""
+    campaign = {
+        "target_system": "TFIM + QAOA",
+        "research_goal": "Verify quench and QAOA figure synthesis",
+        "experiments": [
+            {"job_id": "lat-1", "kind": "lattice_dynamics", "measured": False, "quench_field": 0.1,
+             "energy_initial": -6.0, "times": [{"t": 0.0, "loschmidt_echo": 1.0, "zz_correlator_mean": 0.9}, {"t": 1.0, "loschmidt_echo": 0.2, "zz_correlator_mean": 0.3}]},
+            {"job_id": "qaoa-1", "kind": "qaoa_hardware", "measured": True, "hardware": True, "measured_cut": 7.7, "optimal_cut": 10.0, "approximation_ratio": 0.77, "backend": "ibm_fez"},
+            {"job_id": "qaoa-2", "kind": "qaoa_hardware", "measured": True, "hardware": True, "measured_cut": 7.5, "optimal_cut": 10.0, "approximation_ratio": 0.75, "backend": "ibm_kingston"},
+        ],
+    }
+    cites_a = [
+        {"key": "z_cite", "title": "Z paper", "authors": "Z", "year": "2024"},
+        {"key": "a_cite", "title": "A paper", "authors": "A", "year": "2023"},
+        {"key": "m_cite", "title": "M paper", "authors": "M", "year": "2025"},
+    ]
+    cites_b = list(reversed(cites_a))
+    r1 = manuscript_ops.run(_req(campaign=campaign, citations=cites_a))
+    r2 = manuscript_ops.run(_req(campaign=campaign, citations=cites_b))
+    assert r1["ok"] and r2["ok"]
+    assert [c["key"] for c in r1["citations"]] == ["a_cite", "m_cite", "z_cite"]
+    assert r1["sections"] == r2["sections"], "citation order must be canonical across create and build"
+    assert "fig_quench_dynamics.png" in r1["figure_sha256"]
+    assert "fig_qaoa_utility.png" in r1["figure_sha256"]
+
 
 
