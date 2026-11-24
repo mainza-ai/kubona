@@ -4577,11 +4577,20 @@ export async function signoffManuscript(
   }
 }
 
-export async function stageManuscriptDeposit(sessionId: string, id: string): Promise<ManuscriptResult<{ ok: boolean; manifest: Record<string, unknown> }>> {
+export async function stageManuscriptDeposit(
+  sessionId: string,
+  id: string,
+  track?: 'formal' | 'empirical',
+): Promise<ManuscriptResult<{ ok: boolean; manifest: Record<string, unknown> }>> {
   try {
     const res = await apiFetch(
       `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/manuscripts/${encodeURIComponent(id)}/deposit`,
-      { method: 'POST', cache: 'no-store', headers: authHeaders({ 'Content-Type': 'application/json' }) },
+      {
+        method: 'POST',
+        cache: 'no-store',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: track ? JSON.stringify({ track }) : undefined,
+      },
     );
     const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) return manuscriptFailure(res, payload);

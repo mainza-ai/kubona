@@ -488,9 +488,18 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
               size="compact"
               variant="secondary"
               pending={busy === 'deposit'}
-              disabled={!selected.manuscript.signoff || recommendationOf(selected) !== 'ACCEPT'}
+              disabled={
+                !selected.manuscript.signoff ||
+                (recommendationOf(selected) !== 'ACCEPT' &&
+                  !(
+                    (verification?.report?.summary?.status === 'verified' || verification?.report?.summary?.status === 'pass') &&
+                    (verification?.report?.summary?.blocking ?? 0) === 0 &&
+                    selected.open_annotations === 0
+                  ))
+              }
               onClick={() => void run('deposit', async () => {
-                const res = await stageManuscriptDeposit(sessionId, selected.manuscript.id);
+                const track = recommendationOf(selected) === 'ACCEPT' ? 'formal' : 'empirical';
+                const res = await stageManuscriptDeposit(sessionId, selected.manuscript.id, track);
                 if (!res.ok) return { ok: false as const, error: res.error };
                 setDepositManifest(res.data.manifest);
                 return {
@@ -504,7 +513,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 };
               }, 'Zenodo manifest staged for a human upload (not published).')}
             >
-              Stage deposit
+              {recommendationOf(selected) === 'ACCEPT' ? 'Stage deposit' : 'Stage empirical deposit'}
             </Button>
           </div>
 
@@ -548,7 +557,7 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             <div className="border border-border rounded-control p-3 space-y-2 text-label bg-surface">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">Numeric &amp; citation verification</span>
-                <Badge tone={verification.report.summary?.status === 'pass' ? 'success' : 'warning'}>
+                <Badge tone={verification.report.summary?.status === 'verified' || verification.report.summary?.status === 'pass' ? 'success' : 'warning'}>
                   {verification.report.summary?.status ?? 'checked'}
                 </Badge>
               </div>
@@ -557,10 +566,10 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 {' · '}Citations checked: {verification.report.summary?.citations_checked ?? verification.report.citations?.length ?? 0}
                 {' · '}Blocking: {verification.report.summary?.blocking ?? 0}
               </p>
-              {(verification.report.numbers ?? []).filter((n) => n.status !== 'verified').length > 0 && (
+              {(verification.report.numbers ?? []).filter((n) => n.status !== 'matched' && n.status !== 'verified').length > 0 && (
                 <ul className="list-disc pl-5 text-caption text-warning-ink">
                   {(verification.report.numbers ?? [])
-                    .filter((n) => n.status !== 'verified')
+                    .filter((n) => n.status !== 'matched' && n.status !== 'verified')
                     .map((issue, idx) => (
                       <li key={`num-${idx}`}>
                         {issue.text} ({issue.status})
