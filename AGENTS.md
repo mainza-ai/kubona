@@ -123,7 +123,7 @@ development — re-verify the gate on the exact commit before citing
 > vectors, embedding cache, sparse PPR, and `scripts/perf-gate.sh` in CI.
 > React Compiler is annotation-only (default `infer` measured +94.4 KiB and was
 > reverted); JSON v2 is a recorded no-adoption decision. Code-addressable
-> backlog is closed; operator evidence is tracked in `wiki/risks.md` (the dated
+> backlog is closed; operator evidence is tracked in `wiki/concepts/risks.md` (the dated
 > register was removed from `docs/` on 2026-11-24). Re-verify the gate on the exact
 > pushed commit before citing “green”.
 
