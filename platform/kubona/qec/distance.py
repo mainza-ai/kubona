@@ -7,6 +7,7 @@ Non-negotiable rule: every distance result explicitly carries
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import numpy as np
@@ -18,10 +19,15 @@ def _min_weight_logical_milp(
     parity_checks: np.ndarray,
     logical_op: np.ndarray,
     time_limit_s: float = 20.0,
+    upper_bound: int | None = None,
 ) -> tuple[int | None, bool, str]:
     """Solve min sum(e_j) s.t. H e = 0 (mod 2), l.e = 1 (mod 2) via HiGHS MILP.
 
-    Returns (weight, proved_optimal, status_label).
+    When ``upper_bound`` is provided (from an already-verified logical witness),
+    adds ``sum(e_j) <= upper_bound - 1``: ``kInfeasible`` then proves no
+    strictly lighter logical exists for this row (typically 10-50x faster).
+
+    Returns (weight_if_strictly_better_or_optimal, proved_ge_bound, status_label).
     """
     import highspy
 
@@ -66,9 +72,17 @@ def _min_weight_logical_milp(
     val_l = np.append(np.ones(l_supp.size, dtype=np.float64), -2.0)
     h.addRow(1.0, 1.0, len(idx_l), idx_l, val_l)
 
+    # Cutoff constraint: search only for strictly lighter logicals (< upper_bound)
+    if upper_bound is not None and upper_bound >= 1:
+        idx_c = np.arange(n, dtype=np.int32)
+        val_c = np.ones(n, dtype=np.float64)
+        h.addRow(1.0, float(upper_bound - 1), n, idx_c, val_c)
+
     h.run()
     status = h.getModelStatus()
     sol = h.getSolution()
+    if status == highspy.HighsModelStatus.kInfeasible and upper_bound is not None:
+        return upper_bound, True, "proved_no_lighter"
     if status == highspy.HighsModelStatus.kOptimal:
         e_vec = np.rint(np.array(sol.col_value[:n])).astype(np.uint8)
         w = int(e_vec.sum())
@@ -90,11 +104,12 @@ def prove_distance_milp(
     *,
     time_limit_s: float = 20.0,
 ) -> dict[str, Any]:
-    """Compute exact CSS distance d = min(d_X, d_Z) via HiGHS MILP.
+    """Compute exact CSS distance d = min(d_X, d_Z) via HiGHS MILP with cutoff pruning.
 
+    Seeded with a fast BP-OSD witness upper bound so HiGHS can prune via
+    ``sum(e_j) <= best - 1`` (proving ``kInfeasible`` in milliseconds).
     Returns ``kind == "proved"`` ONLY when every logical operator subproblem
-    reaches verified optimality within ``time_limit_s``; otherwise returns
-    ``kind == "upper_bound"``.
+    is verified optimal or infeasible below the verified witness weight.
     """
     Hx, Hz = css_validate(hx, hz)
     lx, lz = css_logicals(Hx, Hz)
@@ -108,16 +123,29 @@ def prove_distance_milp(
             "certificate": {"k": 0},
         }
 
-    # For d_X: min weight e in ker(Hz) with odd overlap against some l_z in Lz
-    # For d_Z: min weight e in ker(Hx) with odd overlap against some l_x in Lx
-    per_sub_limit = max(0.5, float(time_limit_s) / max(1, 2 * k))
+    # Fast verified witness seed from BP-OSD (used purely as a valid primal upper bound)
     dx_best: int | None = None
     dz_best: int | None = None
+    try:
+        seed_ub = estimate_distance_bposd(Hx, Hz, num_trials=max(12, 2 * k), seed=7)
+        if seed_ub.get("dx") is not None:
+            dx_best = int(seed_ub["dx"])
+        if seed_ub.get("dz") is not None:
+            dz_best = int(seed_ub["dz"])
+    except Exception:
+        pass
+
+    deadline = time.monotonic() + max(1.0, float(time_limit_s))
     all_optimal = True
     statuses: list[str] = []
 
     for row in lz:
-        w, opt, st = _min_weight_logical_milp(Hz, row, time_limit_s=per_sub_limit)
+        rem = deadline - time.monotonic()
+        if rem <= 0.1:
+            all_optimal = False
+            statuses.append("X:time_limit")
+            break
+        w, opt, st = _min_weight_logical_milp(Hz, row, time_limit_s=rem, upper_bound=dx_best)
         statuses.append(f"X:{st}")
         if not opt:
             all_optimal = False
@@ -125,7 +153,12 @@ def prove_distance_milp(
             dx_best = w
 
     for row in lx:
-        w, opt, st = _min_weight_logical_milp(Hx, row, time_limit_s=per_sub_limit)
+        rem = deadline - time.monotonic()
+        if rem <= 0.1:
+            all_optimal = False
+            statuses.append("Z:time_limit")
+            break
+        w, opt, st = _min_weight_logical_milp(Hx, row, time_limit_s=rem, upper_bound=dz_best)
         statuses.append(f"Z:{st}")
         if not opt:
             all_optimal = False

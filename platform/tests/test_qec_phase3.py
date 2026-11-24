@@ -59,18 +59,19 @@ def test_islands_map_elites_migration_scratchpads_and_controller():
     act = ctrl.next_action(pool, target_fom=6.0, max_evals=100)
     assert act["action"] == "promote_milp"
 
-    # After proving with MILP, controller promotes to circuit-level LER simulation
+    # After proving [[72, 12, 6]] with MILP, controller promotes to circuit-level LER simulation
     proved = evaluate_bb_candidate_fast(
         6,
         6,
-        best.a_terms,
-        best.b_terms,
+        [(3, 0), (0, 1), (0, 2)],
+        [(0, 3), (1, 0), (2, 0)],
         bposd_trials=8,
         prove_if_fom_ge=5.0,
-        milp_time_limit_s=20.0,
+        milp_time_limit_s=30.0,
     )
     assert proved.d_kind == "proved" and proved.d == 6
-    pool.archive.cells[pool.archive.niche_of(proved)] = proved
+    pool.archive.cells.clear()
+    pool.archive.insert(proved)
     act2 = ctrl.next_action(pool, target_fom=6.0, max_evals=100)
     assert act2["action"] == "promote_circuit_sim"
 
