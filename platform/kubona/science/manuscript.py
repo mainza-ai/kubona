@@ -163,6 +163,7 @@ class ScientificManuscript:
     document_type: str = "academic_preprint"
     subtitle: Optional[str] = None
     keywords: List[str] = field(default_factory=list)
+    brand_logo_bytes: Optional[bytes] = None
 
     def compile_latex(self) -> str:
         r"""Assembles main.tex for the modular project.
@@ -239,6 +240,10 @@ class ScientificManuscript:
         out.append(f"\\author{{{author_str}}}")
         out.append(r"\date{\today}")
         out.append(r"\begin{document}")
+        if self.brand_logo_bytes:
+            out.append(
+                r"\begin{center}\includegraphics[height=1.15cm]{milimo_kubona_logo.png}\end{center}\vspace{-0.8em}"
+            )
         if doc_type in ("white_paper", "discovery_dossier"):
             out.append(
                 r"\noindent\colorbox{kubonaNavy}{\parbox{\dimexpr\textwidth-2\fboxsep\relax}{"
@@ -341,6 +346,11 @@ class ScientificManuscript:
             if figures_dir.resolve() not in target.parents:
                 raise ValueError(f"figure path escapes figures/: {fig_name!r}")
             target.write_bytes(fig_content.encode("utf-8") if isinstance(fig_content, str) else fig_content)
+
+        # Write brand logo if configured (kept separate from data figures so
+        # figure_sha256 remains strictly the scientific figure manifest).
+        if self.brand_logo_bytes:
+            (target_dir / "milimo_kubona_logo.png").write_bytes(self.brand_logo_bytes)
 
         # Write metadata
         meta = {

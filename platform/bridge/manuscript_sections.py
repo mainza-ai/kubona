@@ -498,8 +498,12 @@ def _strip_latex_for_markdown(latex: str) -> str:
 def render_companion_markdown(
     *, title: str, authors: List[str], abstract: str, doc_type: str,
     sections: List[Any], citations: List[Dict[str, Any]],
+    has_logo: bool = False,
 ) -> str:
-    out = [
+    out = []
+    if has_logo:
+        out += ["![Milimo Kubona](milimo_kubona_logo.png)", ""]
+    out += [
         f"# {title}",
         "",
         f"**Document Type:** `{doc_type}`  ",
@@ -528,6 +532,7 @@ def render_companion_markdown(
 def render_companion_html(
     *, title: str, authors: List[str], abstract: str, doc_type: str,
     sections: List[Any], citations: List[Dict[str, Any]],
+    logo_b64: str = "",
 ) -> str:
     md_sections = []
     for sec in sections:
@@ -545,6 +550,11 @@ def render_companion_html(
             )
         cites_html = "<section><h2>References</h2><ol>" + "".join(items) + "</ol></section>"
     badge = doc_type.replace("_", " ").upper()
+    logo_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" alt="Milimo Kubona" '
+        'style="height:48px;vertical-align:middle;margin-right:12px;"/>'
+        if logo_b64 else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -552,6 +562,7 @@ def render_companion_html(
 <title>{html.escape(title)}</title>
 <style>
   body {{ font-family: Georgia, "Times New Roman", serif; max-width: 820px; margin: 2.5rem auto; padding: 0 1.5rem; color: #0f172a; line-height: 1.65; }}
+  .brand {{ display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem; }}
   .badge {{ display: inline-block; background: #14213d; color: #fff; font-family: system-ui, sans-serif; font-size: 0.72rem; letter-spacing: 0.08em; padding: 0.25rem 0.65rem; border-radius: 3px; }}
   h1 {{ color: #14213d; margin: 0.75rem 0 0.25rem; line-height: 1.25; }}
   .authors {{ color: #475569; font-style: italic; margin-bottom: 1.5rem; }}
@@ -562,7 +573,7 @@ def render_companion_html(
 </style>
 </head>
 <body>
-  <div class="badge">KUBONA {html.escape(badge)}</div>
+  <div class="brand">{logo_html}<div class="badge">KUBONA {html.escape(badge)}</div></div>
   <h1>{html.escape(title)}</h1>
   <div class="authors">{html.escape(", ".join(authors))}</div>
   <div class="abstract"><strong>{"Executive Summary" if doc_type == "white_paper" else "Abstract"}:</strong> {html.escape(abstract)}</div>

@@ -415,6 +415,26 @@ def _limitations(claimable: int) -> str:
     )
 
 
+def _load_brand_logo() -> Optional[bytes]:
+    """Load the Milimo/Kubona brand logo PNG for PDF/HTML documentation headers."""
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here / "assets" / "milimo_kubona_logo.png",
+        here.parent.parent / "assets" / "milimo_kubona_logo.png",
+        here / "assets" / "milimo_logo.png",
+        here.parent.parent / "assets" / "milimo_logo.png",
+    ]
+    for p in candidates:
+        try:
+            if p.is_file():
+                raw = p.read_bytes()
+                if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+                    return raw
+        except OSError:
+            continue
+    return None
+
+
 def _new_manuscript(*, manuscript_id: str, title: str, authors: List[str],
                     abstract: str, sections: List[Any],
                     bibtex_entries: Dict[str, str],
@@ -441,6 +461,7 @@ def _new_manuscript(*, manuscript_id: str, title: str, authors: List[str],
         document_type=document_type,
         subtitle=_latex_escape(subtitle) if subtitle else None,
         keywords=list(keywords or []),
+        brand_logo_bytes=_load_brand_logo(),
     )
 
 
@@ -761,11 +782,13 @@ def build_project(
         keywords=keywords,
     )
     project = manuscript.export_project(Path(tempfile.mkdtemp(prefix="kubona-ms-")))
+    logo_b64 = _b64(manuscript.brand_logo_bytes) if manuscript.brand_logo_bytes else ""
     # Emit companion Markdown & standalone HTML alongside main.pdf (Phase 4).
     (project / "paper.md").write_text(
         render_companion_markdown(
             title=title, authors=authors, abstract=abstract,
             doc_type=document_type, sections=sections, citations=citations or [],
+            has_logo=bool(logo_b64),
         ),
         encoding="utf-8",
     )
@@ -773,6 +796,7 @@ def build_project(
         render_companion_html(
             title=title, authors=authors, abstract=abstract,
             doc_type=document_type, sections=sections, citations=citations or [],
+            logo_b64=logo_b64,
         ),
         encoding="utf-8",
     )
