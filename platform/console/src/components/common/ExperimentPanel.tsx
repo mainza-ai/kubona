@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { fetchJob, fetchJobs, jobStatusLabel, runExperiment } from '@/lib/api';
 import { publishInvalidation } from '@/domain/invalidation';
+import { Select } from '@/components/ui/Forms';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
@@ -449,21 +450,16 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
         return (
           <div className="space-y-2">
             {!justCompletedPromotable && campaignPromotable.length > 0 && (
-              <label className="block space-y-1 text-[12px] text-label-secondary">
-                Promote completed simulator job to QPU
-                <select
-                  aria-label="Parent simulator job for QPU promotion"
-                  value={hardwareSourceJob.id}
-                  onChange={(e) => setSelectedParentId(e.target.value)}
-                  className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text font-code"
-                >
-                  {campaignPromotable.map((pj) => (
-                    <option key={pj.id} value={pj.id}>
-                      {pj.job_type} · {pj.id.slice(0, 8)} (COMPLETED)
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label="Promote completed simulator job to QPU"
+                aria-label="Parent simulator job for QPU promotion"
+                value={hardwareSourceJob.id}
+                onChange={(e) => setSelectedParentId(e.target.value)}
+                options={campaignPromotable.map((pj) => ({
+                  value: pj.id,
+                  label: `${pj.job_type} · ${pj.id.slice(0, 8)} (COMPLETED)`,
+                }))}
+              />
             )}
             <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={hardwareSourceJob} />
           </div>

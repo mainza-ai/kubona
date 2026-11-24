@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Button } from '@/components/ui/Button';
 import {
   Cpu,
   RefreshCw,
@@ -1407,8 +1408,9 @@ export function LLMSettings() {
                   {divergent.length} role(s) are pinned to a different provider than active provider{' '}
                   <span className="font-mono text-text">{settings.active_provider}</span> and will override it.
                 </span>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="compact"
                   onClick={() => {
                     const catalog = settings.role_catalog && settings.role_catalog.length > 0
                       ? settings.role_catalog
@@ -1425,10 +1427,10 @@ export function LLMSettings() {
                     setSettings({ ...settings, role_assignments: synced });
                     setProfileStatus(`Synced all ${catalog.length} roles to ${settings.active_provider} (${settings.active_model || 'default'}). Click Save to apply.`);
                   }}
-                  className="shrink-0 px-2.5 py-1 rounded-control-compact bg-surface hover:bg-fill-hover border border-info-edge text-text font-mono text-[11px]"
+                  className="shrink-0 font-mono text-[11px]"
                 >
                   Sync all roles to {settings.active_provider}
-                </button>
+                </Button>
               </div>
             );
           })()}
