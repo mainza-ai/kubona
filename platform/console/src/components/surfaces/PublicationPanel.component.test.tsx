@@ -50,6 +50,7 @@ function installFetch(overrides: {
   detail?: unknown;
   create?: () => unknown;
   build?: () => unknown;
+  verify?: () => unknown;
   signoff?: () => unknown;
   deposit?: () => unknown;
 } = {}) {
@@ -122,6 +123,17 @@ function installFetch(overrides: {
     if (method === 'POST' && path.endsWith('/reviews')) {
       return json(detail({ state: 'reviewed' }));
     }
+    if (method === 'POST' && path.endsWith('/verify')) {
+      return overrides.verify
+        ? overrides.verify()
+        : json({
+            report: {
+              summary: { status: 'verified', numbers_checked: 2, citations_checked: 1, blocking: 0 },
+              numbers: [{ text: '-1.137', status: 'matched' }],
+              citations: [],
+            },
+          });
+    }
     if (method === 'POST' && path.endsWith('/signoff')) {
       return overrides.signoff ? overrides.signoff() : json(detail({ state: 'signed', signoff: { signer_pubkey_hex: 'aa', signature_hex: 'bb', content_hash: 'abcdef1234567890', expiry: '2030-01-01T00:00:00Z', signed_at: '2026-11-18T00:00:00Z' } }));
     }
@@ -183,14 +195,41 @@ describe('PublicationPanel', () => {
     await vi.waitFor(() => expect(screen.container.textContent).toContain('manuscript signoff requires the operator bearer'));
   });
 
-  it('disables deposit staging until the manuscript is signed and accepted', async () => {
+  it('disables deposit staging until the manuscript is signed and accepted or verified', async () => {
     installFetch({ list: [SUMMARY], detail: detail() });
     const screen = await render(<PublicationPanel sessionId="s1" />);
     await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
 
-    const deposit = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Stage deposit')) as HTMLButtonElement | undefined;
+    const deposit = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Stage empirical deposit')) as HTMLButtonElement | undefined;
     expect(deposit?.disabled).toBe(true);
     expect(screen.container.textContent).toContain('requires a comparator-linked kernel proof');
+  });
+
+  it('enables empirical deposit staging when signed off and verified with zero blockers', async () => {
+    const signedDetail = detail({
+      state: 'signed',
+      signoff: { signer_pubkey_hex: 'aa', signature_hex: 'bb', content_hash: 'abcdef1234567890', expiry: '2030-01-01T00:00:00Z', signed_at: '2026-11-18T00:00:00Z' },
+    });
+    const calls = installFetch({ list: [SUMMARY], detail: signedDetail });
+    const screen = await render(<PublicationPanel sessionId="s1" />);
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Measured H2 results'));
+
+    const verifyBtn = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Verify'));
+    expect(verifyBtn).toBeTruthy();
+    verifyBtn!.click();
+
+    await vi.waitFor(() => expect(screen.container.textContent).toContain('Numeric & citation verification'));
+    expect(screen.container.textContent).not.toContain('-1.137 (matched)');
+
+    const deposit = Array.from(screen.container.querySelectorAll('button')).find((b) => b.textContent?.includes('Stage empirical deposit')) as HTMLButtonElement | undefined;
+    expect(deposit?.disabled).toBe(false);
+    deposit!.click();
+
+    await vi.waitFor(() =>
+      expect(
+        calls.some((c) => c.method === 'POST' && c.path.endsWith('/deposit') && c.body?.track === 'empirical'),
+      ).toBe(true),
+    );
   });
 });
 
