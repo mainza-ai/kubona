@@ -122,8 +122,54 @@ def _campaign_rows(campaign: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
+_NON_MEASURED_SCIENTIFIC_KINDS = frozenset({
+    "krylov",
+    "hardware_pes",
+    "lattice_dynamics",
+    "thermodynamic_limit",
+    "conjecture",
+})
+
+
 def _measured_rows(campaign: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [r for r in _campaign_rows(campaign) if bool(r.get("measured"))]
+
+
+def _reportable_rows(campaign: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Every settled scientific result that belongs in the manuscript table.
+
+    Preserves epistemic honesty: ZNE-mitigated hardware (`measured: false,
+    mitigated: true`) and exact-sim/subspace/DMRG/conjecture analyses are
+    included with an explicit status label instead of being silently dropped
+    (W3-01 / N-02), while unmeasured VQE placeholder rows remain excluded.
+    """
+    out: List[Dict[str, Any]] = []
+    for r in _campaign_rows(campaign):
+        kind_l = str(r.get("kind") or "").strip().lower()
+        if (
+            bool(r.get("measured"))
+            or bool(r.get("mitigated"))
+            or kind_l in _NON_MEASURED_SCIENTIFIC_KINDS
+        ):
+            out.append(r)
+    return out
+
+
+def _row_status(row: Dict[str, Any]) -> str:
+    kind_l = str(row.get("kind") or "").strip().lower()
+    if bool(row.get("mitigated")):
+        return "mitigated"
+    if bool(row.get("measured")):
+        return "measured"
+    if kind_l == "krylov":
+        return "subspace"
+    if kind_l == "lattice_dynamics":
+        return "exact-sim"
+    if kind_l == "thermodynamic_limit":
+        return "dmrg"
+    if kind_l == "conjecture":
+        return "conjecture"
+    return "inferred"
 
 
 def _primary_point(campaign: Dict[str, Any]) -> Optional[Tuple[float, float, float]]:
@@ -178,8 +224,8 @@ def _abstract(campaign: Dict[str, Any], point: Optional[Tuple[float, float, floa
     return " ".join(parts)
 
 
-def _results_table(measured: List[Dict[str, Any]]) -> str:
-    if not measured:
+def _results_table(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
         return (
             "No measured result is present in the campaign projection. "
             "This section is intentionally empty rather than populated with a template value."
@@ -187,47 +233,109 @@ def _results_table(measured: List[Dict[str, Any]]) -> str:
     lines = [
         r"\begin{table}[h]",
         r"\centering",
-        r"\begin{tabular}{llrrrr}",
+        r"\begin{tabular}{lllrrrr}",
         r"\hline",
-        r"Job & Kind & Measured & Exact anchor & $\Delta$ / Gap & Backend \\",
+        r"Job & Kind & Status & Result & Anchor & $\Delta$ / Summary & Backend \\",
         r"\hline",
     ]
-    for row in measured:
+    for row in rows:
         kind_s = str(row.get("kind") or "--")
         kind_l = kind_s.lower()
+        status_s = _row_status(row)
         is_qaoa = "qaoa" in kind_l
-        measured_v = row.get("energy")
-        if measured_v is None:
-            measured_v = row.get("ground_energy", row.get("reaction_energy", row.get("measured_cut")))
-        exact_v = row.get("energy_exact")
-        if exact_v is None:
-            exact_v = row.get("ground_energy_exact", row.get("reaction_energy_exact", row.get("fci_exact_energy", row.get("optimal_cut"))))
-        if is_qaoa:
-            # N-11: QAOA cut/ratio gaps are dimensionless — never label as mHa.
-            ratio_v = row.get("approximation_ratio")
-            if ratio_v is not None:
-                delta_str = f"{_fmt(ratio_v, 4)} ratio"
-            elif measured_v is not None and exact_v is not None:
-                delta_str = f"{_fmt(abs(float(measured_v) - float(exact_v)), 4)} cut"
-            else:
-                delta_str = "--"
+
+        measured_str = "--"
+        exact_str = "--"
+        delta_str = "--"
+
+        if kind_l == "hardware_pes" and isinstance(row.get("points"), list) and row["points"]:
+            pts = [p for p in row["points"] if isinstance(p, dict)]
+            energies = [float(p["energy"]) for p in pts if p.get("energy") is not None]
+            deltas = [float(p["delta_mha"]) for p in pts if p.get("delta_mha") is not None]
+            measured_str = f"{len(pts)} pts"
+            if energies:
+                exact_str = f"{min(energies):.4f} Ha"
+            if deltas:
+                delta_str = f"max {max(deltas):.2f} mHa"
+        elif kind_l == "lattice_dynamics":
+            e_init = row.get("energy_initial")
+            if e_init is not None:
+                measured_str = _fmt(e_init, 4)
+            times_list = row.get("times")
+            if isinstance(times_list, list) and times_list:
+                le_vals = [float(t["loschmidt_echo"]) for t in times_list
+                           if isinstance(t, dict) and t.get("loschmidt_echo") is not None]
+                zz_vals = [float(t["zz_correlator_mean"]) for t in times_list
+                           if isinstance(t, dict) and t.get("zz_correlator_mean") is not None]
+                if le_vals:
+                    exact_str = f"min L={min(le_vals):.3f}"
+                if zz_vals:
+                    delta_str = f"mean ZZ={sum(zz_vals)/len(zz_vals):.3f}"
+                elif le_vals:
+                    delta_str = f"{len(times_list)} steps"
+        elif kind_l == "thermodynamic_limit":
+            e_site = row.get("energy_per_site")
+            exact_site = row.get("exact_energy_per_site")
+            if e_site is None and isinstance(row.get("sizes"), list) and row["sizes"]:
+                last = row["sizes"][-1]
+                if isinstance(last, dict):
+                    e_site = last.get("energy_per_site")
+            if e_site is not None:
+                measured_str = _fmt(e_site, 6)
+            if exact_site is not None:
+                exact_str = _fmt(exact_site, 6)
+            bond = row.get("max_bond_dim")
+            if bond is not None:
+                delta_str = f"bond {int(bond)}"
+            elif e_site is not None and exact_site is not None:
+                delta_str = f"{abs(float(e_site) - float(exact_site)) * 1000.0:.2f} mHa"
+        elif kind_l == "conjecture":
+            st = str(row.get("status") or row.get("verdict") or "evaluated")
+            measured_str = _latex_escape(st)
+            law = row.get("law") or row.get("expression")
+            delta_str = _latex_escape(str(law)[:24]) if law else "no law"
         else:
-            # N-10: always express Hartree energy discrepancies consistently in mHa
-            # (spin_chain_hardware stores `delta` in Ha, not mHa).
-            delta_mha = row.get("delta_mha")
-            if delta_mha is None and measured_v is not None and exact_v is not None:
-                delta_mha = abs(float(measured_v) - float(exact_v)) * 1000.0
-            elif delta_mha is None and row.get("delta") is not None:
-                raw_d = abs(float(row["delta"]))
-                delta_mha = raw_d * 1000.0 if "spin_chain" in kind_l else raw_d
-            delta_str = f"{_fmt(delta_mha, 4)} mHa" if delta_mha is not None else "--"
+            measured_v = row.get("energy")
+            if measured_v is None:
+                measured_v = row.get(
+                    "ground_energy",
+                    row.get("ground_state_energy", row.get("reaction_energy", row.get("measured_cut"))),
+                )
+            exact_v = row.get("energy_exact")
+            if exact_v is None:
+                exact_v = row.get(
+                    "ground_energy_exact",
+                    row.get("exact_energy", row.get("reaction_energy_exact", row.get("fci_exact_energy", row.get("optimal_cut")))),
+                )
+            measured_str = _fmt(measured_v)
+            exact_str = _fmt(exact_v)
+            if is_qaoa:
+                # N-11: QAOA cut/ratio gaps are dimensionless — never label as mHa.
+                ratio_v = row.get("approximation_ratio")
+                if ratio_v is not None:
+                    delta_str = f"{_fmt(ratio_v, 4)} ratio"
+                elif measured_v is not None and exact_v is not None:
+                    delta_str = f"{_fmt(abs(float(measured_v) - float(exact_v)), 4)} cut"
+            else:
+                # N-10: always express Hartree energy discrepancies consistently in mHa
+                # (spin_chain_hardware stores `delta` in Ha, not mHa).
+                delta_mha = row.get("delta_mha")
+                if delta_mha is None and measured_v is not None and exact_v is not None:
+                    delta_mha = abs(float(measured_v) - float(exact_v)) * 1000.0
+                elif delta_mha is None and row.get("delta") is not None:
+                    raw_d = abs(float(row["delta"]))
+                    delta_mha = raw_d * 1000.0 if "spin_chain" in kind_l else raw_d
+                if delta_mha is not None:
+                    delta_str = f"{_fmt(delta_mha, 4)} mHa"
+
         lines.append(
             f"{_latex_escape(str(row.get('job_id') or '--'))} & "
             f"{_latex_escape(kind_s)} & "
-            f"{_fmt(measured_v)} & {_fmt(exact_v)} & {delta_str} & "
+            f"{_latex_escape(status_s)} & "
+            f"{measured_str} & {exact_str} & {delta_str} & "
             f"{_latex_escape(str(row.get('backend') or row.get('model') or '--'))} \\\\"
         )
-    lines += [r"\hline", r"\end{tabular}", r"\caption{Measured results folded from settled jobs.}", r"\end{table}"]
+    lines += [r"\hline", r"\end{tabular}", r"\caption{Settled scientific results folded from the Kubona ledger.}", r"\end{table}"]
     return "\n".join(lines)
 
 
@@ -348,6 +456,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         authors = ["Kubona Operator"]
 
     measured = _measured_rows(campaign)
+    reportable = _reportable_rows(campaign)
     claimable = sum(1 for r in measured if bool(r.get("claimable")))
     point = _primary_point(campaign)
     abstract = str(req.get("abstract") or "").strip() or _abstract(campaign, point, target, claimable)
@@ -402,7 +511,7 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         "re-derived from prose or re-entered by the author."
     )
 
-    results = _results_table(measured)
+    results = _results_table(reportable)
     if figures:
         results += "\n\n" + _figures_section(figures)
 

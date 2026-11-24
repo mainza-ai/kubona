@@ -53,7 +53,7 @@ _WORKFLOW_GATEWAY_SCOPES = (
     "providers:read",
     "provenance:read", "provenance:write",
     "world:read", "world:write",
-    "science:read",
+    "science:read", "science:execute",
     "control:read", "control:manage",
 )
 
@@ -767,7 +767,55 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
     def GroundLiterature(self, request, context):
         logger.info(f"GroundLiterature called for query '{request.query}'")
         limit = request.limit if request.limit > 0 else 5
-        raw_results = search_arxiv(request.query, max_results=limit)
+        query = (request.query or "").strip()
+        raw_results = []
+        # W3-07 / N-05: DOI-first Crossref resolution so canonical publisher DOIs
+        # (e.g. Nature / PRL) resolve deterministically instead of being shadowed
+        # by loose arXiv keyword hits.
+        doi_norm = query
+        for prefix in ("https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "doi:"):
+            if doi_norm.lower().startswith(prefix):
+                doi_norm = doi_norm[len(prefix):].strip()
+                break
+        if doi_norm.startswith("10.") and "/" in doi_norm and os.getenv("KUBONA_AIR_GAPPED", "0") != "1":
+            try:
+                import urllib.request
+                import urllib.parse
+                cr_url = f"https://api.crossref.org/works/{urllib.parse.quote(doi_norm, safe='/')}"
+                req_cr = urllib.request.Request(cr_url, headers={"User-Agent": "Kubona/1.0 (mailto:ops@kubona.ai)"})
+                with urllib.request.urlopen(req_cr, timeout=6) as resp_cr:
+                    payload = json.loads(resp_cr.read().decode("utf-8"))
+                msg = payload.get("message") if isinstance(payload, dict) else None
+                if isinstance(msg, dict):
+                    titles = msg.get("title") or []
+                    title_s = str(titles[0]).strip() if titles else ""
+                    if title_s:
+                        authors_list = []
+                        for a in (msg.get("author") or [])[:8]:
+                            if isinstance(a, dict):
+                                nm = " ".join(x for x in (a.get("given", ""), a.get("family", "")) if x).strip()
+                                if nm:
+                                    authors_list.append(nm)
+                        year_val = 0
+                        for date_key in ("published-print", "published-online", "issued", "created"):
+                            dp = (msg.get(date_key) or {}).get("date-parts") or []
+                            if dp and isinstance(dp[0], list) and dp[0]:
+                                year_val = int(dp[0][0])
+                                break
+                        raw_results = [{
+                            "id": str(msg.get("DOI") or doi_norm),
+                            "title": title_s,
+                            "authors": authors_list,
+                            "abstract": "",
+                            "url": str(msg.get("URL") or f"https://doi.org/{doi_norm}"),
+                            "year": year_val,
+                            "cited_by_count": int(msg.get("is-referenced-by-count") or 0),
+                            "cached": False,
+                        }]
+            except Exception as exc:  # noqa: BLE001 — fall back to arXiv/OpenAlex
+                logger.info(f"Crossref DOI lookup for '{doi_norm}' fell back: {exc}")
+        if not raw_results:
+            raw_results = search_arxiv(request.query, max_results=limit)
         if not raw_results:
             raw_results = search_openalex(request.query, max_results=limit)
 

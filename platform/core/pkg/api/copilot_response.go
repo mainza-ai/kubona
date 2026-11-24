@@ -162,6 +162,14 @@ func collapseBlankLines(s string) string {
 // 2026-10-21: Strata fell through to "check the API key" although it is
 // keyless-local).
 func engineNotice(provider, model string, err error) string {
+	// N-15: sovereign air-gap refusals must surface an explicit Air-Gap notice
+	// instead of falling through to "[unconfigured Notice]" with a cloud-key hint.
+	if err != nil {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "air-gap") || strings.Contains(msg, "air_gap") || strings.Contains(msg, "airgap") {
+			return fmt.Sprintf("⚠️ [Air-Gap Notice]: %v. Configure a local engine (Strata or oMLX) or disable sovereign air-gap mode.", err)
+		}
+	}
 	if provider == "" {
 		provider = "unconfigured"
 	}

@@ -83,16 +83,25 @@ def _claimable_against_anchor(energy: float, anchor: float, uncertainty: float,
 
 
 def _calibration_quality(calibration: Any, max_age_hours: float | None = None) -> dict[str, Any]:
-    """Derive freshness from the provider snapshot; unknown stays unknown."""
+    """Derive freshness and deterministic snapshot ID from the provider snapshot."""
     limit = float(max_age_hours if max_age_hours is not None else
                   os.getenv("KUBONA_CALIBRATION_MAX_AGE_HOURS", "24"))
     if not isinstance(calibration, dict):
         return {"calibration_age_hours": None, "calibration_fresh": None,
-                "calibration_checked_at": None, "calibration_max_age_hours": limit}
+                "calibration_checked_at": None, "calibration_max_age_hours": limit,
+                "calibration_snapshot_id": None}
     raw = calibration.get("calibrated_at")
     if not isinstance(raw, str) or not raw.strip():
         return {"calibration_age_hours": None, "calibration_fresh": None,
-                "calibration_checked_at": None, "calibration_max_age_hours": limit}
+                "calibration_checked_at": None, "calibration_max_age_hours": limit,
+                "calibration_snapshot_id": None}
+    snap_id = calibration.get("snapshot_id") or calibration.get("calibration_snapshot_id")
+    if not isinstance(snap_id, str) or not snap_id.strip():
+        import hashlib as _hashlib
+        backend_key = str(calibration.get("backend") or calibration.get("backend_name") or "").strip()
+        version_key = str(calibration.get("version") or "").strip()
+        digest = _hashlib.sha256(f"{backend_key}|{version_key}|{raw.strip()}".encode("utf-8")).hexdigest()[:12]
+        snap_id = f"cal_{digest}"
     try:
         at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if at.tzinfo is None:
@@ -100,9 +109,11 @@ def _calibration_quality(calibration: Any, max_age_hours: float | None = None) -
         age = max(0.0, (datetime.now(timezone.utc) - at).total_seconds() / 3600.0)
     except ValueError:
         return {"calibration_age_hours": None, "calibration_fresh": None,
-                "calibration_checked_at": raw, "calibration_max_age_hours": limit}
+                "calibration_checked_at": raw, "calibration_max_age_hours": limit,
+                "calibration_snapshot_id": snap_id}
     return {"calibration_age_hours": age, "calibration_fresh": age <= limit,
-            "calibration_checked_at": raw, "calibration_max_age_hours": limit}
+            "calibration_checked_at": raw, "calibration_max_age_hours": limit,
+            "calibration_snapshot_id": snap_id}
 
 
 def _pauli_matrix(name: str) -> np.ndarray:
@@ -999,14 +1010,18 @@ def _molecule_atom(spec: dict[str, Any], bond_distance: float) -> str:
 
 def _full_fci_and_casci(atom: str, ncas: int, nelecas: int,
                         basis: str = "sto-3g", charge: int = 0,
-                        spin: int = 0) -> tuple[float, float]:
-    """Compute full FCI and active-space CASCI for the same geometry."""
+                        spin: int = 0,
+                        compute_full_fci: bool = True) -> tuple[float | None, float]:
+    """Compute full FCI (when within local orbital cap) and active-space CASCI."""
     from pyscf import gto, scf, fci, mcscf
     mol = gto.M(atom=atom, basis=basis, charge=int(charge), spin=int(spin), verbose=0)
     mf = scf.RHF(mol).run()
-    e_fci, _ = fci.FCI(mf).kernel()
+    e_fci: float | None = None
+    if compute_full_fci:
+        val, _ = fci.FCI(mf).kernel()
+        e_fci = float(val)
     cas = mcscf.CASCI(mf, ncas, nelecas).run()
-    return float(e_fci), float(cas.e_tot)
+    return e_fci, float(cas.e_tot)
 
 
 def _pauli_measurement_energy(
@@ -1269,13 +1284,35 @@ def run_generic_vqe(
         return {"success": False, "error": f"shots {shots!r} outside [128,1000000]"}
     if int(max_iterations) < 1 or int(max_iterations) > 1000:
         return {"success": False, "error": f"max_iterations {max_iterations!r} outside [1,1000]"}
+    # W3-10: typed closed-shell electron-parity pre-check before PySCFDriver.
+    try:
+        from pyscf.data.elements import charge as _elem_charge
+        total_z = 0
+        parsed_atoms = 0
+        for part in atom.split(";"):
+            toks = part.strip().split()
+            if toks:
+                total_z += int(_elem_charge(toks[0]))
+                parsed_atoms += 1
+        if parsed_atoms > 0:
+            nelec_total = total_z - charge_i
+            if nelec_total < 2:
+                return {"success": False, "error": f"parity_error: geometry with charge={charge_i} has only {nelec_total} electron(s)"}
+            if nelec_total % 2 != 0:
+                return {
+                    "success": False,
+                    "error": f"parity_error: closed-shell spin=0 requires an even electron count; got {nelec_total} electrons for charge={charge_i}",
+                }
+    except Exception:  # noqa: BLE001 — defer exotic atom syntax to PySCFDriver
+        pass
     try:
         problem = PySCFDriver(atom=atom, basis=str(basis), charge=int(charge), spin=int(spin)).run()
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": f"PySCF could not build the supplied geometry: {e}"}
     spatial = int(problem.num_spatial_orbitals)
-    if spatial > 8:
-        return {"success": False, "error": f"generic full-FCI anchor needs {spatial} spatial orbitals; local cap is 8 (16 qubits)"}
+    if spatial > 14:
+        return {"success": False, "error": f"generic active-space VQE needs {spatial} spatial orbitals; local cap is 14"}
+    compute_full_fci = spatial <= 8
     if ncas > spatial:
         return {"success": False, "error": f"ncas {ncas} exceeds the molecule's {spatial} spatial orbitals"}
     electrons = problem.num_particles
@@ -1284,7 +1321,10 @@ def run_generic_vqe(
         return {"success": False, "error": f"nelecas {nelecas} exceeds the molecule's {total_electrons} electrons"}
     t0 = time.perf_counter()
     try:
-        e_full, e_casci = _full_fci_and_casci(atom, ncas, nelecas, basis=str(basis), charge=charge_i, spin=0)
+        e_full, e_casci = _full_fci_and_casci(
+            atom, ncas, nelecas, basis=str(basis), charge=charge_i, spin=0,
+            compute_full_fci=compute_full_fci,
+        )
         reduced = ActiveSpaceTransformer(num_electrons=nelecas, num_spatial_orbitals=ncas).transform(problem)
         mapper = JordanWignerMapper()
         qop = mapper.map(reduced.hamiltonian.second_q_op())
@@ -1313,9 +1353,27 @@ def run_generic_vqe(
                           .expectation_value(qop)) + constants)
     measured = _pauli_measurement_energy(ansatz, theta, qop, int(shots), int(seed))
     energy = float(measured["energy"] + constants)
-    delta_full_mha = abs(energy - e_full) * 1000.0
+    # W3-09: compute concrete ansatz depth and 2-qubit gate count.
+    from qiskit import transpile as _transpile
+    _bound_qc = _transpile(
+        ansatz.assign_parameters(theta),
+        basis_gates=["u1", "u2", "u3", "cx"],
+        optimization_level=0,
+    )
+    ansatz_depth = int(_bound_qc.depth())
+    two_qubit_gate_count = int(_bound_qc.count_ops().get("cx", 0))
     delta_active_mha = abs(energy - e_casci) * 1000.0
-    claimable = _claimable_against_anchor(energy, e_full, measured["uncertainty"])
+    if e_full is not None:
+        anchor_mode = "full_fci"
+        anchor_energy = float(e_full)
+        delta_full_mha: float | None = abs(energy - e_full) * 1000.0
+        primary_delta_mha = delta_full_mha
+    else:
+        anchor_mode = "casci_active_space"
+        anchor_energy = float(e_casci)
+        delta_full_mha = None
+        primary_delta_mha = delta_active_mha
+    claimable = _claimable_against_anchor(energy, anchor_energy, measured["uncertainty"])
     return {
         "success": True,
         "kind": "vqe",
@@ -1332,6 +1390,10 @@ def run_generic_vqe(
         "active_space": {"ncas": ncas, "nelecas": nelecas,
                          "spatial_orbitals": spatial, "full_space": False},
         "layers": reps,
+        "num_parameters": int(ansatz.num_parameters),
+        "ansatz_depth": ansatz_depth,
+        "two_qubit_gate_count": two_qubit_gate_count,
+        "anchor_mode": anchor_mode,
         "shots": int(shots), "seed": int(seed),
         "optimizer": {"name": "COBYLA", "max_iterations": int(max_iterations),
                       "evaluations": int(opt.nfev), "success": bool(opt.success),
@@ -1350,13 +1412,14 @@ def run_generic_vqe(
         "uncertainty": float(measured["uncertainty"]),
         "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
-        "fci_exact_energy": float(e_full),
+        "fci_exact_energy": float(e_full) if e_full is not None else None,
         "active_space_fci_energy": float(e_casci),
-        "delta_mha": delta_full_mha,
+        "delta_mha": primary_delta_mha,
+        "full_fci_delta_mha": delta_full_mha,
         "active_space_delta_mha": delta_active_mha,
         "chemical_accuracy": claimable,
         "active_space_chemical_accuracy": _claimable_against_anchor(energy, e_casci, measured["uncertainty"]),
-        "below_fci": bool(energy < e_full - 3.0 * measured["uncertainty"]),
+        "below_fci": bool(energy < anchor_energy - 3.0 * measured["uncertainty"]),
         "chemical_accuracy_limit_mha": 1.6,
         "claimable": claimable,
         "converged": bool(opt.success),
@@ -1367,9 +1430,12 @@ def run_generic_vqe(
         "optimizer_backend": "qiskit-aer-simulator",
         "measurement_backend": "qiskit-aer-simulator",
         "measured": True,
-        "limitations": ("Caller-supplied geometry; closed-shell STO-3G only; "
-                        "active-space CASCI is reported separately from the full-FCI anchor. "
-                        "No geometry relaxation or basis extrapolation."),
+        "limitations": (
+            "Caller-supplied geometry; closed-shell STO-3G only; "
+            + ("" if e_full is not None else "CASCI active-space anchor only (spatial orbitals > 8 exceed local full-FCI cap); ")
+            + "active-space CASCI is reported separately from the full-FCI anchor. "
+            + "No geometry relaxation or basis extrapolation."
+        ),
         "execution_time_ms": (time.perf_counter() - t0) * 1000.0,
         "error_message": "",
     }
@@ -1588,6 +1654,9 @@ def run_hardware_pes(
                 and quality["calibration_fresh"] is not False
             )
         delta = abs(energy - point["fci"])
+        actual_backend = str(batch.get("backend") or "ibm-qiskit")
+        req_backend = str(backend or actual_backend)
+        parent_vendor_ref = str(batch.get("hardware_job_id") or batch.get("job_id") or "")
         out_points.append({
             "bond_distance": point["bond_distance"],
             "energy": energy,
@@ -1599,21 +1668,30 @@ def run_hardware_pes(
             "measured": measured,
             "mitigated": bool(method),
             "hardware": True,
+            "backend": actual_backend,
+            "requested_backend": req_backend,
+            "vendor_ref": parent_vendor_ref or None,
+            "calibration_snapshot_id": quality.get("calibration_snapshot_id"),
         })
         all_claimable = all_claimable and claimable
         all_measured = all_measured and measured
+    actual_backend = str(batch.get("backend") or "ibm-qiskit")
+    req_backend = str(backend or actual_backend)
+    parent_vendor_ref = str(batch.get("hardware_job_id") or batch.get("job_id") or "")
     return {
         "success": True,
         "kind": "hardware_pes",
         "result_version": "experiment-result-v1",
         "molecule": str(molecule or "H2"),
-        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "backend": actual_backend,
+        "requested_backend": req_backend,
         "provider": "ibm-qiskit",
         "shots": int(shots),
         "seed": int(seed),
         "points": out_points,
         "point_count": len(out_points),
-        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "hardware_job_id": parent_vendor_ref,
+        "vendor_ref": parent_vendor_ref or None,
         "layout": batch.get("layout"),
         "calibration": batch.get("calibration"),
         **quality,

@@ -367,6 +367,38 @@ func (l *Ledger) manuscriptCitations(id string) ([]ManuscriptCitation, error) {
 	return out, rows.Err()
 }
 
+// SetManuscriptCitationsVerified persists the citation verification flags
+// produced by verification-v1 so GET .../citations reflects verified status
+// across round-trips (W3-07 / N-05).
+func (l *Ledger) SetManuscriptCitationsVerified(sessionID, manuscriptID string, verifiedByKey map[string]bool) error {
+	if len(verifiedByKey) == 0 {
+		return nil
+	}
+	var exists int
+	if err := l.DB().QueryRow(`SELECT 1 FROM manuscripts WHERE session_id = ? AND id = ?`,
+		sessionID, manuscriptID).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+		return ErrManuscriptNotFound
+	} else if err != nil {
+		return err
+	}
+	tx, err := l.DB().Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	for key, ok := range verifiedByKey {
+		v := 0
+		if ok {
+			v = 1
+		}
+		if _, err := tx.Exec(`UPDATE manuscript_citations SET verified = ? WHERE manuscript_id = ? AND cite_key = ?`,
+			v, manuscriptID, key); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // UpdateManuscriptDraft replaces a draft's content. Only drafts are
 // editable: a reviewed/signed/built manuscript is immutable evidence, and a
 // content change must invalidate every downstream hash rather than mutate it.

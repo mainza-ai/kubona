@@ -109,3 +109,13 @@ func TestEngineNoticeStrataIsLocal(t *testing.T) {
 		t.Errorf("strata must never get the cloud key hint, got:\n%s", local)
 	}
 }
+
+func TestEngineNoticeAirGapExplicit(t *testing.T) {
+	msg := engineNotice("", "", errors.New("cloud provider blocked by sovereign air-gap policy"))
+	if !strings.Contains(msg, "[Air-Gap Notice]") {
+		t.Errorf("expected explicit [Air-Gap Notice], got:\n%s", msg)
+	}
+	if strings.Contains(msg, "unconfigured") || strings.Contains(msg, "API key") {
+		t.Errorf("air-gap notice must not blame unconfigured/API key, got:\n%s", msg)
+	}
+}

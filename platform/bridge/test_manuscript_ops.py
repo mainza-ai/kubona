@@ -270,3 +270,36 @@ def test_64_char_citation_key_collision_and_author_preservation_and_year_escape(
     assert r"\author{Ada Lovelace \and Grace Hopper}" in resp["main_tex"]
     # Crafted year must be escaped so it cannot break out of BibTeX braces.
     assert r"\write18" not in resp["bibtex"]
+
+
+def test_reportable_rows_include_zne_krylov_pes_lattice_dmrg_and_conjecture():
+    """W3-01 / N-02: mitigated hardware and non-measured scientific analyses
+    must appear in the PDF results table with explicit status markers while
+    unmeasured VQE placeholder rows stay excluded.
+    """
+    campaign = {
+        "target_system": "Wave3-Multi",
+        "research_goal": "Verify all settled scientific kinds appear in table",
+        "experiments": [
+            {"job_id": "job-vqe-raw", "kind": "vqe", "measured": True, "energy": -1.13, "fci_exact_energy": -1.1373, "backend": "ibm_fez"},
+            {"job_id": "job-vqe-zne", "kind": "vqe", "measured": False, "mitigated": True, "energy": -1.135, "fci_exact_energy": -1.1373, "backend": "ibm_kingston"},
+            {"job_id": "job-krylov", "kind": "krylov", "measured": False, "ground_state_energy": -1.1373, "exact_energy": -1.1373, "backend": "statevector"},
+            {"job_id": "job-pes", "kind": "hardware_pes", "measured": False, "mitigated": True, "points": [{"energy": -1.137, "delta_mha": 0.4}, {"energy": -0.95, "delta_mha": 8.1}], "backend": "ibm_kingston"},
+            {"job_id": "job-lattice", "kind": "lattice_dynamics", "measured": False, "energy_initial": -6.2, "times": [{"loschmidt_echo": 0.01, "zz_correlator_mean": 0.21}], "model": "tfim-2d"},
+            {"job_id": "job-dmrg", "kind": "thermodynamic_limit", "measured": False, "energy_per_site": -1.7279, "exact_energy_per_site": -1.7726, "max_bond_dim": 32, "model": "xxz"},
+            {"job_id": "job-conj", "kind": "conjecture", "measured": False, "status": "no_law_verified"},
+            {"job_id": "job-placeholder", "kind": "vqe", "measured": False, "energy": -999.0},
+        ],
+    }
+    resp = manuscript_ops.run(_req(campaign=campaign))
+    assert resp["ok"], resp
+    results = next(s for s in resp["sections"] if s["slug"] == "results")["latex"]
+    for expected in ("job-vqe-raw", "job-vqe-zne", "job-krylov", "job-pes", "job-lattice", "job-dmrg", "job-conj"):
+        assert expected in results, f"missing {expected} in results table:\n{results}"
+    assert "mitigated" in results
+    assert "subspace" in results
+    assert "exact-sim" in results
+    assert "dmrg" in results
+    assert "conjecture" in results
+    assert "job-placeholder" not in results
+

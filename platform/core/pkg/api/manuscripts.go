@@ -832,6 +832,10 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 	}
 	empiricalTrack := strings.EqualFold(strings.TrimSpace(depositReq.Track), "empirical") ||
 		strings.EqualFold(strings.TrimSpace(depositReq.Track), "empirical_measured")
+	track := "formal"
+	if empiricalTrack {
+		track = "empirical"
+	}
 	rec := reviewRecommendation(ms.ReviewJSON)
 	if rec == "REJECT" {
 		WriteAPIError(w, "review_not_accepted", "deposit staging refused: review recommendation is REJECT", nil)
@@ -877,6 +881,7 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 	}
 	manifest := map[string]any{
 		"state":                 "staged-needs-human-upload",
+		"track":                 track,
 		"title":                 ms.Title,
 		"description":           ms.Abstract,
 		"manuscript_id":         ms.ID,
@@ -908,7 +913,7 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if err := s.recordManuscriptEvent(sessionID, "manuscript_deposit_staged", map[string]any{
-		"manuscript_id": id, "content_hash": ms.ContentHash, "build_hash": ms.BuildHash,
+		"manuscript_id": id, "track": track, "content_hash": ms.ContentHash, "build_hash": ms.BuildHash,
 	}); err != nil {
 		WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
 		return
@@ -1148,16 +1153,26 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		if kind == "" {
 			kind = j.JobType
 		}
-		// Only include scientific experiment results (skip non-measurement utility jobs).
-		if _, hasEnergy := res["energy"]; !hasEnergy {
-			if _, hasGround := res["ground_energy"]; !hasGround {
-				if _, hasRxn := res["reaction_energy"]; !hasRxn {
-					if _, hasCut := res["measured_cut"]; !hasCut {
-						if _, hasPts := res["points"]; !hasPts {
-							continue
-						}
-					}
-				}
+		// Include every settled scientific experiment result (VQE, ZNE hardware,
+		// PES, QAOA, spin-chain, Krylov, 2D lattice dynamics, DMRG thermodynamic
+		// limit, and symbolic conjecture — W3-01 / N-02).
+		kindLower := strings.ToLower(strings.TrimSpace(kind))
+		isKnownScientificKind := kindLower == "krylov" ||
+			kindLower == "hardware_pes" ||
+			kindLower == "lattice_dynamics" ||
+			kindLower == "thermodynamic_limit" ||
+			kindLower == "conjecture"
+		if !isKnownScientificKind {
+			_, hasEnergy := res["energy"]
+			_, hasGround := res["ground_energy"]
+			_, hasGroundState := res["ground_state_energy"]
+			_, hasRxn := res["reaction_energy"]
+			_, hasCut := res["measured_cut"]
+			_, hasPts := res["points"]
+			_, hasInit := res["energy_initial"]
+			_, hasSite := res["energy_per_site"]
+			if !hasEnergy && !hasGround && !hasGroundState && !hasRxn && !hasCut && !hasPts && !hasInit && !hasSite {
+				continue
 			}
 		}
 		row := map[string]any{
@@ -1167,10 +1182,17 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 			"claimable": res["claimable"],
 		}
 		for _, k := range []string{
-			"energy", "energy_exact", "fci_exact_energy", "ground_energy", "ground_energy_exact",
-			"reaction_energy", "reaction_energy_exact", "measured_cut", "optimal_cut",
-			"approximation_ratio", "delta_mha", "delta", "backend", "model",
-			"hardware_job_id", "calibration_fresh",
+			"energy", "energy_exact", "exact_energy", "fci_exact_energy",
+			"ground_energy", "ground_energy_exact", "ground_state_energy",
+			"reaction_energy", "reaction_energy_exact",
+			"measured_cut", "optimal_cut", "approximation_ratio",
+			"delta_mha", "delta",
+			"energy_initial", "times",
+			"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
+			"points", "status", "verdict", "law", "expression",
+			"mitigated", "hardware",
+			"backend", "requested_backend", "model",
+			"hardware_job_id", "calibration_fresh", "calibration_snapshot_id",
 		} {
 			if v, ok := res[k]; ok && v != nil {
 				row[k] = v

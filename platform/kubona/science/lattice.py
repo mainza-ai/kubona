@@ -481,8 +481,8 @@ class SquareLatticeModel:
         ``expm_multiply(-i H t)``. No Trotter or shot approximation is used.
         """
         values = [float(t) for t in times]
-        if not values or len(values) > 20 or any(not math.isfinite(t) or t < 0 for t in values):
-            raise ValueError("times must contain 1..20 finite non-negative values")
+        if not values or len(values) > 100 or any(not math.isfinite(t) or t < 0 for t in values):
+            raise ValueError("times must contain 1..100 finite non-negative values")
         qf = _validate_finite("quench_field", quench_field)
         initial_energy, psi0, _evals = self.ground_state(k=k)
         quench = SquareLatticeModel(self.rows, self.cols, self.coupling, qf, self.periodic)

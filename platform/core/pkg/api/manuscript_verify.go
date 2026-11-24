@@ -59,6 +59,16 @@ func (s *Server) handleManuscriptVerification(w http.ResponseWriter, r *http.Req
 			WriteAPIError(w, "internal", "verification persistence failed: "+err.Error(), nil)
 			return
 		}
+		if len(report.Citations) > 0 {
+			verifiedByKey := make(map[string]bool, len(report.Citations))
+			for _, cf := range report.Citations {
+				verifiedByKey[cf.Key] = cf.Status == verify.CitationVerifiedDOI || cf.Status == verify.CitationVerifiedTitle
+			}
+			if err := s.ledger.SetManuscriptCitationsVerified(sessionID, id, verifiedByKey); err != nil {
+				WriteAPIError(w, "internal", "citation verification persistence failed: "+err.Error(), nil)
+				return
+			}
+		}
 		if err := s.recordManuscriptEvent(sessionID, "manuscript_verified", map[string]any{
 			"manuscript_id": id, "content_hash": ms.ContentHash,
 			"status": report.Summary.Status, "numbers_checked": report.Summary.NumbersChecked,
