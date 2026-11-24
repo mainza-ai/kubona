@@ -21,6 +21,7 @@ from kubona.qec import (
     evaluate_seven_gates,
     relabel_qubits_css,
     reverify_claims,
+    sign_discovery_claim_ed25519,
 )
 
 
@@ -143,8 +144,18 @@ def test_redteam_fake6_malformed_non_commuting_matrices_rejected_gate0():
     assert rep["failure_code"] == "invalid_matrices"
 
 
+def test_redteam_forged_distance_rejected_gate1():
+    """P0-3: caller-forged d=999 with d_kind='proved' is caught by independent MILP re-derivation."""
+    H = _steane_H()
+    cl = _make_claim(H, H, d=999, d_kind="proved")
+    rep = evaluate_seven_gates(cl, catalog=[])
+    assert rep["all_deterministic_passed"] is False
+    assert rep["failed_gate"] == "gate1_exact_params"
+    assert rep["failure_code"] == "distance_mismatch"
+
+
 def test_valid_claim_lifecycle_and_automatic_retraction_on_reverify():
-    """Valid novel candidate -> verified -> claimed -> retracted when added to catalog."""
+    """Valid novel candidate -> verified -> Ed25519-signed claimed -> retracted when added to catalog."""
     H = _steane_H()
     cl = _make_claim(H, H, code_name="steane_7_1_3")
 
@@ -153,9 +164,19 @@ def test_valid_claim_lifecycle_and_automatic_retraction_on_reverify():
     assert rep1["all_deterministic_passed"] is True
     assert cl.status == "verified"
     assert len(cl.artifact_sha256) == 64
+    assert len(cl.gates_digest) == 64
 
-    # With human operator signoff: transitions to claimed
+    # Bare string signoff without Ed25519 signature MUST be refused (P0-3)
     cl.operator_signoff = "operator-mainza"
+    rep_unsigned = evaluate_seven_gates(cl, catalog=[])
+    assert rep_unsigned["claimed"] is False
+    assert cl.status == "verified"
+
+    # Real Ed25519 signature over (claim_id, artifact_sha256, gates_digest) promotes to claimed
+    priv_hex = "11" * 32
+    pub_hex, sig_hex = sign_discovery_claim_ed25519(cl.claim_id, cl.artifact_sha256, cl.gates_digest, priv_hex)
+    cl.operator_pubkey_hex = pub_hex
+    cl.operator_signature_hex = sig_hex
     rep2 = evaluate_seven_gates(cl, catalog=[])
     assert rep2["claimed"] is True
     assert cl.status == "claimed"

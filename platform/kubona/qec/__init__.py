@@ -13,11 +13,19 @@ from kubona.qec.circuits import (
     build_css_memory_circuit,
     build_surface_code_memory_circuit,
     heron_calibration_noise,
+    load_heron_calibration_from_ledger,
     si1000_noise,
     uniform_depolarizing_noise,
     verify_circuit_distance,
 )
-from kubona.qec.claims import DiscoveryClaim, evaluate_seven_gates, reverify_claims
+from kubona.qec.claims import (
+    DiscoveryClaim,
+    canonical_claim_sign_message,
+    evaluate_seven_gates,
+    reverify_claims,
+    sign_discovery_claim_ed25519,
+    verify_discovery_claim_ed25519,
+)
 from kubona.qec.codes import BBCodeSpec, KNOWN_BB_SPECS, build_bb_code, direct_sum_css, relabel_qubits_css
 from kubona.qec.decoders import decode_bposd, decode_pymatching, dem_to_matrices, tune_ebposd_weights
 from kubona.qec.distance import estimate_distance_bposd, prove_distance_milp
@@ -64,6 +72,7 @@ __all__ = [
     "build_qec_formal_attestation",
     "build_surface_code_memory_circuit",
     "build_surface_sinter_tasks",
+    "canonical_claim_sign_message",
     "canonical_fingerprint",
     "compute_gamma",
     "css_logicals",
@@ -85,6 +94,7 @@ __all__ = [
     "heron_calibration_noise",
     "is_decomposable_css",
     "is_lc_equivalent_css",
+    "load_heron_calibration_from_ledger",
     "load_qcode_discovery_json",
     "lookup_catalog",
     "mutate_bb_terms",
@@ -95,9 +105,11 @@ __all__ = [
     "run_campaign_b_schedule_search",
     "run_sinter_batch",
     "si1000_noise",
+    "sign_discovery_claim_ed25519",
     "simulate_memory_circuit",
     "tanner_graph_rx",
     "tune_ebposd_weights",
+    "verify_discovery_claim_ed25519",
     "uniform_depolarizing_noise",
     "verifier_in_loop_refine",
     "verify_circuit_distance",

@@ -96,10 +96,11 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // 6 = experiment plans; 7 = measured-novelty method; 8 = hypothesis spec
 // patches and plan spec provenance; 12 = plan deferrals; 13 = tenant agentic
 // defaults; 14 = plan review feedback/edits and the one-time tool approval
-// queue; 15 = plan risk-category taxonomy. Each bump
+// queue; 15 = plan risk-category taxonomy; 16 = ordering indexes; 17 =
+// durable QEC discovery_claims lifecycle table (P0-3). Each bump
 // makes an existing ledger take a verified pre-migration snapshot before the
 // additive DDL, which is the production upgrade invariant.
-const CurrentSchemaVersion = 16
+const CurrentSchemaVersion = 17
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -697,7 +698,7 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (session_id, request_id)
 	);
-	` + obligationSchema + scoresSchema + manuscriptsSchema + hypothesesSchema + plansSchema + autonomySchema + knowledgeSchema + tenantAgenticSchema + toolApprovalsSchema
+	` + obligationSchema + scoresSchema + manuscriptsSchema + hypothesesSchema + plansSchema + autonomySchema + knowledgeSchema + tenantAgenticSchema + toolApprovalsSchema + discoveryClaimsSchema
 
 	if _, err := db.Exec(initSchema); err != nil {
 		db.Close()

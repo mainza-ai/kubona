@@ -29,11 +29,13 @@ const (
 )
 
 // SidecarRequest is the complete request surface exposed to kubonad.
+// Profile selects the fixed runner image ("codesign" default, or "qec").
 type SidecarRequest struct {
 	Benchmark      string `json:"benchmark"`
 	ArtifactName   string `json:"artifact_name,omitempty"`
 	Artifact       string `json:"artifact,omitempty"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	Profile        string `json:"profile,omitempty"`
 }
 
 // SidecarResponse is deliberately shaped like ExecutionResult so the API
@@ -139,6 +141,7 @@ func (c *SidecarClient) Health(ctx context.Context) (bool, string) {
 type SidecarServer struct {
 	Socket        string
 	Image         string
+	QECImage      string
 	Runtime       string
 	ScratchRoot   string
 	SeccompPath   string
@@ -209,6 +212,11 @@ func (s *SidecarServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.TrimSpace(req.Benchmark) == "" {
 		writeSidecarError(w, http.StatusBadRequest, "benchmark is required")
+		return
+	}
+	profileName := strings.TrimSpace(req.Profile)
+	if profileName != "" && profileName != "codesign" && profileName != "qec" {
+		writeSidecarError(w, http.StatusBadRequest, fmt.Sprintf("unsupported sandbox profile %q (allowed: codesign, qec)", profileName))
 		return
 	}
 	if req.ArtifactName != "" {
@@ -306,7 +314,15 @@ func (s *SidecarServer) runOne(parent context.Context, req SidecarRequest, timeo
 	if runID == "" {
 		return SidecarResponse{Sandboxed: false, Error: "cannot mint run id", ExitCode: 1}
 	}
-	args := sidecarDockerArgs(s.Image, s.Runtime, benchDir, workDir, profile, runID)
+	image := s.Image
+	if strings.TrimSpace(req.Profile) == "qec" {
+		if strings.TrimSpace(s.QECImage) != "" {
+			image = s.QECImage
+		} else {
+			image = "kubona/qec-runner:prod"
+		}
+	}
+	args := sidecarDockerArgs(image, s.Runtime, benchDir, workDir, profile, runID)
 	if args == nil {
 		return SidecarResponse{Sandboxed: false, Error: "cannot build sandbox invocation", ExitCode: 1}
 	}

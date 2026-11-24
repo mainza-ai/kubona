@@ -46,14 +46,14 @@ WORKDIR /app
 # keep the set minimal rather than pulling all of TeX Live.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
+       g++ cmake git texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 # Install first (better layer caching): lock + metadata, then the package,
 # then the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-install-project --extra qiskit --extra chemistry
+RUN uv sync --locked --no-install-project --extra qiskit --extra chemistry --extra qec
 COPY kubona ./kubona
-RUN uv sync --locked --extra qiskit --extra chemistry \
+RUN uv sync --locked --extra qiskit --extra chemistry --extra qec \
     && rm -f /bin/uv /bin/uvx \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 

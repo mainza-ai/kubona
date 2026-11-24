@@ -16,11 +16,11 @@ type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | '
 const QEC_HERON_R2_CAL = {
   backend: 'ibm_kingston',
   calibration_snapshot_id: 'cal_8f65e57d6f49',
-  median_2q_error: 0.0028,
-  median_1q_error: 0.00025,
-  median_readout_error: 0.012,
-  median_t1_us: 240.0,
-  median_t2_us: 150.0,
+  two_qubit_error: 0.0018203,
+  single_qubit_error: 0.00024423,
+  readout_error: 0.011475,
+  t1_us: 267.172889,
+  t2_us: 142.351605,
 };
 
 function parseTermPairs(raw: string): number[][] {

@@ -1369,6 +1369,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     build_css_memory_circuit,
                     build_surface_code_memory_circuit,
                     heron_calibration_noise,
+                    load_heron_calibration_from_ledger,
                     si1000_noise,
                     simulate_memory_circuit,
                     uniform_depolarizing_noise,
@@ -1376,8 +1377,13 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
                 noise_kind = str(spec.get("noise_model") or "si1000").lower()
                 p_err = float(spec.get("physical_error_rate", 0.003))
-                if noise_kind == "heron_calibration" and isinstance(spec.get("calibration"), dict):
-                    nm = heron_calibration_noise(spec["calibration"], cycle_us=float(spec.get("cycle_us", 1.0)))
+                if noise_kind == "heron_calibration":
+                    cal_block = spec.get("calibration")
+                    if not isinstance(cal_block, dict):
+                        snap_id = str(spec.get("calibration_snapshot_id") or "").strip()
+                        db_path = str(spec.get("ledger_db_path") or os.environ.get("KUBONA_DB_PATH") or "/home/kubona/.kubona/kubona.db")
+                        cal_block = load_heron_calibration_from_ledger(snap_id, db_path)
+                    nm = heron_calibration_noise(cal_block, cycle_us=float(spec.get("cycle_us", 1.0)))
                 elif noise_kind == "uniform_depolarizing":
                     nm = uniform_depolarizing_noise(p_err)
                 else:

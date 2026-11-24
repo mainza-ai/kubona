@@ -44,6 +44,7 @@ var knownJobTypes = map[string]bool{
 	"pes_sweep": true, "vqe_run": true, "geometry_optimization": true, "vqe_repeats": true, "vqe_pes": true, "qaoa_run": true,
 	"excited_state": true, "reaction": true, "spin_chain": true, "thermodynamic_limit": true, "conjecture_run": true, "lattice_dynamics": true,
 	"hardware_experiment": true, "hardware_pes": true, "qaoa_hardware": true, "spin_chain_hardware": true,
+	"qec_code_eval": true, "qec_distance": true, "qec_memory_sim": true,
 }
 
 // VendorReachableJobTypes is the single list of job types whose dispatch
@@ -1103,7 +1104,7 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			resultData, execErr = r.executePesSweep(&sp)
 
-		case "vqe_run", "geometry_optimization", "vqe_repeats", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "thermodynamic_limit", "conjecture_run", "lattice_dynamics", "hardware_experiment", "hardware_pes", "qaoa_hardware", "spin_chain_hardware":
+		case "vqe_run", "geometry_optimization", "vqe_repeats", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "thermodynamic_limit", "conjecture_run", "lattice_dynamics", "hardware_experiment", "hardware_pes", "qaoa_hardware", "spin_chain_hardware", "qec_code_eval", "qec_distance", "qec_memory_sim":
 			// The bridge owns the PySCF/Qiskit experiment runner; the Go
 			// worker owns the ledger job, budget, and settlement. The params
 			// object is the versioned experiment spec.
@@ -1278,7 +1279,7 @@ func (r *Runner) attachResultReceipt(j *Job) bool {
 // version is refused rather than folded into a campaign as if typed.
 func validateExperimentResultVersion(jobType string, resultData []byte) error {
 	switch jobType {
-	case "vqe_run", "geometry_optimization", "vqe_repeats", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "thermodynamic_limit", "conjecture_run", "lattice_dynamics", "hardware_experiment", "hardware_pes", "qaoa_hardware", "spin_chain_hardware", "krylov_json", "mitigate_json":
+	case "vqe_run", "geometry_optimization", "vqe_repeats", "vqe_pes", "qaoa_run", "excited_state", "reaction", "spin_chain", "thermodynamic_limit", "conjecture_run", "lattice_dynamics", "hardware_experiment", "hardware_pes", "qaoa_hardware", "spin_chain_hardware", "krylov_json", "mitigate_json", "qec_code_eval", "qec_distance", "qec_memory_sim":
 	default:
 		return nil
 	}

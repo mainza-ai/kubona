@@ -174,6 +174,10 @@ def _row_status(row: Dict[str, Any]) -> str:
         return "dmrg"
     if kind_l in ("conjecture", "conjecture_run", "symbolic_conjecture"):
         return "conjecture"
+    if kind_l in ("qec_code_eval", "qec_distance"):
+        return "proved" if str(row.get("d_kind") or "") == "proved" else "upper-bound"
+    if kind_l == "qec_memory_sim":
+        return "qec-sim"
     return "inferred"
 
 
@@ -316,6 +320,34 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
             measured_str = _latex_escape(st)
             law = row.get("law") or row.get("expression")
             delta_str = _latex_escape(str(law)[:64]) if law else "no law"
+        elif kind_l in ("qec_code_eval", "qec_distance"):
+            n_q = row.get("n")
+            k_q = row.get("k")
+            d_q = row.get("d")
+            if n_q is not None and k_q is not None:
+                measured_str = f"[[{int(n_q)},{int(k_q)},{d_q if d_q is not None else '?'}]]"
+            fom_v = row.get("fom")
+            if fom_v is not None:
+                exact_str = f"FOM {float(fom_v):.2f}"
+            d_kind = "PROVED" if str(row.get("d_kind") or "") == "proved" else "UPPER BOUND"
+            delta_str = _latex_escape(d_kind)
+        elif kind_l == "qec_memory_sim":
+            ler_v = row.get("ler")
+            ci_lo = row.get("ci_low")
+            ci_hi = row.get("ci_high")
+            if ler_v is not None:
+                measured_str = f"LER {float(ler_v):.4f}"
+                if ci_lo is not None and ci_hi is not None:
+                    measured_str += f" [{float(ci_lo):.4f},{float(ci_hi):.4f}]"
+            d_circ = row.get("d_circ")
+            if d_circ is not None:
+                exact_str = f"d\\_circ={int(d_circ)}"
+            lat_us = row.get("decoder_latency_us")
+            dec_name = str(row.get("decoder") or "auto")
+            if lat_us is not None:
+                delta_str = _latex_escape(f"{dec_name} ({float(lat_us):.1f} us)")
+            else:
+                delta_str = _latex_escape(dec_name)
         else:
             measured_v = row.get("energy")
             if measured_v is None:
@@ -514,8 +546,6 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         build_results_narrative,
         build_statistical_audit_section,
         infer_target_system,
-        render_companion_html,
-        render_companion_markdown,
     )
 
     doc_type = str(req.get("document_type") or "academic_preprint").strip().lower()

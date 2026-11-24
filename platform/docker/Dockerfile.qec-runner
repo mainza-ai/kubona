@@ -16,6 +16,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    g++ \
+    cmake \
+    git \
     libgomp1 \
     libopenblas0 \
     && rm -rf /var/lib/apt/lists/*

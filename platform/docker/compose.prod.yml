@@ -426,6 +426,29 @@ services:
           cpus: '1.0'
           memory: 1G
 
+  # Opt-in isolated QEC discovery worker (P0-4 / G11). Network-isolated,
+  # read-only rootfs, zero-GPL qec compute stack (Dockerfile.qec-runner).
+  # Enable with: docker compose --profile qec-worker up -d
+  qec-worker:
+    profiles: ["qec-worker"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.qec-runner
+    image: kubona/qec-runner:prod
+    <<: *default-hardening
+    network_mode: "none"
+    environment:
+      HOME: /tmp
+      KUBONA_ENV: "production"
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
 volumes:
   kubona-state:
   kubona-backups:

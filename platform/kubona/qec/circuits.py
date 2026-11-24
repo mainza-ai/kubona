@@ -12,8 +12,11 @@ d_circ via Stim so hook errors cannot silently invalidate LER rankings (G6).
 
 from __future__ import annotations
 
+import json
 import math
+import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Tuple
 
 import numpy as np
@@ -75,6 +78,87 @@ def si1000_noise(p: float, *, is_held_out: bool = False) -> CircuitNoiseModel:
     )
 
 
+def _extract_snapshot_dict(obj: Any, snapshot_id: str) -> dict[str, Any] | None:
+    """Recursively locate the calibration block tagged with ``snapshot_id``."""
+    if isinstance(obj, dict):
+        sid = obj.get("calibration_snapshot_id") or obj.get("snapshot_id") or obj.get("id")
+        if str(sid or "") == snapshot_id and any(
+            k in obj for k in ("two_qubit_error", "median_2q_error", "t1_us", "median_t1_us")
+        ):
+            return dict(obj)
+        for v in obj.values():
+            found = _extract_snapshot_dict(v, snapshot_id)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _extract_snapshot_dict(item, snapshot_id)
+            if found is not None:
+                return found
+    return None
+
+
+def load_heron_calibration_from_ledger(
+    snapshot_id: str,
+    db_path: str | Path,
+) -> dict[str, Any]:
+    """Load an exact frozen calibration snapshot from the Kubona SQLite ledger.
+
+    Fail-closed: raises ``ValueError`` if ``snapshot_id`` is empty, the ledger
+    does not exist, or the snapshot id is unknown / lacks required metrics.
+    """
+    sid = str(snapshot_id or "").strip()
+    if not sid:
+        raise ValueError("calibration snapshot_id must be non-empty")
+    path = Path(db_path)
+    if not path.is_file():
+        raise ValueError(f"calibration ledger not found: {path}")
+
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        cur = conn.cursor()
+        # Check calibration_snapshots table if present
+        tables = {row[0] for row in cur.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "calibration_snapshots" in tables:
+            cols = [c[1] for c in cur.execute("PRAGMA table_info(calibration_snapshots)")]
+            if "id" in cols and "payload_json" in cols:
+                row = cur.execute("SELECT payload_json FROM calibration_snapshots WHERE id = ? LIMIT 1", (sid,)).fetchone()
+                if row and row[0]:
+                    parsed = json.loads(row[0])
+                    if isinstance(parsed, dict):
+                        parsed.setdefault("calibration_snapshot_id", sid)
+                        return parsed
+        if "jobs" in tables:
+            for (raw_json,) in cur.execute(
+                "SELECT result_json FROM jobs WHERE result_json LIKE ? ORDER BY created_at DESC LIMIT 20",
+                (f"%{sid}%",),
+            ):
+                if not raw_json:
+                    continue
+                try:
+                    parsed = json.loads(raw_json)
+                except Exception:
+                    continue
+                found = _extract_snapshot_dict(parsed, sid)
+                if found is not None:
+                    found["calibration_snapshot_id"] = sid
+                    return found
+    finally:
+        conn.close()
+    raise ValueError(f"unknown calibration snapshot {sid!r} in ledger {path}")
+
+
+def _require_pos_float(cal: dict[str, Any], keys: tuple[str, ...], label: str) -> float:
+    for k in keys:
+        v = cal.get(k)
+        if v is not None:
+            fv = float(v)
+            if not math.isfinite(fv) or fv <= 0.0:
+                raise ValueError(f"calibration field {label} ({k}) must be finite and > 0, got {v!r}")
+            return fv
+    raise ValueError(f"calibration snapshot missing required field {label} (tried {keys})")
+
+
 def heron_calibration_noise(
     cal_snapshot: dict[str, Any],
     *,
@@ -83,15 +167,30 @@ def heron_calibration_noise(
 ) -> CircuitNoiseModel:
     """Build a realistic circuit-level noise model from a Kubona IBM Heron r2
     calibration snapshot (``cal_<sha256>``, G7 differentiator vs. OmniQEC).
+
+    Fail-closed: refuses snapshots missing ``calibration_snapshot_id`` or any
+    required physical metric (2Q error, readout error, T1, T2) rather than
+    substituting hardcoded defaults.
     """
-    p_2q = float(cal_snapshot.get("median_2q_error") or cal_snapshot.get("two_qubit_error") or 0.003)
-    p_1q = float(cal_snapshot.get("median_1q_error") or cal_snapshot.get("single_qubit_error") or (p_2q / 10.0))
-    p_meas = float(cal_snapshot.get("median_readout_error") or cal_snapshot.get("readout_error") or 0.015)
-    t1_us = float(cal_snapshot.get("median_t1_us") or 180.0)
-    t2_us = float(cal_snapshot.get("median_t2_us") or 120.0)
+    if not isinstance(cal_snapshot, dict):
+        raise ValueError("cal_snapshot must be a dict")
+    snap_id = str(cal_snapshot.get("calibration_snapshot_id") or cal_snapshot.get("snapshot_id") or "").strip()
+    if not snap_id or snap_id == "cal_unknown":
+        raise ValueError("calibration snapshot requires a valid calibration_snapshot_id")
+
+    p_2q = _require_pos_float(cal_snapshot, ("two_qubit_error", "median_2q_error"), "two_qubit_error")
+    p_meas = _require_pos_float(cal_snapshot, ("readout_error", "median_readout_error"), "readout_error")
+    t1_us = _require_pos_float(cal_snapshot, ("t1_us", "median_t1_us"), "t1_us")
+    t2_us = _require_pos_float(cal_snapshot, ("t2_us", "median_t2_us"), "t2_us")
+    raw_1q = cal_snapshot.get("single_qubit_error")
+    if raw_1q is None:
+        raw_1q = cal_snapshot.get("median_1q_error")
+    p_1q = float(raw_1q) if raw_1q is not None else (p_2q / 10.0)
+    if not math.isfinite(p_1q) or p_1q < 0.0:
+        raise ValueError(f"invalid single_qubit_error: {raw_1q!r}")
+
     t_eff = max(1.0, min(t1_us, t2_us))
     p_idle = min(0.25, max(1e-6, 1.0 - math.exp(-float(cycle_us) / t_eff)))
-    snap_id = str(cal_snapshot.get("calibration_snapshot_id") or cal_snapshot.get("snapshot_id") or "cal_unknown")
     backend = str(cal_snapshot.get("backend") or "heron_r2")
     return CircuitNoiseModel(
         name=f"heron_cal_{backend}_{snap_id[:16]}",
