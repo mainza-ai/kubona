@@ -142,10 +142,10 @@ func ValidateFixedBudgetCodeClaim(c FixedBudgetCodeClaim) error {
 		return errors.New("fixed-budget QEC claim refused: candidate exceeds declared baseline physical qubit budget")
 	}
 	for name, v := range map[string]float64{
-		"code_ler_upper_95":    c.CodeLERUpper95,
+		"code_ler_upper_95":     c.CodeLERUpper95,
 		"baseline_ler_lower_95": c.BaselineLERLower95,
-		"decoder_latency_us":   c.DecoderLatencyUs,
-		"cycle_time_us":        c.CycleTimeUs,
+		"decoder_latency_us":    c.DecoderLatencyUs,
+		"cycle_time_us":         c.CycleTimeUs,
 	} {
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			return errors.New("fixed-budget QEC claim refused: " + name + " is not finite")

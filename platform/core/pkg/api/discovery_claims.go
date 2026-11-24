@@ -23,9 +23,10 @@ func discoveryClaimsSubpath(id string) (sessionID, rest string, ok bool) {
 
 // handleDiscoveryClaimsRoute exposes durable Schema-17 QEC discovery_claims
 // lifecycle operations:
-//   GET  /api/sessions/{id}/discovery-claims
-//   POST /api/sessions/{id}/discovery-claims               (create/upsert candidate)
-//   POST /api/sessions/{id}/discovery-claims/{claimId}/transition  (verified / Ed25519 claimed / retracted)
+//
+//	GET  /api/sessions/{id}/discovery-claims
+//	POST /api/sessions/{id}/discovery-claims               (create/upsert candidate)
+//	POST /api/sessions/{id}/discovery-claims/{claimId}/transition  (verified / Ed25519 claimed / retracted)
 func (s *Server) handleDiscoveryClaimsRoute(w http.ResponseWriter, r *http.Request, sessionID, rest string) {
 	sess, ok := s.authorizeKnownSession(w, r, sessionID)
 	if !ok {

@@ -76,10 +76,11 @@ func VerifyDiscoveryClaimSignoff(claimID, artifactSHA256, gatesDigest, pubkeyHex
 }
 
 // TransitionDiscoveryClaim enforces the strict lifecycle:
-//   candidate -> verified -> claimed -> retracted
-//   (verified -> retracted is also allowed on re-verification failure;
-//    retracted is terminal; skipping verified to enter claimed is refused;
-//    claimed requires a valid Ed25519 signature over (claim_id, artifact_sha256, gates_digest)).
+//
+//	candidate -> verified -> claimed -> retracted
+//	(verified -> retracted is also allowed on re-verification failure;
+//	 retracted is terminal; skipping verified to enter claimed is refused;
+//	 claimed requires a valid Ed25519 signature over (claim_id, artifact_sha256, gates_digest)).
 func TransitionDiscoveryClaim(
 	rec *DiscoveryClaimRecord,
 	next DiscoveryClaimStatus,

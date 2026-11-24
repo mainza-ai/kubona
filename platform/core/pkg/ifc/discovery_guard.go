@@ -9,9 +9,9 @@ import (
 // campaigns so held-out noise models, catalogs, and evaluation seeds cannot
 // leak into proposer LLM prompts (Gate 5 enforcement).
 const (
-	DiscoveryUniverse   = "discovery"
-	PrincipalVerifier   = "verifier"
-	PrincipalProposer   = "proposer"
+	DiscoveryUniverse = "discovery"
+	PrincipalVerifier = "verifier"
+	PrincipalProposer = "proposer"
 )
 
 // ErrHeldOutLeakage is returned when a held-out artifact attempts to flow into
