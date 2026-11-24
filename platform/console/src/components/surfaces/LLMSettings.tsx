@@ -88,6 +88,8 @@ interface SettingsPayload {
   temperature: number;
   max_tokens: number;
   disable_dsml_fallback?: boolean;
+  cloud_llm_opt_in?: boolean;
+  production_mode?: boolean;
   revision?: number;
   providers: Record<string, ProviderConfig>;
   role_assignments: Record<string, RoleModelAssignment>;
@@ -1380,12 +1382,56 @@ export function LLMSettings() {
               <span>Cloud egress blocked while Sovereign Air-Gap is engaged. Roles on cloud providers will refuse.</span>
             </div>
           )}
-          {!settings.air_gapped && (
+          {!settings.air_gapped && settings.production_mode && settings.cloud_llm_opt_in === false && (
+            <div role="alert" className="text-[12px] text-warning-ink bg-warning-wash border border-warning-edge p-2.5 rounded-row flex items-center space-x-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-warning-ink" />
+              <span>
+                Production cloud egress is currently blocked: set <span className="font-mono text-text">KUBONA_LLM_CLOUD=1</span> in <span className="font-mono text-text">.env</span> and restart <span className="font-mono text-text">kubonad</span> before using cloud providers (NVIDIA, OpenAI, Anthropic, etc.).
+              </span>
+            </div>
+          )}
+          {!settings.air_gapped && !(settings.production_mode && settings.cloud_llm_opt_in === false) && (
             <div className="text-[12px] text-muted bg-tile border border-border p-2.5 rounded-row">
               Local providers (Strata, oMLX, Ollama, LM Studio) work without a cloud opt-in. In production,
               cloud providers additionally require the deployment flag <span className="font-mono text-text">KUBONA_LLM_CLOUD=1</span>.
             </div>
           )}
+          {(() => {
+            const divergent = Object.values(settings.role_assignments || {}).filter(
+              (a) => a.provider && a.provider !== settings.active_provider,
+            );
+            if (divergent.length === 0 || !settings.active_provider) return null;
+            return (
+              <div role="status" className="text-[12px] text-info-ink bg-info-wash border border-info-edge p-2.5 rounded-row flex items-center justify-between gap-3">
+                <span>
+                  {divergent.length} role(s) are pinned to a different provider than active provider{' '}
+                  <span className="font-mono text-text">{settings.active_provider}</span> and will override it.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const catalog = settings.role_catalog && settings.role_catalog.length > 0
+                      ? settings.role_catalog
+                      : DEFAULT_ROLE_META;
+                    const synced: Record<string, RoleModelAssignment> = { ...settings.role_assignments };
+                    for (const meta of catalog) {
+                      synced[meta.role] = {
+                        ...(synced[meta.role] || { role: meta.role }),
+                        role: meta.role,
+                        provider: settings.active_provider,
+                        model: settings.active_model,
+                      };
+                    }
+                    setSettings({ ...settings, role_assignments: synced });
+                    setProfileStatus(`Synced all ${catalog.length} roles to ${settings.active_provider} (${settings.active_model || 'default'}). Click Save to apply.`);
+                  }}
+                  className="shrink-0 px-2.5 py-1 rounded-control-compact bg-surface hover:bg-fill-hover border border-info-edge text-text font-mono text-[11px]"
+                >
+                  Sync all roles to {settings.active_provider}
+                </button>
+              </div>
+            );
+          })()}
 
           {monoModelWarning && (
             <div

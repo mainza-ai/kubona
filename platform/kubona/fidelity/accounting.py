@@ -100,6 +100,40 @@ DEVICE_CATALOG, PROVIDER_DEVICE_MAP, DEFAULT_FIDELITY_FLOOR, DEFAULT_MAX_CALIBRA
 )
 
 
+def update_device_profile(device_name: str, snapshot: dict[str, Any], aliases: tuple[str, ...] = ()) -> DeviceNoiseProfile:
+    """Install a live calibration snapshot into the in-process DEVICE_CATALOG.
+
+    Keeps the Python bridge fidelity admission engine synchronized with
+    POST /api/fleet/calibration/refresh (CAL-02). Validates physical soundness
+    and provenance before updating.
+    """
+    calibrated_at = str(snapshot.get("calibrated_at", "")).strip()
+    calibrated_epoch = _parse_calibrated_at(calibrated_at)
+    prof = DeviceNoiseProfile(
+        device_name=device_name,
+        t1_us=float(snapshot["t1_us"]),
+        t2_us=float(snapshot["t2_us"]),
+        single_qubit_error=float(snapshot["single_qubit_error"]),
+        two_qubit_error=float(snapshot["two_qubit_error"]),
+        readout_error=float(snapshot.get("readout_error", 0.0)),
+        last_calibrated_epoch=calibrated_epoch,
+        qubits=int(snapshot.get("qubits", 0)),
+        source=str(snapshot.get("source", "")),
+        version=str(snapshot.get("version", "")),
+        calibrated_at=calibrated_at,
+    )
+    if not prof.is_physically_sound():
+        raise ValueError(f"live calibration for {device_name} violates T2 <= 2*T1")
+    if not prof.source or not prof.version or not prof.calibrated_at:
+        raise ValueError(f"live calibration for {device_name} lacks provenance")
+    DEVICE_CATALOG[device_name] = prof
+    for alias in aliases:
+        alias_str = str(alias).strip()
+        if alias_str:
+            DEVICE_CATALOG[alias_str] = dataclasses.replace(prof, device_name=alias_str)
+    return prof
+
+
 @dataclass
 class FidelityAdmissionVerdict:
     admitted: bool

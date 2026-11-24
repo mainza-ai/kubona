@@ -1547,7 +1547,7 @@ func (s *Server) handleCalibrationRefresh(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"backend": backend, "device": device, "profile": profile,
+		"ok": true, "backend": backend, "device": device, "profile": profile,
 		"queue": out.Queue, "source": "live-backend-properties",
 	})
 }
@@ -5644,6 +5644,10 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 			// B12: explicit acknowledgement that the new copilot model has no
 			// current recorded eval. Only meaningful when the eval gate is on.
 			AcknowledgeUnevaluated bool `json:"acknowledge_unevaluated"`
+			// LLM-01: when true, mirror active_provider + active_model onto
+			// every known role assignment so stale per-role pins do not
+			// silently override a provider switch.
+			ApplyToAllRoles bool `json:"apply_to_all_roles"`
 		}
 		var req llm.Settings
 		if err := json.Unmarshal(body, &precondition); err != nil {
@@ -5664,6 +5668,18 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 		if err := validateProviderURLs(&req); err != nil {
 			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
+		}
+		if precondition.ApplyToAllRoles && req.ActiveProvider != "" {
+			if req.RoleAssignments == nil {
+				req.RoleAssignments = make(map[string]llm.RoleModelAssignment)
+			}
+			for _, meta := range llm.KnownRoleCatalog() {
+				req.RoleAssignments[meta.Role] = llm.RoleModelAssignment{
+					Role:     meta.Role,
+					Provider: req.ActiveProvider,
+					Model:    req.ActiveModel,
+				}
+			}
 		}
 		// B12 (opt-in): a copilot model change must be evaluated on the pinned
 		// fixtures, or explicitly acknowledged in this same write.

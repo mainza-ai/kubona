@@ -1813,9 +1813,9 @@ export async function fetchFleet(): Promise<Record<string, unknown>> {
 
 export async function refreshCalibration(backend: string): Promise<{ ok: boolean; queue?: Record<string, unknown>; error?: string }> {
   try {
-    const res = await apiFetch('/api/fleet/calibration/refresh', {
+    const res = await apiFetch(`${API_BASE}/api/fleet/calibration/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ backend }),
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;

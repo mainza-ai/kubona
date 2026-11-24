@@ -300,6 +300,11 @@ type Settings struct {
 	// false — some gateways need the dialect; operators who don't trust it
 	// switch it off and lose nothing structured.
 	DisableDSMLFallback bool `json:"disable_dsml_fallback"`
+	// Server-computed runtime posture flags (LLM-02): read-only telemetry so
+	// the Console can warn immediately when production cloud egress is gated
+	// off by KUBONA_LLM_CLOUD!=1 instead of failing silently at chat time.
+	CloudLLMOptIn  bool `json:"cloud_llm_opt_in,omitempty"`
+	ProductionMode bool `json:"production_mode,omitempty"`
 	// Revision is the server-owned optimistic-concurrency counter for
 	// operator configuration. Every operator write (Update, ClearProviderKey,
 	// SetAirGapped) that changes state bumps it; provider health telemetry
@@ -990,6 +995,8 @@ func (s *Settings) snapshotLocked(redact bool) Settings {
 		RoleAssignments:     copyRoles,
 		RoleCatalog:         roleCatalog,
 		DisableDSMLFallback: s.DisableDSMLFallback,
+		CloudLLMOptIn:       cloudLLMOptIn(),
+		ProductionMode:      strings.ToLower(strings.TrimSpace(os.Getenv("KUBONA_ENV"))) == "production",
 		Revision:            s.Revision,
 	}
 }

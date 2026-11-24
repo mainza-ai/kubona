@@ -79,7 +79,9 @@ func (s *Server) handleQuantumCanary(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(providers) == 0 {
-		providers = append([]string{}, KnownQuantumProviders...)
+		// Default strictly to local simulator providers so an unparameterized
+		// GET /api/quantum/canary never dispatches live QPU hardware (HW-03).
+		providers = []string{"local-simulator", "qiskit-aer-simulator"}
 	}
 	maxSeconds := canaryDefaultTimeoutS
 	if raw := strings.TrimSpace(r.URL.Query().Get("max_seconds")); raw != "" {
@@ -101,6 +103,32 @@ func (s *Server) handleQuantumCanary(w http.ResponseWriter, r *http.Request) {
 	}
 	cached := len(stale) == 0
 	if len(stale) > 0 {
+		hasExternalHardware := false
+		for _, p := range stale {
+			if p != "local-simulator" && p != "qiskit-aer-simulator" {
+				hasExternalHardware = true
+				break
+			}
+		}
+		if hasExternalHardware {
+			if s.llmSettings != nil && s.llmSettings.GetSnapshot().AirGapped {
+				WriteAPIError(w, "forbidden", "air-gapped mode: live hardware canary refused", nil)
+				return
+			}
+			allowHW := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("allow_hardware")), "true") ||
+				strings.TrimSpace(r.URL.Query().Get("allow_hardware")) == "1"
+			if !allowHW {
+				WriteAPIError(w, "forbidden", "live hardware canary requires explicit allow_hardware=true and operator auth", nil)
+				return
+			}
+			if hasNoCredentials(r) {
+				WriteAPIError(w, "unauthorized", "live hardware canary requires operator or lab authentication", nil)
+				return
+			}
+			if _, ok := s.checkCallerAuth(w, r); !ok {
+				return
+			}
+		}
 		bridge := s.quantumBridge(w, "quantum_canary")
 		if bridge == nil {
 			return

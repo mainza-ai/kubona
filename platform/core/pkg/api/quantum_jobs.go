@@ -87,8 +87,8 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		CallerExportClass   string    `json:"caller_export_class"`
 		RequireReview       bool      `json:"require_review"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		WriteAPIError(w, "bad_request", "malformed JSON request", nil)
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid quantum job request: %v", err), nil)
 		return
 	}
 	if req.IdempotencyKey == "" {

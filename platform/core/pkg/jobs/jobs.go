@@ -1122,6 +1122,14 @@ func (r *Runner) executeJob(j *Job) {
 			}
 			if !resp.Ok {
 				execErr = fmt.Errorf("experiment refused: %s", resp.ErrorMessage)
+				// A structured !resp.Ok refusal with no pinned vendor id and no
+				// result payload occurred before any vendor QPU job was created;
+				// fail with explicit zero usage so the reservation releases
+				// instead of leaking tenant spend (HW-02).
+				if j.VendorRef == "" && strings.TrimSpace(resp.ResultJson) == "" {
+					r.failPreVendorRefusal(j, execErr.Error(), needForJob(j, execErr))
+					return
+				}
 				break
 			}
 			resultData = []byte(resp.ResultJson)
@@ -1385,10 +1393,24 @@ func (r *Runner) failJob(j *Job, reason string) {
 // text (C2). A nil need means the cause is not classifiable from structured
 // evidence — the error still lands, no remedy is invented.
 func (r *Runner) failJobWithNeed(j *Job, reason string, need *Need) {
+	r.failJobWithPayload(j, reason, need, false)
+}
+
+// failPreVendorRefusal records a confirmed pre-vendor bridge refusal with
+// explicit zero usage so the CAS-guarded settlement rail releases the tenant
+// and session spend reservation cleanly instead of stranding reserved funds.
+func (r *Runner) failPreVendorRefusal(j *Job, reason string, need *Need) {
+	r.failJobWithPayload(j, reason, need, true)
+}
+
+func (r *Runner) failJobWithPayload(j *Job, reason string, need *Need, zeroUsage bool) {
 	now := time.Now().UTC()
 	j.CompletedAt = &now
 	j.Status = pb.JobStatus_JOB_STATUS_FAILED
 	payload := map[string]any{"error": reason}
+	if zeroUsage {
+		payload["usage_seconds"] = 0.0
+	}
 	if need != nil && need.Valid() {
 		if need.Reason == "" {
 			need.Reason = reason

@@ -32,4 +32,19 @@ func TestQuantumCanaryValidation(t *testing.T) {
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("bridgeless canary must 503, got %d", w.Code)
 	}
+	// HW-03: explicit external hardware canary without allow_hardware=true
+	// and auth must refuse (403) — never dispatch live QPU on an open GET.
+	req = httptest.NewRequest(http.MethodGet, "/api/quantum/canary?providers=ibm-qiskit", nil)
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("unauthenticated ibm-qiskit canary without allow_hardware must 403, got %d", w.Code)
+	}
+	// Even with allow_hardware=true, anonymous callers are refused (401 or 403 if air-gapped).
+	req = httptest.NewRequest(http.MethodGet, "/api/quantum/canary?providers=ibm-qiskit&allow_hardware=true", nil)
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Fatalf("anonymous ibm-qiskit canary with allow_hardware must 401/403, got %d", w.Code)
+	}
 }

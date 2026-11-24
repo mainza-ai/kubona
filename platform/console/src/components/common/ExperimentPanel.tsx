@@ -2,10 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
-import { fetchJob, jobStatusLabel, runExperiment } from '@/lib/api';
+import { fetchJob, fetchJobs, jobStatusLabel, runExperiment } from '@/lib/api';
 import { publishInvalidation } from '@/domain/invalidation';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
+
+const PROMOTABLE_HARDWARE_JOB_TYPES = ['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'];
 
 type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'thermodynamic_limit' | 'lattice_dynamics' | 'conjecture';
 
@@ -58,6 +60,8 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const [latticeTimes, setLatticeTimes] = useState('0, 0.5, 1');
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
+  const [existingJobs, setExistingJobs] = useState<Job[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string>('');
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -65,6 +69,22 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       mountedRef.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    void fetchJobs(sessionId).then((list) => {
+      if (cancelled || !mountedRef.current) return;
+      const promotable = list.filter(
+        (j) =>
+          jobStatusLabel(j.status) === 'COMPLETED' &&
+          PROMOTABLE_HARDWARE_JOB_TYPES.includes(j.job_type),
+      );
+      setExistingJobs(promotable);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -416,9 +436,39 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       <button type="button" onClick={() => void submit()} disabled={busy || !sessionId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-control-compact bg-info-wash hover:bg-fill-hover border border-info-edge text-info-ink text-[12px] disabled:opacity-40">
         <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Run experiment'}
       </button>
-      {job && statusLabel === 'COMPLETED' && ['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'].includes(job.job_type) && (
-        <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={job} />
-      )}
+      {(() => {
+        const justCompletedPromotable =
+          job && statusLabel === 'COMPLETED' && PROMOTABLE_HARDWARE_JOB_TYPES.includes(job.job_type)
+            ? job
+            : null;
+        const campaignPromotable = sessionId ? existingJobs : [];
+        const selectedExisting =
+          campaignPromotable.find((j) => j.id === selectedParentId) || campaignPromotable[0] || null;
+        const hardwareSourceJob = justCompletedPromotable || selectedExisting;
+        if (!hardwareSourceJob) return null;
+        return (
+          <div className="space-y-2">
+            {!justCompletedPromotable && campaignPromotable.length > 0 && (
+              <label className="block space-y-1 text-[12px] text-label-secondary">
+                Promote completed simulator job to QPU
+                <select
+                  aria-label="Parent simulator job for QPU promotion"
+                  value={hardwareSourceJob.id}
+                  onChange={(e) => setSelectedParentId(e.target.value)}
+                  className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text font-code"
+                >
+                  {campaignPromotable.map((pj) => (
+                    <option key={pj.id} value={pj.id}>
+                      {pj.job_type} · {pj.id.slice(0, 8)} (COMPLETED)
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <HardwareLaunchPanel sessionId={sessionId} tenantId={tenantId} sourceJob={hardwareSourceJob} />
+          </div>
+        );
+      })()}
       {job && (
         <div className="rounded-row bg-card border border-border p-2 text-[12px] font-code text-text space-y-0.5">
           <div>job {job.id.slice(0, 8)} · {job.status}</div>

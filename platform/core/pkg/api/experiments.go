@@ -306,10 +306,14 @@ func (s *Server) handleQAOAHardware(w http.ResponseWriter, r *http.Request) {
 	}
 	binding := jobs.CanonicalHardwareJobBinding("qaoa_hardware", sid, p)
 	if prepareOnly {
-		writeJSON(w, http.StatusOK, map[string]any{"binding": binding, "spec": map[string]any{
-			"kind": "qaoa_hardware", "provider": p.Provider, "requested_backend": p.RequestedBackend,
-			"shots": p.Shots, "seed": p.Seed, "max_cost_usd": p.MaxCostUSD, "mandate_required": true,
-		}})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"binding": binding,
+			"pricing": hardwarePricing(p.MaxCostUSD),
+			"spec": map[string]any{
+				"kind": "qaoa_hardware", "provider": p.Provider, "requested_backend": p.RequestedBackend,
+				"shots": p.Shots, "seed": p.Seed, "max_cost_usd": p.MaxCostUSD, "mandate_required": true,
+			},
+		})
 		return
 	}
 	if p.MandateRef == "" {

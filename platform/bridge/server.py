@@ -153,7 +153,8 @@ class _MandateRefused(ValueError):
 
 def _verify_spend_mandate(mandate_ref_json: str, *, tenant_id: str,
                            session_id: str, qasm: str,
-                           estimated_cost_usd: float) -> None:
+                           estimated_cost_usd: float,
+                           expected_job_hash: str = "") -> None:
     """Verify the spend mandate inside QuantumSubmit before dispatch.
 
     Tenant + job-hash binding, budget cover, expiry, and Ed25519 signature
@@ -185,9 +186,11 @@ def _verify_spend_mandate(mandate_ref_json: str, *, tenant_id: str,
             f"mandate_ref_json must be the signed mandate JSON: {e}")
     if not mandate.signature_hex or not mandate.job_hash or not mandate.public_key_hex:
         raise _MandateRefused("unsigned or unbound mandate refused")
-    expected_job_hash = canonical_job_binding("circuit_run", session_id or "", qasm or "")
+    target_hash = (expected_job_hash or "").strip() or canonical_job_binding(
+        "circuit_run", session_id or "", qasm or ""
+    )
     ok, reason = verify_mandate(mandate, tenant_id or "",
-                                expected_job_hash, float(estimated_cost_usd or 0.0))
+                                target_hash, float(estimated_cost_usd or 0.0))
     if not ok:
         raise _MandateRefused(f"spend mandate invalid: {reason}")
 
@@ -948,19 +951,40 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     result_json="",
                 )
             if mandate_raw:
+                mandate_str = str(mandate_raw).strip()
                 estimated_cost = float(spec.get("max_cost_usd", 0.0) or 0.0)
-                ok_m, m_err = _verify_spend_mandate(
-                    str(mandate_raw),
-                    tenant_id=str(spec.get("tenant_id") or ""),
-                    expected_job_hash=str(spec.get("job_hash") or ""),
-                    estimated_cost=estimated_cost,
-                )
-                if not ok_m:
-                    return kubona_pb2.ExperimentResponse(
-                        ok=False,
-                        error_message=f"hardware experiment mandate refused: {m_err}",
-                        result_json="",
+                if mandate_str.startswith("{"):
+                    try:
+                        _verify_spend_mandate(
+                            mandate_str,
+                            tenant_id=str(spec.get("tenant_id") or ""),
+                            session_id=request.session_id or "",
+                            qasm=str(spec.get("qasm") or spec.get("fidelity_qasm") or ""),
+                            estimated_cost_usd=estimated_cost,
+                            expected_job_hash=str(spec.get("job_hash") or ""),
+                        )
+                    except _MandateRefused as exc:
+                        return kubona_pb2.ExperimentResponse(
+                            ok=False,
+                            error_message=f"hardware experiment mandate refused: {exc}",
+                            result_json="",
+                        )
+                else:
+                    # Go kubonad verifies the Ed25519 mandate and passes the
+                    # 64-char hex ledger receipt as mandate_ref.
+                    is_hex_receipt = (
+                        len(mandate_str) == 64
+                        and all(c in "0123456789abcdefABCDEF" for c in mandate_str)
                     )
+                    if not is_hex_receipt:
+                        return kubona_pb2.ExperimentResponse(
+                            ok=False,
+                            error_message=(
+                                "hardware experiment mandate refused: mandate_ref must be "
+                                "a signed mandate JSON or a 64-char hex ledger receipt"
+                            ),
+                            result_json="",
+                        )
         from kubona.hardware_pin import bind_vendor_pin, reset_vendor_pin
         pin_token = bind_vendor_pin(str(spec.get("kubona_job_id") or ""), request.session_id or "")
         try:
@@ -1038,6 +1062,18 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     reset_vendor_pin(pin_token)
                     return kubona_pb2.ExperimentResponse(
                         ok=False, error_message="provider returned no calibration snapshot", result_json="")
+                # Sync live calibration into Python's FidelityAccountingEngine
+                # DEVICE_CATALOG so QuantumSubmit dry-run/dispatch sees the
+                # refreshed IBM Heron profile immediately (CAL-02).
+                try:
+                    from kubona.fidelity.accounting import (
+                        PROVIDER_DEVICE_MAP,
+                        update_device_profile,
+                    )
+                    canonical_device = PROVIDER_DEVICE_MAP.get("ibm-qiskit", "ibm_heron")
+                    update_device_profile(canonical_device, snapshot, aliases=(backend,))
+                except Exception as cal_err:
+                    logger.warning("live calibration catalog sync skipped for %s: %s", backend, cal_err)
                 result = {
                     "success": True,
                     "kind": "calibration",
