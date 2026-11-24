@@ -230,3 +230,54 @@ describe('ExperimentPanel thermodynamic limit in a real browser', () => {
     expect(screen.container.textContent ?? '').toContain('claimable');
   });
 });
+
+describe('ExperimentPanel QEC discovery in a real browser', () => {
+  it('submits qec_code_eval with bivariate bicycle parameters and renders PROVED badge', async () => {
+    const calls = installFetch({
+      submit: job('job-qec-eval', 'qec_code_eval', 'JOB_STATUS_QUEUED'),
+      polls: [job('job-qec-eval', 'qec_code_eval', 'JOB_STATUS_COMPLETED', {
+        n: 72, k: 12, d: 6, d_kind: 'proved', fom: 6.0, decomposable: false, catalog_known: true, catalog_match: 'bravyi_2024_bb_72',
+      })],
+    });
+    const screen = await render(<ExperimentPanel sessionId="s" />);
+    await screen.getByLabelText('Experiment kind').selectOptions('qec_code_eval');
+    await screen.getByRole('button', { name: /Run experiment/ }).click();
+
+    await expect.poll(() => polls(calls).length, { timeout: 15000 }).toBe(1);
+    const spec = submittedSpec(calls);
+    expect(spec.kind).toBe('qec_code_eval');
+    expect(spec.code_name).toBe('bravyi2024_bb_72_12_6');
+    expect(spec.ell).toBe(6);
+    expect(spec.m).toBe(6);
+
+    await expect.poll(() => screen.container.textContent ?? '', { timeout: 15000 }).toContain('[[72, 12, 6]]');
+    const text = screen.container.textContent ?? '';
+    expect(text).toContain('PROVED');
+    expect(text).toContain('FOM 6.00');
+    expect(text).toContain('indecomposable');
+  });
+
+  it('submits qec_memory_sim with Heron-r2 calibration preset and renders LER CI', async () => {
+    const calls = installFetch({
+      submit: job('job-qec-sim', 'qec_memory_sim', 'JOB_STATUS_QUEUED'),
+      polls: [job('job-qec-sim', 'qec_memory_sim', 'JOB_STATUS_COMPLETED', {
+        ler: 0.0125, ci_low: 0.0091, ci_high: 0.0168, d_circ: 3, decoder_latency_us: 42.3, decoder: 'pymatching',
+      })],
+    });
+    const screen = await render(<ExperimentPanel sessionId="s" />);
+    await screen.getByLabelText('Experiment kind').selectOptions('qec_memory_sim');
+    await screen.getByRole('button', { name: /Run experiment/ }).click();
+
+    await expect.poll(() => polls(calls).length, { timeout: 15000 }).toBe(1);
+    const spec = submittedSpec(calls);
+    expect(spec.kind).toBe('qec_memory_sim');
+    expect(spec.noise_model).toBe('heron_calibration');
+    expect((spec.calibration as Record<string, unknown> | undefined)?.calibration_snapshot_id).toBe('cal_8f65e57d6f49');
+
+    await expect.poll(() => screen.container.textContent ?? '', { timeout: 15000 }).toContain('LER 0.0125');
+    const text = screen.container.textContent ?? '';
+    expect(text).toContain('[0.0091, 0.0168]');
+    expect(text).toContain('d_circ 3');
+    expect(text).toContain('42.3 µs/shot');
+  });
+});

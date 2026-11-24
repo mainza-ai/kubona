@@ -465,4 +465,39 @@ describe('CodesignCockpit numeric range validation (Wave-2) in a real browser', 
       .toContain('Families (comma list) names no family');
     expect(callsTo(calls, '/api/codesign/families')).toHaveLength(0);
   });
+
+  it('renders Exhaustive (ε = 0) when verification_method is exhaustive and allows 48 proposer steps', async () => {
+    const calls = stubDaemon(mountRoutes({
+      '/api/sessions': () => ok({ sessions: [{ id: 'sess-48', title: 'qec search' }] }),
+      '/api/codesign/evaluate': () =>
+        ok({
+          ok: true,
+          spec_kind: 'and2',
+          result: {
+            valid: true, toffoli: 1, peak_qubits: 3, eps_bound_97_5: 0,
+            verification_method: 'exhaustive',
+            depth: 1, toffoli_depth: 1, active_qubits: 3,
+          },
+        }),
+      '/api/codesign/rerun': () =>
+        ok({
+          ok: true, run_id: 'run-48', session_id: 'sess-48', spec_kind: 'and2',
+          budget_steps: 48, seed: 7, num_tests: 16, max_failures: 0, kappa: 1,
+          provider: 'strata', model: 'iq3_s', billing: 'none', payer: 'local',
+          estimated_usd: 0, budget_usd: 0, steps: 48, trials: [],
+          provenance_status: 'sealed', ledger_ref: { id: 2 },
+        }),
+    }));
+    const screen = await render(<CodesignCockpit />);
+
+    await button(screen, 'Run evaluation').click();
+    await expect.poll(() => screen.container.textContent).toContain('Exhaustive (ε = 0)');
+
+    await screen.getByLabelText('Proposer steps').fill('48');
+    const run = button(screen, 'Run proposer');
+    await expect.poll(() => (run.element() as HTMLButtonElement).disabled).toBe(false);
+    await run.click();
+    await expect.poll(() => callsTo(calls, '/api/codesign/rerun').length).toBe(1);
+    expect(callsTo(calls, '/api/codesign/rerun')[0].body?.budget_steps).toBe(48);
+  });
 });

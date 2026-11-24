@@ -7,6 +7,7 @@ import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { launchJobId, newWriteRequestId, reconcileOperationFull, UNCONFIRMED_LAUNCH, writeSettlementLabel } from '@/domain/write-settlement';
 import { emergencyAbort, launchProposal, mintProposal, fetchLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { AirGapSwitchRow, useAirGapControl } from '@/components/common/AirGapControl';
+import { Badge } from '@/components/ui/Badge';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
@@ -451,6 +452,20 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
         <AirGapSwitchRow value={airGap} onToggle={() => void handleToggleAirGap()} />
+
+        {/* IFC Gate-5 Held-Out Verification Isolation */}
+        <div
+          data-testid="ifc-gate5-status"
+          className="w-full rounded-card border border-border bg-surface px-4 py-3 flex flex-wrap items-center justify-between gap-2"
+        >
+          <div>
+            <div className="text-label font-semibold text-text">IFC Gate-5 Held-Out Isolation</div>
+            <p className="text-caption text-muted">
+              Held-out QEC noise profiles and verification seeds are isolated from discovery proposers.
+            </p>
+          </div>
+          <Badge tone="success">Restricted: verifier only</Badge>
+        </div>
 
         {/* U1-d: meta-search strategy proposals — the human-approval half
             of the autonomy loop. Approve/reject/apply are bearer-gated;

@@ -315,7 +315,11 @@ function ExperimentsTable({ experiments }: { experiments: CampaignExperiment[] }
                             ? 'classical reference (DMRG)'
                             : exp.kind === 'lattice_dynamics'
                               ? 'classical reference (quench)'
-                              : exp.claimable ? 'claimable' : 'not claimable'}
+                              : exp.kind === 'qec_code_eval' || exp.kind === 'qec_distance'
+                                ? `QEC ${exp.claimable ? 'claimable (proved)' : 'recorded'}`
+                                : exp.kind === 'qec_memory_sim'
+                                  ? 'QEC circuit LER'
+                                  : exp.claimable ? 'claimable' : 'not claimable'}
                       {exp.hardware && exp.status !== 'failed' ? ' · hardware' : ''}
                     </td>
                     <td className="px-2 py-1 font-code">{exp.job_id.slice(0, 8)}</td>

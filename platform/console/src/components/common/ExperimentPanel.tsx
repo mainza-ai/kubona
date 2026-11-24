@@ -4,13 +4,33 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { fetchJob, fetchJobs, jobStatusLabel, runExperiment } from '@/lib/api';
 import { publishInvalidation } from '@/domain/invalidation';
-import { Select } from '@/components/ui/Forms';
+import { Field, Select } from '@/components/ui/Forms';
+import { Badge } from '@/components/ui/Badge';
 import type { Job } from '@/types';
 import { HardwareLaunchPanel } from './HardwareLaunchPanel';
 
 const PROMOTABLE_HARDWARE_JOB_TYPES = ['spin_chain', 'vqe_run', 'qaoa_run', 'vqe_pes'];
 
-type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'thermodynamic_limit' | 'lattice_dynamics' | 'conjecture';
+type Kind = 'vqe' | 'geometry_optimization' | 'vqe_repeats' | 'pes' | 'qaoa' | 'excited_state' | 'reaction' | 'spin_chain' | 'thermodynamic_limit' | 'lattice_dynamics' | 'conjecture' | 'qec_code_eval' | 'qec_distance' | 'qec_memory_sim';
+
+const QEC_HERON_R2_CAL = {
+  backend: 'ibm_kingston',
+  calibration_snapshot_id: 'cal_8f65e57d6f49',
+  median_2q_error: 0.0028,
+  median_1q_error: 0.00025,
+  median_readout_error: 0.012,
+  median_t1_us: 240.0,
+  median_t2_us: 150.0,
+};
+
+function parseTermPairs(raw: string): number[][] {
+  return raw
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.split(/[,\s]+/).filter(Boolean).map((n) => Number(n)))
+    .filter((pair) => pair.length === 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]));
+}
 
 function num(r: Job | null, key: string): number | null {
   const result = r?.result_json as Record<string, unknown> | undefined;
@@ -59,6 +79,17 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
   const [initialField, setInitialField] = useState('1');
   const [quenchField, setQuenchField] = useState('0.2');
   const [latticeTimes, setLatticeTimes] = useState('0, 0.5, 1');
+  const [qecPreset, setQecPreset] = useState<'bb_72' | 'gross_144' | 'surface_d3' | 'surface_d5' | 'custom_bb'>('bb_72');
+  const [qecEll, setQecEll] = useState('6');
+  const [qecM, setQecM] = useState('6');
+  const [qecATerms, setQecATerms] = useState('3,0; 0,1; 0,2');
+  const [qecBTerms, setQecBTerms] = useState('0,3; 1,0; 2,0');
+  const [qecProveDistance, setQecProveDistance] = useState<'proved' | 'upper_bound'>('proved');
+  const [qecNoiseModel, setQecNoiseModel] = useState<'si1000' | 'uniform_depolarizing' | 'heron_calibration'>('heron_calibration');
+  const [qecPhysicalError, setQecPhysicalError] = useState('0.003');
+  const [qecRounds, setQecRounds] = useState('3');
+  const [qecShots, setQecShots] = useState('1000');
+  const [qecDecoder, setQecDecoder] = useState<'auto' | 'pymatching' | 'bposd' | 'ebposd'>('auto');
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [existingJobs, setExistingJobs] = useState<Job[]>([]);
@@ -164,6 +195,34 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
       spec.holdout = Number(holdout);
       spec.max_order = 6;
       spec.max_degree = 6;
+    } else if (kind === 'qec_code_eval' || kind === 'qec_distance') {
+      spec.ell = Number(qecEll);
+      spec.m = Number(qecM);
+      spec.a_terms = parseTermPairs(qecATerms);
+      spec.b_terms = parseTermPairs(qecBTerms);
+      spec.code_name = qecPreset === 'bb_72' ? 'bravyi2024_bb_72_12_6' : qecPreset === 'gross_144' ? 'bravyi2024_gross_144_12_12' : `BB(${qecEll},${qecM})`;
+      spec.prove_distance = kind === 'qec_distance' || qecProveDistance === 'proved';
+      spec.time_limit_s = 30;
+    } else if (kind === 'qec_memory_sim') {
+      spec.noise_model = qecNoiseModel;
+      spec.physical_error_rate = Number(qecPhysicalError);
+      if (qecNoiseModel === 'heron_calibration') {
+        spec.calibration = QEC_HERON_R2_CAL;
+      }
+      spec.rounds = Number(qecRounds);
+      spec.shots = Number(qecShots);
+      spec.decoder = qecDecoder;
+      if (qecPreset === 'surface_d3' || qecPreset === 'surface_d5') {
+        spec.family = 'surface';
+        spec.distance = qecPreset === 'surface_d5' ? 5 : 3;
+        spec.code_name = qecPreset;
+      } else {
+        spec.ell = Number(qecEll);
+        spec.m = Number(qecM);
+        spec.a_terms = parseTermPairs(qecATerms);
+        spec.b_terms = parseTermPairs(qecBTerms);
+        spec.code_name = qecPreset === 'bb_72' ? 'bravyi2024_bb_72_12_6' : qecPreset === 'gross_144' ? 'bravyi2024_gross_144_12_12' : `BB(${qecEll},${qecM})`;
+      }
     } else if (molecule === 'custom') {
       if (kind !== 'vqe') {
         setError('custom geometry is supported for VQE and geometry optimization only');
@@ -254,9 +313,88 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             <option value="excited_state">Excited state (H2/LiH/BeH2/H2O)</option>
             <option value="reaction">Reaction energy (H2/LiH/BeH2/H2O)</option>
             <option value="spin_chain">Spin chain</option><option value="thermodynamic_limit">DMRG / thermodynamic limit</option><option value="conjecture">Math conjecture</option>
+            <option value="qec_code_eval">QEC code eval (BB / CSS)</option>
+            <option value="qec_distance">QEC exact distance (HiGHS MILP)</option>
+            <option value="qec_memory_sim">QEC memory simulation (Stim / Heron-r2)</option>
           </select>
         </label>
-        {kind === 'spin_chain' ? (
+        {kind === 'qec_code_eval' || kind === 'qec_distance' || kind === 'qec_memory_sim' ? (
+          <>
+            <Select
+              label="QEC preset"
+              value={qecPreset}
+              onChange={(e) => {
+                const v = e.target.value as typeof qecPreset;
+                setQecPreset(v);
+                if (v === 'bb_72') {
+                  setQecEll('6'); setQecM('6'); setQecATerms('3,0; 0,1; 0,2'); setQecBTerms('0,3; 1,0; 2,0');
+                } else if (v === 'gross_144') {
+                  setQecEll('12'); setQecM('6'); setQecATerms('3,0; 0,1; 0,2'); setQecBTerms('0,3; 1,0; 2,0');
+                }
+              }}
+              options={[
+                { value: 'bb_72', label: 'Bravyi 2024 BB [[72,12,6]]' },
+                { value: 'gross_144', label: 'Gross BB [[144,12,12]]' },
+                ...(kind === 'qec_memory_sim'
+                  ? [
+                      { value: 'surface_d3', label: 'Rotated Surface d=3 (baseline)' },
+                      { value: 'surface_d5', label: 'Rotated Surface d=5 (baseline)' },
+                    ]
+                  : []),
+                { value: 'custom_bb', label: 'Custom BB(ell, m)' },
+              ]}
+            />
+            {qecPreset !== 'surface_d3' && qecPreset !== 'surface_d5' && (
+              <>
+                <Field label="ell" value={qecEll} onChange={(e) => setQecEll(e.target.value)} />
+                <Field label="m" value={qecM} onChange={(e) => setQecM(e.target.value)} />
+                <Field label="A terms (a,b; ...)" value={qecATerms} onChange={(e) => setQecATerms(e.target.value)} />
+                <Field label="B terms (a,b; ...)" value={qecBTerms} onChange={(e) => setQecBTerms(e.target.value)} />
+              </>
+            )}
+            {kind === 'qec_code_eval' && (
+              <Select
+                label="Distance mode"
+                value={qecProveDistance}
+                onChange={(e) => setQecProveDistance(e.target.value as 'proved' | 'upper_bound')}
+                options={[
+                  { value: 'proved', label: 'Exact HiGHS MILP (proved)' },
+                  { value: 'upper_bound', label: 'Fast BP-OSD (upper_bound)' },
+                ]}
+              />
+            )}
+            {kind === 'qec_memory_sim' && (
+              <>
+                <Select
+                  label="Noise model"
+                  value={qecNoiseModel}
+                  onChange={(e) => setQecNoiseModel(e.target.value as typeof qecNoiseModel)}
+                  options={[
+                    { value: 'heron_calibration', label: 'IBM Heron r2 (cal_8f65e57d6f49 · Held-Out)' },
+                    { value: 'si1000', label: 'SI1000 superconducting' },
+                    { value: 'uniform_depolarizing', label: 'Uniform depolarizing' },
+                  ]}
+                />
+                {qecNoiseModel !== 'heron_calibration' && (
+                  <Field label="Physical error p" value={qecPhysicalError} onChange={(e) => setQecPhysicalError(e.target.value)} />
+                )}
+                <Field label="Rounds" value={qecRounds} onChange={(e) => setQecRounds(e.target.value)} />
+                <Field label="QEC shots" value={qecShots} onChange={(e) => setQecShots(e.target.value)} />
+                <Select
+                  label="Decoder"
+                  value={qecDecoder}
+                  onChange={(e) => setQecDecoder(e.target.value as typeof qecDecoder)}
+                  options={[
+                    { value: 'auto', label: 'Auto (PyMatching / BP-OSD)' },
+                    { value: 'pymatching', label: 'PyMatching (MWPM)' },
+                    { value: 'bposd', label: 'BP-OSD (32 iter)' },
+                    { value: 'ebposd', label: 'EBP+OSD (5 iter)' },
+                  ]}
+                />
+              </>
+            )}
+          </>
+        ) : kind === 'spin_chain' ? (
           <>
             <label className="space-y-1">Model
               <select aria-label="Spin model" value={model} onChange={(e) => setModel(e.target.value)} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text">
@@ -409,13 +547,13 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
           </>
         )}
         <label className="space-y-1">Shots
-          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
+          <input aria-label="Shots" value={shots} onChange={(e) => setShots(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics' || kind === 'qec_code_eval' || kind === 'qec_distance' || kind === 'qec_memory_sim'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         <label className="space-y-1">Layers
-          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
+          <input aria-label="Layers" value={layers} onChange={(e) => setLayers(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics' || kind === 'qec_code_eval' || kind === 'qec_distance' || kind === 'qec_memory_sim'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         <label className="space-y-1">Max iterations
-          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
+          <input aria-label="Max iterations" value={iterations} onChange={(e) => setIterations(e.target.value)} disabled={kind === 'conjecture' || kind === 'thermodynamic_limit' || kind === 'lattice_dynamics' || kind === 'qec_code_eval' || kind === 'qec_distance' || kind === 'qec_memory_sim'} className="w-full rounded-chip bg-field border border-border px-2 py-1 text-text disabled:opacity-40" />
         </label>
         {kind === 'vqe_repeats' && (
           <label className="space-y-1">Repeats
@@ -510,7 +648,29 @@ export function ExperimentPanel({ sessionId, tenantId }: { sessionId: string | n
             const last = result.times[result.times.length - 1] as Record<string, unknown>;
             return <div>2D quench · {String(result.rows)}×{String(result.cols)} · final total magnetization {typeof last.total_magnetization === 'number' ? last.total_magnetization.toFixed(4) : '—'} · exact, not claimable</div>;
           })()}
-          {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && kind !== 'geometry_optimization' && kind !== 'vqe_repeats' && kind !== 'lattice_dynamics' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
+          {statusLabel === 'COMPLETED' && (kind === 'qec_code_eval' || kind === 'qec_distance') && result?.n != null && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>[[{String(result.n)}, {String(result.k)}, {String(result.d ?? '?')}]]</span>
+              <Badge tone={result.d_kind === 'proved' ? 'success' : 'warning'}>
+                {result.d_kind === 'proved' ? 'PROVED' : 'UPPER BOUND'}
+              </Badge>
+              {typeof result.fom === 'number' && <span>· FOM {result.fom.toFixed(2)}</span>}
+              <span>· {result.decomposable ? 'decomposable' : 'indecomposable'}</span>
+              {result.catalog_known === true && <span>· catalog: {String(result.catalog_match ?? 'known')}</span>}
+            </div>
+          )}
+          {statusLabel === 'COMPLETED' && kind === 'qec_memory_sim' && typeof result?.ler === 'number' && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span>LER {result.ler.toFixed(4)}</span>
+              {typeof result.ci_low === 'number' && typeof result.ci_high === 'number' && (
+                <span>[{result.ci_low.toFixed(4)}, {result.ci_high.toFixed(4)}]</span>
+              )}
+              {result.d_circ != null && <span>· d_circ {String(result.d_circ)}</span>}
+              {typeof result.decoder_latency_us === 'number' && <span>· {result.decoder_latency_us.toFixed(1)} µs/shot</span>}
+              <Badge tone="neutral">{String(result.decoder ?? 'auto')}</Badge>
+            </div>
+          )}
+          {statusLabel === 'COMPLETED' && kind !== 'spin_chain' && kind !== 'excited_state' && kind !== 'reaction' && kind !== 'conjecture' && kind !== 'geometry_optimization' && kind !== 'vqe_repeats' && kind !== 'lattice_dynamics' && kind !== 'qec_code_eval' && kind !== 'qec_distance' && kind !== 'qec_memory_sim' && energy != null && <div>{kind === 'qaoa' ? `MaxCut ${energy.toFixed(4)}` : `${energy.toFixed(6)} Ha${uncertainty != null ? ` ± ${(uncertainty * 1000).toFixed(3)} mHa` : ''}${delta != null ? ` · Δ ${delta.toFixed(3)} mHa` : ''}`}</div>}
           {statusLabel === 'COMPLETED' && cut != null && <div>classical optimum {cut}</div>}
           {statusLabel === 'FAILED' && <div className="text-danger-ink">failed — see job record</div>}
         </div>

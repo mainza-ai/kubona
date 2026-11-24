@@ -252,7 +252,7 @@ export function CodesignCockpit() {
       setRerunError('pick a session first — create one in the Recorder, then retry');
       return;
     }
-    const steps = namedInt(rerunSteps, 'Proposer steps', 1, 12);
+    const steps = namedInt(rerunSteps, 'Proposer steps', 1, 48);
     if (!steps.ok) { setRerunError(steps.error); return; }
     const tokens = namedInt(rerunTokens, 'Max tokens per step', 1, 1024);
     if (!tokens.ok) { setRerunError(tokens.error); return; }
@@ -664,7 +664,11 @@ export function CodesignCockpit() {
                 <span className="text-danger-ink">INVALID (refused, never scored)</span>
               )}
               {' '}{String(evalRes.toffoli)}T × {String(evalRes.peak_qubits)}Q
-              {typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>}
+              {evalRes.verification_method === 'exhaustive' ? (
+                <span className="text-success-ink"> · Exhaustive (ε = 0)</span>
+              ) : (
+                typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>
+              )}
             </div>
               <div className="mt-1 text-[12px] text-muted">
                 depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
@@ -708,7 +712,7 @@ export function CodesignCockpit() {
               <option key={k} value={k} className="bg-surface text-text">{k}</option>
             ))}
           </select>
-          <input aria-label="Proposer steps" value={rerunSteps} onChange={(e) => { setRerunSteps(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-control-compact bg-field border border-border text-text px-2 py-1 text-label font-mono" title="steps 1..12" />
+          <input aria-label="Proposer steps" value={rerunSteps} onChange={(e) => { setRerunSteps(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-control-compact bg-field border border-border text-text px-2 py-1 text-label font-mono" title="steps 1..48" />
           <input aria-label="Max tokens per step" value={rerunTokens} onChange={(e) => { setRerunTokens(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-control-compact bg-field border border-border text-text px-2 py-1 text-label font-mono" title="tokens 1..1024" />
           <input aria-label="Rerun tests" value={rerunTests} onChange={(e) => { setRerunTests(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-control-compact bg-field border border-border text-text px-2 py-1 text-label font-mono" title="tests 1..512" />
           <input aria-label="Rerun seed" value={rerunSeed} onChange={(e) => { setRerunSeed(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-control-compact bg-field border border-border text-text px-2 py-1 text-label font-mono" />

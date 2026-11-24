@@ -4,6 +4,7 @@ export {
   createPlan,
   executePlan,
   fetchHypotheses,
+  fetchJobs,
   fetchLabKnowledge,
   fetchPlans,
   fetchResearchGraph,
@@ -18,3 +19,4 @@ export type {
   LabKnowledgeEntry,
   ResearchGraphPayload,
 } from '@/lib/api';
+export type { Job } from '@/types';
