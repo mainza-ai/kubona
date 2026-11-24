@@ -253,7 +253,7 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
         exact_str = "--"
         delta_str = "--"
 
-        if kind_l == "hardware_pes" and isinstance(row.get("points"), list) and row["points"]:
+        if kind_l in ("hardware_pes", "pes") and isinstance(row.get("points"), list) and row["points"]:
             pts = [p for p in row["points"] if isinstance(p, dict)]
             energies = [float(p["energy"]) for p in pts if p.get("energy") is not None]
             deltas = [float(p["delta_mha"]) for p in pts if p.get("delta_mha") is not None]
@@ -281,15 +281,29 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
         elif kind_l == "thermodynamic_limit":
             e_site = row.get("energy_per_site")
             exact_site = row.get("exact_energy_per_site")
-            if e_site is None and isinstance(row.get("sizes"), list) and row["sizes"]:
+            bond = row.get("max_bond_dim")
+            # Extract from actual bridge `finite_size` / `thermodynamic_limit` blocks
+            finite_list = row.get("finite_size")
+            if isinstance(finite_list, list) and finite_list:
+                last = finite_list[-1]
+                if isinstance(last, dict):
+                    if e_site is None:
+                        e_site = last.get("energy_per_site")
+                    if bond is None:
+                        bond = last.get("max_bond_dim", last.get("bond_dim"))
+            elif e_site is None and isinstance(row.get("sizes"), list) and row["sizes"]:
                 last = row["sizes"][-1]
                 if isinstance(last, dict):
                     e_site = last.get("energy_per_site")
+            tl_block = row.get("thermodynamic_limit")
+            if exact_site is None and isinstance(tl_block, dict):
+                exact_site = tl_block.get("energy_per_site")
+            if bond is None and row.get("bond_dim") is not None:
+                bond = row.get("bond_dim")
             if e_site is not None:
                 measured_str = _fmt(e_site, 6)
             if exact_site is not None:
                 exact_str = _fmt(exact_site, 6)
-            bond = row.get("max_bond_dim")
             if bond is not None:
                 delta_str = f"bond {int(bond)}"
             elif e_site is not None and exact_site is not None:
@@ -298,7 +312,7 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
             st = str(row.get("status") or row.get("verdict") or "evaluated")
             measured_str = _latex_escape(st)
             law = row.get("law") or row.get("expression")
-            delta_str = _latex_escape(str(law)[:24]) if law else "no law"
+            delta_str = _latex_escape(str(law)[:64]) if law else "no law"
         else:
             measured_v = row.get("energy")
             if measured_v is None:

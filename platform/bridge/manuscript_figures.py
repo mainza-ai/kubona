@@ -68,8 +68,17 @@ def _draw_dashed_h(draw, x0: int, x1: int, y: int, color, dash: int = 12, gap: i
         x += dash + gap
 
 
+def _short_backend_label(raw: Any) -> str:
+    s = str(raw or "sim").strip().lower()
+    if "aer" in s or "sim" in s:
+        return "aer"
+    if s.startswith("ibm_"):
+        return s[4:][:11]
+    return s[:11]
+
+
 def _draw_axes(draw, box: Tuple[int, int, int, int], title: str, xlabel: str, ylabel: str,
-               y_min: float, y_max: float, n_yticks: int = 5):
+               y_min: float, y_max: float, n_yticks: int = 5, xlabel_offset: int = 80):
     x0, y0, x1, y1 = box
     font_title = _load_font(28)
     font_axis = _load_font(22)
@@ -85,16 +94,16 @@ def _draw_axes(draw, box: Tuple[int, int, int, int], title: str, xlabel: str, yl
             draw.line([(x0 + 2, py), (x1 - 2, py)], fill=GRID, width=1)
         draw.line([(x0 - 8, py), (x0, py)], fill=SLATE, width=2)
         lbl = f"{val:.3g}" if abs(val) < 1000 else f"{val:.0f}"
-        draw.text((max(12, x0 - 110), py - 10), lbl, fill=SLATE, font=font_tick)
-    draw.text((x0 + (x1 - x0) // 2 - len(xlabel) * 5, y1 + 95), xlabel, fill=INK, font=font_axis)
-    draw.text((18, y0 - 38), ylabel, fill=INK, font=font_axis)
+        draw.text((max(12, x0 - 95), py - 10), lbl, fill=SLATE, font=font_tick)
+    draw.text((x0 + (x1 - x0) // 2 - len(xlabel) * 5, y1 + xlabel_offset), xlabel, fill=INK, font=font_axis)
+    draw.text((max(14, x0 - 95), y0 - 38), ylabel, fill=INK, font=font_axis)
 
 
 def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] | None:
     pts = []
     for r in rows:
         kind = str(r.get("kind") or "").lower()
-        if "qaoa" in kind or kind in ("lattice_dynamics", "thermodynamic_limit", "conjecture", "hardware_pes"):
+        if "qaoa" in kind or kind in ("lattice_dynamics", "thermodynamic_limit", "conjecture", "conjecture_run", "hardware_pes", "pes"):
             continue
         delta = r.get("delta_mha")
         if delta is None:
@@ -106,25 +115,26 @@ def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, st
             continue
         ci = float(r.get("ci95_mha") or 0.0)
         jid = str(r.get("job_id") or "")[:6]
-        be = str(r.get("backend") or "sim").replace("qiskit-aer-simulator", "aer")
-        label = f"{jid}\n{be[:10]}"
+        be = _short_backend_label(r.get("backend"))
+        label = f"{jid}\n{be}"
         color = TEAL if r.get("mitigated") else (ORANGE if r.get("hardware") else NAVY)
         pts.append((label, float(delta), ci, color, bool(r.get("mitigated")), bool(r.get("hardware"))))
     if len(pts) < 2:
         return None
-    pts = pts[:14]
+    total_pts = len(pts)
+    pts = pts[:20]
     img, draw = _new_canvas(1600, 920)
     box = (140, 110, 1520, 740)
     y_max = max(max(p[1] + p[2] for p in pts) * 1.18, 2.5)
     _draw_axes(draw, box, "Energy Discrepancy vs. Exact Classical Anchor (Settled Jobs)",
                "Settled Job & Backend (Navy: Simulator, Orange: Raw QPU, Teal: ZNE Mitigated)",
-               "Error |E - E_anchor| (mHa)", 0.0, y_max)
+               "Error abs(E - E_anchor) (mHa)", 0.0, y_max, xlabel_offset=90)
     x0, y0, x1, y1 = box
     n = len(pts)
     slot = (x1 - x0) / n
-    bar_w = max(18, min(72, int(slot * 0.56)))
-    font_lbl = _load_font(16)
-    font_val = _load_font(16)
+    bar_w = max(16, min(68, int(slot * 0.54)))
+    font_lbl = _load_font(14 if n > 14 else 16)
+    font_val = _load_font(14 if n > 14 else 16)
 
     for i, (label, val, ci, color, _, _) in enumerate(pts):
         cx = int(x0 + (i + 0.5) * slot)
@@ -135,19 +145,23 @@ def _render_energy_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, st
             eh = int((ci / y_max) * (y1 - y0))
             ey0, ey1 = max(y0, top - eh), min(y1, top + eh)
             draw.line([(cx, ey0), (cx, ey1)], fill=INK, width=3)
-            draw.line([(cx - 10, ey0), (cx + 10, ey0)], fill=INK, width=3)
-            draw.line([(cx - 10, ey1), (cx + 10, ey1)], fill=INK, width=3)
-        draw.text((cx - 26, max(y0 - 24, top - 24)), f"{val:.1f}", fill=INK, font=font_val)
+            draw.line([(cx - 8, ey0), (cx + 8, ey0)], fill=INK, width=3)
+            draw.line([(cx - 8, ey1), (cx + 8, ey1)], fill=INK, width=3)
+        draw.text((cx - 22, max(y0 + 4, top - 24)), f"{val:.1f}", fill=INK, font=font_val)
         for j, line in enumerate(label.split("\n")):
-            draw.text((cx - 34, y1 + 12 + j * 20), line, fill=SLATE, font=font_lbl)
+            draw.text((cx - 28, y1 + 12 + j * 18), line, fill=SLATE, font=font_lbl)
 
     if 1.6 < y_max:
         cy = int(y1 - (1.6 / y_max) * (y1 - y0))
         _draw_dashed_h(draw, x0, x1, cy, RED, width=3)
-        draw.text((x1 - 290, max(y0 + 6, cy - 26)), "Chemical accuracy (1.6 mHa)", fill=RED, font=font_lbl)
+        # Place chemical-accuracy callout cleanly in top-right legend area to avoid bar collisions
+        draw.rectangle([x1 - 320, y0 + 12, x1 - 14, y0 + 48], fill=BG, outline=RED, width=2)
+        _draw_dashed_h(draw, x1 - 308, x1 - 268, y0 + 30, RED, dash=8, gap=5, width=3)
+        draw.text((x1 - 258, y0 + 20), "Chemical accuracy (1.6 mHa)", fill=RED, font=_load_font(16))
 
+    shown_note = f"{len(pts)} of {total_pts}" if total_pts > len(pts) else f"{len(pts)}"
     caption = (
-        f"Absolute energy discrepancy |E - E_anchor| (mHa) across {len(pts)} settled jobs "
+        f"Absolute energy discrepancy abs(E - E_anchor) (mHa) across {shown_note} settled jobs "
         "(navy: simulator, orange: raw QPU, teal: ZNE mitigated; whiskers denote 95% CI when reported; "
         "dashed red line marks 1.6 mHa chemical accuracy)."
     )
@@ -247,10 +261,10 @@ def _render_quench_dynamics(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str
     if not quenches:
         return None
     img, draw = _new_canvas(1600, 920)
-    left_box = (110, 115, 770, 760)
-    right_box = (890, 115, 1550, 760)
-    _draw_axes(draw, left_box, "2D TFIM Loschmidt Echo L(t)", "Time t", "L(t)", 0.0, 1.05)
-    _draw_axes(draw, right_box, "Mean Spatial Correlator <Z_i Z_j(t)>", "Time t", "<Z_i Z_j>", 0.0, 1.05)
+    left_box = (110, 115, 760, 745)
+    right_box = (900, 115, 1550, 745)
+    _draw_axes(draw, left_box, "2D TFIM Loschmidt Echo L(t)", "Time t", "L(t)", 0.0, 1.05, xlabel_offset=42)
+    _draw_axes(draw, right_box, "Mean Spatial Correlator <Z_i Z_j(t)>", "Time t", "<Z_i Z_j>", 0.0, 1.05, xlabel_offset=42)
     font_leg = _load_font(17)
     for idx, q in enumerate(quenches[:6]):
         color = SERIES_COLORS[idx % len(SERIES_COLORS)]

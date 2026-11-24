@@ -174,7 +174,8 @@ def build_methods_section(campaign: Dict[str, Any], rows: List[Dict[str, Any]], 
     if kinds:
         proto_items.append(rf"\item \textbf{{Experiment Protocols:}} {latex_escape(', '.join(kinds))} ({len(rows)} settled scientific job(s)).")
     if backends:
-        proto_items.append(rf"\item \textbf{{Execution Backends:}} \texttt{{{latex_escape(', '.join(backends))}}}.")
+        be_wrapped = ",\\allowbreak ".join(rf"\texttt{{{latex_escape(b)}}}" for b in backends)
+        proto_items.append(rf"\item \textbf{{Execution Backends:}} {be_wrapped}.")
     if bases:
         proto_items.append(rf"\item \textbf{{Quantum Chemistry Basis \& Mapping:}} {latex_escape(', '.join(bases))} with Jordan--Wigner fermion-to-qubit mapping and PySCF RHF/CASCI/FCI classical anchors.")
     if layers_set:
@@ -185,7 +186,12 @@ def build_methods_section(campaign: Dict[str, Any], rows: List[Dict[str, Any]], 
         proto_items.append(r"\item \textbf{Error Mitigation Protocol:} Zero-Noise Extrapolation (ZNE) via unitary folding; mitigated points are explicitly labeled \texttt{mitigated} (\texttt{measured: false}) to preserve epistemic separation from raw QPU counts.")
 
     if proto_items:
-        parts.append(r"\subsection*{Computational Protocol Summary}" + "\n" + r"\begin{itemize}" + "\n" + "\n".join(proto_items) + "\n" + r"\end{itemize}")
+        parts.append(
+            r"\subsection*{Computational Protocol Summary}" + "\n"
+            + r"\begin{sloppypar}\begin{itemize}" + "\n"
+            + "\n".join(proto_items) + "\n"
+            + r"\end{itemize}\end{sloppypar}"
+        )
 
     # Hardware Calibration Table (when real QPU calibration metadata exists)
     cal_by_backend: Dict[str, Dict[str, Any]] = {}
@@ -328,11 +334,11 @@ def build_statistical_audit_section(campaign: Dict[str, Any]) -> str:
             r"ID & Hypothesis Statement & Status & Elo \\",
             r"\midrule",
         ]
-        for h in hyps[:10]:
+        for h in hyps[:30]:
             if not isinstance(h, dict):
                 continue
             hid = short_job_id(str(h.get("id") or "--"))
-            stmt = latex_escape(str(h.get("statement") or h.get("title") or "--")[:140])
+            stmt = latex_escape(str(h.get("statement") or h.get("title") or "--"))
             st = latex_escape(str(h.get("status") or "active"))
             elo = fmt_num(h.get("elo_rating", h.get("elo")), 1)
             hlines.append(f"\\texttt{{{latex_escape(hid)}}} & {stmt} & {st} & {elo} \\\\")
@@ -352,10 +358,10 @@ def build_statistical_audit_section(campaign: Dict[str, Any]) -> str:
             r"Pre-Registered Claim & Predicted & Observed & Status / $z$ \\",
             r"\midrule",
         ]
-        for p in preds[:10]:
+        for p in preds[:30]:
             if not isinstance(p, dict):
                 continue
-            claim = latex_escape(str(p.get("claim") or p.get("metric") or "--")[:120])
+            claim = latex_escape(str(p.get("claim") or p.get("metric") or "--"))
             pred_v = fmt_num(p.get("predicted_value"), 4)
             obs_v = fmt_num(p.get("observed_value", p.get("actual_value")), 4)
             z_v = fmt_num(p.get("z_score"), 2) if p.get("z_score") is not None else latex_escape(str(p.get("status") or "open"))
@@ -371,7 +377,7 @@ def build_statistical_audit_section(campaign: Dict[str, Any]) -> str:
         parts.append(
             r"\subsection*{Adversarial Multi-Agent Tribunal Review}" + "\n"
             + f"The campaign underwent automated adversarial critique (consensus: \\texttt{{{latex_escape(str(consensus))}}}). "
-            + (latex_escape(summary[:500]) if summary else "Critiques are archived in the signed experiment export.")
+            + (latex_escape(summary) if summary else "Critiques are archived in the signed experiment export.")
         )
 
     if not parts:
@@ -446,44 +452,114 @@ def build_economics_governance_section(rows: List[Dict[str, Any]], evidence: Dic
 def build_appendix_provenance(rows: List[Dict[str, Any]]) -> str:
     if not rows:
         return "No settled experiment jobs are present in this draft."
-    lines = [
+    out_blocks: List[str] = [
         "Table~\\ref{tab:full-provenance} maps every short job identifier used in the main text "
         "to its complete ledger UUID, hardware vendor workload reference, requested vs. actual "
-        "backend, calibration snapshot ID, and settled cost.",
-        r"\begin{table}[H]",
-        r"\centering\scriptsize",
-        r"\resizebox{\textwidth}{!}{%",
-        r"\begin{tabular}{@{}llllllr@{}}",
-        r"\toprule",
-        r"Short ID & Full Ledger Job UUID & Vendor Ref & Req. Backend & Actual Backend & Calib. Snapshot & Shots \\",
-        r"\midrule",
+        "backend, calibration snapshot ID, and settled shots."
     ]
-    for r in rows[:40]:
-        jid = str(r.get("job_id") or "--")
-        vref = str(r.get("vendor_ref") or r.get("hardware_job_id") or "--")
-        req_b = str(r.get("requested_backend") or r.get("backend") or r.get("model") or "--")
-        act_b = str(r.get("backend") or r.get("model") or "--")
-        snap = str(r.get("calibration_snapshot_id") or "--")
-        shots = str(int(r["shots"])) if r.get("shots") is not None else "--"
-        lines.append(
-            f"\\texttt{{{latex_escape(short_job_id(jid))}}} & "
-            f"\\texttt{{{latex_escape(jid)}}} & "
-            f"\\texttt{{{latex_escape(vref)}}} & "
-            f"{latex_escape(req_b)} & {latex_escape(act_b)} & "
-            f"\\texttt{{{latex_escape(snap)}}} & {shots} \\\\"
-        )
-    lines += [
-        r"\bottomrule",
-        r"\end{tabular}}",
-        r"\caption{Complete ledger and hardware provenance manifest.}\label{tab:full-provenance}",
-        r"\end{table}",
+    chunk_size = 35
+    for chunk_idx in range(0, len(rows), chunk_size):
+        chunk = rows[chunk_idx:chunk_idx + chunk_size]
+        part_label = "" if len(rows) <= chunk_size else f" (Part {chunk_idx // chunk_size + 1})"
+        lbl_tex = r"\label{tab:full-provenance}" if chunk_idx == 0 else ""
+        lines = [
+            r"\begin{table}[H]",
+            r"\centering\scriptsize",
+            r"\resizebox{\textwidth}{!}{%",
+            r"\begin{tabular}{@{}llllllr@{}}",
+            r"\toprule",
+            r"Short ID & Full Ledger Job UUID & Vendor Ref & Req. Backend & Actual Backend & Calib. Snapshot & Shots \\",
+            r"\midrule",
+        ]
+        for r in chunk:
+            jid = str(r.get("job_id") or "--")
+            vref = str(r.get("vendor_ref") or r.get("hardware_job_id") or "--")
+            req_b = str(r.get("requested_backend") or r.get("backend") or r.get("model") or "--")
+            act_b = str(r.get("backend") or r.get("model") or "--")
+            snap = str(r.get("calibration_snapshot_id") or "--")
+            shots = str(int(r["shots"])) if r.get("shots") is not None else "--"
+            lines.append(
+                f"\\texttt{{{latex_escape(short_job_id(jid))}}} & "
+                f"\\texttt{{{latex_escape(jid)}}} & "
+                f"\\texttt{{{latex_escape(vref)}}} & "
+                f"{latex_escape(req_b)} & {latex_escape(act_b)} & "
+                f"\\texttt{{{latex_escape(snap)}}} & {shots} \\\\"
+            )
+        lines += [
+            r"\bottomrule",
+            r"\end{tabular}}",
+            rf"\caption{{Complete ledger and hardware provenance manifest{part_label}.}}{lbl_tex}",
+            r"\end{table}",
+        ]
+        out_blocks.append("\n".join(lines))
+    return "\n\n".join(out_blocks)
+
+
+def _clean_cell_text(cell: str) -> str:
+    c = cell.strip()
+    c = re.sub(r"\\texttt\{([^}]*)\}", r"\1", c)
+    c = re.sub(r"\\textbf\{([^}]*)\}", r"\1", c)
+    c = re.sub(r"\\textit\{([^}]*)\}", r"\1", c)
+    c = re.sub(r"\\footnotesize\s*|\\scriptsize\s*|\\small\s*|\\allowbreak\s*", "", c)
+    c = c.replace(r"\$\Delta\$", "Δ").replace(r"$\Delta$", "Δ").replace(r"$z$", "z")
+    c = c.replace(r"\%", "%").replace(r"\_", "_").replace(r"\&", "&").replace(r"\$", "$").replace("~", " ")
+    return re.sub(r"\s+", " ", c).strip()
+
+
+_TABULAR_RE = re.compile(r"\\begin\{tabular\}\{(?:[^{}]|\{[^}]*\})*\}(.*?)\\end\{tabular\}", flags=re.S)
+
+
+def _latex_table_to_markdown(table_tex: str) -> str:
+    cap_m = re.search(r"\\caption\{([^}]*)\}", table_tex)
+    caption = _clean_cell_text(cap_m.group(1)) if cap_m else ""
+    body_m = _TABULAR_RE.search(table_tex)
+    if not body_m:
+        return ""
+    body = body_m.group(1)
+    body = re.sub(r"\\(toprule|midrule|bottomrule|hline)", "", body)
+    raw_rows = [r.strip() for r in body.split(r"\\") if r.strip() and "&" in r]
+    if not raw_rows:
+        return ""
+    parsed = [[_clean_cell_text(col) for col in row.split("&")] for row in raw_rows]
+    ncols = max(len(r) for r in parsed)
+    header = parsed[0] + [""] * (ncols - len(parsed[0]))
+    md_lines = [
+        "",
+        "| " + " | ".join(header) + " |",
+        "| " + " | ".join(["---"] * ncols) + " |",
     ]
-    return "\n".join(lines)
+    for r in parsed[1:]:
+        padded = r + [""] * (ncols - len(r))
+        md_lines.append("| " + " | ".join(padded) + " |")
+    if caption:
+        md_lines.append(f"\n*{caption}*")
+    md_lines.append("")
+    return "\n".join(md_lines)
+
+
+def _latex_table_to_html(table_tex: str) -> str:
+    cap_m = re.search(r"\\caption\{([^}]*)\}", table_tex)
+    caption = _clean_cell_text(cap_m.group(1)) if cap_m else ""
+    body_m = _TABULAR_RE.search(table_tex)
+    if not body_m:
+        return ""
+    body = body_m.group(1)
+    body = re.sub(r"\\(toprule|midrule|bottomrule|hline)", "", body)
+    raw_rows = [r.strip() for r in body.split(r"\\") if r.strip() and "&" in r]
+    if not raw_rows:
+        return ""
+    parsed = [[_clean_cell_text(col) for col in row.split("&")] for row in raw_rows]
+    th = "".join(f"<th>{html.escape(c)}</th>" for c in parsed[0])
+    trs = "".join("<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in r) + "</tr>" for r in parsed[1:])
+    cap_html = f"<caption>{html.escape(caption)}</caption>" if caption else ""
+    return f'<div class="table-wrap"><table>{cap_html}<thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>'
 
 
 def _strip_latex_for_markdown(latex: str) -> str:
-    """Best-effort clean conversion of Kubona's structured LaTeX sections to readable Markdown."""
+    """Clean conversion of Kubona's structured LaTeX sections to full GitHub-Flavored Markdown (preserving all tables!)."""
     s = latex
+    s = re.sub(r"\\begin\{table\}.*?\\end\{table\}", lambda m: _latex_table_to_markdown(m.group(0)), s, flags=re.S)
+    s = re.sub(r"\\begin\{sloppypar\}|\\end\{sloppypar\}|\\allowbreak\s*|\\footnotesize\s*", "", s)
     s = re.sub(r"\\subsection\*?\{([^}]*)\}", r"\n### \1\n", s)
     s = re.sub(r"\\textbf\{([^}]*)\}", r"**\1**", s)
     s = re.sub(r"\\textit\{([^}]*)\}", r"*\1*", s)
@@ -492,7 +568,6 @@ def _strip_latex_for_markdown(latex: str) -> str:
     s = re.sub(r"\\cite\{([^}]*)\}", r"[\1]", s)
     s = re.sub(r"\\item\s+", "- ", s)
     s = re.sub(r"\\begin\{itemize\}|\\end\{itemize\}", "", s)
-    s = re.sub(r"\\begin\{table\}.*?\\end\{table\}", "\n*(See structured table in main.pdf / structured export.)*\n", s, flags=re.S)
     s = re.sub(r"\\begin\{figure\}.*?\\includegraphics\[[^\]]*\]\{([^}]*)\}.*?\\caption\{([^}]*)\}.*?\\end\{figure\}", r"\n![\2](\1)\n*\2*\n", s, flags=re.S)
     s = s.replace(r"\%", "%").replace(r"\_", "_").replace(r"\&", "&").replace(r"\$", "$").replace("~", " ")
     return re.sub(r"\n{3,}", "\n\n", s).strip()
@@ -539,7 +614,15 @@ def render_companion_html(
 ) -> str:
     md_sections = []
     for sec in sections:
-        body = html.escape(_strip_latex_for_markdown(sec.latex_content)).replace("\n\n", "</p><p>").replace("\n", "<br/>")
+        tables_html: List[str] = []
+        def _stash_table(m):
+            idx = len(tables_html)
+            tables_html.append(_latex_table_to_html(m.group(0)))
+            return f"__KUBONA_TABLE_{idx}__"
+        without_tables = re.sub(r"\\begin\{table\}.*?\\end\{table\}", _stash_table, sec.latex_content, flags=re.S)
+        body = html.escape(_strip_latex_for_markdown(without_tables)).replace("\n\n", "</p><p>").replace("\n", "<br/>")
+        for idx, thtml in enumerate(tables_html):
+            body = body.replace(f"__KUBONA_TABLE_{idx}__", thtml)
         md_sections.append(f"<section><h2>{html.escape(sec.title)}</h2><p>{body}</p></section>")
     cites_html = ""
     if citations:
@@ -573,6 +656,11 @@ def render_companion_html(
   h2 {{ color: #14213d; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.25rem; margin-top: 2rem; }}
   code {{ background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9em; }}
   a {{ color: #0e6b74; }}
+  .table-wrap {{ overflow-x: auto; margin: 1.25rem 0; }}
+  table {{ width: 100%; border-collapse: collapse; font-family: system-ui, sans-serif; font-size: 0.82rem; }}
+  caption {{ caption-side: bottom; text-align: left; color: #475569; font-style: italic; margin-top: 0.4rem; }}
+  th, td {{ border-bottom: 1px solid #cbd5e1; padding: 0.4rem 0.55rem; text-align: left; }}
+  thead th {{ background: #f4f7fa; color: #14213d; border-top: 2px solid #14213d; border-bottom: 2px solid #14213d; }}
 </style>
 </head>
 <body>

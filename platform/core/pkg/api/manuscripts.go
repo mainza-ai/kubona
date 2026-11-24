@@ -1190,6 +1190,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		"delta_mha", "delta",
 		"energy_initial", "times", "quench_field",
 		"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
+		"finite_size", "thermodynamic_limit", "anisotropy", "bond_dim",
 		"points", "status", "verdict", "law", "expression",
 		"mitigated", "hardware", "actual_usd",
 		"backend", "requested_backend", "model",
