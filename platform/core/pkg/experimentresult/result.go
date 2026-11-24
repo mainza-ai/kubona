@@ -61,6 +61,8 @@ type Result struct {
 	D                    *int             `json:"d,omitempty"`
 	DKind                string           `json:"d_kind,omitempty"`
 	FOM                  *float64         `json:"fom,omitempty"`
+	LER                  *float64         `json:"ler,omitempty"`
+	Shots                *int             `json:"shots,omitempty"`
 	Measured             *bool            `json:"measured,omitempty"`
 	Hardware             *bool            `json:"hardware,omitempty"`
 	HardwareJobID        string           `json:"hardware_job_id,omitempty"`
@@ -168,6 +170,7 @@ func ExpectedJobKinds() map[string][]string {
 		"mitigate_json":         {"mitigate"},
 		"qec_code_eval":         {"qec_code_eval"},
 		"qec_distance":          {"qec_distance", "qec_code_eval"},
+		"qec_memory_sim":        {"qec_memory_sim"},
 	}
 }
 
@@ -371,6 +374,13 @@ func validateVariant(kind string, r *Result) error {
 		}
 		if r.FOM != nil && !finite(*r.FOM) {
 			return fmt.Errorf("experiment result kind %q fom is not finite", kind)
+		}
+	case "qec_memory_sim":
+		if r.Shots == nil || *r.Shots <= 0 {
+			return fmt.Errorf("experiment result kind %q requires positive shots", kind)
+		}
+		if r.LER == nil || !finite(*r.LER) || *r.LER < 0 || *r.LER > 1 {
+			return fmt.Errorf("experiment result kind %q requires finite ler in [0,1]", kind)
 		}
 	case "krylov":
 		// The typed Krylov RPC owns its own required fields; the versioned

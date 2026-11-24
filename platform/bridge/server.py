@@ -1362,6 +1362,58 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 else:
                     raise ValueError(f"{kind} requires either (ell, m, a_terms, b_terms) or (hx, hz)")
                 result["kind"] = kind
+            elif kind == "qec_memory_sim":
+                import numpy as _np
+                from kubona.qec import (
+                    build_bb_code,
+                    build_css_memory_circuit,
+                    build_surface_code_memory_circuit,
+                    heron_calibration_noise,
+                    si1000_noise,
+                    simulate_memory_circuit,
+                    uniform_depolarizing_noise,
+                )
+
+                noise_kind = str(spec.get("noise_model") or "si1000").lower()
+                p_err = float(spec.get("physical_error_rate", 0.003))
+                if noise_kind == "heron_calibration" and isinstance(spec.get("calibration"), dict):
+                    nm = heron_calibration_noise(spec["calibration"], cycle_us=float(spec.get("cycle_us", 1.0)))
+                elif noise_kind == "uniform_depolarizing":
+                    nm = uniform_depolarizing_noise(p_err)
+                else:
+                    nm = si1000_noise(p_err)
+
+                rounds = int(spec.get("rounds", 3))
+                shots = int(spec.get("shots", 1000))
+                seed = int(spec.get("seed", 7))
+                decoder = str(spec.get("decoder") or "auto")
+                if str(spec.get("family") or "").lower() == "surface":
+                    dist = int(spec.get("distance", 3))
+                    circ, meta = build_surface_code_memory_circuit(dist, rounds=rounds, noise=nm)
+                    code_name = str(spec.get("code_name") or f"surface_d{dist}")
+                elif "ell" in spec and "m" in spec:
+                    a_terms = [tuple(int(x) for x in pair) for pair in (spec.get("a_terms") or [])]
+                    b_terms = [tuple(int(x) for x in pair) for pair in (spec.get("b_terms") or [])]
+                    hx, hz = build_bb_code(int(spec["ell"]), int(spec["m"]), a_terms, b_terms)
+                    circ, meta = build_css_memory_circuit(hx, hz, rounds=rounds, noise=nm)
+                    code_name = str(spec.get("code_name") or f"BB({spec['ell']},{spec['m']})")
+                elif "hx" in spec and "hz" in spec:
+                    hx = _np.asarray(spec["hx"], dtype=_np.uint8)
+                    hz = _np.asarray(spec["hz"], dtype=_np.uint8)
+                    circ, meta = build_css_memory_circuit(hx, hz, rounds=rounds, noise=nm)
+                    code_name = str(spec.get("code_name") or "custom_css")
+                else:
+                    raise ValueError("qec_memory_sim requires family='surface', (ell,m,a_terms,b_terms), or (hx,hz)")
+                result = simulate_memory_circuit(
+                    circ,
+                    shots=shots,
+                    rounds=rounds,
+                    num_logicals=int(meta["k"]),
+                    decoder=decoder,
+                    seed=seed,
+                    code_name=code_name,
+                    noise_meta=meta["noise"],
+                )
             else:
                 reset_vendor_pin(pin_token)
                 return kubona_pb2.ExperimentResponse(

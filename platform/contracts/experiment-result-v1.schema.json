@@ -31,7 +31,8 @@
         "lattice_dynamics",
         "conjecture",
         "qec_code_eval",
-        "qec_distance"
+        "qec_distance",
+        "qec_memory_sim"
       ]
     },
     "n": { "type": "integer", "minimum": 1 },
@@ -39,6 +40,11 @@
     "d": { "type": ["integer", "null"], "minimum": 1 },
     "d_kind": { "type": "string", "enum": ["proved", "upper_bound"] },
     "fom": { "type": "number" },
+    "ler": { "type": "number", "minimum": 0, "maximum": 1 },
+    "ci_low": { "type": "number", "minimum": 0, "maximum": 1 },
+    "ci_high": { "type": "number", "minimum": 0, "maximum": 1 },
+    "d_circ": { "type": ["integer", "null"], "minimum": 1 },
+    "decoder_latency_us": { "type": "number", "minimum": 0 },
     "decomposable": { "type": "boolean" },
     "canonical_hash": { "type": "string" },
     "catalog_known": { "type": "boolean" },

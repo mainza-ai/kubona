@@ -150,3 +150,50 @@ func TestQECNonFiniteRefusals(t *testing.T) {
 		t.Fatalf("unset target must not report met: %+v %v", plain, err)
 	}
 }
+
+func TestValidateFixedBudgetCodeClaim(t *testing.T) {
+	valid := FixedBudgetCodeClaim{
+		N: 144, K: 12, D: 12, DKind: "proved", DCirc: 10,
+		TotalQubits: 288, BaselineTotalQubits: 288,
+		CodeLERUpper95: 0.004, BaselineLERLower95: 0.012,
+		HeldOutSurvived: true, DecoderLatencyUs: 0.4, CycleTimeUs: 1.0,
+	}
+	if err := ValidateFixedBudgetCodeClaim(valid); err != nil {
+		t.Fatalf("valid fixed-budget claim refused: %v", err)
+	}
+
+	// Gate 1: upper_bound must never enter a claim
+	ub := valid
+	ub.DKind = "upper_bound"
+	if err := ValidateFixedBudgetCodeClaim(ub); err == nil {
+		t.Fatal("expected refusal for upper_bound distance")
+	}
+
+	// Gate 4: overlapping CIs must refuse
+	overlap := valid
+	overlap.CodeLERUpper95 = 0.015
+	if err := ValidateFixedBudgetCodeClaim(overlap); err == nil {
+		t.Fatal("expected refusal for overlapping 95% CIs")
+	}
+
+	// Budget exceeded must refuse
+	overBudget := valid
+	overBudget.TotalQubits = 300
+	if err := ValidateFixedBudgetCodeClaim(overBudget); err == nil {
+		t.Fatal("expected refusal when total_qubits exceeds baseline budget")
+	}
+
+	// Gate 5: failed held-out must refuse
+	noHeldOut := valid
+	noHeldOut.HeldOutSurvived = false
+	if err := ValidateFixedBudgetCodeClaim(noHeldOut); err == nil {
+		t.Fatal("expected refusal when held-out noise check failed")
+	}
+
+	// Backlog violation must refuse
+	slow := valid
+	slow.DecoderLatencyUs = 1.2
+	if err := ValidateFixedBudgetCodeClaim(slow); err == nil {
+		t.Fatal("expected refusal when decoder latency >= cycle time")
+	}
+}

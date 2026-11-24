@@ -104,3 +104,64 @@ func EffectiveCostMultiplier(acceptanceRate float64) (float64, error) {
 	}
 	return 1.0 / acceptanceRate, nil
 }
+
+// FixedBudgetCodeClaim is the fail-closed claim shape for a fixed-qubit-budget
+// qLDPC/BB code comparison (Phase 2 / G9), complementing LogicalClaim (which
+// requires a >=2-point distance-scaling family for FitLambda).
+type FixedBudgetCodeClaim struct {
+	N                   int     `json:"n"`
+	K                   int     `json:"k"`
+	D                   int     `json:"d"`
+	DKind               string  `json:"d_kind"` // must be "proved"
+	DCirc               int     `json:"d_circ"`
+	TotalQubits         int     `json:"total_qubits"`
+	BaselineTotalQubits int     `json:"baseline_total_qubits"`
+	CodeLERUpper95      float64 `json:"code_ler_upper_95"`
+	BaselineLERLower95  float64 `json:"baseline_ler_lower_95"`
+	HeldOutSurvived     bool    `json:"held_out_survived"`
+	DecoderLatencyUs    float64 `json:"decoder_latency_us"`
+	CycleTimeUs         float64 `json:"cycle_time_us"`
+}
+
+// ValidateFixedBudgetCodeClaim enforces Gates 1, 4, and 5 for a fixed-budget
+// QEC code benchmark, fail-closed.
+func ValidateFixedBudgetCodeClaim(c FixedBudgetCodeClaim) error {
+	if c.N <= 0 || c.K <= 0 || c.D <= 0 {
+		return errors.New("fixed-budget QEC claim refused: n, k, and d must be positive")
+	}
+	if c.DKind != "proved" {
+		return errors.New("fixed-budget QEC claim refused: distance must be proved (upper_bound cannot enter a claim)")
+	}
+	if c.DCirc <= 0 {
+		return errors.New("fixed-budget QEC claim refused: verified circuit-level distance d_circ is required")
+	}
+	if c.TotalQubits <= 0 || c.BaselineTotalQubits <= 0 {
+		return errors.New("fixed-budget QEC claim refused: total_qubits and baseline_total_qubits must be positive")
+	}
+	if c.TotalQubits > c.BaselineTotalQubits {
+		return errors.New("fixed-budget QEC claim refused: candidate exceeds declared baseline physical qubit budget")
+	}
+	for name, v := range map[string]float64{
+		"code_ler_upper_95":    c.CodeLERUpper95,
+		"baseline_ler_lower_95": c.BaselineLERLower95,
+		"decoder_latency_us":   c.DecoderLatencyUs,
+		"cycle_time_us":        c.CycleTimeUs,
+	} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return errors.New("fixed-budget QEC claim refused: " + name + " is not finite")
+		}
+	}
+	if c.CodeLERUpper95 < 0 || c.BaselineLERLower95 <= 0 {
+		return errors.New("fixed-budget QEC claim refused: invalid LER confidence bounds")
+	}
+	if c.CodeLERUpper95 >= c.BaselineLERLower95 {
+		return errors.New("fixed-budget QEC claim refused: candidate and baseline 95% CIs overlap (no statistically separated advantage)")
+	}
+	if !c.HeldOutSurvived {
+		return errors.New("fixed-budget QEC claim refused: advantage did not survive held-out noise evaluation")
+	}
+	if c.DecoderLatencyUs <= 0 || c.CycleTimeUs <= 0 || c.DecoderLatencyUs >= c.CycleTimeUs {
+		return errors.New("fixed-budget QEC claim refused: decoder latency must be positive and strictly below cycle time")
+	}
+	return nil
+}

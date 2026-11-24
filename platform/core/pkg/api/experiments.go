@@ -42,6 +42,8 @@ func experimentJobType(kind string) (string, bool) {
 		return "qec_code_eval", true
 	case "qec_distance":
 		return "qec_distance", true
+	case "qec_memory_sim":
+		return "qec_memory_sim", true
 	default:
 		return "", false
 	}
