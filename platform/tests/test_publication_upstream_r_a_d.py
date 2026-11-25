@@ -585,6 +585,34 @@ def test_g4_tfim_ansatz_qasm_is_qasm2_loadable_for_hardware():
     qasm2.loads(res["ansatz_qasm"])
 
 
+def test_r2_all_gate_zne_axis_is_monotonic():
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+    from qiskit import QuantumCircuit
+
+    # H2-shaped circuit: 8 single-qubit gates + 2 CX = 10 gates. The R2 audit
+    # found the old dispatcher mixed global and local folding; the canonical
+    # axis must be strictly increasing in TOTAL gates for every scale.
+    qc = QuantumCircuit(2)
+    for _ in range(4):
+        qc.h(0)
+        qc.x(1)
+    qc.cx(0, 1)
+    qc.cx(1, 0)
+
+    def total(circuit):
+        return sum(
+            1 for inst in circuit.data
+            if str(inst.operation.name) not in ("barrier", "measure", "reset")
+        )
+
+    counts = {scale: total(experiments._fold_circuit(qc, scale)) for scale in (1.0, 1.5, 2.0, 3.0)}
+    assert counts == {1.0: 10, 1.5: 14, 2.0: 20, 3.0: 30}, counts
+    assert counts[1.0] < counts[1.5] < counts[2.0] < counts[3.0]
+
+
 def test_p6_local_fractional_folding_and_actual_scale_guard(monkeypatch):
     import pytest
     pytest.importorskip("qiskit")

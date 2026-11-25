@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Error Mitigation
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-25
 tags: [error-mitigation, noise]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -76,4 +76,23 @@ path on Premium/Flex plans. Integration verdict:
   ZNE and per-point FCI comparisons) is implemented and covered in Go/Console
   tests, awaiting its first live QPU run.
 
-Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]]
+## R2 axis audit and fail-closed ZNE (2026-11-25, prototype register)
+
+The Phase-4B hardware result tightened the H₂ ZNE interval from ±38 to ±11 mHa but still
+missed chemical accuracy (2.743 mHa) and did not separate from raw. The offline audit
+found the cause was the **x-axis**, not the asymptote: odd integer scales used global
+all-gate folding while even/fractional scales used local 2Q-only folding, so the nominal
+`[1,2,3,4]` mapped to total-gate ratios `[1.0,1.2,3.0,1.6]`. Full evidence and the
+difference-CI/shot-floor tables are on [[hardware-validation-r2-2026-11-25]].
+
+Since `a2640825` the prototype uses one barrier-protected **all-gate local** folding
+mechanism, records the measured total-gate and calibration-weighted error scale per
+circuit, refuses a non-increasing/duplicate axis before dispatch, retains per-scale
+histograms, and reports model spread, lack-of-fit, and the raw-minus-ZNE difference CI.
+G6 fails closed on an invalid axis, inadequate model, overlapping difference CI, or
+`|Δ| > 1.6 mHa`. The corrected axis has **not** been exercised on hardware; the 1.4 RU
+window was consumed by the Phase-4B subset and further QPU work awaits approval.
+More shots alone cannot reach 1.6 mHa under the old model: the lack-of-fit floor is
+±6.96 mHa at 95% confidence.
+
+Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]] · [[hardware-validation-r2-2026-11-25]]

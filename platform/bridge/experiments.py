@@ -155,10 +155,14 @@ def _ansatz(theta: np.ndarray, layers: int) -> QuantumCircuit:
         raise ValueError(f"ansatz needs {need} parameters, got {len(theta)}")
     k = 0
     for _ in range(layers):
-        qc.ry(float(theta[k]), 0); k += 1
-        qc.ry(float(theta[k]), 1); k += 1
-        qc.rz(float(theta[k]), 0); k += 1
-        qc.rz(float(theta[k]), 1); k += 1
+        qc.ry(float(theta[k]), 0)
+        k += 1
+        qc.ry(float(theta[k]), 1)
+        k += 1
+        qc.rz(float(theta[k]), 0)
+        k += 1
+        qc.rz(float(theta[k]), 1)
+        k += 1
         qc.cx(0, 1)
     return qc
 
@@ -887,7 +891,8 @@ def run_vqe_hardware(
                 continue
             try:
                 eterm = _extrapolate_zne(xs, ys_term, se_term, extrapolator=extrapolator, asymptote=0.0)
-                val = float(eterm["mitigated"]); unc = float(eterm["uncertainty"])
+                val = float(eterm["mitigated"])
+                unc = float(eterm["uncertainty"])
                 per_term.append({"term": term, "coefficient": coefficient, "mitigated": val,
                                  "uncertainty": unc, "method": eterm["extrapolator_used"],
                                  "chi2_reduced": eterm["chi2_reduced"]})
@@ -2752,7 +2757,6 @@ def run_qaoa(
     t0 = time.perf_counter()
     if not HAS_QISKIT:
         return {"success": False, "error": "qiskit/aer unavailable: refusing QAOA"}
-    import itertools
     import networkx as nx
     from qiskit import QuantumCircuit
     from qiskit.quantum_info import Statevector

@@ -173,6 +173,26 @@ development — re-verify the gate on the exact commit before citing
 > notification inbox. Ledger schema is **15**. Re-verify the full gate on the
 > exact pushed commit before citing "green".
 
+> ⚑ State update (2026-11-25, R2 ZNE audit; `96a3ca2f` / `a2640825`): the
+> Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0`
+> settled) and **R2 is not achieved**. H₂ ZNE came in at **2.743 mHa** with a
+> **±11.037 mHa** interval against raw **9.999 mHa (±6.803)**; the independent
+> difference CI is **±12.965 mHa**, so the improvement is not separated. The
+> offline audit found the scale axis, not the fixed asymptote, was the primary
+> blocker: odd integer scales used global all-gate folding while other scales
+> used local 2Q-only folding, mapping nominal `[1,2,3,4]` to total-gate ratios
+> `[1.0,1.2,3.0,1.6]`. More shots cannot fix it (the lack-of-fit floor is
+> ±6.96 mHa at 95%). The prototype now uses one barrier-protected all-gate
+> local mechanism, records the measured total-gate/calibration-weighted axis,
+> refuses a non-increasing or duplicate axis before dispatch, retains
+> per-scale/per-term histograms, and reports model spread, `chi2_red`,
+> lack-of-fit p, and the raw-minus-ZNE difference CI. G6 fails closed on an
+> invalid axis, `chi2_red > 1.5`, model spread beyond the interval, an
+> overlapping difference CI, or `|Δ| > 1.6 mHa`. The corrected axis has **not**
+> run on hardware; the old 2.743 mHa result is historical, not a valid claim.
+> Record: [[hardware-validation-r2-2026-11-25]]; residual plan: PEC/CDR and a
+> full Aer/Pauli-Lindblad replay await a new spend approval.
+
 ## Three layers
 
 - `dev-docs/` — local working copies of source documents. **Never committed to git, never pushed —

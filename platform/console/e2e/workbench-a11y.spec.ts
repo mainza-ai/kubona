@@ -161,21 +161,39 @@ test('Light theme inversion, hover opacity invariance, zero card overlap, and zo
   expect(overlaps).toEqual([]);
 
   // Hover opacity invariance: hovered and sibling cards stay opacity === 1.
-  // Pick a card whose center actually hit-tests to itself. Auto-framing can
-  // leave the first DOM card partly above the viewport, where the filter bar
-  // intercepts pointer events; hovering that card would test the bar, not the
-  // card, and Playwright would retry until the test timeout.
-  const findHoverIndex = () => workbench.evaluate((root) => {
+  // Pick a point that hit-tests to a card and is stable across two frames.
+  // Auto-framing can leave the first DOM card partly above the viewport, where
+  // the filter bar intercepts pointer events; Playwright's actionability retry
+  // would then hover the bar, not the card, until the test times out. Moving
+  // the pointer to the verified point avoids that retry while still requiring
+  // a real hit-test against the card.
+  const findHoverPoint = () => workbench.evaluate((root) => {
     const candidates = Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card'));
-    return candidates.findIndex((card) => {
+    for (const card of candidates) {
       const rect = card.getBoundingClientRect();
-      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return Boolean(hit && card.contains(hit));
-    });
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + Math.min(rect.height / 2, 20);
+      const hit = document.elementFromPoint(x, y);
+      if (hit && card.contains(hit)) return { x, y };
+    }
+    return null;
   });
-  await expect.poll(findHoverIndex, { timeout: 5_000 }).toBeGreaterThanOrEqual(0);
-  const hoverIndex = await findHoverIndex();
-  await cards.nth(hoverIndex).hover();
+  let hoverPoint: { x: number; y: number } | null = null;
+  for (let attempt = 0; attempt < 50 && !hoverPoint; attempt++) {
+    const candidate = await findHoverPoint();
+    if (candidate) {
+      await page.waitForTimeout(60);
+      const stable = await findHoverPoint();
+      if (stable && Math.abs(stable.x - candidate.x) < 1 && Math.abs(stable.y - candidate.y) < 1) {
+        hoverPoint = stable;
+        break;
+      }
+    } else {
+      await page.waitForTimeout(100);
+    }
+  }
+  expect(hoverPoint).not.toBeNull();
+  await page.mouse.move(hoverPoint!.x, hoverPoint!.y);
   await page.waitForTimeout(100);
   const cardOpacities = await workbench.evaluate((root) =>
     Array.from(root.querySelectorAll<HTMLElement>('.k-workbench-card')).map((el) => ({

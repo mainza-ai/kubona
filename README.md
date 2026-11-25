@@ -15,7 +15,7 @@
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-Orchestrator-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/crates/"><img src="https://img.shields.io/badge/Rust-QIR%20%26%20IFC-DEA584?logo=rust&logoColor=white" alt="Rust" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/Next.js-Sovereign%20Console-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-168%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Blueprint-169%20Wiki%20Pages-purple?logo=obsidian&logoColor=white" alt="Wiki" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -25,7 +25,7 @@
 
 **Kubona** (from Chitonga *ku-bona*, *"to see, observe, perceive"*) is an open-source, local-first quantum and scientific discovery platform built around a single rule: **no claim without a classical anchor, no execution without a budget hold, and no result without a cryptographic receipt.**
 
-It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 7-server MCP tool layer (49 tools; unified `stdio` + standard Streamable HTTP `/mcp` with profiles, Resources, and Prompts), external AI agent skills (`skills/kubona*`), and a Next.js 3D operator console.
+It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledger with a Python quantum/chemistry compute bridge (`PySCF`, `Qiskit Aer`, `PennyLane`, `quimb`), a Rust QIR/IFC compiler core, a 7-server MCP tool layer (54 tools; unified `stdio` + standard Streamable HTTP `/mcp` with profiles, Resources, and Prompts), external AI agent skills (`skills/kubona*`), and a Next.js 3D operator console.
 
 > [!NOTE]
 > **Active Development:** A platform like this is never finished on day one; it compounds. **Kubona is in active development and becoming more capable every week** — tightening the feedback loop between what an agent proposes, what physics permits, and what the ledger can prove. Follow phased milestones in [`wiki/roadmap.md`](wiki/roadmap.md) and [`wiki/log.md`](wiki/log.md).
@@ -70,6 +70,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 - **Potential Energy Surfaces & Geometry Optimization:** Execute bond-distance `PES` scans (simulator and governed per-point `hardware_pes`), `BFGS` equilibrium geometry optimization, multi-seed statistical `VQE` repeats, overlap-deflated excited states, reactant-to-product reaction energies ($\Delta E$), and RDKit ADMET/PAINS candidate triage.
 - **Condensed-Matter & Tensor Networks:** Simulate 1D Heisenberg, anisotropic `XXZ` ($\Delta$), and `TFIM` spin chains (`COBYLA` + multi-start `L-BFGS-B`), compute `quimb` `MPS`/`DMRG` finite-size scaling to the thermodynamic limit ($1/N \to 0$, e.g., Bethe-ansatz `XXZ`), and evolve exact 2D `TFIM` quench dynamics (up to 100 time steps with `loschmidt_echo` and `zz_correlator_mean`) via sparse Krylov `expm_multiply`.
 - **Combinatorial, Subspace & Error-Mitigated Workflows:** Run MaxCut `QAOA` (simulator and hardware loops), Quantum Krylov subspace diagonalization, Zero-Noise Extrapolation (`ZNE`) with measurement readout mitigation, and exact finite-scope mathematical conjecture verification.
+- **Fail-Closed ZNE Claim Gates:** ZNE folds every gate with one barrier-protected local mechanism, fits the **measured** total-gate/calibration-weighted noise axis, refuses non-increasing or duplicate scales before dispatch, retains per-scale/per-term histograms, and reports model spread, `chi2`, lack-of-fit, and the raw/ZNE difference CI. Chemical accuracy is only asserted when `|Δ| ≤ 1.6 mHa` **and** the difference CI excludes zero; otherwise the claim fails closed. See [`docs/error-mitigation.md`](docs/error-mitigation.md) and [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md).
 
 ### 2. Autonomous Discovery, Research Pipeline & Epistemic Governance
 
@@ -90,7 +91,7 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 ### 4. Polyglot Core, MCP-Native Architecture & External Agent Skills
 
-- **7-Server MCP Surface (49 Tools; Unified `stdio` + Standard Streamable HTTP `/mcp`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`) exposed over standard MCP Streamable HTTP (`http://127.0.0.1:8123/mcp?profile=science|read-only|governance|ops|world|all`), unified `stdio` (`python -m kubona.run serve-mcp`), and legacy `/rpc` (including X25519+ML-KEM hybrid envelopes). Ships with server `instructions`, read-only MCP Resources (`kubona://skills`, `kubona://contracts/error-catalog`, `kubona://contracts/mcp-catalog`, `kubona://contracts/rate-cards`), and 5 guided MCP Prompts.
+- **7-Server MCP Surface (54 Tools; Unified `stdio` + Standard Streamable HTTP `/mcp`):** Dedicated Model Context Protocol servers (`execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`) exposed over standard MCP Streamable HTTP (`http://127.0.0.1:8123/mcp?profile=science|read-only|governance|ops|world|all`), unified `stdio` (`python -m kubona.run serve-mcp`), and legacy `/rpc` (including X25519+ML-KEM hybrid envelopes). Ships with server `instructions`, read-only MCP Resources (`kubona://skills`, `kubona://contracts/error-catalog`, `kubona://contracts/mcp-catalog`, `kubona://contracts/rate-cards`), and 5 guided MCP Prompts.
 - **External AI Agent Skills & Runtime Discovery:** A modular 6-skill suite under [`skills/`](skills/) (`kubona` router, `kubona-connect`, `kubona-experiments`, `kubona-governance`, `kubona-research`, `kubona-ops`) verified in CI by `scripts/skill-lint.py --strict`, installable into Claude Code / Cursor / Codex / Antigravity via `scripts/install-skills.sh <host>`, and paired with `python -m kubona.run mcp-config` plus live `kubonad` discovery endpoints (`GET /api/openapi.json`, `GET /.well-known/agent.json`, `GET /llms.txt`).
 - **Go + Rust + Python Execution Stack:** Go orchestrator (`kubonad`), hardened Rust native `qir-core` (OpenQASM 2/3 to QIR LLVM IR lowering with bounded input/register limits and `pi`/`sdg`/`tdg` support) and `ifc-core` (information-flow confidentiality lattice), and rootless Docker/`runsc` execution sandboxes.
 
@@ -136,10 +137,10 @@ All 19 `experiment-result-v1` kinds execute through the governed Go job rail; th
 | [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 7 MCP servers (49 tools; unified `stdio` + Streamable HTTP `/mcp` with profiles, Resources & Prompts: `execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 7 MCP servers (54 tools; unified `stdio` + Streamable HTTP `/mcp` with profiles, Resources & Prompts: `execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
 | [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
 | [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
-| [`wiki/`](wiki/) | **Blueprint Wiki** | 168 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
+| [`wiki/`](wiki/) | **Blueprint Wiki** | 169 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
 
 ---
 
@@ -261,6 +262,10 @@ bash scripts/perf-gate.sh
 # Strict wiki blueprint lint
 python3 scripts/wiki-lint.py --strict
 ```
+
+### Hardware evidence status (2026-11-25)
+
+The Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0` settled). **R2 is not achieved**: the H₂ ZNE point is **2.743 mHa (±11.037)** and the raw/ZNE difference CI (±12.965 mHa) overlaps, so the improvement is not separated. The offline audit found the scale axis mixed global all-gate folding with local 2Q-only folding; the corrected axis has **not** run on hardware, and the prior result is historical rather than a chemical-accuracy claim. Full evidence and the fail-closed gate inventory: [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md). Further QPU work requires a new spend approval.
 
 ### Operations: memory, retention, and profiling
 

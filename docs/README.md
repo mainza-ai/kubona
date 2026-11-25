@@ -35,6 +35,7 @@ released, and verified — not the history of how it got there.
 | [`rate-cards.md`](rate-cards.md) | Vendor-derived runtime rate card, stale-card refusal, `kubonad rates-audit`, reconciliation checklist |
 | [`llm-proposer.md`](llm-proposer.md) | Circuit proposer providers (local Strata / BYOK NVIDIA), gate adapter, air-gap and billing posture |
 | [`provenance-spool.md`](provenance-spool.md) | Receipt spool for irreversible side effects, replay semantics, operator backup notes |
+| [`error-mitigation.md`](error-mitigation.md) | ZNE axis invariants, per-scale retention, adequacy/difference gates, offline verification |
 
 ## Engineering hygiene
 

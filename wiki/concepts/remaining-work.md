@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-20
+updated: 2026-11-25
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -16,6 +16,21 @@ status: tracked
 > questions live in [[questions]] — this page tracks execution leftovers
 > only. Screened-out items name their reason; nothing rots silently.
 >
+> ⚑ **State update (2026-11-25, R2 ZNE audit; `96a3ca2f` / `a2640825`):**
+> R2 is **not achieved**. Phase-4B reported 2.743 mHa (±11.037) against raw
+> 9.999 mHa (±6.803); the difference CI (±12.965) overlaps, so the improvement
+> is not separated. The offline audit found the scale axis mixed global
+> all-gate folding with local 2Q-only folding (nominal `[1,2,3,4]` →
+> total-gate ratios `[1.0,1.2,3.0,1.6]`). The prototype now uses one all-gate
+> local mechanism, retains per-scale histograms, and fails closed on an invalid
+> axis, `chi2_red > 1.5`, model spread beyond the interval, an overlapping
+> difference CI, or `|Δ| > 1.6 mHa` ([[hardware-validation-r2-2026-11-25]]).
+> The 1.4 RU window was fully consumed by the Phase-4B subset; **no QPU time is
+> available** until a new spend approval. Residuals: corrected-axis hardware
+> run (blocked), full Aer/Pauli-Lindblad offline replay (unblocked), PEC/CDR
+> fallback (not built), per-term ZNE promoted only if it agrees with the global
+> fit on hardware, and manuscript/Console rendering of the new fields.
+
 > ⚑ **State update (2026-11-20, `0fdba803` / `853a476e`):** The 6-phase
 > deep-dive production audit is closed (`docs/production-audit-2026-11-20.md`):
 > `docs/repo-counts.md` records **156** HTTP route patterns, **188** OpenAPI

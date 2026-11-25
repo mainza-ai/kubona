@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-20
+updated: 2026-11-25
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -368,6 +368,20 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 > enforcement, and hardened `qir-core` / DR / CI gates. Verified with an 18/18
 > live rebuilt stack E2E run (local Strata offline during run) and relaunched
 > `compose.prod.yml` with all 5 containers healthy.
+
+> ⚑ Snapshot update (2026-11-25, R2 ZNE audit; commits `96a3ca2f` / `a2640825`):
+> Phase-4B hardware validation tightened the H₂ ZNE interval from ±38 to ±11 mHa
+> but **did not achieve R2**: the point is 2.743 mHa, the raw/ZNE difference CI is
+> ±12.965 mHa, and the improvement (7.256 mHa) is not separated. The offline audit
+> found the scale axis mixed global all-gate folding with local 2Q-only folding
+> (nominal `[1,2,3,4]` → total-gate ratios `[1.0,1.2,3.0,1.6]`), so the fit was not
+> on a noise coordinate; more shots alone leave a ±6.96 mHa lack-of-fit floor. The
+> prototype now uses one all-gate local mechanism, records the measured axis, keeps
+> per-scale histograms, and fails closed on an invalid axis, inadequate model,
+> overlapping difference CI, or `|Δ| > 1.6 mHa`. Full record:
+> [[hardware-validation-r2-2026-11-25]]. The 1.4 RU window was consumed by this
+> subset; any further QPU work needs a new spend approval. The corrected axis has
+> not run on hardware, so the old 2.743 mHa result is historical, not a valid claim.
 
 > ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):
 > `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages

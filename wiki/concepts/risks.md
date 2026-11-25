@@ -2,7 +2,7 @@
 type: concept
 name: Key Risks & Mitigations
 date: 2026-08-16
-updated: 2026-11-10
+updated: 2026-11-25
 tags: [risks, kubona, governance]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: adopted
@@ -32,6 +32,7 @@ project evolves.
 | **Dependency graph grows to the size of the reading list**: 25 audited repos, most of them valuable as *ideas* only | "Submodule" is a shipping decision requiring a permitting licence, continuous use, and a named owner to run pin/SBOM/sync; everything else stays reference-grade with a memo, not a dependency ([[integration-topology-and-licence-discipline]]) | Active by design |
 | Disk-full outage from bursty writers (HF model GBs, append-only jobs log, PySCF scratch) with no guard | S2 disk guard landed 2026-10-17: WARN 2 GB / BLOCK 1 GB / RESUME 1.5 GB with hysteresis over the resolved state + models mounts; BLOCK 503s `storage_blocked` on new work, reads stay; `/api/ready` probe; plus external `KUBONA_ALERT_WEBHOOK_URL` alert routing (`pkg/alerts`) | Mitigated — heaviest-writer kill still needs cgroup work |
 | Scientific overclaiming, stale QPU calibration, or extrapolated mitigation passed as direct measurement | Live PySCF CASCI/FCI exact anchors, shared below-anchor error guard, ZNE forced `measured:false` + `claimable:false`, `calibration_fresh` snapshot gating (`/api/quantum/backends/refresh`), and strict `claimable:false` reporting on Open Plan `ibm_fez` (`docs/live-qpu-2026-11-09.md`) | Mitigated by hard truth gates |
+| **Dependabot `GHSA-w8v5-vhqr-4h9v` / CVE-2025-69872 (diskcache ≤ 5.6.3 pickle deserialization)**: transitive dependency of `qldpc` 0.4.1; no patched release exists and the cache directory is local to the bridge container | Threat requires an attacker with write access to the cache directory (already inside the workload boundary); no untrusted cache input is accepted and the bridge runs read-only with dropped caps. Dismissed as `tolerable_risk` with this rationale; re-check when `qldpc`/`diskcache` publish a fixed release | Tolerated, tracked (2026-11-25) |
 
 ## The decision principle behind deferrals
 
