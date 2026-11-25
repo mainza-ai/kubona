@@ -97,6 +97,9 @@ class DiscoveryClaim:
     held_out_noise_is_held_out: bool
     reproduced: bool
     d_circ: int | None
+    reproduction_ler: float | None = None
+    reproduction_ci_low: float | None = None
+    reproduction_ci_high: float | None = None
     seeds: list[int] = field(default_factory=lambda: [7, 11])
     tool_versions: dict[str, str] = field(default_factory=dict)
     status: str = "candidate"  # candidate | verified | claimed | retracted
@@ -131,10 +134,12 @@ def evaluate_seven_gates(
     claim: DiscoveryClaim,
     *,
     catalog: Sequence[CatalogEntry] | None = None,
-    verify_distance: bool = True,
     milp_time_limit_s: float = 15.0,
 ) -> dict[str, Any]:
-    """Run all deterministic gates (0-6) and verify Gate 7 Ed25519 sign-off. Fail-closed."""
+    """Run all deterministic gates (0-6) and verify Gate 7 Ed25519 sign-off. Fail-closed.
+
+    N4: independent full-group MILP distance re-derivation is mandatory and cannot be disabled.
+    """
     gates: dict[str, dict[str, Any]] = {}
 
     # Gate 0: valid CSS matrices
@@ -183,25 +188,23 @@ def evaluate_seven_gates(
         return _finalize_report(claim, gates, failed_gate="gate3_novel", failure_code=fail_code)
     gates["gate3_novel"] = {"passed": True, "code": "ok", "canonical_hash": cat["canonical_hash"]}
 
-    # Gate 1b: independent full-group MILP re-derivation (never trust caller-supplied d)
-    witness_sha256 = ""
-    if verify_distance:
-        proved = prove_distance_milp(Hx, Hz, time_limit_s=milp_time_limit_s)
-        if proved.get("kind") != "proved" or proved.get("certificate", {}).get("proof_scope") != "full_logical_group":
-            gates["gate1_exact_params"] = {
-                "passed": False,
-                "code": "distance_not_proved",
-                "reason": f"independent full-group MILP did not certify distance (kind={proved.get('kind')!r})",
-            }
-            return _finalize_report(claim, gates, failed_gate="gate1_exact_params", failure_code="distance_not_proved")
-        if int(proved["value"]) != int(claim.d):
-            gates["gate1_exact_params"] = {
-                "passed": False,
-                "code": "distance_mismatch",
-                "reason": f"claimed d={claim.d} does not match independently proved full-group distance {proved['value']}",
-            }
-            return _finalize_report(claim, gates, failed_gate="gate1_exact_params", failure_code="distance_mismatch")
-        witness_sha256 = str(proved.get("certificate", {}).get("witness_sha256") or "")
+    # Gate 1b: independent full-group MILP re-derivation (mandatory; never trust caller-supplied d)
+    proved = prove_distance_milp(Hx, Hz, time_limit_s=milp_time_limit_s)
+    if proved.get("kind") != "proved" or proved.get("certificate", {}).get("proof_scope") != "full_logical_group":
+        gates["gate1_exact_params"] = {
+            "passed": False,
+            "code": "distance_not_proved",
+            "reason": f"independent full-group MILP did not certify distance (kind={proved.get('kind')!r})",
+        }
+        return _finalize_report(claim, gates, failed_gate="gate1_exact_params", failure_code="distance_not_proved")
+    if int(proved["value"]) != int(claim.d):
+        gates["gate1_exact_params"] = {
+            "passed": False,
+            "code": "distance_mismatch",
+            "reason": f"claimed d={claim.d} does not match independently proved full-group distance {proved['value']}",
+        }
+        return _finalize_report(claim, gates, failed_gate="gate1_exact_params", failure_code="distance_mismatch")
+    witness_sha256 = str(proved.get("certificate", {}).get("witness_sha256") or "")
 
     gates["gate1_exact_params"] = {
         "passed": True,
@@ -210,7 +213,7 @@ def evaluate_seven_gates(
         "k": params["k"],
         "d": int(claim.d),
         "d_kind": "proved",
-        "proof_scope": "full_logical_group" if verify_distance else "unchecked_test_override",
+        "proof_scope": "full_logical_group",
         "witness_sha256": witness_sha256,
     }
 
@@ -241,15 +244,28 @@ def evaluate_seven_gates(
         return _finalize_report(claim, gates, failed_gate="gate5_held_out", failure_code="held_out_failed")
     gates["gate5_held_out"] = {"passed": True, "code": "ok"}
 
-    # Gate 6: independently reproduced (>=2 distinct seeds + verified d_circ > 0)
-    if not claim.reproduced or claim.d_circ is None or claim.d_circ <= 0 or len(set(claim.seeds)) < 2:
+    # Gate 6: independently reproduced (>=2 distinct seeds + verified d_circ > 0 + measured reproduction CI below baseline)
+    has_repro_ci = (
+        claim.reproduction_ler is not None
+        and claim.reproduction_ci_low is not None
+        and claim.reproduction_ci_high is not None
+        and claim.reproduction_ci_low <= claim.reproduction_ler <= claim.reproduction_ci_high
+        and claim.reproduction_ci_high < claim.baseline_ci_low
+    )
+    if not claim.reproduced or not has_repro_ci or claim.d_circ is None or claim.d_circ <= 0 or len(set(claim.seeds)) < 2:
         gates["gate6_reproduced"] = {
             "passed": False,
             "code": "not_reproduced",
-            "reason": f"reproduced={claim.reproduced}, d_circ={claim.d_circ}, distinct_seeds={len(set(claim.seeds))}",
+            "reason": f"reproduced={claim.reproduced}, has_repro_ci={has_repro_ci}, d_circ={claim.d_circ}, distinct_seeds={len(set(claim.seeds))}",
         }
         return _finalize_report(claim, gates, failed_gate="gate6_reproduced", failure_code="not_reproduced")
-    gates["gate6_reproduced"] = {"passed": True, "code": "ok", "d_circ": claim.d_circ, "distinct_seeds": len(set(claim.seeds))}
+    gates["gate6_reproduced"] = {
+        "passed": True,
+        "code": "ok",
+        "d_circ": claim.d_circ,
+        "distinct_seeds": len(set(claim.seeds)),
+        "reproduction_ler": claim.reproduction_ler,
+    }
 
     # Gate 7: frozen bundle + Ed25519 operator signature over (claim_id, artifact_sha256, gates_digest)
     digest = claim.freeze_artifact_sha256()
@@ -310,12 +326,11 @@ def reverify_claims(
     claims: Sequence[DiscoveryClaim],
     *,
     catalog: Sequence[CatalogEntry],
-    verify_distance: bool = True,
 ) -> list[dict[str, Any]]:
     """Re-verify every stored claim against an updated catalog; demote failures to retracted."""
     results: list[dict[str, Any]] = []
     for cl in claims:
-        rep = evaluate_seven_gates(cl, catalog=catalog, verify_distance=verify_distance)
+        rep = evaluate_seven_gates(cl, catalog=catalog)
         results.append({
             "claim_id": cl.claim_id,
             "status": cl.status,

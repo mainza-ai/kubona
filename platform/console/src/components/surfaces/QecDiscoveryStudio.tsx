@@ -612,6 +612,7 @@ export function QecDiscoveryStudio({
           <div className="flex flex-wrap gap-1.5">
             {selected.isMemory ? (
               <>
+                <Badge tone="neutral">G0-G3 Code Eval: link qec_code_eval</Badge>
                 <Badge tone={selected.ler != null && selected.ciLow != null ? 'success' : 'warning'}>
                   G4 Circuit LER: {selected.ler != null ? `${selected.ler.toFixed(4)} [${selected.ciLow?.toFixed(4)}, ${selected.ciHigh?.toFixed(4)}]` : 'unmeasured'}
                 </Badge>
@@ -621,6 +622,7 @@ export function QecDiscoveryStudio({
                 <Badge tone={selected.dCirc != null && selected.dCirc > 0 ? 'success' : 'warning'}>
                   G6 Circuit d_circ: {selected.dCirc ?? 'unverified'}
                 </Badge>
+                <Badge tone="neutral">G7 Signoff: commissioned Ed25519 key required</Badge>
               </>
             ) : (
               <>
@@ -636,7 +638,16 @@ export function QecDiscoveryStudio({
                 <Badge tone={selected.catalogKnown === false ? 'success' : selected.catalogKnown === true ? 'warning' : 'neutral'}>
                   G3 Catalog Novelty: {selected.catalogKnown ? `known (${selected.catalogMatch ?? 'catalog'})` : selected.catalogKnown === false ? 'novel' : 'unchecked'}
                 </Badge>
-                <Badge tone="neutral">G7 Signoff: Ed25519 required</Badge>
+                <Badge tone={bestSim?.ler != null ? 'info' : 'neutral'}>
+                  G4 Circuit LER: {bestSim?.ler != null ? bestSim.ler.toFixed(4) : 'run qec_memory_sim'}
+                </Badge>
+                <Badge tone={heronJob?.calibrationSnapshotId ? 'info' : 'neutral'}>
+                  G5 Held-Out Cal: {heronJob?.calibrationSnapshotId ?? 'run Heron-r2 sim'}
+                </Badge>
+                <Badge tone={bestSim?.dCirc != null && bestSim.dCirc > 0 ? 'info' : 'neutral'}>
+                  G6 Reproduced d_circ: {bestSim?.dCirc ?? 'pending'}
+                </Badge>
+                <Badge tone="neutral">G7 Signoff: commissioned Ed25519 key required</Badge>
               </>
             )}
           </div>

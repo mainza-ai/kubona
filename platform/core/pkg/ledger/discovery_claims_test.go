@@ -3,6 +3,7 @@ package ledger_test
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -38,8 +39,16 @@ func TestDiscoveryClaimsSchema17PersistenceAndEd25519Signoff(t *testing.T) {
 		t.Fatalf("save claim: %v", err)
 	}
 
-	// candidate -> verified persisted
-	vRec, err := l.TransitionAndPersistDiscoveryClaim(rec.ClaimID, qec.ClaimVerified, "", "", "")
+	// N8: cross-session read/transition must fail closed with ErrDiscoveryClaimNotFound
+	if _, err := l.GetDiscoveryClaim("sess_other", rec.ClaimID); !errors.Is(err, ledger.ErrDiscoveryClaimNotFound) {
+		t.Fatalf("cross-session GetDiscoveryClaim err = %v, want ErrDiscoveryClaimNotFound", err)
+	}
+	if _, err := l.TransitionAndPersistDiscoveryClaim("sess_other", rec.ClaimID, qec.ClaimVerified, "", "", ""); !errors.Is(err, ledger.ErrDiscoveryClaimNotFound) {
+		t.Fatalf("cross-session transition err = %v, want ErrDiscoveryClaimNotFound", err)
+	}
+
+	// candidate -> verified persisted in owning session
+	vRec, err := l.TransitionAndPersistDiscoveryClaim("sess_qec_1", rec.ClaimID, qec.ClaimVerified, "", "", "")
 	if err != nil {
 		t.Fatalf("transition verified: %v", err)
 	}
@@ -48,7 +57,7 @@ func TestDiscoveryClaimsSchema17PersistenceAndEd25519Signoff(t *testing.T) {
 	}
 
 	// Forged/bare sign-off must be refused and leave persisted status unchanged
-	if _, err := l.TransitionAndPersistDiscoveryClaim(rec.ClaimID, qec.ClaimClaimed, "badpub", "badsig", ""); err == nil {
+	if _, err := l.TransitionAndPersistDiscoveryClaim("sess_qec_1", rec.ClaimID, qec.ClaimClaimed, "badpub", "badsig", ""); err == nil {
 		t.Fatal("expected refusal for forged sign-off")
 	}
 
@@ -57,7 +66,7 @@ func TestDiscoveryClaimsSchema17PersistenceAndEd25519Signoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign: %v", err)
 	}
-	cRec, err := l.TransitionAndPersistDiscoveryClaim(rec.ClaimID, qec.ClaimClaimed, pubHex, sigHex, "")
+	cRec, err := l.TransitionAndPersistDiscoveryClaim("sess_qec_1", rec.ClaimID, qec.ClaimClaimed, pubHex, sigHex, "")
 	if err != nil {
 		t.Fatalf("transition claimed: %v", err)
 	}
@@ -72,7 +81,7 @@ func TestDiscoveryClaimsSchema17PersistenceAndEd25519Signoff(t *testing.T) {
 	}
 
 	// Retract persists terminal state
-	rRec, err := l.TransitionAndPersistDiscoveryClaim(rec.ClaimID, qec.ClaimRetracted, "", "", "superseded by catalog")
+	rRec, err := l.TransitionAndPersistDiscoveryClaim("sess_qec_1", rec.ClaimID, qec.ClaimRetracted, "", "", "superseded by catalog")
 	if err != nil || rRec.Status != qec.ClaimRetracted {
 		t.Fatalf("retract failed: %+v, err=%v", rRec, err)
 	}

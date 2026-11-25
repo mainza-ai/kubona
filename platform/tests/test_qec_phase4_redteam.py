@@ -53,6 +53,9 @@ def _make_claim(hx: np.ndarray, hz: np.ndarray, **overrides) -> DiscoveryClaim:
         held_out_noise_is_held_out=True,
         reproduced=True,
         d_circ=3,
+        reproduction_ler=0.0032,
+        reproduction_ci_low=0.0024,
+        reproduction_ci_high=0.0041,
         tool_versions={"stim": "1.16.0", "highspy": "1.16.0"},
     )
     defaults.update(overrides)
@@ -152,6 +155,16 @@ def test_redteam_forged_distance_rejected_gate1():
     assert rep["all_deterministic_passed"] is False
     assert rep["failed_gate"] == "gate1_exact_params"
     assert rep["failure_code"] == "distance_mismatch"
+
+
+def test_redteam_gate6_refuses_bare_reproduced_flag_without_measured_ci():
+    """N2: reproduced=True without measured second-seed LER/CI is refused at Gate 6."""
+    H = _steane_H()
+    cl = _make_claim(H, H, reproduced=True, reproduction_ler=None, reproduction_ci_low=None, reproduction_ci_high=None)
+    rep = evaluate_seven_gates(cl, catalog=[])
+    assert rep["all_deterministic_passed"] is False
+    assert rep["failed_gate"] == "gate6_reproduced"
+    assert rep["failure_code"] == "not_reproduced"
 
 
 def test_valid_claim_lifecycle_and_automatic_retraction_on_reverify():

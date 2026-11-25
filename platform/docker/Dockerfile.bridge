@@ -46,12 +46,18 @@ WORKDIR /app
 # keep the set minimal rather than pulling all of TeX Live.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       g++ cmake git texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
+       texlive-latex-base texlive-latex-recommended texlive-fonts-recommended \
     && rm -rf /var/lib/apt/lists/*
 # Install first (better layer caching): lock + metadata, then the package,
 # then the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
+# N5: g++/cmake/git are installed solely to build ARM64 C++ wheels (stim, pymatching)
+# and purged in the same layer so no compiler or git ships in the runtime image.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-install-project --extra qiskit --extra chemistry --extra qec
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends g++ cmake git \
+    && uv sync --locked --no-install-project --extra qiskit --extra chemistry --extra qec \
+    && apt-get purge -y --auto-remove g++ cmake git \
+    && rm -rf /var/lib/apt/lists/*
 COPY kubona ./kubona
 RUN uv sync --locked --extra qiskit --extra chemistry --extra qec \
     && rm -f /bin/uv /bin/uvx \

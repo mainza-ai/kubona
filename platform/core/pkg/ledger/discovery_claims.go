@@ -10,7 +10,8 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/qec"
 )
 
-// Schema 17: durable, Ed25519-signed QEC discovery claim lifecycle ledger (P0-3).
+// Schema 17: durable, Ed25519-signed, session-scoped QEC discovery claim
+// lifecycle ledger (P0-3 / N8).
 const discoveryClaimsSchema = `
 	CREATE TABLE IF NOT EXISTS discovery_claims (
 		claim_id TEXT PRIMARY KEY,
@@ -32,14 +33,30 @@ const discoveryClaimsSchema = `
 	CREATE INDEX IF NOT EXISTS idx_discovery_claims_session ON discovery_claims(session_id, updated_at DESC);
 `
 
-// SaveDiscoveryClaim inserts or updates a QEC discovery claim record in SQLite.
+// ErrDiscoveryClaimNotFound is returned when a claim does not exist in the requested session.
+var ErrDiscoveryClaimNotFound = errors.New("discovery claim not found in session")
+
+// SaveDiscoveryClaim inserts or updates a session-scoped QEC discovery claim in SQLite.
+// Refuses empty session_id or cross-session claim_id collision (N8).
 func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 	if l == nil || l.db == nil {
 		return errors.New("ledger not initialized")
 	}
-	if strings.TrimSpace(rec.ClaimID) == "" || strings.TrimSpace(rec.CodeName) == "" {
-		return errors.New("claim_id and code_name are required")
+	sid := strings.TrimSpace(rec.SessionID)
+	cid := strings.TrimSpace(rec.ClaimID)
+	if sid == "" || cid == "" || strings.TrimSpace(rec.CodeName) == "" {
+		return errors.New("session_id, claim_id, and code_name are required")
 	}
+	// Prevent cross-session overwrite (N8 IDOR guard).
+	var existingSession string
+	err := l.db.QueryRow(`SELECT session_id FROM discovery_claims WHERE claim_id = ?`, cid).Scan(&existingSession)
+	if err == nil && existingSession != "" && existingSession != sid {
+		return fmt.Errorf("claim_id %q already belongs to another session", cid)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+
 	if rec.Status == "" {
 		rec.Status = qec.ClaimCandidate
 	}
@@ -51,7 +68,7 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 	if rec.Gates0To6Passed {
 		passedInt = 1
 	}
-	_, err := l.db.Exec(`
+	_, err = l.db.Exec(`
 		INSERT INTO discovery_claims (
 			claim_id, session_id, code_name, status, evidence_tier, credibility_tier,
 			artifact_sha256, gates_digest, gates_0_to_6_passed,
@@ -59,7 +76,6 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 			gate_report_json, created_at, updated_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(claim_id) DO UPDATE SET
-			session_id=excluded.session_id,
 			code_name=excluded.code_name,
 			status=excluded.status,
 			evidence_tier=excluded.evidence_tier,
@@ -72,8 +88,9 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 			retraction_reason=excluded.retraction_reason,
 			gate_report_json=excluded.gate_report_json,
 			updated_at=excluded.updated_at
+		WHERE discovery_claims.session_id = excluded.session_id
 	`,
-		rec.ClaimID, rec.SessionID, rec.CodeName, string(rec.Status), rec.EvidenceTier, rec.CredibilityTier,
+		cid, sid, rec.CodeName, string(rec.Status), rec.EvidenceTier, rec.CredibilityTier,
 		rec.ArtifactSHA256, rec.GatesDigest, passedInt,
 		rec.OperatorPubkeyHex, rec.OperatorSignatureHex, rec.RetractionReason,
 		rec.GateReportJSON, now, now,
@@ -81,10 +98,15 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 	return err
 }
 
-// GetDiscoveryClaim loads a persisted discovery claim by claim_id.
-func (l *Ledger) GetDiscoveryClaim(claimID string) (*qec.DiscoveryClaimRecord, error) {
+// GetDiscoveryClaim loads a persisted discovery claim strictly scoped to sessionID (N8).
+func (l *Ledger) GetDiscoveryClaim(sessionID, claimID string) (*qec.DiscoveryClaimRecord, error) {
 	if l == nil || l.db == nil {
 		return nil, errors.New("ledger not initialized")
+	}
+	sid := strings.TrimSpace(sessionID)
+	cid := strings.TrimSpace(claimID)
+	if sid == "" || cid == "" {
+		return nil, ErrDiscoveryClaimNotFound
 	}
 	var (
 		rec       qec.DiscoveryClaimRecord
@@ -96,14 +118,14 @@ func (l *Ledger) GetDiscoveryClaim(claimID string) (*qec.DiscoveryClaimRecord, e
 		       artifact_sha256, gates_digest, gates_0_to_6_passed,
 		       operator_pubkey_hex, operator_signature_hex, retraction_reason, gate_report_json
 		FROM discovery_claims
-		WHERE claim_id = ?
-	`, claimID).Scan(
+		WHERE session_id = ? AND claim_id = ?
+	`, sid, cid).Scan(
 		&rec.ClaimID, &rec.SessionID, &rec.CodeName, &statusStr, &rec.EvidenceTier, &rec.CredibilityTier,
 		&rec.ArtifactSHA256, &rec.GatesDigest, &passedInt,
 		&rec.OperatorPubkeyHex, &rec.OperatorSignatureHex, &rec.RetractionReason, &rec.GateReportJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("discovery claim %q not found", claimID)
+		return nil, fmt.Errorf("%w: %q", ErrDiscoveryClaimNotFound, cid)
 	}
 	if err != nil {
 		return nil, err
@@ -165,16 +187,17 @@ func (l *Ledger) ListDiscoveryClaims(sessionID string) ([]qec.DiscoveryClaimReco
 	return out, rows.Err()
 }
 
-// TransitionAndPersistDiscoveryClaim enforces the Ed25519-signed lifecycle
-// transition and persists the updated state durably in SQLite.
+// TransitionAndPersistDiscoveryClaim enforces session-scoped (N8) and
+// Ed25519-signed lifecycle transitions and persists the updated state in SQLite.
 func (l *Ledger) TransitionAndPersistDiscoveryClaim(
+	sessionID string,
 	claimID string,
 	next qec.DiscoveryClaimStatus,
 	operatorPubkeyHex string,
 	operatorSignatureHex string,
 	retractReason string,
 ) (*qec.DiscoveryClaimRecord, error) {
-	rec, err := l.GetDiscoveryClaim(claimID)
+	rec, err := l.GetDiscoveryClaim(sessionID, claimID)
 	if err != nil {
 		return nil, err
 	}

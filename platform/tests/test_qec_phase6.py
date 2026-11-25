@@ -82,6 +82,9 @@ def test_formal_attestation_emitter_enforces_gates_and_axiom_whitelist():
         held_out_noise_is_held_out=True,
         reproduced=True,
         d_circ=3,
+        reproduction_ler=0.0032,
+        reproduction_ci_low=0.0024,
+        reproduction_ci_high=0.0041,
     )
     # Refuses before gates pass
     with pytest.raises(ValueError, match="gates 0-6"):
