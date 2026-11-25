@@ -131,18 +131,30 @@ CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
 }
 
 
+def _breakable_path(path: str) -> str:
+    """Render a literal path in ``\\texttt`` with break points after each slash.
+
+    A long ``\\texttt{supplement/counts/<job_id>.json}`` has no natural break
+    point, so TeX overruns the page margin and the publication margin gate
+    fails. Allowing a break after every ``/`` keeps the path inside the text
+    block without changing the characters a reader sees.
+    """
+    escaped = path.replace("_", r"\_").replace("/", r"/\allowbreak ")
+    return rf"\texttt{{{escaped}}}"
+
+
 def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
     """Render Appendix B: Experiment Datasheet from settled campaign rows."""
     if not rows:
         return (
             "No settled experiment rows are present in this campaign projection. "
-            "The machine-readable datasheet (\\texttt{supplement/datasheet.json}) is empty."
+            f"The machine-readable datasheet ({_breakable_path('supplement/datasheet.json')}) is empty."
         )
     lines = [
         "Every settled experiment row below is bound to its immutable ledger record and "
-        "archived in \\texttt{supplement/datasheet.json} and \\texttt{supplement/jobs.csv}. "
-        "Hardware jobs carry OpenQASM sources in \\texttt{supplement/qasm/<job\\_id>.qasm} "
-        "and measurement histograms in \\texttt{supplement/counts/<job\\_id>.json} when "
+        f"archived in {_breakable_path('supplement/datasheet.json')} and {_breakable_path('supplement/jobs.csv')}. "
+        f"Hardware jobs carry OpenQASM sources in {_breakable_path('supplement/qasm/<job_id>.qasm')} "
+        f"and measurement histograms in {_breakable_path('supplement/counts/<job_id>.json')} when "
         "shot-level counts are emitted.",
         "",
         r"\begin{table}[H]",
@@ -168,7 +180,7 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
     if len(rows) > 48:
         lines.append(
             rf"\multicolumn{{8}}{{l}}{{\textit{{Showing first 48 of {len(rows)} rows; "
-            r"complete record in \texttt{supplement/datasheet.json}.}} \\"
+            rf"complete record in {_breakable_path('supplement/datasheet.json')}.}}}} \\"
         )
     lines.extend([
         r"\bottomrule",
@@ -235,15 +247,15 @@ def build_data_availability_section(rows: List[Dict[str, Any]], manuscript_id: s
     with_counts = sum(1 for r in rows if r.get("counts_sha256"))
     return (
         "All experiment inputs, OpenQASM circuits, measurement histograms, and classical "
-        "anchor specifications are archived alongside this manuscript in the \\texttt{supplement/} "
-        "bundle of both the Zenodo deposit manifest (\\texttt{zenodo\\_deposit.json}) and the "
-        "RO-Crate/PROV-JSON export (\\texttt{ro\\_crate.json}). Specifically, this bundle "
-        f"indexes {len(rows)} settled job record(s) in \\texttt{{supplement/datasheet.json}} and "
-        f"\\texttt{{supplement/jobs.csv}}, {hw_with_qasm} circuit checksum(s) in "
-        f"\\texttt{{supplement/qasm/}}, and {with_counts} histogram checksum(s) in "
-        "\\texttt{supplement/counts/}, together with software environment metadata in "
-        "\\texttt{supplement/environment.json} and the automated completeness audit in "
-        "\\texttt{supplement/completeness\\_report.json}.\n\n"
+        f"anchor specifications are archived alongside this manuscript in the {_breakable_path('supplement/')} "
+        f"bundle of both the Zenodo deposit manifest ({_breakable_path('zenodo_deposit.json')}) and the "
+        f"RO-Crate/PROV-JSON export ({_breakable_path('ro_crate.json')}). Specifically, this bundle "
+        f"indexes {len(rows)} settled job record(s) in {_breakable_path('supplement/datasheet.json')} and "
+        f"{_breakable_path('supplement/jobs.csv')}, {hw_with_qasm} circuit checksum(s) in "
+        f"{_breakable_path('supplement/qasm/')}, and {with_counts} histogram checksum(s) in "
+        f"{_breakable_path('supplement/counts/')}, together with software environment metadata in "
+        f"{_breakable_path('supplement/environment.json')} and the automated completeness audit in "
+        f"{_breakable_path('supplement/completeness_report.json')}.\n\n"
         "Source code is publicly available under the Apache-2.0 license at "
         "\\href{https://github.com/mainza-ai/kubona}{\\texttt{https://github.com/mainza-ai/kubona}}; "
         "manuscript prose and figures are released under CC-BY-4.0. "

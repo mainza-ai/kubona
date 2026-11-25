@@ -45,16 +45,18 @@ def test_publication_completeness_datasheet_declarations_refs_and_figures():
 
     # Phase 1: Experiment Datasheet
     ds_tex = manuscript_datasheet.build_experiment_datasheet_section(rows)
-    assert "supplement/datasheet.json" in ds_tex
+    assert "datasheet.json" in ds_tex
     assert "11112222" in ds_tex
     assert "aaaaaaaaaaaa" in ds_tex
     assert "bbbbbbbbbbbb" in ds_tex
+    # Long literal paths must carry break points, or they overrun the margin.
+    assert "\\allowbreak" in ds_tex
 
     # Phase 3: Data & Code Availability
     avail_tex = manuscript_datasheet.build_data_availability_section(rows, "ms_test_01")
     assert "github.com/mainza-ai/kubona" in avail_tex
     assert "CC-BY-4.0" in avail_tex
-    assert "supplement/qasm/" in avail_tex
+    assert "qasm/" in avail_tex
 
     # Phase 4: ZNE & Uncertainty
     zne_tex = manuscript_datasheet.build_zne_and_uncertainty_section(rows)
