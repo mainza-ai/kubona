@@ -806,10 +806,10 @@ func (s *Server) handleManuscriptSignoff(w http.ResponseWriter, r *http.Request,
 			map[string]any{"summary": report.Summary})
 		return
 	}
-	// C-B: check scholarly metadata before signoff while the manuscript is still
-	// in `reviewed` state (session-editable in Console), so a Console user never
-	// gets stuck on a `built` 422 that requires operator bearer to reopen.
-	if verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), 0, nil).HardwareJobs > 0 {
+	// C-B + C-D: check scholarly metadata before signoff while the manuscript is
+	// still in `reviewed` state (session-editable in Console), using the
+	// dedicated HasSettledHardware helper.
+	if verify.HasSettledHardware(ms.CampaignJSON) {
 		if missing := verify.CheckScholarlyMetadata(ms.EvidenceJSON); len(missing) > 0 {
 			WriteAPIError(w, "metadata_incomplete",
 				"hardware manuscript signoff requires scholarly metadata: "+strings.Join(missing, ", "),

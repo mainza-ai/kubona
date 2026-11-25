@@ -129,7 +129,88 @@ CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
         "  doi = {10.1038/317505a0}\n"
         "}"
     ),
+    "Kandala2019": (
+        "@article{Kandala2019,\n"
+        "  author = {Kandala, Abhinav and Temme, Kristan and C\\'orcoles, Antonio D. and Mezzacapo, Antonio and Chow, Jerry M. and Gambetta, Jay M.},\n"
+        "  title = {Error mitigation extends the computational reach of a noisy quantum processor},\n"
+        "  journal = {Nature},\n"
+        "  year = {2019},\n"
+        "  doi = {10.1038/s41586-019-1040-7}\n"
+        "}"
+    ),
+    "Harrigan2021": (
+        "@article{Harrigan2021,\n"
+        "  author = {Harrigan, Matthew P. and Sung, Kevin J. and Neeley, Matthew and Satzinger, Kevin J. and Arute, Frank and Arya, Kunal and Atalaya, Juan and Bardin, Joseph C. and Barends, Rami and Boixo, Sergio and others},\n"
+        "  title = {Quantum approximate optimization of non-planar graph problems on a planar superconducting processor},\n"
+        "  journal = {Nature Physics},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1038/s41567-020-01105-y}\n"
+        "}"
+    ),
+    "Pfeuty1970": (
+        "@article{Pfeuty1970,\n"
+        "  author = {Pfeuty, Pierre},\n"
+        "  title = {The one-dimensional Ising model with a transverse field},\n"
+        "  journal = {Annals of Physics},\n"
+        "  year = {1970},\n"
+        "  doi = {10.1016/0003-4916(70)90270-8}\n"
+        "}"
+    ),
+    "Steane1996": (
+        "@article{Steane1996,\n"
+        "  author = {Steane, Andrew M.},\n"
+        "  title = {Error Correcting Codes in Quantum Theory},\n"
+        "  journal = {Physical Review Letters},\n"
+        "  year = {1996},\n"
+        "  doi = {10.1103/PhysRevLett.77.793}\n"
+        "}"
+    ),
+    "BravyiKitaev2005": (
+        "@article{BravyiKitaev2005,\n"
+        "  author = {Bravyi, Sergey and Kitaev, Alexei},\n"
+        "  title = {Universal quantum computation with ideal Clifford gates and noisy ancillas},\n"
+        "  journal = {Physical Review A},\n"
+        "  year = {2005},\n"
+        "  doi = {10.1103/PhysRevA.71.022316}\n"
+        "}"
+    ),
 }
+
+# Structured metadata for canonical campaign-matched citation auto-seeding (G5)
+CANONICAL_CITATION_METADATA: Dict[str, Dict[str, str]] = {
+    "Peruzzo2014": {"key": "Peruzzo2014", "title": "A variational eigenvalue solver on a photonic quantum processor", "authors": "Peruzzo et al.", "year": "2014", "doi": "10.1038/ncomms5213"},
+    "OMalley2016": {"key": "OMalley2016", "title": "Scalable Quantum Simulation of Molecular Energies", "authors": "O'Malley et al.", "year": "2016", "doi": "10.1103/PhysRevX.6.031007"},
+    "Kandala2017": {"key": "Kandala2017", "title": "Hardware-efficient variational quantum eigensolver for small molecules and quantum magnets", "authors": "Kandala et al.", "year": "2017", "doi": "10.1038/nature23879"},
+    "Kandala2019": {"key": "Kandala2019", "title": "Error mitigation extends the computational reach of a noisy quantum processor", "authors": "Kandala et al.", "year": "2019", "doi": "10.1038/s41586-019-1040-7"},
+    "Sun2018PySCF": {"key": "Sun2018PySCF", "title": "PySCF: the Python-based simulations of chemistry framework", "authors": "Sun et al.", "year": "2018", "doi": "10.1002/wcms.1340"},
+    "Farhi2014QAOA": {"key": "Farhi2014QAOA", "title": "A Quantum Approximate Optimization Algorithm", "authors": "Farhi, Goldstone, Gutmann", "year": "2014", "doi": "10.48550/arXiv.1411.4028"},
+    "Harrigan2021": {"key": "Harrigan2021", "title": "Quantum approximate optimization of non-planar graph problems on a planar superconducting processor", "authors": "Harrigan et al.", "year": "2021", "doi": "10.1038/s41567-020-01105-y"},
+    "Pfeuty1970": {"key": "Pfeuty1970", "title": "The one-dimensional Ising model with a transverse field", "authors": "Pfeuty", "year": "1970", "doi": "10.1016/0003-4916(70)90270-8"},
+    "Kim2023": {"key": "Kim2023", "title": "Evidence for the utility of quantum computing before fault tolerance", "authors": "Kim et al.", "year": "2023", "doi": "10.1038/s41586-023-06096-3"},
+    "Steane1996": {"key": "Steane1996", "title": "Error Correcting Codes in Quantum Theory", "authors": "Steane", "year": "1996", "doi": "10.1103/PhysRevLett.77.793"},
+    "BravyiKitaev2005": {"key": "BravyiKitaev2005", "title": "Universal quantum computation with ideal Clifford gates and noisy ancillas", "authors": "Bravyi, Kitaev", "year": "2005", "doi": "10.1103/PhysRevA.71.022316"},
+}
+
+
+def canonical_citations_for_campaign(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Select DOI-backed canonical peer-reviewed citations matching the campaign kinds (G5)."""
+    keys: list[str] = []
+    kinds = {str(r.get("kind") or "").lower() for r in rows if isinstance(r, dict)}
+    if any(k in kind for kind in kinds for k in ("vqe", "pes", "excited", "geometry", "reaction")):
+        keys.extend(["Peruzzo2014", "OMalley2016", "Kandala2017", "Kandala2019", "Sun2018PySCF"])
+    if any("qaoa" in kind for kind in kinds):
+        keys.extend(["Farhi2014QAOA", "Harrigan2021"])
+    if any(k in kind for kind in kinds for k in ("spin_chain", "tfim", "lattice", "thermodynamic")):
+        keys.extend(["Pfeuty1970", "Kim2023"])
+    if any(k in kind for kind in kinds for k in ("qec", "codesign")):
+        keys.extend(["Steane1996", "BravyiKitaev2005"])
+    seen: set[str] = set()
+    out: List[Dict[str, str]] = []
+    for k in keys:
+        if k not in seen and k in CANONICAL_CITATION_METADATA:
+            seen.add(k)
+            out.append(dict(CANONICAL_CITATION_METADATA[k]))
+    return out
 
 
 def _breakable_path(path: str) -> str:

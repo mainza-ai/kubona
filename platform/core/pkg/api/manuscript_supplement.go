@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -413,7 +414,12 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		}
 	}
 
-	const maxCountsFileBytes = 256 * 1024
+	maxCountsFileBytes := 256 * 1024
+	if rawCap := strings.TrimSpace(os.Getenv("KUBONA_COUNTS_GZIP_THRESHOLD_BYTES")); rawCap != "" {
+		if n, err := strconv.Atoi(rawCap); err == nil && n >= 1024 && n <= 2*1024*1024 {
+			maxCountsFileBytes = n
+		}
+	}
 	datasheetRows := make([]map[string]any, 0, len(exps))
 	var csvBuf bytes.Buffer
 	cw := csv.NewWriter(&csvBuf)

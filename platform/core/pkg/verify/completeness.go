@@ -28,6 +28,35 @@ type CompletenessReport struct {
 	Checks                  []CompletenessCheck `json:"checks"`
 }
 
+// HasSettledHardware reports whether campaignJSON contains at least one
+// settled hardware experiment row (C-D: dedicated check used by signoff
+// without invoking the full artifact completeness pass).
+func HasSettledHardware(campaignJSON string) bool {
+	var camp map[string]any
+	if err := json.Unmarshal([]byte(campaignJSON), &camp); err != nil || camp == nil {
+		return false
+	}
+	rawList, ok := camp["experiments"].([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range rawList {
+		r, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		isHW, _ := r["hardware"].(bool)
+		kind, _ := r["kind"].(string)
+		if !isHW && !strings.Contains(strings.ToLower(kind), "hardware") {
+			continue
+		}
+		if isSettledRow(r) {
+			return true
+		}
+	}
+	return false
+}
+
 // CheckPublicationCompleteness verifies that a built manuscript bundle carries
 // every required circuit, datasheet, environment, and scholarly artifact.
 func CheckPublicationCompleteness(

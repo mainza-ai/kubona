@@ -153,7 +153,7 @@ def run_spin_chain(
     max_iterations: int = 160,
     target_error: float = 1e-3,
     state_mode: str = "vqe",
-    ansatz: str = "hea",
+    ansatz: str = "",
     restarts: int = 0,
 ) -> dict[str, Any]:
     if not HAS_QISKIT:
@@ -169,10 +169,19 @@ def run_spin_chain(
         return {"success": False, "error": f"state_mode {state_mode!r} must be vqe|exact"}
     if not math.isfinite(float(target_error)) or not (0.0 < float(target_error) <= 1.0):
         return {"success": False, "error": "target_error must be finite in (0,1]"}
-    ansatz_key = str(ansatz or "hea").strip().lower()
+    raw_ansatz = str(ansatz or "").strip().lower()
+    # G4: TFIM respects Z2 parity and translation invariance; default to the
+    # symmetry-respecting HVA ansatz with multi-start restarts when caller
+    # leaves ansatz unspecified, avoiding the 8.6% HEA single-start stall.
+    if not raw_ansatz:
+        ansatz_key = "hva" if str(model or "").strip().lower() == "tfim" else "hea"
+        effective_restarts = max(int(restarts), 4) if ansatz_key == "hva" else int(restarts)
+    else:
+        ansatz_key = raw_ansatz
+        effective_restarts = int(restarts)
     if ansatz_key not in ("hea", "hva"):
         return {"success": False, "error": f"ansatz {ansatz!r} must be hea|hva"}
-    if int(restarts) < 0 or int(restarts) > 12:
+    if effective_restarts < 0 or effective_restarts > 12:
         return {"success": False, "error": f"restarts {restarts!r} outside [0,12]"}
     try:
         lattice = SpinChainModel(
@@ -235,7 +244,7 @@ def run_spin_chain(
         # Multi-start: the live 2-layer failure was a single-start optimizer
         # stall (1.20 Ha on n=8). Further starts are cheap for HVA (2 params
         # per layer) and bounded for HEA; stop as soon as the anchor is met.
-        for _ in range(int(restarts)):
+        for _ in range(effective_restarts):
             if gap <= float(target_error):
                 break
             x0r = (rng.uniform(-math.pi, math.pi, size=n_params) if ansatz_key == "hva"
@@ -627,7 +636,16 @@ def run_spin_chain_hardware(
     counts_list = batch.get("counts")
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
-    measured = _hardware_counts_to_energy(counts_list[:-1], qiskit_coeffs)
+    cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
+    used_q = None
+    if isinstance(batch.get("layout"), dict):
+        pq = batch["layout"].get("physical_qubits")
+        if isinstance(pq, list) and all(isinstance(v, int) for v in pq):
+            used_q = pq
+    measured = _hardware_counts_to_energy(
+        counts_list[:-1], qiskit_coeffs,
+        calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
+    )
     measured_terms = {
         label: measured["terms"][_qiskit_pauli_label(label)]
         for label in coeffs
@@ -663,6 +681,8 @@ def run_spin_chain_hardware(
         "result_version": "experiment-result-v1",
         "model": str(model),
         "n_sites": n,
+        "readout_mitigation": measured.get("readout_mitigation"),
+        "error_suppression": batch.get("error_suppression"),
         "coupling": float(coupling),
         "field": float(field),
         "anisotropy": float(anisotropy),

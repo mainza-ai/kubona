@@ -234,6 +234,82 @@ def test_c_e_snapshot_from_target_partial_calibration_fallback():
     assert _snapshot_from_target(EmptyTarget(), "ibm_empty") is None
 
 
+def test_g1_g2_g3_zne_barrier_folding_wls_and_readout_mitigation(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    from qiskit import QuantumCircuit, transpile
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    # G1: _fold_unitary inserts barriers so transpiler at opt_level=3 cannot cancel U*U^dag
+    qc = QuantumCircuit(2)
+    qc.ry(0.3, 0)
+    qc.cx(0, 1)
+    qc.rz(0.2, 1)
+    qc.cx(0, 1)
+    t1 = transpile(experiments._fold_unitary(qc, 1), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3)
+    t3 = transpile(experiments._fold_unitary(qc, 3), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3)
+    t5 = transpile(experiments._fold_unitary(qc, 5), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3)
+    c1 = t1.count_ops().get("cx", 0)
+    c3 = t3.count_ops().get("cx", 0)
+    c5 = t5.count_ops().get("cx", 0)
+    assert c1 == 2 and c3 == 6 and c5 == 10, (c1, c3, c5)
+
+    # G1 fail-closed guard: collapsed transpile 2Q envelope refuses ZNE
+    def fake_collapsed_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"00": 512, "11": 512} for _ in qasms],
+            "backend": "fake-qpu",
+            "hardware_job_id": "fake-job",
+            "calibration": {"calibration_fresh": True, "readout_error": 0.02},
+            "transpile": {"circuits": len(qasms), "min_transpiled_two_qubit_gates": 2, "max_transpiled_two_qubit_gates": 2},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_collapsed_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    refused = experiments.run_vqe_hardware(
+        theta=[0.1, 0.2], pauli_coefficients={"XX": 0.5, "ZZ": 0.5}, layers=1,
+        shots=1024, seed=7, bond_distance=0.735, fci_exact_energy=-0.5,
+        ansatz_qasm=qasm, constant_energy=0.0, mitigation="ZNE", mitigation_scales=[1, 3, 5],
+    )
+    assert refused["success"] is False
+    assert "collapsed" in refused["error"]
+
+    # G2 + G3: WLS linear extrapolator + diagonal TREX readout mitigation
+    cal = {"per_qubit": {"0": {"readout_error": 0.02}, "1": {"readout_error": 0.02}}}
+    m_raw = experiments._hardware_counts_to_energy([{"00": 960, "01": 40}], {"IZ": 1.0}, readout_mitigation=False)
+    m_mit = experiments._hardware_counts_to_energy([{"00": 960, "01": 40}], {"IZ": 1.0}, calibration=cal, readout_mitigation=True)
+    assert m_mit["readout_mitigation"]["applied"] is True
+    assert abs(m_mit["energy"] - 0.9583333) < 1e-3 and m_mit["energy"] > m_raw["energy"]
+
+
+def test_g4_tfim_4site_critical_hva_default_converges():
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    from lattice_experiment import run_spin_chain  # noqa: E402
+
+    out = run_spin_chain(model="tfim", n_sites=4, coupling=1.0, field=1.0, periodic=True, layers=2, shots=2048, seed=7)
+    assert out["success"] is True
+    assert abs(out["energy"] - out["energy_exact"]) / abs(out["energy_exact"]) < 0.03
+
+
+def test_g5_canonical_citations_auto_seeded_for_campaign():
+    sys.path.insert(0, BRIDGE_DIR)
+    import manuscript_ops  # noqa: E402
+
+    campaign = {
+        "experiments": [
+            {"job_id": "j1", "kind": "vqe", "energy": -1.137, "measured": True},
+            {"job_id": "j2", "kind": "qaoa", "approximation_ratio": 0.85, "measured": True},
+            {"job_id": "j3", "kind": "spin_chain", "energy": -5.22, "measured": True},
+        ]
+    }
+    resp = manuscript_ops.run({"title": "Cross-Domain Test", "campaign": campaign, "evidence": {}})
+    keys = {c["key"] for c in resp["citations"]}
+    assert {"OMalley2016", "Kandala2017", "Kandala2019", "Farhi2014QAOA", "Harrigan2021", "Pfeuty1970"}.issubset(keys)
+
+
 def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
     sys.path.insert(0, BRIDGE_DIR)
     import experiments  # noqa: E402

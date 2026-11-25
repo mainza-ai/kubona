@@ -31,7 +31,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from manuscript_datasheet import CANONICAL_METHOD_REFERENCES
+from manuscript_datasheet import CANONICAL_METHOD_REFERENCES, canonical_citations_for_campaign
 
 _MAX_FIGURE_BYTES = 8 * 1024 * 1024
 _MAX_TOTAL_ARTIFACT_BYTES = 32 * 1024 * 1024
@@ -627,7 +627,10 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     citations: List[Dict[str, Any]] = []
     used_keys: set[str] = set()
     canonical_by_lower = {k.lower(): k for k in CANONICAL_METHOD_REFERENCES}
-    for entry in req.get("citations") or []:
+    raw_citations = list(req.get("citations") or [])
+    if not raw_citations and reportable:
+        raw_citations = canonical_citations_for_campaign(reportable)
+    for entry in raw_citations:
         if not isinstance(entry, dict):
             continue
         raw_key = str(entry.get("key") or entry.get("doi") or entry.get("title") or "")

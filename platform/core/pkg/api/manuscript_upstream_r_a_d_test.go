@@ -74,4 +74,11 @@ func TestExtractUsedQubitCalibrationSlicesPerQubitMap(t *testing.T) {
 	if encBig != "gzip" || shaBig != hex.EncodeToString(wantBig[:]) || shaBig == hex.EncodeToString(plainSum[:]) {
 		t.Fatalf("C-C violated for gzip json: enc=%q sha=%q", encBig, shaBig)
 	}
+	// C-D: HasSettledHardware distinguishes settled hardware from simulator or failed rows
+	if verify.HasSettledHardware(`{"experiments":[{"job_id":"j1","kind":"vqe","hardware":false,"measured":true}]}`) {
+		t.Fatal("HasSettledHardware must be false for simulator-only campaign")
+	}
+	if !verify.HasSettledHardware(`{"experiments":[{"job_id":"j2","kind":"vqe_hardware","hardware":true,"measured":true}]}`) {
+		t.Fatal("HasSettledHardware must be true for settled hardware campaign")
+	}
 }

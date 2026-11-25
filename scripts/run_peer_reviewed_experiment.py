@@ -439,10 +439,19 @@ def main() -> int:
             zne_job = client.poll_job(sid, zne_jid, timeout_s=900) if zne_jid else {}
             zne_res = json.loads(zne_job.get("result_json") or "{}") if isinstance(zne_job.get("result_json"), str) else (zne_job.get("result_json") or zne_job.get("result") or {})
             zne_delta = abs((float(zne_res.get("energy", 0)) - e_fci_ref) * 1000.0) if zne_res.get("energy") is not None else 9999.0
+            raw_max_2q = int((raw_res.get("transpile") or {}).get("max_transpiled_two_qubit_gates") or 0)
+            zne_max_2q = int((zne_res.get("transpile") or {}).get("max_transpiled_two_qubit_gates") or 0)
+            folds_scaled = (zne_max_2q > raw_max_2q) if raw_max_2q > 0 else True
+            record(
+                checks,
+                "pillar1_h2_vqe_hw_zne_fold_scaling",
+                zne_res.get("success") is True and folds_scaled,
+                f"job={zne_jid} raw_max_2Q={raw_max_2q} -> zne_max_2Q={zne_max_2q} (G1 fold preservation)",
+            )
             record(
                 checks,
                 "pillar1_h2_vqe_hw_zne_kandala2019",
-                zne_res.get("success") is True and bool(zne_res.get("counts_by_term")),
+                zne_res.get("success") is True and bool(zne_res.get("counts_by_term")) and zne_delta < raw_delta,
                 f"job={zne_jid} |Δ_ZNE|={zne_delta:.3f} mHa vs |Δ_raw|={raw_delta:.3f} mHa (terms={len(zne_res.get('counts_by_term') or {})})",
             )
 
@@ -589,11 +598,12 @@ def main() -> int:
     spin_res = json.loads(spin_job.get("result_json") or "{}") if isinstance(spin_job.get("result_json"), str) else (spin_job.get("result_json") or spin_job.get("result") or {})
     e_exact = spin_res.get("energy_exact")
     e_spin = spin_res.get("energy")
+    sim_rel_err = abs(float(e_spin) - float(e_exact)) / abs(float(e_exact)) if (e_spin is not None and e_exact) else 1.0
     record(
         checks,
         "pillar3_tfim_4site_critical_sim",
-        spin_res.get("success") is True and e_exact is not None,
-        f"job={spin_jid} E_VQE={e_spin} vs E_exact={e_exact} (E_exact/4={float(e_exact)/4.0 if e_exact is not None else 0:.5f} vs -4/pi=-1.27324)",
+        spin_res.get("success") is True and e_exact is not None and sim_rel_err <= 0.03,
+        f"job={spin_jid} E_VQE={e_spin} vs E_exact={e_exact} (rel_err={sim_rel_err*100:.2f}%, E_exact/4={float(e_exact)/4.0 if e_exact is not None else 0:.5f} vs -4/pi=-1.27324)",
     )
 
     code, spin_prep = client.request(
@@ -623,7 +633,14 @@ def main() -> int:
         hs_jid = (hs_resp.get("job") or hs_resp).get("id") if isinstance(hs_resp, dict) else None
         hs_job = client.poll_job(sid, hs_jid, timeout_s=900) if hs_jid else {}
         hs_res = json.loads(hs_job.get("result_json") or "{}") if isinstance(hs_job.get("result_json"), str) else (hs_job.get("result_json") or hs_job.get("result") or {})
-        record(checks, "pillar3_tfim_hw", hs_res.get("success") is True, f"job={hs_jid} E_hw={hs_res.get('energy')}")
+        e_hw = hs_res.get("energy")
+        hw_rel_err = abs(float(e_hw) - float(e_exact)) / abs(float(e_exact)) if (e_hw is not None and e_exact) else 1.0
+        record(
+            checks,
+            "pillar3_tfim_hw",
+            hs_res.get("success") is True and hw_rel_err <= 0.10,
+            f"job={hs_jid} E_hw={e_hw} vs E_exact={e_exact} (rel_err={hw_rel_err*100:.2f}%)",
+        )
 
     print("\n=== Stage 5: Pillar 4 — Fault-Tolerant QEC & Circuit Codesign ===", flush=True)
     code, cs_steane = client.request(
@@ -670,8 +687,10 @@ def main() -> int:
     ms = (ms_create.get("manuscript") or ms_create) if isinstance(ms_create, dict) else {}
     mid = ms.get("id")
     chash = ms.get("content_hash")
+    cites = ms.get("citations") or []
     artifacts_summary["manuscript_id"] = mid
-    record(checks, "manuscript_create", code in (200, 201) and bool(mid), f"manuscript_id={mid}")
+    record(checks, "manuscript_create", code in (200, 201) and bool(mid), f"manuscript_id={mid} citations={len(cites)}")
+    record(checks, "manuscript_auto_citations", len(cites) >= 5, f"auto-seeded {len(cites)} canonical peer-reviewed citations")
 
     if mid:
         code, rev = client.request("POST", f"/api/sessions/{sid}/manuscripts/{mid}/reviews", {})

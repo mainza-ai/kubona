@@ -255,16 +255,51 @@ def _hardware_batch(qasm_list: list[str], shots: int, seed: int,
     return provider.submit_batch(qasm_list, shots=int(shots), seed=int(seed))
 
 
+def _readout_mitigation_factor(term: str, calibration: dict[str, Any] | None, used_qubits: list[int] | None = None) -> float:
+    """Diagonal TREX readout correction factor Π_{q ∈ supp(P)} (1 - 2 ε_q).
+
+    Uses per-qubit readout error from live backend calibration when available,
+    falling back to device median readout_error. Returns 1.0 (no-op) if
+    calibration is absent or out of physical bounds (0, 0.25).
+    """
+    if not isinstance(calibration, dict):
+        return 1.0
+    per_q = calibration.get("per_qubit") if isinstance(calibration.get("per_qubit"), dict) else {}
+    med_ro = calibration.get("readout_error")
+    factor = 1.0
+    for q, ch in enumerate(term[::-1]):
+        if ch == "I":
+            continue
+        phys_q = used_qubits[q] if (used_qubits and q < len(used_qubits)) else q
+        q_entry = per_q.get(str(phys_q)) if isinstance(per_q, dict) else None
+        ro = q_entry.get("readout_error") if isinstance(q_entry, dict) else None
+        if ro is None:
+            ro = med_ro
+        if ro is None:
+            continue
+        eps = float(ro)
+        if 0.0 < eps < 0.25:
+            factor *= (1.0 - 2.0 * eps)
+    return factor
+
+
 def _hardware_counts_to_energy(
-    counts_list: list[dict[str, int]], coeffs: dict[str, float],
+    counts_list: list[dict[str, int]],
+    coeffs: dict[str, float],
+    *,
+    calibration: dict[str, Any] | None = None,
+    used_qubits: list[int] | None = None,
+    readout_mitigation: bool = False,
 ) -> dict[str, Any]:
     by_term: dict[str, Any] = {}
     energy = 0.0
     variance = 0.0
+    ro_factors: dict[str, float] = {}
     for term, counts in zip(sorted(coeffs), counts_list):
         c = float(coeffs[term])
-        if term == "II":
+        if term == "II" or set(term) == {"I"}:
             mean, std = 1.0, 0.0
+            factor = 1.0
         else:
             total = sum(int(v) for v in counts.values())
             if total <= 0:
@@ -278,22 +313,37 @@ def _hardware_counts_to_energy(
                     )
                 parity = sum(1 for q, ch in enumerate(term[::-1]) if ch != "I" and bits[q] == "1")
                 acc += int(n) * (1 if parity % 2 == 0 else -1)
-            mean = acc / total
-            std = math.sqrt(max(0.0, 1.0 - mean * mean) / total)
+            raw_mean = acc / total
+            raw_std = math.sqrt(max(0.0, 1.0 - raw_mean * raw_mean) / total)
+            factor = _readout_mitigation_factor(term, calibration, used_qubits) if readout_mitigation else 1.0
+            mean = max(-1.0, min(1.0, raw_mean / factor)) if factor > 0 else raw_mean
+            std = (raw_std / factor) if factor > 0 else raw_std
+        ro_factors[term] = float(factor)
         by_term[term] = {"coefficient": c, "expectation": float(mean), "std_error": float(std)}
         energy += c * mean
         variance += (c * std) ** 2
-    return {"energy": float(energy), "uncertainty": float(math.sqrt(max(0.0, variance))),
-            "terms": by_term}
+    out = {
+        "energy": float(energy),
+        "uncertainty": float(math.sqrt(max(0.0, variance))),
+        "terms": by_term,
+    }
+    if readout_mitigation:
+        out["readout_mitigation"] = {
+            "enabled": True,
+            "applied": any(abs(f - 1.0) > 1e-9 for f in ro_factors.values()),
+            "method": "diagonal_trex_from_calibration",
+            "factors": ro_factors,
+        }
+    return out
 
 
 def _fold_unitary(qc: Any, scale: int) -> Any:
     """Exact unitary folding for an odd integer noise scale.
 
-    ``U U^dag U`` for scale 3, ``U U^dag U U^dag U`` for scale 5.  The base
-    circuit must be unitary (no measurements/classical bits); the caller
-    refuses otherwise.  This is true gate folding, not the gate-repetition
-    approximation used by the separate circuit mitigation route.
+    ``U | U^dag | U`` for scale 3, ``U | U^dag | U | U^dag | U`` for scale 5.
+    Barriers are inserted between every fold segment so Qiskit's transpiler
+    (``optimization_level >= 1``) cannot algebraically cancel ``U U^dag -> I``
+    (G1 fix: prevents silent fold collapse on real hardware).
     """
     if isinstance(scale, bool) or not isinstance(scale, int) or scale < 1 or scale % 2 == 0:
         raise ValueError(f"unitary folding scale must be a positive odd integer, got {scale!r}")
@@ -303,7 +353,9 @@ def _fold_unitary(qc: Any, scale: int) -> Any:
     inverse = base.inverse()
     folded = base.copy()
     for _ in range((scale - 1) // 2):
+        folded.barrier()
         folded.compose(inverse, inplace=True)
+        folded.barrier()
         folded.compose(base, inplace=True)
     return folded
 
@@ -337,6 +389,8 @@ def run_vqe_hardware(
     constant_energy: float = 0.0,
     mitigation: str | None = None,
     mitigation_scales: list[int] | None = None,
+    extrapolator: str = "linear",
+    readout_mitigation: bool = True,
 ) -> dict[str, Any]:
     """Execute a locally optimized H2 ansatz on a real QPU as one batch.
 
@@ -410,7 +464,32 @@ def run_vqe_hardware(
         return {"success": False, "error": "hardware batch returned no per-term counts"}
 
     below_fci = False
+    cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
+    used_q = None
+    if isinstance(batch.get("layout"), dict):
+        pq = batch["layout"].get("physical_qubits")
+        if isinstance(pq, list) and all(isinstance(v, int) for v in pq):
+            used_q = pq
+    readout_meta = None
     if method:
+        # G1 fail-closed guard: if transpilation collapsed folded 2Q gates back to
+        # scale-1, refuse rather than reporting a spurious extrapolation.
+        t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
+        if (
+            t_env is not None
+            and "min_transpiled_two_qubit_gates" in t_env
+            and "max_transpiled_two_qubit_gates" in t_env
+            and int(t_env["min_transpiled_two_qubit_gates"]) > 0
+            and max(int(s) for s in mitigation_scales) > 1
+            and int(t_env["max_transpiled_two_qubit_gates"]) <= int(t_env["min_transpiled_two_qubit_gates"])
+        ):
+            return {
+                "success": False,
+                "error": (
+                    "ZNE fold scaling collapsed during transpilation: "
+                    f"min_2Q={t_env['min_transpiled_two_qubit_gates']} == max_2Q={t_env['max_transpiled_two_qubit_gates']}"
+                ),
+            }
         by_scale: dict[int, list[dict[str, int]]] = {int(s): [] for s in mitigation_scales}
         for (term, scale), counts in zip(fold_keys, counts_list):
             by_scale[scale].append((term, counts))
@@ -418,30 +497,63 @@ def run_vqe_hardware(
         scale_uncertainties: list[float] = []
         for scale in mitigation_scales:
             ordered = [dict(counts) for term, counts in by_scale[int(scale)]]
-            m = _hardware_counts_to_energy(ordered, coeffs)
+            m = _hardware_counts_to_energy(
+                ordered, coeffs,
+                calibration=cal_data, used_qubits=used_q, readout_mitigation=bool(readout_mitigation),
+            )
+            if readout_meta is None and "readout_mitigation" in m:
+                readout_meta = m["readout_mitigation"]
             scale_energies.append(float(m["energy"]))
             scale_uncertainties.append(float(m["uncertainty"]))
         xs = [int(s) for s in mitigation_scales]
-        deg = min(len(xs) - 1, 2)
-        try:
-            vander = np.vander(np.asarray(xs, dtype=float), deg + 1)
-            cond = float(np.linalg.cond(vander))
-        except Exception:
-            cond = float("inf")
-        if not math.isfinite(cond) or cond > 1e12:
-            return {"success": False, "error": f"ZNE fit ill-conditioned (cond={cond:.3g}); refusing"}
-        coeffs_fit = np.polyfit(np.asarray(xs, dtype=float), np.asarray(scale_energies, dtype=float), deg=deg)
-        mitigated = float(np.polyval(coeffs_fit, 0.0))
-        predicted = np.polyval(coeffs_fit, np.asarray(xs, dtype=float))
-        rmse = float(np.sqrt(np.mean((np.asarray(scale_energies) - predicted) ** 2)))
-        # Propagate each scale's standard error through the polynomial fit to
-        # the zero-scale intercept. A 3-point quadratic interpolates the data
-        # exactly, so the residual RMSE is ~0 and cannot represent extrapolation
-        # uncertainty; using scale-1's error alone understates it.
-        vander = np.vander(np.asarray(xs, dtype=float), deg + 1)
-        intercept_weights = np.linalg.pinv(vander)[deg]
-        var0 = float(np.sum((intercept_weights * np.asarray(scale_uncertainties, dtype=float)) ** 2))
-        uncertainty = float(math.sqrt(max(var0, 0.0)) + rmse)
+        extrap_mode = str(extrapolator or "linear").strip().lower()
+        if extrap_mode not in ("linear", "quadratic", "richardson"):
+            return {"success": False, "error": f"unsupported ZNE extrapolator {extrapolator!r}; use linear|quadratic|richardson"}
+        xs_arr = np.asarray(xs, dtype=float)
+        ys_arr = np.asarray(scale_energies, dtype=float)
+        sig_arr = np.maximum(np.asarray(scale_uncertainties, dtype=float), 1e-9)
+        if extrap_mode == "linear":
+            # G3: inverse-variance Weighted Least Squares (WLS) linear fit reduces
+            # intercept variance ~2.5x vs 3-point exact quadratic interpolation and
+            # provides a real non-zero fit residual when len(xs) >= 3.
+            deg = 1
+            w = 1.0 / (sig_arr ** 2)
+            sw = float(np.sum(w))
+            sx = float(np.sum(w * xs_arr))
+            sxx = float(np.sum(w * xs_arr * xs_arr))
+            det = sw * sxx - sx * sx
+            if not math.isfinite(det) or det <= 1e-18:
+                return {"success": False, "error": "ZNE WLS linear fit singular; refusing"}
+            cond = float(np.linalg.cond(np.vander(xs_arr, 2)))
+            intercept_weights = (w * (sxx - sx * xs_arr)) / det
+            mitigated = float(np.sum(intercept_weights * ys_arr))
+            slope = float(np.sum((w * (sw * xs_arr - sx)) * ys_arr) / det)
+            predicted = mitigated + slope * xs_arr
+            rmse = float(np.sqrt(np.mean((ys_arr - predicted) ** 2)))
+            var0 = float(sxx / det)
+            dof = max(1, len(xs) - 2)
+            chi2_red = float(np.sum(w * ((ys_arr - predicted) ** 2)) / dof) if len(xs) > 2 else 0.0
+            uncertainty = float(math.sqrt(max(var0, 0.0)) + rmse)
+            unc_method = "wls_linear_propagated_plus_fit_rmse"
+        else:
+            deg = min(len(xs) - 1, 2)
+            try:
+                vander = np.vander(xs_arr, deg + 1)
+                cond = float(np.linalg.cond(vander))
+            except Exception:
+                cond = float("inf")
+            if not math.isfinite(cond) or cond > 1e12:
+                return {"success": False, "error": f"ZNE fit ill-conditioned (cond={cond:.3g}); refusing"}
+            coeffs_fit = np.polyfit(xs_arr, ys_arr, deg=deg)
+            mitigated = float(np.polyval(coeffs_fit, 0.0))
+            predicted = np.polyval(coeffs_fit, xs_arr)
+            rmse = float(np.sqrt(np.mean((ys_arr - predicted) ** 2)))
+            vander = np.vander(xs_arr, deg + 1)
+            intercept_weights = np.linalg.pinv(vander)[deg]
+            var0 = float(np.sum((intercept_weights * sig_arr) ** 2))
+            chi2_red = 0.0
+            uncertainty = float(math.sqrt(max(var0, 0.0)) + rmse)
+            unc_method = "propagated_scale_errors_plus_fit_rmse"
         unmitigated = float(scale_energies[0])
         measured = {"energy": mitigated, "uncertainty": uncertainty, "terms": {}}
         counts_scale = int(mitigation_scales[0])
@@ -457,20 +569,29 @@ def run_vqe_hardware(
         claimable = False
         mitigation_receipt = {
             "method": "ZNE",
+            "extrapolator": extrap_mode,
+            "fit_degree": deg,
             "scales": xs,
             "scale_energies": scale_energies,
             "scale_uncertainties": scale_uncertainties,
             "fit_condition_number": cond,
             "fit_rmse": rmse,
-            "uncertainty_method": "propagated_scale_errors_plus_fit_rmse",
+            "chi2_reduced": chi2_red,
+            "uncertainty_method": unc_method,
             "intercept_weights": [float(w) for w in intercept_weights],
             "unmitigated_energy": unmitigated,
             "mitigated_energy": mitigated,
             "mitigated_measured": False,
             "measured": False,
         }
+        if readout_meta is not None:
+            mitigation_receipt["readout_mitigation"] = readout_meta
     else:
-        measured = _hardware_counts_to_energy(counts_list, coeffs)
+        measured = _hardware_counts_to_energy(
+            counts_list, coeffs,
+            calibration=cal_data, used_qubits=used_q, readout_mitigation=bool(readout_mitigation),
+        )
+        readout_meta = measured.get("readout_mitigation")
         counts_scale = 1
         counts_by_term = {
             str(term): {str(k): int(v) for k, v in counts.items()}
@@ -507,6 +628,8 @@ def run_vqe_hardware(
         "measured": not bool(mitigation_receipt),
         "mitigated": bool(mitigation_receipt),
         "mitigation": mitigation_receipt,
+        "readout_mitigation": readout_meta,
+        "error_suppression": batch.get("error_suppression"),
         "uncertainty": float(measured["uncertainty"]),
         "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],

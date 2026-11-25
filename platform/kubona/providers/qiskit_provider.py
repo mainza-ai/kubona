@@ -258,6 +258,7 @@ def _snapshot_from_target(target: Any, backend_name: str) -> dict[str, Any] | No
         "qubits": int(n),
         "source": f"backend-target:{backend_name}",
         "backend": backend_name,
+        "calibration_timestamp_source": "backend_target_unavailable",
         "per_qubit": per_qubit,
     }
     if t1_vals:
@@ -808,6 +809,38 @@ class QiskitProvider(Provider):
                     sampler = Sampler(backend=backend)
             except (ImportError, ModuleNotFoundError) as e:
                 raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
+        # G2: enable native IBM Runtime error suppression (XY4 dynamical
+        # decoupling + gate & measurement Pauli twirling) when supported by the
+        # SamplerV2 options object; record exact applied settings in provenance.
+        error_suppression: dict[str, Any] = {
+            "dynamical_decoupling": False,
+            "dynamical_decoupling_sequence": None,
+            "gate_twirling": False,
+            "measure_twirling": False,
+        }
+        opts = getattr(sampler, "options", None)
+        if opts is not None:
+            dd = getattr(opts, "dynamical_decoupling", None)
+            if dd is not None and hasattr(dd, "enable"):
+                try:
+                    dd.enable = True
+                    if hasattr(dd, "sequence_type"):
+                        dd.sequence_type = "XY4"
+                    error_suppression["dynamical_decoupling"] = True
+                    error_suppression["dynamical_decoupling_sequence"] = "XY4"
+                except Exception:
+                    pass
+            tw = getattr(opts, "twirling", None)
+            if tw is not None:
+                try:
+                    if hasattr(tw, "enable_gates"):
+                        tw.enable_gates = True
+                        error_suppression["gate_twirling"] = True
+                    if hasattr(tw, "enable_measure"):
+                        tw.enable_measure = True
+                        error_suppression["measure_twirling"] = True
+                except Exception:
+                    pass
         circuits = []
         layout = None
         transpile_meta = None
@@ -839,11 +872,13 @@ class QiskitProvider(Provider):
             circuits.append(qc)
         if transpile_samples:
             # A batch spans many measurement bases/folds; report the batch
-            # envelope and the first sample rather than pretending one circuit
-            # represents every transpiled circuit.
+            # envelope (including min/max 2Q gates so ZNE fold preservation is
+            # auditable) and the first sample.
             transpile_meta = {
                 "circuits": len(transpile_samples),
+                "min_transpiled_depth": min(s["transpiled_depth"] for s in transpile_samples),
                 "max_transpiled_depth": max(s["transpiled_depth"] for s in transpile_samples),
+                "min_transpiled_two_qubit_gates": min(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "first": transpile_samples[0],
             }
@@ -874,6 +909,7 @@ class QiskitProvider(Provider):
             "channel": self._channel(),
             "layout": layout,
             "transpile": transpile_meta,
+            "error_suppression": error_suppression,
             "plan": self._plan,
         }
         try:
