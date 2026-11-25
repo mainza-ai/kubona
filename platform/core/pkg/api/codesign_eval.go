@@ -293,9 +293,9 @@ func (s *Server) handleCodesignPackPromote(w http.ResponseWriter, r *http.Reques
 		WriteAPIError(w, "bad_request", fmt.Sprintf("unresolved anchor_ref %q: not found in ledger", anchorRef), nil)
 		return
 	}
-	proofKind, proofOK := s.ledger.ResolveLedgerRef(proofRef)
+	proofKind, proofOK := s.ledger.ResolveProofRef(proofRef)
 	if !proofOK {
-		WriteAPIError(w, "bad_request", fmt.Sprintf("unresolved proof_ref %q: not found in ledger", proofRef), nil)
+		WriteAPIError(w, "bad_request", fmt.Sprintf("unresolved or non-verified proof_ref %q: must be a valid codesign_run, verified discovery_claim, or completed job", proofRef), nil)
 		return
 	}
 	reqMap["name"] = packName

@@ -41,6 +41,21 @@ func TestCodesignPackPromoteRefusesMissingAndUnresolvedRefs(t *testing.T) {
 		t.Fatalf("C4 violated: arbitrary ref should 400 unresolved, got %d: %s", recUnres.Code, recUnres.Body.String())
 	}
 
+	// R3 fix: an invalid codesign_run (valid=false) exists in ledger (can anchor) but MUST NOT pass ResolveProofRef
+	if err := led.SaveCodesignRun(ledger.CodesignRunRecord{
+		RunID: "cs_invalid_run", SessionID: "s1", SpecKind: "and2", Valid: false,
+	}); err != nil {
+		t.Fatalf("save invalid run: %v", err)
+	}
+	reqBadProof := httptest.NewRequest(http.MethodPost, "/api/codesign/packs/numerics/promote",
+		bytes.NewBufferString(`{"anchor_ref":"cs_invalid_run","proof_ref":"cs_invalid_run"}`))
+	reqBadProof.Header.Set("Authorization", "Bearer test-tok")
+	recBadProof := httptest.NewRecorder()
+	srv.handleCodesignPackPromote(recBadProof, reqBadProof)
+	if recBadProof.Code != http.StatusBadRequest || !strings.Contains(recBadProof.Body.String(), "unresolved or non-verified proof_ref") {
+		t.Fatalf("R3 violated: invalid run accepted as proof_ref, got %d: %s", recBadProof.Code, recBadProof.Body.String())
+	}
+
 	// Non-promote subpath -> 404
 	req2 := httptest.NewRequest(http.MethodPost, "/api/codesign/packs/numerics/other",
 		bytes.NewBufferString(`{"anchor_ref":"a","proof_ref":"b"}`))

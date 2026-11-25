@@ -68,6 +68,25 @@ func TestCodesignRunsDurabilityAndCircuitClaimLifecycle(t *testing.T) {
 			EpsBound: 0.0, VerificationMethod: "exhaustive", Depth: 1, ToffoliDepth: 1,
 		},
 		{
+			// R1 adversarial: ccx + x + x identity padding (different raw SHA256, same canonical normal form as and2_single_ccx)
+			RunID: "cs_padded_eval", SessionID: sidA, SpecKind: "and2", ArtifactSHA256: "padded_raw_hash_001",
+			ArtifactJSON: `[["ccx",[0,1,2],[]],["x",[0],[]],["x",[0],[]]]`,
+			Kappa:        1, Seed: 7, NumTests: 16, Valid: true, Toffoli: 1, PeakQubits: 3, TQ: 3,
+			EpsBound: 0.0, VerificationMethod: "exhaustive", Depth: 3, ToffoliDepth: 1,
+		},
+		{
+			RunID: "cs_padded_repro", SessionID: sidA, SpecKind: "and2", ArtifactSHA256: "padded_raw_hash_001",
+			ArtifactJSON: `[["ccx",[0,1,2],[]],["x",[0],[]],["x",[0],[]]]`,
+			Kappa:        1, Seed: 11, NumTests: 16, Valid: true, Toffoli: 1, PeakQubits: 3, TQ: 3,
+			EpsBound: 0.0, VerificationMethod: "exhaustive", Depth: 3, ToffoliDepth: 1,
+		},
+		{
+			RunID: "cs_padded_held", SessionID: sidA, SpecKind: "and2", ArtifactSHA256: "padded_raw_hash_001",
+			ArtifactJSON: `[["ccx",[0,1,2],[]],["x",[0],[]],["x",[0],[]]]`,
+			Kappa:        1, Seed: 19, NumTests: 16, Valid: true, Toffoli: 1, PeakQubits: 3, TQ: 3,
+			EpsBound: 0.0, VerificationMethod: "exhaustive", Depth: 3, ToffoliDepth: 1,
+		},
+		{
 			RunID: "cs_bad_tq", SessionID: sidA, SpecKind: "and2", ArtifactSHA256: "art_hash_novel_001",
 			Kappa: 1, Seed: 7, NumTests: 16, Valid: true, Toffoli: 1, PeakQubits: 3, TQ: 99,
 			EpsBound: 0.0, VerificationMethod: "exhaustive", Depth: 1, ToffoliDepth: 1,
@@ -149,6 +168,27 @@ func TestCodesignRunsDurabilityAndCircuitClaimLifecycle(t *testing.T) {
 	}
 	if !strings.Contains(knownResp.Claim.GateReportJSON, "known_published_circuit:and2_single_ccx") {
 		t.Fatalf("expected known_published_circuit:and2_single_ccx in gate report, got: %s", knownResp.Claim.GateReportJSON)
+	}
+
+	// R1 fix: Identity-padded ccx + x + x MUST also fail C6 novelty gate via canonical normal form
+	wPadded := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
+		"claim_id":        "cc_padded_refuse",
+		"kind":            "circuit",
+		"code_name":       "and2_padded",
+		"eval_run_id":     "cs_padded_eval",
+		"baseline_run_id": "cs_base_1",
+		"repro_run_id":    "cs_padded_repro",
+		"held_out_run_id": "cs_padded_held",
+	})
+	var paddedResp struct {
+		Claim qec.DiscoveryClaimRecord `json:"claim"`
+	}
+	_ = json.Unmarshal(wPadded.Body.Bytes(), &paddedResp)
+	if paddedResp.Claim.Gates0To6Passed || paddedResp.Claim.EvidenceTier == "T1_VERIFIED" {
+		t.Fatalf("R1 violated: identity-padded ccx+x+x bypassed C6 novelty: %+v", paddedResp.Claim)
+	}
+	if !strings.Contains(paddedResp.Claim.GateReportJSON, "known_published_circuit:and2_single_ccx") {
+		t.Fatalf("expected known_published_circuit:and2_single_ccx for padded ccx, got: %s", paddedResp.Claim.GateReportJSON)
 	}
 
 	// C8 fix: Tampered TQ (99 != 1 * 3^1) MUST fail C2 cost gate

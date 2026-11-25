@@ -108,3 +108,19 @@ def test_phase1_manuscript_table_renders_circuit_claim_row():
     assert r"1T $\times$ 3Q" in tex
     assert "TQ=3" in tex
     assert r"exhaustive ($\varepsilon=0$)" in tex
+
+
+def test_r1_canonical_novelty_defeats_identity_padding_and_commutation():
+    from kubona.codesign.claims import lookup_circuit_catalog
+
+    # Identity-padded ccx + x + x reduces to canonical and2_single_ccx
+    padded = [["ccx", [0, 1, 2], []], ["x", [0], []], ["x", [0], []]]
+    hit = lookup_circuit_catalog("and2", padded)
+    assert hit["known"] is True
+    assert hit["matched_name"] == "and2_single_ccx"
+
+    # Commuted XOR2 cx order reduces to canonical xor2_two_cx
+    commuted_xor = [["cx", [1, 2], []], ["cx", [0, 2], []]]
+    hit_xor = lookup_circuit_catalog("xor2", commuted_xor)
+    assert hit_xor["known"] is True
+    assert hit_xor["matched_name"] == "xor2_two_cx"

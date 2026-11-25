@@ -226,3 +226,39 @@ func (l *Ledger) resolveRawRef(r string) (string, bool) {
 	}
 	return "", false
 }
+
+// ResolveProofRef checks whether ref resolves specifically to a verified
+// proof-bearing record in SQLite (R3 fix): a valid codesign_run (valid=1),
+// a passing discovery_claim (gates_0_to_6_passed=1), or a completed job.
+func (l *Ledger) ResolveProofRef(ref string) (string, bool) {
+	if l == nil || l.db == nil {
+		return "", false
+	}
+	r := strings.TrimSpace(ref)
+	if r == "" {
+		return "", false
+	}
+	if idx := strings.LastIndex(r, ":"); idx >= 0 && idx+1 < len(r) {
+		cand := strings.TrimSpace(r[idx+1:])
+		if cand != "" {
+			if kind, ok := l.resolveRawProofRef(cand); ok {
+				return kind, true
+			}
+		}
+	}
+	return l.resolveRawProofRef(r)
+}
+
+func (l *Ledger) resolveRawProofRef(r string) (string, bool) {
+	var exists int
+	if err := l.db.QueryRow(`SELECT 1 FROM codesign_runs WHERE run_id = ? AND valid = 1 LIMIT 1`, r).Scan(&exists); err == nil {
+		return "valid_codesign_run", true
+	}
+	if err := l.db.QueryRow(`SELECT 1 FROM discovery_claims WHERE claim_id = ? AND gates_0_to_6_passed = 1 LIMIT 1`, r).Scan(&exists); err == nil {
+		return "verified_discovery_claim", true
+	}
+	if err := l.db.QueryRow(`SELECT 1 FROM jobs WHERE id = ? AND UPPER(status) = 'COMPLETED' LIMIT 1`, r).Scan(&exists); err == nil {
+		return "completed_job", true
+	}
+	return "", false
+}

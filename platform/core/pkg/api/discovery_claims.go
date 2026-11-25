@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -125,6 +126,170 @@ type knownCircuitEntry struct {
 	ArtifactID string
 }
 
+type kickmixOp struct {
+	Gate   string
+	Qubits []int
+	Cond   []int
+}
+
+func isSelfInverseGate(g string) bool {
+	switch g {
+	case "x", "y", "z", "h", "cx", "cnot", "cz", "ccx", "toffoli", "swap":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeKickmixOp(op kickmixOp) kickmixOp {
+	g := strings.ToLower(strings.TrimSpace(op.Gate))
+	if g == "cnot" {
+		g = "cx"
+	} else if g == "toffoli" {
+		g = "ccx"
+	}
+	qs := append([]int(nil), op.Qubits...)
+	cond := append([]int(nil), op.Cond...)
+	sort.Ints(cond)
+	switch g {
+	case "cz", "swap":
+		sort.Ints(qs)
+	case "ccx":
+		if len(qs) == 3 && qs[0] > qs[1] {
+			qs[0], qs[1] = qs[1], qs[0]
+		}
+	}
+	return kickmixOp{Gate: g, Qubits: qs, Cond: cond}
+}
+
+func kickmixOpEqual(a, b kickmixOp) bool {
+	if a.Gate != b.Gate || len(a.Qubits) != len(b.Qubits) || len(a.Cond) != len(b.Cond) {
+		return false
+	}
+	for i := range a.Qubits {
+		if a.Qubits[i] != b.Qubits[i] {
+			return false
+		}
+	}
+	for i := range a.Cond {
+		if a.Cond[i] != b.Cond[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func kickmixOpsCommute(a, b kickmixOp) bool {
+	// Two CX gates with the same target and disjoint controls commute (e.g. xor2).
+	if a.Gate == "cx" && b.Gate == "cx" && len(a.Cond) == 0 && len(b.Cond) == 0 &&
+		len(a.Qubits) == 2 && len(b.Qubits) == 2 &&
+		a.Qubits[1] == b.Qubits[1] && a.Qubits[0] != b.Qubits[0] &&
+		a.Qubits[0] != b.Qubits[1] && b.Qubits[0] != a.Qubits[1] {
+		return true
+	}
+	// Disjoint support sets always commute.
+	sup := make(map[int]struct{}, len(a.Qubits)+len(a.Cond))
+	for _, q := range a.Qubits {
+		sup[q] = struct{}{}
+	}
+	for _, q := range a.Cond {
+		sup[q] = struct{}{}
+	}
+	for _, q := range b.Qubits {
+		if _, hit := sup[q]; hit {
+			return false
+		}
+	}
+	for _, q := range b.Cond {
+		if _, hit := sup[q]; hit {
+			return false
+		}
+	}
+	return true
+}
+
+func kickmixOpKey(op kickmixOp) string {
+	b, _ := json.Marshal([]any{op.Gate, op.Qubits, op.Cond})
+	return string(b)
+}
+
+// canonicalizeKickmixJSON parses a Kickmix artifact JSON array, cancels
+// self-inverse pairs across commuting gates, and sorts adjacent commuting
+// gates into a deterministic normal form (R1 fix: defeats identity padding).
+func canonicalizeKickmixJSON(raw string) (string, bool) {
+	var rawOps [][]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &rawOps); err != nil || len(rawOps) == 0 {
+		return "", false
+	}
+	ops := make([]kickmixOp, 0, len(rawOps))
+	for _, item := range rawOps {
+		if len(item) < 2 {
+			return "", false
+		}
+		var gate string
+		var qubits []int
+		var cond []int
+		if err := json.Unmarshal(item[0], &gate); err != nil {
+			return "", false
+		}
+		if err := json.Unmarshal(item[1], &qubits); err != nil {
+			return "", false
+		}
+		if len(item) >= 3 {
+			_ = json.Unmarshal(item[2], &cond)
+		}
+		ops = append(ops, normalizeKickmixOp(kickmixOp{Gate: gate, Qubits: qubits, Cond: cond}))
+	}
+
+	// Fixed-point self-inverse cancellation across commuting gates + commuting sort
+	for changed := true; changed; {
+		changed = false
+		for i := 0; i < len(ops); i++ {
+			if !isSelfInverseGate(ops[i].Gate) {
+				continue
+			}
+			for j := i + 1; j < len(ops); j++ {
+				if kickmixOpEqual(ops[i], ops[j]) {
+					ops = append(ops[:j], ops[j+1:]...)
+					ops = append(ops[:i], ops[i+1:]...)
+					changed = true
+					break
+				}
+				if !kickmixOpsCommute(ops[i], ops[j]) {
+					break
+				}
+			}
+			if changed {
+				break
+			}
+		}
+		if !changed {
+			for i := 0; i+1 < len(ops); i++ {
+				if kickmixOpsCommute(ops[i], ops[i+1]) && kickmixOpKey(ops[i]) > kickmixOpKey(ops[i+1]) {
+					ops[i], ops[i+1] = ops[i+1], ops[i]
+					changed = true
+				}
+			}
+		}
+	}
+
+	out := make([][]any, len(ops))
+	for i, op := range ops {
+		qOut := op.Qubits
+		if qOut == nil {
+			qOut = []int{}
+		}
+		cOut := op.Cond
+		if cOut == nil {
+			cOut = []int{}
+		}
+		out[i] = []any{op.Gate, qOut, cOut}
+	}
+	b, _ := json.Marshal(out)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), true
+}
+
 func knownPublishedCircuits() []knownCircuitEntry {
 	entries := []knownCircuitEntry{
 		{Name: "and2_single_ccx", SpecKind: "and2", CanonJSON: `[["ccx",[0,1,2],[]]]`},
@@ -134,8 +299,12 @@ func knownPublishedCircuits() []knownCircuitEntry {
 		{Name: "steane_7_cnot", SpecKind: "steane-cnot", CanonJSON: `[["cx",[0,7],[]],["cx",[1,8],[]],["cx",[2,9],[]],["cx",[3,10],[]],["cx",[4,11],[]],["cx",[5,12],[]],["cx",[6,13],[]]]`},
 	}
 	for i := range entries {
-		sum := sha256.Sum256([]byte(entries[i].CanonJSON))
-		entries[i].ArtifactID = hex.EncodeToString(sum[:])
+		if h, ok := canonicalizeKickmixJSON(entries[i].CanonJSON); ok {
+			entries[i].ArtifactID = h
+		} else {
+			sum := sha256.Sum256([]byte(entries[i].CanonJSON))
+			entries[i].ArtifactID = hex.EncodeToString(sum[:])
+		}
 	}
 	return entries
 }
@@ -260,12 +429,17 @@ func (s *Server) deriveServerSideCircuitClaim(
 		}
 	}
 
-	// C6 (C1 fix): novelty vs known published circuits (exact canonical hash)
+	// C6 (C1 + R1 fix): novelty vs known published circuits using canonical
+	// normal form (cancels self-inverse padding and commutes disjoint gates).
 	c6 := true
 	c6Reason := "novel"
 	matchedKnown := ""
+	canonHash, hasCanon := canonicalizeKickmixJSON(evalRun.ArtifactJSON)
 	for _, kc := range knownPublishedCircuits() {
-		if kc.SpecKind == evalRun.SpecKind && kc.ArtifactID == evalRun.ArtifactSHA256 {
+		if kc.SpecKind != evalRun.SpecKind {
+			continue
+		}
+		if kc.ArtifactID == evalRun.ArtifactSHA256 || (hasCanon && kc.ArtifactID == canonHash) {
 			c6 = false
 			matchedKnown = kc.Name
 			c6Reason = "known_published_circuit:" + kc.Name

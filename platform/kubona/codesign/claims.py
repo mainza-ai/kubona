@@ -32,9 +32,83 @@ from kubona.qec.claims import (
 )
 
 
+_SELF_INVERSE_GATES = frozenset({"x", "y", "z", "h", "cx", "cnot", "cz", "ccx", "toffoli", "swap"})
+
+
+def _normalize_op(op: Any) -> list[Any]:
+    gate = str(op[0]).strip().lower()
+    if gate == "cnot":
+        gate = "cx"
+    elif gate == "toffoli":
+        gate = "ccx"
+    qubits = [int(q) for q in op[1]]
+    cond = sorted(int(q) for q in (op[2] if len(op) >= 3 and op[2] else []))
+    if gate in ("cz", "swap"):
+        qubits = sorted(qubits)
+    elif gate == "ccx" and len(qubits) == 3 and qubits[0] > qubits[1]:
+        qubits[0], qubits[1] = qubits[1], qubits[0]
+    return [gate, qubits, cond]
+
+
+def _ops_commute(a: list[Any], b: list[Any]) -> bool:
+    if (
+        a[0] == "cx"
+        and b[0] == "cx"
+        and not a[2]
+        and not b[2]
+        and len(a[1]) == 2
+        and len(b[1]) == 2
+        and a[1][1] == b[1][1]
+        and a[1][0] != b[1][0]
+        and a[1][0] != b[1][1]
+        and b[1][0] != a[1][1]
+    ):
+        return True
+    sup_a = set(a[1]) | set(a[2])
+    sup_b = set(b[1]) | set(b[2])
+    return sup_a.isdisjoint(sup_b)
+
+
+def canonicalize_circuit_ops(artifact: Sequence[Any]) -> list[list[Any]]:
+    """Reduce a Kickmix artifact to canonical normal form (R1 fix).
+
+    Cancels self-inverse gate pairs across commuting gates and sorts adjacent
+    commuting gates deterministically so identity padding cannot bypass C6.
+    """
+    ops = [_normalize_op(op) for op in artifact]
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(ops)):
+            if ops[i][0] not in _SELF_INVERSE_GATES:
+                continue
+            for j in range(i + 1, len(ops)):
+                if ops[i] == ops[j]:
+                    del ops[j]
+                    del ops[i]
+                    changed = True
+                    break
+                if not _ops_commute(ops[i], ops[j]):
+                    break
+            if changed:
+                break
+        if not changed:
+            for i in range(len(ops) - 1):
+                if _ops_commute(ops[i], ops[i + 1]) and json.dumps(ops[i], separators=(",", ":")) > json.dumps(
+                    ops[i + 1], separators=(",", ":")
+                ):
+                    ops[i], ops[i + 1] = ops[i + 1], ops[i]
+                    changed = True
+    return ops
+
+
 def canonical_circuit_sha256(artifact: Sequence[Any]) -> str:
     raw = json.dumps(list(artifact), sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def canonical_normal_form_sha256(artifact: Sequence[Any]) -> str:
+    return canonical_circuit_sha256(canonicalize_circuit_ops(artifact))
 
 
 # Built-in published reference circuits (C6 novelty guard, analogous to QEC N10)
@@ -68,24 +142,28 @@ def lookup_circuit_catalog(
     *,
     catalog: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Check whether a circuit matches a known published artifact for the same spec."""
+    """Check whether a circuit matches a known published artifact for the same spec (canonical normal form)."""
     art_hash = canonical_circuit_sha256(artifact)
+    norm_hash = canonical_normal_form_sha256(artifact)
     cat = BUILTIN_PUBLISHED_CIRCUITS if catalog is None else catalog
     for name, entry in cat.items():
         if str(entry.get("spec_kind") or "") != str(spec_kind):
             continue
-        if canonical_circuit_sha256(entry.get("artifact") or []) == art_hash:
+        ref_art = entry.get("artifact") or []
+        if canonical_circuit_sha256(ref_art) == art_hash or canonical_normal_form_sha256(ref_art) == norm_hash:
             return {
                 "known": True,
                 "matched_name": name,
                 "source": entry.get("source"),
                 "artifact_sha256": art_hash,
+                "canonical_normal_form_sha256": norm_hash,
             }
     return {
         "known": False,
         "matched_name": None,
         "source": None,
         "artifact_sha256": art_hash,
+        "canonical_normal_form_sha256": norm_hash,
     }
 
 
