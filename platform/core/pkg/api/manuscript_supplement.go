@@ -582,6 +582,9 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			if lh, ok := tooling["uv_lock_sha256"].(string); ok && lh != "" {
 				envDoc["uv_lock_sha256"] = lh
 			}
+			if bc, ok := tooling["bridge_commit"].(string); ok && bc != "" && bc != "unknown" {
+				envDoc["bridge_commit"] = bc
+			}
 		}
 	}
 	if envBytes, err := json.MarshalIndent(envDoc, "", "  "); err == nil {

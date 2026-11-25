@@ -51,6 +51,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.bridge
+      args:
+        COMMIT: ${KUBONA_COMMIT:-unknown}
     image: kubona/bridge:prod
     <<: *default-hardening
     environment:
@@ -355,6 +357,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.bridge
+      args:
+        COMMIT: ${KUBONA_COMMIT:-unknown}
     <<: *default-hardening
     working_dir: /app
     command: ["/app/.venv/bin/python", "-m", "kubona.run", "serve-gateway"]

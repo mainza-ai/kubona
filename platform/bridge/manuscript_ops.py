@@ -49,6 +49,7 @@ def _tooling_versions() -> Dict[str, str]:
     versions: Dict[str, str] = {
         "python": _platform.python_version(),
         "platform": _platform.platform(),
+        "bridge_commit": str(os.environ.get("KUBONA_BUILD_COMMIT") or "unknown"),
     }
     for dist in ("qiskit", "qiskit-aer", "pyscf", "numpy", "scipy", "stim"):
         try:
