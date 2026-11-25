@@ -161,3 +161,35 @@ def test_r_d_openqasm2_multi_register_offsets():
     cx_gate = next(g for g in gates if g[0] == "CX")
     assert cx_gate[1] == [0, 3]
     assert total == 2 and two_q == 1
+
+
+def test_h1_vqe_hardware_retains_per_term_counts(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"00": 512, "11": 512} for _ in qasms],
+            "backend": "fake-qpu",
+            "hardware_job_id": "fake-job",
+            "calibration": {"calibration_fresh": True},
+            "transpile": {"circuits": len(qasms), "max_transpiled_depth": 7},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    kw = dict(theta=[0.1, 0.2], pauli_coefficients={"XX": 0.5, "ZZ": 0.5}, layers=1,
+              shots=1024, seed=7, bond_distance=0.735, fci_exact_energy=-0.5,
+              ansatz_qasm=qasm, constant_energy=0.0)
+    out = experiments.run_vqe_hardware(**kw)
+    assert out["success"] is True
+    assert set(out["counts_by_term"]) == {"XX", "ZZ"}
+    assert out["counts_scale"] == 1
+    assert out["transpile"]["circuits"] == 2
+
+    zne = experiments.run_vqe_hardware(**kw, mitigation="ZNE", mitigation_scales=[1, 3, 5])
+    assert zne["success"] is True
+    assert set(zne["counts_by_term"]) == {"XX", "ZZ"}
+    assert zne["counts_scale"] == 1

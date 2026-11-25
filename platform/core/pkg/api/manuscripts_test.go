@@ -1004,3 +1004,40 @@ func TestSessionDeleteRequiresPublicationAcknowledgement(t *testing.T) {
 		t.Fatalf("acknowledged delete = %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestReopeningBuiltManuscriptRequiresOperatorBearer(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "Built Custody"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	mid := created.Manuscript.ID
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/reviews", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("review = %d: %s", w.Code, w.Body.String())
+	}
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/build", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("build = %d: %s", w.Code, w.Body.String())
+	}
+	scholarly := map[string]any{"scholarly": map[string]any{
+		"affiliation": "Kubona Research", "corresponding_author": "Op <op@kubona.ai>",
+		"competing_interests": "None", "funding": "Internal", "license": "CC-BY-4.0",
+	}}
+	// A session caller cannot reopen built evidence.
+	if w := doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", scholarly); w.Code != http.StatusForbidden {
+		t.Fatalf("session reopen of built = %d, want 403: %s", w.Code, w.Body.String())
+	}
+	// The operator bearer can.
+	if w := doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "op-token", scholarly); w.Code != http.StatusOK {
+		t.Fatalf("operator reopen of built = %d: %s", w.Code, w.Body.String())
+	}
+}

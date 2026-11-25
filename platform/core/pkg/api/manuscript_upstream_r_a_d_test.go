@@ -1,6 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/verify"
@@ -47,5 +51,13 @@ func TestExtractUsedQubitCalibrationSlicesPerQubitMap(t *testing.T) {
 	pBig, okBig := stageCountsArtifact("supplement/counts/j2", big, 1024, arts)
 	if !okBig || pBig != "supplement/counts/j2.json.gz" || len(arts[pBig]) == 0 {
 		t.Fatalf("H3 violated: expected .json.gz fallback for large histogram, got %q ok=%v", pBig, okBig)
+	}
+	gz, err := gzip.NewReader(bytes.NewReader(arts[pBig]))
+	if err != nil {
+		t.Fatalf("staged histogram is not valid gzip: %v", err)
+	}
+	plain, err := io.ReadAll(gz)
+	if err != nil || !json.Valid(plain) {
+		t.Fatalf("gzip payload does not decompress to JSON: %v", err)
 	}
 }

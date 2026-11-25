@@ -192,3 +192,21 @@ func TestExtractUsedQubitCalibrationSlicesToLayout(t *testing.T) {
 		t.Fatalf("historical snapshots without per_qubit must return nil")
 	}
 }
+
+func TestEnrichJobFromParamsTreatsCountsByTermAsMultiTerm(t *testing.T) {
+	row := map[string]any{"job_id": "job_vqe_terms", "hardware": true}
+	result := []byte(`{"counts_by_term":{"ZZ":{"00":512,"11":512},"XX":{"01":500,"10":524}}}`)
+	enrichJobFromParams(row, nil, result)
+	if row["counts_status"] != "retained" || row["counts_terms"] != 2 {
+		t.Fatalf("expected retained 2-term histogram, got status=%#v terms=%#v", row["counts_status"], row["counts_terms"])
+	}
+	if _, has := row["counts_unique_bitstrings"]; has {
+		t.Fatalf("multi-term histogram must not report a single-distribution unique count: %#v", row["counts_unique_bitstrings"])
+	}
+	if _, has := row["top_k_counts"]; has {
+		t.Fatalf("multi-term histogram must not feed nested maps to topKCounts")
+	}
+	if h, _ := row["counts_sha256"].(string); len(h) != 64 {
+		t.Fatalf("expected a 64-hex hash of the per-term map, got %q", h)
+	}
+}

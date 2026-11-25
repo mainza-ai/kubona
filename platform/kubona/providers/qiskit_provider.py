@@ -810,6 +810,7 @@ class QiskitProvider(Provider):
         circuits = []
         layout = None
         transpile_meta = None
+        transpile_samples: list[dict[str, int]] = []
         for qasm in qasm_list:
             qc = qasm2.loads(str(qasm))
             original = qc
@@ -818,19 +819,33 @@ class QiskitProvider(Provider):
                 qc = self._transpile_for_backend(original, backend, chosen)
                 if layout is None:
                     layout = self._layout_summary(original, qc)
-                    try:
-                        log_2q = sum(1 for inst in original.data if len(inst.qubits) >= 2)
-                        tr_2q = sum(1 for inst in qc.data if len(inst.qubits) >= 2)
-                        transpile_meta = {
-                            "logical_depth": int(original.depth()),
-                            "logical_two_qubit_gates": int(log_2q),
-                            "transpiled_depth": int(qc.depth()),
-                            "transpiled_two_qubit_gates": int(tr_2q),
-                        }
-                    except Exception:
-                        transpile_meta = None
+                try:
+                    def _twoq(circuit):
+                        return sum(
+                            1 for inst in circuit.data
+                            if len(inst.qubits) >= 2
+                            and str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
+                        )
+                    transpile_samples.append({
+                        "logical_depth": int(original.depth()),
+                        "logical_two_qubit_gates": int(_twoq(original)),
+                        "transpiled_depth": int(qc.depth()),
+                        "transpiled_two_qubit_gates": int(_twoq(qc)),
+                    })
+                except Exception:
+                    pass
             self._validate_job_limits(qc, shots, backend)
             circuits.append(qc)
+        if transpile_samples:
+            # A batch spans many measurement bases/folds; report the batch
+            # envelope and the first sample rather than pretending one circuit
+            # represents every transpiled circuit.
+            transpile_meta = {
+                "circuits": len(transpile_samples),
+                "max_transpiled_depth": max(s["transpiled_depth"] for s in transpile_samples),
+                "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
+                "first": transpile_samples[0],
+            }
         job = sampler.run(circuits, shots=shots)
         job_id = str(job.job_id())
         from kubona.hardware_pin import persist_vendor_job

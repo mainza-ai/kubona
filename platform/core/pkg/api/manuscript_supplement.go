@@ -100,9 +100,7 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 			if len(countsMap) == 0 {
 				countsMap, _ = res["bitstring_counts"].(map[string]any)
 			}
-			if len(countsMap) == 0 {
-				countsMap, _ = res["counts_by_term"].(map[string]any)
-			}
+			countsByTerm, _ := res["counts_by_term"].(map[string]any)
 			if len(countsMap) > 0 {
 				rawCounts, _ := json.Marshal(countsMap)
 				sum := sha256.Sum256(rawCounts)
@@ -119,6 +117,16 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 					row["ratio_ci95"] = []float64{lo, hi}
 					row["ratio_ci_method"] = "normal_approx_95"
 				}
+			} else if len(countsByTerm) > 0 {
+				// Multi-term VQE/PES histograms are keyed by Pauli term; the
+				// nested object is not a single bitstring distribution, so it
+				// must not be reported as `counts_unique_bitstrings` or fed to
+				// topKCounts (which would silently return an empty list).
+				rawCounts, _ := json.Marshal(countsByTerm)
+				sum := sha256.Sum256(rawCounts)
+				row["counts_sha256"] = hex.EncodeToString(sum[:])
+				row["counts_terms"] = len(countsByTerm)
+				row["counts_status"] = "retained"
 			} else if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
 				ptCounts := 0
 				for _, p := range pts {
