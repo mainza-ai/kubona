@@ -113,11 +113,45 @@ type discoveryClaimCreateReq struct {
 	EvalRunID     string `json:"eval_run_id"`
 	BaselineRunID string `json:"baseline_run_id"`
 	ReproRunID    string `json:"repro_run_id"`
+	HeldOutRunID  string `json:"held_out_run_id"`
 }
 
-// deriveServerSideCircuitClaim enforces CircuitClaim gates C0-C7 strictly from
-// durable, session-scoped codesign_runs rows (Phase 1 / Decisions A1 & A2:
-// unified discovery_claims table, exhaustive equivalence eps=0 only).
+// knownPublishedCircuits mirrors kubona/codesign/claims.py BUILTIN_PUBLISHED_CIRCUITS
+// for server-side C6 novelty enforcement (preventing textbook circuits from claiming T1_VERIFIED).
+type knownCircuitEntry struct {
+	Name       string
+	SpecKind   string
+	CanonJSON  string
+	ArtifactID string
+}
+
+func knownPublishedCircuits() []knownCircuitEntry {
+	entries := []knownCircuitEntry{
+		{Name: "and2_single_ccx", SpecKind: "and2", CanonJSON: `[["ccx",[0,1,2],[]]]`},
+		{Name: "copy1_single_cx", SpecKind: "copy1", CanonJSON: `[["cx",[0,1],[]]]`},
+		{Name: "xor2_two_cx", SpecKind: "xor2", CanonJSON: `[["cx",[0,2],[]],["cx",[1,2],[]]]`},
+		{Name: "cz_phase_single_cz", SpecKind: "cz-phase", CanonJSON: `[["cz",[0,1],[]]]`},
+		{Name: "steane_7_cnot", SpecKind: "steane-cnot", CanonJSON: `[["cx",[0,7],[]],["cx",[1,8],[]],["cx",[2,9],[]],["cx",[3,10],[]],["cx",[4,11],[]],["cx",[5,12],[]],["cx",[6,13],[]]]`},
+	}
+	for i := range entries {
+		sum := sha256.Sum256([]byte(entries[i].CanonJSON))
+		entries[i].ArtifactID = hex.EncodeToString(sum[:])
+	}
+	return entries
+}
+
+func intPow(base, exp int) int {
+	res := 1
+	for i := 0; i < exp; i++ {
+		res *= base
+	}
+	return res
+}
+
+// deriveServerSideCircuitClaim enforces ALL CircuitClaim gates C0-C6 strictly
+// from durable, session-scoped codesign_runs rows (Phase 1 + C1/C8 hardening:
+// unified discovery_claims table, exhaustive eps=0, re-derived TQ, held-out C5,
+// and known-circuit novelty C6).
 func (s *Server) deriveServerSideCircuitClaim(
 	sessionID string,
 	req discoveryClaimCreateReq,
@@ -127,6 +161,7 @@ func (s *Server) deriveServerSideCircuitClaim(
 	evalRunID := strings.TrimSpace(req.EvalRunID)
 	baseRunID := strings.TrimSpace(req.BaselineRunID)
 	reproRunID := strings.TrimSpace(req.ReproRunID)
+	heldOutRunID := strings.TrimSpace(req.HeldOutRunID)
 
 	evalRun, err := s.ledger.GetCodesignRun(sessionID, evalRunID)
 	if err != nil {
@@ -141,7 +176,20 @@ func (s *Server) deriveServerSideCircuitClaim(
 	} else if !c1 {
 		c1Reason = "non_exhaustive_not_claimable"
 	}
-	c2 := evalRun.TQ >= 0
+
+	// C2 (C8 fix): non-vacuous TQ re-derivation (TQ == toffoli * peak_qubits^kappa)
+	c2 := false
+	c2Reason := "invalid_cost_parameters"
+	expectedTQ := -1
+	if evalRun.Kappa >= 1 && evalRun.Kappa <= 3 && evalRun.PeakQubits > 0 && evalRun.Toffoli >= 0 {
+		expectedTQ = evalRun.Toffoli * intPow(evalRun.PeakQubits, evalRun.Kappa)
+		if evalRun.TQ == expectedTQ {
+			c2 = true
+			c2Reason = "ok"
+		} else {
+			c2Reason = fmt.Sprintf("tq_mismatch (got=%d, expected=%d)", evalRun.TQ, expectedTQ)
+		}
+	}
 
 	c3 := false
 	c3Reason := "missing_baseline_run"
@@ -169,11 +217,15 @@ func (s *Server) deriveServerSideCircuitClaim(
 
 	c4 := false
 	c4Reason := "missing_repro_run"
+	var reproSeed int
+	hasRepro := false
 	if reproRunID != "" && reproRunID != evalRunID {
 		reproRun, rErr := s.ledger.GetCodesignRun(sessionID, reproRunID)
 		if rErr != nil {
 			return qec.DiscoveryClaimRecord{}, fmt.Errorf("repro_run_id %q not found in session %q", reproRunID, sessionID)
 		}
+		reproSeed = reproRun.Seed
+		hasRepro = true
 		if reproRun.ArtifactSHA256 != evalRun.ArtifactSHA256 {
 			c4Reason = "artifact_mismatch"
 		} else if reproRun.Seed == evalRun.Seed {
@@ -186,13 +238,50 @@ func (s *Server) deriveServerSideCircuitClaim(
 		}
 	}
 
-	allPassed := c0 && c1 && c2 && c3 && c4
+	// C5 (C1 fix): held-out verification run required (distinct run & seed, exhaustive, matching artifact)
+	c5 := false
+	c5Reason := "missing_held_out_run"
+	if heldOutRunID != "" && heldOutRunID != evalRunID && heldOutRunID != reproRunID {
+		heldRun, hErr := s.ledger.GetCodesignRun(sessionID, heldOutRunID)
+		if hErr != nil {
+			return qec.DiscoveryClaimRecord{}, fmt.Errorf("held_out_run_id %q not found in session %q", heldOutRunID, sessionID)
+		}
+		if heldRun.ArtifactSHA256 != evalRun.ArtifactSHA256 {
+			c5Reason = "held_out_artifact_mismatch"
+		} else if heldRun.SpecKind != evalRun.SpecKind {
+			c5Reason = "held_out_spec_mismatch"
+		} else if heldRun.Seed == evalRun.Seed || (hasRepro && heldRun.Seed == reproSeed) {
+			c5Reason = "held_out_seed_not_distinct"
+		} else if !heldRun.Valid || heldRun.VerificationMethod != "exhaustive" || heldRun.EpsBound != 0 {
+			c5Reason = "held_out_not_exhaustive_valid"
+		} else {
+			c5 = true
+			c5Reason = "ok"
+		}
+	}
+
+	// C6 (C1 fix): novelty vs known published circuits (exact canonical hash)
+	c6 := true
+	c6Reason := "novel"
+	matchedKnown := ""
+	for _, kc := range knownPublishedCircuits() {
+		if kc.SpecKind == evalRun.SpecKind && kc.ArtifactID == evalRun.ArtifactSHA256 {
+			c6 = false
+			matchedKnown = kc.Name
+			c6Reason = "known_published_circuit:" + kc.Name
+			break
+		}
+	}
+
+	allPassed := c0 && c1 && c2 && c3 && c4 && c5 && c6
 	gatesObj := map[string]any{
 		"gate0_valid":       map[string]any{"passed": c0, "eval_run_id": evalRunID, "artifact_sha256": evalRun.ArtifactSHA256},
 		"gate1_equivalence": map[string]any{"passed": c1, "reason": c1Reason, "verification_method": evalRun.VerificationMethod, "eps_bound": evalRun.EpsBound},
-		"gate2_cost":        map[string]any{"passed": c2, "toffoli": evalRun.Toffoli, "peak_qubits": evalRun.PeakQubits, "tq": evalRun.TQ, "kappa": evalRun.Kappa},
+		"gate2_cost":        map[string]any{"passed": c2, "reason": c2Reason, "toffoli": evalRun.Toffoli, "peak_qubits": evalRun.PeakQubits, "tq": evalRun.TQ, "expected_tq": expectedTQ, "kappa": evalRun.Kappa},
 		"gate3_frontier":    map[string]any{"passed": c3, "reason": c3Reason, "baseline_run_id": baseRunID},
 		"gate4_reproduced":  map[string]any{"passed": c4, "reason": c4Reason, "repro_run_id": reproRunID},
+		"gate5_held_out":    map[string]any{"passed": c5, "reason": c5Reason, "held_out_run_id": heldOutRunID},
+		"gate6_novelty":     map[string]any{"passed": c6, "reason": c6Reason, "matched_known": matchedKnown},
 	}
 
 	artPayload := map[string]any{
@@ -204,6 +293,7 @@ func (s *Server) deriveServerSideCircuitClaim(
 		"eval_run_id":     evalRunID,
 		"baseline_run_id": baseRunID,
 		"repro_run_id":    reproRunID,
+		"held_out_run_id": heldOutRunID,
 		"artifact_sha256": evalRun.ArtifactSHA256,
 	}
 	artBytes, _ := json.Marshal(artPayload)

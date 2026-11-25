@@ -64,9 +64,10 @@ func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, operation
 		return
 	}
 
-	// Decision A3: optional session_id enables durable codesign_runs receipting.
+	// Decision A3 + C3: optional session_id enables durable codesign_runs receipting
+	// on both single evaluate and evaluate-batch operations.
 	sessionID := ""
-	if operation == "evaluate" && reqMap != nil {
+	if (operation == "evaluate" || operation == "batch") && reqMap != nil {
 		if sid, ok := reqMap["session_id"].(string); ok && strings.TrimSpace(sid) != "" {
 			sessionID = strings.TrimSpace(sid)
 			sess, authOK := s.authorizeKnownSession(w, r, sessionID)
@@ -160,6 +161,67 @@ func (s *Server) writeCodesignResultWithReceipt(
 			parsed["run_id"] = runID
 			parsed["session_id"] = sessionID
 		}
+	} else if operation == "batch" && sessionID != "" && s.ledger != nil {
+		// C3 fix: receipt every evaluated batch candidate when session_id is supplied.
+		specKind := asStringField(parsed, "spec_kind")
+		kappa, _ := asFloatField(reqMap, "kappa")
+		if kappa == 0 {
+			kappa = 1
+		}
+		if details, ok := parsed["details"].([]any); ok {
+			arts, _ := reqMap["artifacts"].([]any)
+			runIDs := make([]string, 0, len(details))
+			for idx, item := range details {
+				dMap, ok := item.(map[string]any)
+				if !ok {
+					continue
+				}
+				var artJSON []byte
+				if idx < len(arts) {
+					artJSON, _ = json.Marshal(arts[idx])
+				} else {
+					artJSON = []byte("[]")
+				}
+				resJSON, _ := json.Marshal(dMap)
+				runID := newCodesignRunID()
+				validFlag, _ := asBoolField(dMap, "valid")
+				toffoli, _ := asFloatField(dMap, "toffoli")
+				peakQ, _ := asFloatField(dMap, "peak_qubits")
+				tqVal, _ := asFloatField(dMap, "tq")
+				epsVal, okEps := asFloatField(dMap, "eps_bound_97_5")
+				if !okEps {
+					epsVal = 1.0
+				}
+				depth, _ := asFloatField(dMap, "depth")
+				tDepth, _ := asFloatField(dMap, "toffoli_depth")
+				rec := ledger.CodesignRunRecord{
+					RunID:          runID,
+					SessionID:      sessionID,
+					Operation:      "batch",
+					SpecKind:       specKind,
+					ArtifactSHA256: asStringField(dMap, "artifact_sha256"),
+					ArtifactJSON:   string(artJSON),
+					Kappa:          int(kappa),
+					Seed:           7,
+					NumTests:       32,
+					MaxFailures:    0,
+					Valid:          validFlag,
+					Toffoli:        int(toffoli),
+					PeakQubits:     int(peakQ),
+					TQ:             int(tqVal),
+					EpsBound:       epsVal,
+					Depth:          int(depth),
+					ToffoliDepth:   int(tDepth),
+					ResultJSON:     string(resJSON),
+				}
+				if err := s.ledger.SaveCodesignRun(rec); err == nil {
+					dMap["run_id"] = runID
+					runIDs = append(runIDs, runID)
+				}
+			}
+			parsed["run_ids"] = runIDs
+			parsed["session_id"] = sessionID
+		}
 	}
 
 	writeJSON(w, http.StatusOK, parsed)
@@ -221,6 +283,21 @@ func (s *Server) handleCodesignPackPromote(w http.ResponseWriter, r *http.Reques
 		WriteAPIError(w, "bad_request", "promotion requires non-empty anchor_ref and proof_ref: refusing", nil)
 		return
 	}
+	// C4 fix: resolve both refs against the real SQLite ledger before promoting.
+	if s.ledger == nil {
+		WriteAPIError(w, "internal", "ledger unavailable: cannot verify promotion refs", nil)
+		return
+	}
+	anchorKind, anchorOK := s.ledger.ResolveLedgerRef(anchorRef)
+	if !anchorOK {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("unresolved anchor_ref %q: not found in ledger", anchorRef), nil)
+		return
+	}
+	proofKind, proofOK := s.ledger.ResolveLedgerRef(proofRef)
+	if !proofOK {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("unresolved proof_ref %q: not found in ledger", proofRef), nil)
+		return
+	}
 	reqMap["name"] = packName
 	reqMap["anchor_ref"] = anchorRef
 	reqMap["proof_ref"] = proofRef
@@ -234,7 +311,41 @@ func (s *Server) handleCodesignPackPromote(w http.ResponseWriter, r *http.Reques
 		http.Error(w, fmt.Sprintf("codesign evaluator unavailable: %v", err), http.StatusServiceUnavailable)
 		return
 	}
-	s.writeCodesignResultWithReceipt(w, "pack_promote", "", reqMap, out)
+	cleanOut := bytes.TrimSpace(out)
+	if idx := bytes.Index(cleanOut, []byte("{")); idx >= 0 {
+		cleanOut = cleanOut[idx:]
+	}
+	var parsed map[string]any
+	if json.Unmarshal(cleanOut, &parsed) != nil || parsed == nil {
+		http.Error(w, "codesign evaluator returned unparseable output: refusing", http.StatusBadGateway)
+		return
+	}
+	okFlag, _ := parsed["ok"].(bool)
+	if !okFlag {
+		msg := asStringField(parsed, "error")
+		if msg == "" {
+			msg = "pack promotion refused"
+		}
+		WriteAPIError(w, "bad_request", msg, nil)
+		return
+	}
+	// Record durable ledger event for the promotion.
+	evtPayload := map[string]any{
+		"pack":        packName,
+		"anchor_ref":  anchorRef,
+		"anchor_kind": anchorKind,
+		"proof_ref":   proofRef,
+		"proof_kind":  proofKind,
+		"status":      "active",
+	}
+	if err := s.ledger.AppendEvent("system", "codesign_pack_promoted", evtPayload); err == nil {
+		parsed["ledger_event_recorded"] = true
+	}
+	parsed["resolved_refs"] = map[string]string{
+		"anchor_ref": anchorKind,
+		"proof_ref":  proofKind,
+	}
+	writeJSON(w, http.StatusOK, parsed)
 }
 
 func (s *Server) handleCodesignQecJoint(w http.ResponseWriter, r *http.Request) {

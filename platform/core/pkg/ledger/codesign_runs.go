@@ -186,3 +186,43 @@ func (l *Ledger) ListCodesignRuns(sessionID string, limit int) ([]CodesignRunRec
 	}
 	return out, rows.Err()
 }
+
+// ResolveLedgerRef checks whether ref resolves to a real persisted record in
+// SQLite (codesign_runs.run_id, discovery_claims.claim_id, jobs.id, or
+// events.entry_hash / events.id). Returns (tableKind, true) on match.
+func (l *Ledger) ResolveLedgerRef(ref string) (string, bool) {
+	if l == nil || l.db == nil {
+		return "", false
+	}
+	r := strings.TrimSpace(ref)
+	if r == "" {
+		return "", false
+	}
+	// Strip optional "ledger:" prefix (e.g. "ledger:run:cs_..." or bare "cs_...")
+	if idx := strings.LastIndex(r, ":"); idx >= 0 && idx+1 < len(r) {
+		cand := strings.TrimSpace(r[idx+1:])
+		if cand != "" {
+			if kind, ok := l.resolveRawRef(cand); ok {
+				return kind, true
+			}
+		}
+	}
+	return l.resolveRawRef(r)
+}
+
+func (l *Ledger) resolveRawRef(r string) (string, bool) {
+	var exists int
+	if err := l.db.QueryRow(`SELECT 1 FROM codesign_runs WHERE run_id = ? LIMIT 1`, r).Scan(&exists); err == nil {
+		return "codesign_run", true
+	}
+	if err := l.db.QueryRow(`SELECT 1 FROM discovery_claims WHERE claim_id = ? LIMIT 1`, r).Scan(&exists); err == nil {
+		return "discovery_claim", true
+	}
+	if err := l.db.QueryRow(`SELECT 1 FROM jobs WHERE id = ? LIMIT 1`, r).Scan(&exists); err == nil {
+		return "job", true
+	}
+	if err := l.db.QueryRow(`SELECT 1 FROM events WHERE entry_hash = ? OR CAST(id AS TEXT) = ? LIMIT 1`, r, r).Scan(&exists); err == nil {
+		return "event", true
+	}
+	return "", false
+}

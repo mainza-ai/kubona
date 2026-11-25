@@ -183,12 +183,14 @@ def test_phase2_five_codesign_mcp_tools_mounted_authorized_and_wired(monkeypatch
         eval_run_id="cs_1",
         baseline_run_id="cs_2",
         repro_run_id="cs_3",
+        held_out_run_id="cs_4",
     )
     assert cl["ok"] is True
     assert calls[-1][0] == "POST"
     assert calls[-1][1].endswith("/api/sessions/sess-1/discovery-claims")
     assert calls[-1][2]["kind"] == "circuit"
-    assert calls[-1][2]["eval_job_id"] == "cs_1"
+    assert calls[-1][2]["eval_run_id"] == "cs_1"
+    assert calls[-1][2]["held_out_run_id"] == "cs_4"
 
     # Fail-closed when token absent for authenticated calls
     monkeypatch.delenv("KUBONA_API_TOKEN", raising=False)

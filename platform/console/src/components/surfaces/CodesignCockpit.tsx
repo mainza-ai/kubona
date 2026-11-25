@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCodesignBatch, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCodesignBatch, fetchCodesignPacks, fetchCodesignRuns, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
 import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
 import type { Session } from '@/types';
 import { Chart } from '@/components/data/LazyChart';
@@ -64,7 +64,7 @@ function DqiBoundWidget() {
   );
 }
 
-export function CodesignCockpit() {
+export function CodesignCockpit({ sessionId }: { sessionId?: string | null } = {}) {
   const [toffoli, setToffoli] = useState('5');
   const [qubits, setQubits] = useState('10');
   const [kappa, setKappa] = useState('1');
@@ -92,7 +92,9 @@ export function CodesignCockpit() {
   const [evalDistance, setEvalDistance] = useState('');
   const [evalCycle, setEvalCycle] = useState('');
   const [evalRes, setEvalRes] = useState<Record<string, unknown> | null>(null);
+  const [evalRunId, setEvalRunId] = useState<string | null>(null);
   const [evalSpecKind, setEvalSpecKind] = useState<string | null>(null);
+  const [recentRuns, setRecentRuns] = useState<Array<Record<string, unknown>>>([]);
   const [evalError, setEvalError] = useState<string | null>(null);
   const [evalBusy, setEvalBusy] = useState(false);
   const [batchArtifacts, setBatchArtifacts] = useState('[["ccx",[0,1,2],[]]]\n[["cx",[0,2],[]]]');
@@ -216,6 +218,7 @@ export function CodesignCockpit() {
       cycle = c.value;
     }
     setEvalBusy(true);
+    const activeSessionId = (sessionId || rerunSessionId || '').trim();
     try {
       const out = await evaluateCodesignArtifact({
         spec_kind: evalSpec,
@@ -224,6 +227,7 @@ export function CodesignCockpit() {
         max_failures: 0,
         kappa: kappaEval.value,
         seed: seed.value,
+        ...(activeSessionId ? { session_id: activeSessionId } : {}),
         ...(evalFactory
           ? { factory: evalFactory, code_distance: distance, cycle_us: cycle }
           : {}),
@@ -233,7 +237,13 @@ export function CodesignCockpit() {
         return;
       }
       setEvalSpecKind(out.spec_kind);
+      setEvalRunId(out.run_id ?? null);
       setEvalRes(out.result);
+      if (activeSessionId) {
+        void fetchCodesignRuns(activeSessionId).then((r) => {
+          if (r.ok) setRecentRuns(r.runs);
+        });
+      }
     } finally {
       setEvalBusy(false);
     }
@@ -673,6 +683,7 @@ export function CodesignCockpit() {
             </div>
               <div className="mt-1 text-[12px] text-muted">
                 depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
+                {evalRunId && <span className="ml-2 text-info-ink">· receipt {evalRunId}</span>}
               </div>
               {typeof evalRes.failures === 'number' && evalRes.failures > 0 && (
                 <div className="mt-1 text-[12px] text-danger-ink">
@@ -720,6 +731,18 @@ export function CodesignCockpit() {
               </Button>
             </div>
           </div>
+        )}
+        {recentRuns.length > 0 && (
+          <details className="mt-3 text-[12px] text-label-secondary">
+            <summary className="cursor-pointer text-info-ink">Persisted receipts ({recentRuns.length})</summary>
+            <ul className="mt-1 space-y-1 font-mono">
+              {recentRuns.slice(0, 10).map((r, i) => (
+                <li key={String(r.run_id ?? i)}>
+                  {String(r.run_id)} · {String(r.spec_kind)} · TQ={String(r.tq)} · {String(r.verification_method || 'n/a')}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </div>
 

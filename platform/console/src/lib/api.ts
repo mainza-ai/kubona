@@ -2204,19 +2204,40 @@ export async function fetchCodesignVerified(): Promise<
 
 export async function evaluateCodesignArtifact(
   body: Record<string, unknown>
-): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {
+): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown>; run_id?: string; session_id?: string } | { ok: false; error: string }> {
   try {
     const data = (await requestOperation('evaluateCodesignArtifact', { body })) as {
       ok?: boolean;
       spec_kind?: unknown;
       result?: unknown;
+      run_id?: unknown;
+      session_id?: unknown;
     };
     if (data.ok !== true) return { ok: false, error: 'codesign evaluator refused without a reason' };
     return {
       ok: true,
       spec_kind: String(data.spec_kind ?? ''),
       result: (data.result ?? {}) as Record<string, unknown>,
+      ...(typeof data.run_id === 'string' && data.run_id ? { run_id: data.run_id } : {}),
+      ...(typeof data.session_id === 'string' && data.session_id ? { session_id: data.session_id } : {}),
     };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function fetchCodesignRuns(
+  sessionId: string
+): Promise<{ ok: true; runs: Array<Record<string, unknown>> } | { ok: false; error: string }> {
+  const sid = sessionId.trim();
+  if (!sid) return { ok: true, runs: [] };
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/runs?session_id=${encodeURIComponent(sid)}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as { runs?: unknown };
+    return { ok: true, runs: Array.isArray(data.runs) ? (data.runs as Array<Record<string, unknown>>) : [] };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }

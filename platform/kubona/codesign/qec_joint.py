@@ -26,12 +26,15 @@ from kubona.qec.magic_state import (
 )
 
 # Published FunSearch depth benchmark for [[5,1,3]] logical CNOT synthesis
+# (reference metadata only — not reproduced in this repository).
 FUNSEARCH_5_1_3_CNOT_BENCHMARK: dict[str, Any] = {
     "code": "[[5,1,3]]",
     "gate": "logical_cnot",
     "funsearch_depth": 9,
     "baseline_depth": 84,
-    "source": "FunSearch / logical-gate synthesis benchmark",
+    "status": "reference_only_not_reproduced",
+    "reproduced_in_repo": False,
+    "source": "FunSearch / logical-gate synthesis benchmark (literature reference only)",
 }
 
 # Canonical Steane [[7,1,3]] CSS stabilizers (qubits 0..6)
@@ -178,17 +181,17 @@ def verify_logical_gate_stim(
             logical_action_exact = False
             failed_logical_checks.append({"input": inp_str, "expected": exp_str, "got": str(img)})
 
-    # 3. Exhaustive single-fault propagation after every gate
+    # 3. Exhaustive single-fault propagation on ALL qubits before gate 0 and after every gate
+    # (C6 fix: covers pre-gate, post-gate, and idle-qubit faults at arbitrary circuit depth).
     faults_tested = 0
     undetectable_logical_faults = 0
     if check_single_faults and stabilizers_preserved:
-        # Build suffix tableaux for propagating a fault at gate step idx to circuit end
         n_ops = len(ops)
+        all_qubits = list(range(num_qubits))
         for step_idx in range(n_ops + 1):
             suffix_circ, _ = _kickmix_to_stim_circuit(ops[step_idx:], num_qubits)
             suffix_tab = stim.Tableau.from_circuit(suffix_circ)
-            touched = sorted({int(q) for q in ops[step_idx - 1][1]}) if step_idx > 0 else list(range(num_qubits))
-            for q in touched:
+            for q in all_qubits:
                 for pchar in ("X", "Y", "Z"):
                     faults_tested += 1
                     err = stim.PauliString(num_qubits)
@@ -212,6 +215,7 @@ def verify_logical_gate_stim(
         "failed_logical_checks": failed_logical_checks[:8],
         "single_fault_check": {
             "enabled": check_single_faults,
+            "scope": "all_qubits_every_step_pre_and_post",
             "faults_tested": faults_tested,
             "undetectable_logical_faults": undetectable_logical_faults,
             "passed": undetectable_logical_faults == 0,
@@ -320,6 +324,7 @@ def verify_magic_state_factory(
         "n": n,
         "k": k,
         "d": d,
+        "method": syn["method"],
         "distance_ge_3": syn["distance_ge_3"],
         "gamma": gamma,
         "syndromes": syn,

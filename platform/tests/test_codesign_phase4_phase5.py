@@ -28,7 +28,8 @@ def test_phase4_steane_logical_cnot_and_adversarial_rejection():
     assert res["passed"] is True
     assert res["stabilizers_preserved"] is True
     assert res["logical_action_exact"] is True
-    assert res["single_fault_check"]["faults_tested"] > 0
+    assert res["single_fault_check"]["scope"] == "all_qubits_every_step_pre_and_post"
+    assert res["single_fault_check"]["faults_tested"] == (7 + 1) * 14 * 3
     assert res["single_fault_check"]["undetectable_logical_faults"] == 0
     assert res["depth"] == 1
     assert len(res["artifact_sha256"]) == 64
@@ -54,6 +55,8 @@ def test_phase4_five_qubit_logical_gate_and_naive_cnot_refusal():
     assert res["single_fault_check"]["undetectable_logical_faults"] == 0
     assert res["benchmark"]["funsearch_depth"] == FUNSEARCH_5_1_3_CNOT_BENCHMARK["funsearch_depth"] == 9
     assert res["benchmark"]["baseline_depth"] == 84
+    assert res["benchmark"]["reproduced_in_repo"] is False
+    assert res["benchmark"]["status"] == "reference_only_not_reproduced"
 
     # Adversarial: naive transversal CNOT on non-CSS [[5,1,3]] does NOT preserve stabilizers
     naive_cnot = [("cx", [i, i + 5], []) for i in range(5)]
@@ -65,6 +68,7 @@ def test_phase4_five_qubit_logical_gate_and_naive_cnot_refusal():
 def test_phase4_magic_state_factory_and_joint_claim():
     fac = verify_magic_state_factory()
     assert fac["ok"] is True
+    assert fac["method"] == "exact_distinct_nonzero_syndromes"
     assert fac["distance_ge_3"] is True
     assert math.isclose(fac["gamma"], math.log(15) / math.log(3), rel_tol=1e-5)
     assert "jain2026_1715_287_6" in fac["s5_reference_targets"]

@@ -339,6 +339,7 @@ def codesign_claim(
     eval_run_id: str,
     baseline_run_id: str,
     repro_run_id: str,
+    held_out_run_id: str = "",
 ) -> dict:
     """Register a server-derived circuit discovery claim (C0-C7) from session-owned codesign runs."""
     if not all(x.strip() for x in (session_id, claim_id, code_name, eval_run_id, baseline_run_id, repro_run_id)):
@@ -349,14 +350,16 @@ def codesign_claim(
     import urllib.parse
 
     sid = urllib.parse.quote(session_id.strip(), safe="")
-    payload = {
+    payload: dict = {
         "claim_id": claim_id.strip(),
         "kind": "circuit",
         "code_name": code_name.strip(),
-        "eval_job_id": eval_run_id.strip(),
-        "baseline_job_id": baseline_run_id.strip(),
-        "repro_job_id": repro_run_id.strip(),
+        "eval_run_id": eval_run_id.strip(),
+        "baseline_run_id": baseline_run_id.strip(),
+        "repro_run_id": repro_run_id.strip(),
     }
+    if held_out_run_id.strip():
+        payload["held_out_run_id"] = held_out_run_id.strip()
     return _codesign_api_call("POST", f"/api/sessions/{sid}/discovery-claims", payload, require_token=True)
 
 

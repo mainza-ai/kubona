@@ -1863,7 +1863,7 @@ export default function Home() {
                   }}
                 />
               )}
-              {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit />}
+              {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit sessionId={currentSessionId} />}
               {surface === 'mesh' && meshTab === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
