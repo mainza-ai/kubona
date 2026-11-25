@@ -679,6 +679,7 @@ def run_spin_chain_hardware(
     readout_meta = None
     mitigation_receipt = None
     counts_by_term: dict[str, dict[str, int]] = {}
+    counts_by_scale: dict[str, Any] | None = None
     counts_scale: float | int = 1
     if method:
         t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
@@ -731,6 +732,13 @@ def run_spin_chain_hardware(
         counts_by_term = {
             str(label): {str(k): int(v) for k, v in cdict.items()}
             for label, cdict in by_scale[scales[0]]
+        }
+        counts_by_scale = {
+            str(s): {
+                str(label): {str(k): int(v) for k, v in cdict.items()}
+                for label, cdict in by_scale[s]
+            }
+            for s in scales
         }
         mitigation_receipt = {
             "method": "ZNE",
@@ -805,6 +813,7 @@ def run_spin_chain_hardware(
         "mitigated": bool(mitigation_receipt),
         "mitigation": mitigation_receipt,
         "counts_by_term": counts_by_term,
+        "counts_by_scale": counts_by_scale,
         "counts_scale": counts_scale,
         "coupling": float(coupling),
         "field": float(field),

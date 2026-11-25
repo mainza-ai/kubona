@@ -437,6 +437,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		j := jobsByID[jid]
 		qasmPath := ""
 		qasmPaths := []string{}
+		countsByScalePath := ""
 		var pointsSummary []map[string]any
 		countsPath := ""
 		if j != nil && len(j.ParamsJSON) > 0 {
@@ -488,6 +489,12 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 				if len(countsMap) > 0 {
 					if staged, ok := stageCountsArtifact("supplement/counts/"+jid, countsMap, maxCountsFileBytes, artifacts); ok {
 						countsPath = staged
+						countsPaths = append(countsPaths, staged)
+					}
+				}
+				if byScale, ok := res["counts_by_scale"].(map[string]any); ok && len(byScale) > 0 {
+					if staged, ok := stageCountsArtifact("supplement/counts/"+jid+"_by_scale", byScale, maxCountsFileBytes, artifacts); ok {
+						countsByScalePath = staged
 						countsPaths = append(countsPaths, staged)
 					}
 				}
@@ -561,6 +568,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"counts_terms":           r["counts_terms"],
 			"counts_path":            countsPath,
 			"counts_paths":           countsPaths,
+			"counts_by_scale_path":   countsByScalePath,
 			"counts_artifacts":       countsArtifacts,
 			"calibration":            r["calibration"],
 			"energy":                 r["energy"],

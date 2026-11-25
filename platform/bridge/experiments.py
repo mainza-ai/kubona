@@ -423,16 +423,59 @@ def _fold_local_2q(qc: Any, scale: float) -> Any:
     return folded
 
 
+def _fold_local_all(qc: Any, scale: float) -> Any:
+    """Local barrier-protected folding of ALL gates (1Q and 2Q).
+
+    This is the canonical ZNE axis after the R2 audit: every gate participates,
+    so the total gate count scales with the requested factor and the axis does
+    not jump between global all-gate folding and 2Q-only folding. Barriers keep
+    the compiler from cancelling ``G G^dag``.
+    """
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(float(scale)) or float(scale) < 1.0:
+        raise ValueError(f"local folding scale must be a finite number >= 1.0, got {scale!r}")
+    s = float(scale)
+    if abs(s - 1.0) < 1e-9:
+        return qc.copy()
+    gate_indices = [
+        i for i, inst in enumerate(qc.data)
+        if str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
+    ]
+    if not gate_indices:
+        return qc.copy()
+    n_gates = len(gate_indices)
+    total_folds = max(1, int(round((s - 1.0) * n_gates / 2.0)))
+    base_folds = total_folds // n_gates
+    rem = total_folds % n_gates
+    extra_set = set(gate_indices[n_gates - rem:]) if rem > 0 else set()
+    folded = qc.copy_empty_like()
+    for i, inst in enumerate(qc.data):
+        op, qargs, cargs = inst.operation, inst.qubits, inst.clbits
+        folded.append(op, qargs, cargs)
+        if i in gate_indices:
+            k_folds = base_folds + (1 if i in extra_set else 0)
+            if k_folds > 0:
+                inv_op = op.inverse()
+                for _ in range(k_folds):
+                    folded.barrier(*qargs)
+                    folded.append(inv_op, qargs, cargs)
+                    folded.barrier(*qargs)
+                    folded.append(op, qargs, cargs)
+    return folded
+
+
 def _fold_circuit(qc: Any, scale: float) -> Any:
-    """Dispatch exact odd-integer global folding or fractional local 2Q folding."""
+    """Canonical ZNE folding: all-gate local folding for every scale > 1.
+
+    ``_fold_unitary`` remains available for explicit global experiments, but it
+    must never be mixed with local folding in one fit (the R2 audit showed that
+    mixing global scale 3 with local scales 2/4 made the x-axis meaningless).
+    """
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(float(scale)) or float(scale) < 1.0:
         raise ValueError(f"folding scale must be a finite number >= 1.0, got {scale!r}")
     s = float(scale)
     if abs(s - 1.0) < 1e-9:
         return qc.copy()
-    if abs(s - round(s)) < 1e-9 and int(round(s)) % 2 == 1:
-        return _fold_unitary(qc, int(round(s)))
-    return _fold_local_2q(qc, s)
+    return _fold_local_all(qc, s)
 
 
 def _extrapolate_zne(
@@ -702,35 +745,45 @@ def run_vqe_hardware(
 
     qasms: list[str] = []
     fold_keys: list[tuple[str, float]] = []
-    scale_map: list[tuple[float, float, Any]] = []
+    scale_map: list[tuple[float, float, Any, tuple[int, int, int]]] = []
     if method:
-        # Fractional local folding can round to the same 2Q count for small
-        # circuits (H2 has 2 CX; 1.5x and 2.0x both yield 4 CX). Fit on the
-        # ACTUAL 2Q ratio and refuse duplicate actual scales rather than
-        # labelling two different circuits with the same nominal x.
-        def _count_2q(circuit: Any) -> int:
-            return sum(
-                1 for inst in circuit.data
-                if len(inst.qubits) >= 2
-                and str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
-            )
-        base_2q = _count_2q(qc)
+        # Canonical R2 axis: all-gate local folding; the x coordinate is the
+        # measured TOTAL-gate ratio, not the 2Q-only ratio. A scale set that
+        # rounds to duplicate/inconsistent total-gate ratios is refused.
+        def _gate_counts(circuit: Any) -> tuple[int, int, int]:
+            n1 = n2 = 0
+            for inst in circuit.data:
+                name = str(getattr(inst.operation, "name", ""))
+                if name in ("barrier", "measure", "reset"):
+                    continue
+                if len(inst.qubits) >= 2:
+                    n2 += 1
+                else:
+                    n1 += 1
+            return n1, n2, n1 + n2
+        base_counts = _gate_counts(qc)
+        base_total = base_counts[2]
+        if base_total <= 0:
+            return {"success": False, "error": "ZNE requires a circuit with at least one gate"}
         seen_scales: set[float] = set()
+        previous_actual = 0.0
         for requested in mitigation_scales:
             folded_qc = _fold_circuit(qc, float(requested))
-            actual = (float(_count_2q(folded_qc)) / float(base_2q)) if base_2q > 0 else float(requested)
-            actual = round(actual, 6)
-            if actual in seen_scales:
+            counts = _gate_counts(folded_qc)
+            actual = round(float(counts[2]) / float(base_total), 6)
+            if actual in seen_scales or actual <= previous_actual:
                 return {
                     "success": False,
                     "error": (
-                        f"ZNE scales collapse to the same 2Q ratio on this circuit: {requested!r} -> {actual:.3f}x"
+                        "ZNE scale axis is not strictly increasing in total gates: "
+                        f"{requested!r} -> {actual:.3f}x (previous {previous_actual:.3f}x)"
                     ),
                 }
             seen_scales.add(actual)
-            scale_map.append((float(requested), actual, folded_qc))
+            previous_actual = actual
+            scale_map.append((float(requested), actual, folded_qc, counts))
         for term in sorted(coeffs):
-            for _, actual, folded_qc in scale_map:
+            for _, actual, folded_qc, _ in scale_map:
                 qasms.append(_measurement_qasm(folded_qc, term))
                 fold_keys.append((term, actual))
     else:
@@ -749,7 +802,7 @@ def run_vqe_hardware(
     used_q = _layout_physical_qubits(batch.get("layout"))
     readout_meta = None
     if method:
-        xs = [actual for _, actual, _ in scale_map]
+        xs = [actual for _, actual, _, _ in scale_map]
         # G1 fail-closed guard: if transpilation collapsed folded 2Q gates back to
         # scale-1, refuse rather than reporting a spurious extrapolation.
         t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
@@ -798,6 +851,70 @@ def run_vqe_hardware(
             str(term): {str(k): int(v) for k, v in counts.items()}
             for term, counts in by_scale[xs[0]]
         }
+        counts_by_scale = {
+            str(scale): {
+                str(term): {str(k): int(v) for k, v in counts.items()}
+                for term, counts in by_scale[scale]
+            }
+            for scale in xs
+        }
+        # R2: measured total-gate/error axis, model adequacy, and a difference CI.
+        e1 = e2 = None
+        ro = 0.0
+        if isinstance(cal_data, dict):
+            pq = cal_data.get("per_qubit") if isinstance(cal_data.get("per_qubit"), dict) else {}
+            sx = []
+            for q in (used_q or []):
+                entry = pq.get(str(q)) if isinstance(pq, dict) else None
+                if isinstance(entry, dict) and entry.get("sx_error") is not None:
+                    sx.append(float(entry["sx_error"]))
+                if isinstance(entry, dict) and entry.get("readout_error") is not None:
+                    ro += float(entry["readout_error"])
+            if sx:
+                e1 = sum(sx) / len(sx)
+            e2 = cal_data.get("median_two_qubit_error", cal_data.get("two_qubit_error"))
+        e1 = float(e1) if e1 is not None and math.isfinite(float(e1)) else 3.0e-4
+        e2 = float(e2) if e2 is not None and math.isfinite(float(e2)) else 3.0e-3
+        base_n1, base_n2 = scale_map[0][3][0], scale_map[0][3][1]
+        base_noise = float(base_n1) * e1 + float(base_n2) * e2 + ro
+        fold_axis = []
+        weighted_prev = -1.0
+        axis_valid = True
+        for requested, actual, _fqc, (n1, n2, total) in scale_map:
+            weighted = ((float(n1) * e1 + float(n2) * e2 + ro) / base_noise) if base_noise > 0 else actual
+            if weighted <= weighted_prev:
+                axis_valid = False
+            weighted_prev = weighted
+            fold_axis.append({
+                "requested": float(requested), "actual_total_ratio": float(actual),
+                "logical_1q": int(n1), "logical_2q": int(n2), "total_gates": int(total),
+                "weighted_error_scale": round(float(weighted), 6),
+            })
+        baseline_energy = float(scale_energies[0])
+        baseline_unc = float(scale_uncertainties[0])
+        difference = mitigated - baseline_energy
+        difference_ci = 1.959963984540054 * math.sqrt(uncertainty ** 2 + baseline_unc ** 2)
+        model_points = {}
+        for alt in ("linear", "quadratic"):
+            try:
+                model_points[alt] = float(_extrapolate_zne(
+                    xs, scale_energies, scale_uncertainties, extrapolator=alt,
+                    asymptote=(float(coeffs["I" * int(qc.num_qubits)]) if ("I" * int(qc.num_qubits)) in coeffs else 0.0),
+                )["mitigated"])
+            except Exception:
+                continue
+        model_spread = (max(model_points.values()) - min(model_points.values())) if len(model_points) >= 2 else None
+        chi2 = float(ext.get("chi2_reduced") or 0.0)
+        model_adequate = bool(axis_valid and chi2 <= 1.5 and (model_spread is None or model_spread <= max(2.0 * uncertainty, 1e-6)))
+        lack_of_fit_p = None
+        try:
+            from scipy.stats import chi2 as _chi2_dist
+            dof = int(ext.get("dof") or 0)
+            if dof <= 0:
+                dof = max(1, len(xs) - (2 if ext.get("exp_params", {}).get("asymptote_fixed") else 3))
+            lack_of_fit_p = float(_chi2_dist.sf(chi2 * dof, dof))
+        except Exception:
+            lack_of_fit_p = None
         energy = mitigated + float(constant_energy)
         delta = abs(energy - float(fci_exact_energy))
         # A ZNE value is an extrapolation, not a direct measurement. It must
@@ -810,12 +927,24 @@ def run_vqe_hardware(
             "extrapolator_used": ext["extrapolator_used"],
             "fit_degree": ext["fit_degree"],
             "scales": [int(s) if abs(s - round(s)) < 1e-9 else s for s in xs],
-            "requested_scales": [req for req, _, _ in scale_map],
+            "requested_scales": [req for req, _, _, _ in scale_map],
             "scale_energies": scale_energies,
             "scale_uncertainties": scale_uncertainties,
             "fit_condition_number": ext["fit_condition_number"],
             "fit_rmse": ext["fit_rmse"],
             "chi2_reduced": ext["chi2_reduced"],
+            "axis_valid": axis_valid,
+            "fold_axis": fold_axis,
+            "model_points": model_points,
+            "model_spread_ha": model_spread,
+            "model_adequate": model_adequate,
+            "lack_of_fit_p": lack_of_fit_p,
+            "baseline_energy": baseline_energy,
+            "baseline_uncertainty": baseline_unc,
+            "difference_ha": difference,
+            "difference_ci95_ha": difference_ci,
+            "difference_ci95_mha": difference_ci * 1000.0,
+            "difference_significant": abs(difference) > difference_ci,
             "uncertainty_method": ext["uncertainty_method"],
             "intercept_weights": ext["intercept_weights"],
             "unmitigated_energy": unmitigated,
@@ -875,7 +1004,11 @@ def run_vqe_hardware(
         "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
         "counts_by_term": counts_by_term,
+        "counts_by_scale": counts_by_scale if mitigation_receipt else None,
         "counts_scale": counts_scale,
+        "fold_axis": fold_axis if mitigation_receipt else None,
+        "axis_valid": axis_valid if mitigation_receipt else None,
+        "model_adequate": model_adequate if mitigation_receipt else None,
         "fci_exact_energy": float(fci_exact_energy),
         "delta_mha": float(delta * 1000.0),
         "chemical_accuracy": claimable,

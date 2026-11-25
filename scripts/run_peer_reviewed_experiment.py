@@ -461,6 +461,31 @@ def main() -> int:
                 zne_res.get("success") is True and bool(zne_res.get("counts_by_term")) and zne_delta < raw_delta,
                 f"job={zne_jid} |Δ_ZNE|={zne_delta:.3f} mHa vs |Δ_raw|={raw_delta:.3f} mHa (terms={len(zne_res.get('counts_by_term') or {})})",
             )
+            mit = zne_res.get("mitigation") or {}
+            record(
+                checks,
+                "pillar1_h2_vqe_hw_zne_axis_valid",
+                mit.get("axis_valid") is True,
+                f"axis_valid={mit.get('axis_valid')} axis={mit.get('fold_axis')}",
+            )
+            record(
+                checks,
+                "pillar1_h2_vqe_hw_zne_model_adequate",
+                mit.get("model_adequate") is True,
+                f"model_adequate={mit.get('model_adequate')} chi2={mit.get('chi2_reduced')} spread={mit.get('model_spread_ha')}",
+            )
+            record(
+                checks,
+                "pillar1_h2_vqe_hw_zne_difference_ci",
+                mit.get("difference_significant") is True,
+                f"difference={mit.get('difference_ha')} ci95={mit.get('difference_ci95_ha')} significant={mit.get('difference_significant')}",
+            )
+            record(
+                checks,
+                "pillar1_h2_vqe_hw_zne_chemical_accuracy",
+                zne_delta <= 1.6,
+                f"|Δ_ZNE|={zne_delta:.3f} mHa <= 1.6",
+            )
 
     code, pes_launch = client.request(
         "POST",
