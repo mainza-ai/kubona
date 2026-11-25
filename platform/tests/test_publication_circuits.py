@@ -91,7 +91,9 @@ def test_r1_circuit_schematic_renders_per_family_and_keeps_qasm_out_of_campaign(
     # R4 layout table & R5 classical settings table present in Appendix B
     ds_tex = manuscript_datasheet.build_experiment_datasheet_section(rows)
     assert "Hardware Layout and Calibration Provenance" in ds_tex
+    assert "T1/T2 (us)" in ds_tex
     assert "0,1,2,3" in ds_tex
+    assert "(device)" in ds_tex
     assert "Classical Reference and Solver Settings" in ds_tex
     assert "sto-3g" in ds_tex
     assert "(2, 2)" in ds_tex
@@ -114,3 +116,19 @@ def test_r1_circuit_schematic_is_deterministic_and_handles_non_cx_gates():
     # Byte-identical repeats keep the manuscript content hash reproducible.
     assert first[0][1] == second[0][1]
     assert first[0][1].startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_r_b_layout_table_uses_used_qubit_calibration_when_captured():
+    rows = [{
+        "job_id": "job_pq", "kind": "vqe_hardware", "backend": "ibm_fez", "hardware": True,
+        "used_qubits": [58, 71],
+        "calibration": {"snapshot_id": "cal_pq", "median_two_qubit_error": 0.002, "median_readout_error": 0.01},
+        "used_qubit_calibration": {
+            "58": {"t1_us": 100.0, "t2_us": 50.0, "readout_error": 0.010},
+            "71": {"t1_us": 120.0, "t2_us": 60.0, "readout_error": 0.014},
+        },
+    }]
+    tex = manuscript_datasheet.build_experiment_datasheet_section(rows)
+    assert "100-120/50-60" in tex
+    assert "$\\le$0.0140" in tex
+    assert "120/60 (device)" not in tex

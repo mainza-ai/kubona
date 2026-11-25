@@ -203,9 +203,9 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
             r"\begin{table}[H]",
             r"\centering\scriptsize",
             r"\resizebox{\textwidth}{!}{%",
-            r"\begin{tabular}{@{}llllrr@{}}",
+            r"\begin{tabular}{@{}llllrrr@{}}",
             r"\toprule",
-            r"Job & Backend & Physical Qubits / Layout & Snapshot & Median 2Q Err & Readout Err \\",
+            r"Job & Backend & Qubits & T1/T2 (us) & RO Err & 2Q Err & Snapshot \\",
             r"\midrule",
         ])
         for r in hw_cal_rows[:24]:
@@ -220,12 +220,34 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
             snap = latex_escape(str(cal.get("snapshot_id") or r.get("calibration_snapshot_id") or "--")[:16])
             e2q = cal.get("median_two_qubit_error", cal.get("two_qubit_error"))
             ero = cal.get("median_readout_error", cal.get("readout_error"))
-            lines.append(f"{jid} & {be} & {q_s} & {snap} & {fmt_num(e2q, 5)} & {fmt_num(ero, 5)} \\\\")
+            # R-B: per-qubit values for the physical qubits that actually ran;
+            # historical snapshots fall back to the device medians and say so.
+            uqc = r.get("used_qubit_calibration") if isinstance(r.get("used_qubit_calibration"), dict) else {}
+            t1s, t2s, ros = [], [], []
+            for v in uqc.values():
+                if not isinstance(v, dict):
+                    continue
+                if v.get("t1_us") is not None:
+                    t1s.append(float(v["t1_us"]))
+                if v.get("t2_us") is not None:
+                    t2s.append(float(v["t2_us"]))
+                if v.get("readout_error") is not None:
+                    ros.append(float(v["readout_error"]))
+            if t1s or t2s:
+                t12_s = (f"{min(t1s):.0f}-{max(t1s):.0f}/{min(t2s):.0f}-{max(t2s):.0f}"
+                         if t1s and t2s else "--")
+                ro_s = f"$\\le${max(ros):.4f}" if ros else fmt_num(ero, 5)
+            else:
+                t1d, t2d = cal.get("t1_us"), cal.get("t2_us")
+                t12_s = (f"{float(t1d):.0f}/{float(t2d):.0f} (device)"
+                         if t1d is not None and t2d is not None else "--")
+                ro_s = fmt_num(ero, 5)
+            lines.append(f"{jid} & {be} & {q_s} & {t12_s} & {ro_s} & {fmt_num(e2q, 5)} & {snap} \\\\")
         lines.extend([
             r"\bottomrule",
             r"\end{tabular}%",
             r"}",
-            r"\caption{Hardware layout and processor calibration snapshot mapping for settled QPU jobs.}",
+            r"\caption{Hardware layout, used physical qubits, and calibration snapshot mapping. T1/T2 and readout are per used qubit when the snapshot captured them; otherwise device medians are marked (device).}",
             r"\end{table}",
         ])
 

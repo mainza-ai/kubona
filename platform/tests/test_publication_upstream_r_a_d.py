@@ -69,3 +69,47 @@ def test_r_d_multi_register_and_openqasm3_if_schematic_parsing():
         circuit_samples={"job_oq3": qasm},
     )
     assert any(name == "fig_circuit_qec_memory_sim.png" and raw.startswith(b"\x89PNG\r\n\x1a\n") for name, raw, _ in figs)
+
+
+def test_r_a_qaoa_simulator_retains_counts_and_derives_ratio_interval():
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    out = experiments.run_qaoa(layers=1, shots=128, seed=7)
+    assert out["success"] is True
+    assert out["counts"]
+    assert out["ratio_ci95"] is not None
+    lo, hi = out["ratio_ci95"]
+    assert 0.0 <= lo <= out["approximation_ratio"] <= hi <= 1.0
+    assert out["ratio_ci_method"] == "normal_from_sampled_cuts"
+
+
+def test_r_a_hardware_pes_retains_per_term_counts(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"00": 512, "11": 512} for _ in qasms],
+            "backend": "fake-qpu",
+            "hardware_job_id": "fake-job",
+            "calibration": {"calibration_fresh": True},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    points = [
+        {"bond_distance": b, "pauli_coefficients": {"XX": 0.5, "ZZ": 0.5},
+         "fci_exact_energy": -0.5, "constant_energy": 0.0, "ansatz_qasm": qasm}
+        for b in (0.735, 0.9)
+    ]
+    out = experiments.run_hardware_pes(points=points, shots=1024, seed=7)
+    assert out["success"] is True
+    p = out["points"][0]
+    assert set(p["counts_by_term"]) == {"XX", "ZZ"}
+    assert p["counts_scale"] == 1
+    assert p["ci95_mha"] is not None
