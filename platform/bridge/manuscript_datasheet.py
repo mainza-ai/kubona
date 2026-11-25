@@ -15,9 +15,28 @@ the settled campaign rows passed in; declarations contain no fabricated numbers.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import math
+from typing import Any, Dict, List, Tuple
 
 from manuscript_sections import extract_anchor_energy, fmt_num, latex_escape, short_job_id
+
+
+def wilson_ci95(p: float, n: int) -> Tuple[float, float]:
+    """Deterministic 95% Wilson score interval for a proportion p in [0, 1] over n shots."""
+    if n <= 0:
+        return (0.0, 1.0)
+    p_clamped = max(0.0, min(1.0, float(p)))
+    z = 1.959963984540054
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p_clamped + z2 / (2.0 * n)) / denom
+    half = (z * math.sqrt((p_clamped * (1.0 - p_clamped) + z2 / (4.0 * n)) / n)) / denom
+    return (max(0.0, round(center - half, 6)), min(1.0, round(center + half, 6)))
+
+
+def ci_intervals_overlap(a_low: float, a_high: float, b_low: float, b_high: float) -> bool:
+    """Return True iff two closed confidence intervals overlap (cannot claim statistical separation)."""
+    return max(float(a_low), float(b_low)) <= min(float(a_high), float(b_high))
 
 # Canonical method & benchmark bibliography (Phase 5: expands from 3 to 12 entries)
 CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
@@ -189,45 +208,145 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
         r"\caption{Experiment Datasheet summary (seeds, shots, two-qubit gate counts, QPU usage, and content-addressed circuit/counts checksums).}",
         r"\end{table}",
     ])
+
+    # R4: Hardware layout & per-qubit calibration summary when physical layout or calibration exists
+    hw_cal_rows = [
+        r for r in rows
+        if bool(r.get("hardware")) and (r.get("layout") or r.get("used_qubits") or isinstance(r.get("calibration"), dict))
+    ]
+    if hw_cal_rows:
+        lines.extend([
+            "",
+            r"\subsection*{Hardware Layout and Calibration Provenance}",
+            r"\begin{table}[H]",
+            r"\centering\scriptsize",
+            r"\resizebox{\textwidth}{!}{%",
+            r"\begin{tabular}{@{}llllrr@{}}",
+            r"\toprule",
+            r"Job & Backend & Physical Qubits / Layout & Snapshot & Median 2Q Err & Readout Err \\",
+            r"\midrule",
+        ])
+        for r in hw_cal_rows[:24]:
+            jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
+            be = latex_escape(str(r.get("backend") or "--")[:16])
+            used = r.get("used_qubits") or r.get("layout")
+            if isinstance(used, list) and used:
+                q_s = latex_escape(",".join(str(x) for x in used[:10]) + ("..." if len(used) > 10 else ""))
+            else:
+                q_s = "device-default"
+            cal = r.get("calibration") if isinstance(r.get("calibration"), dict) else {}
+            snap = latex_escape(str(cal.get("snapshot_id") or r.get("calibration_snapshot_id") or "--")[:16])
+            e2q = cal.get("median_two_qubit_error", cal.get("two_qubit_error"))
+            ero = cal.get("median_readout_error", cal.get("readout_error"))
+            lines.append(f"{jid} & {be} & {q_s} & {snap} & {fmt_num(e2q, 5)} & {fmt_num(ero, 5)} \\\\")
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}%",
+            r"}",
+            r"\caption{Hardware layout and processor calibration snapshot mapping for settled QPU jobs.}",
+            r"\end{table}",
+        ])
+
+    # R5: Classical reference & solver settings table (per-molecule / DMRG / ED parameters)
+    classical_rows = [
+        r for r in rows
+        if r.get("molecule") or r.get("basis") or r.get("active_space") or r.get("max_bond_dim") or r.get("bond_dim")
+    ]
+    if classical_rows:
+        lines.extend([
+            "",
+            r"\subsection*{Classical Reference and Solver Settings}",
+            r"\begin{table}[H]",
+            r"\centering\scriptsize",
+            r"\resizebox{\textwidth}{!}{%",
+            r"\begin{tabular}{@{}lllll@{}}",
+            r"\toprule",
+            r"Job & Target / Model & Basis / Solver & Active Space / Bond Dim & Layers / Shots \\",
+            r"\midrule",
+        ])
+        for r in classical_rows[:24]:
+            jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
+            tgt = latex_escape(str(r.get("molecule") or r.get("model") or r.get("kind") or "--")[:18])
+            basis = latex_escape(str(r.get("basis") or r.get("optimizer") or "--")[:16])
+            asp = r.get("active_space")
+            bdim = r.get("max_bond_dim", r.get("bond_dim"))
+            if asp is not None:
+                space_s = latex_escape(str(asp)[:18])
+            elif bdim is not None:
+                space_s = f"bond={int(bdim)}"
+            else:
+                space_s = "full-space"
+            ls = f"L={r['layers']}" if r.get("layers") is not None else "--"
+            sh = f"{int(r['shots'])} sh" if r.get("shots") is not None else "--"
+            lines.append(f"{jid} & {tgt} & {basis} & {space_s} & {ls} / {sh} \\\\")
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}%",
+            r"}",
+            r"\caption{Classical anchor and solver configuration per settled job (software lock hash archived in supplement/environment.json).}",
+            r"\end{table}",
+        ])
     return "\n".join(lines)
 
 
 def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
-    """Render Phase 4 uncertainty & raw-vs-mitigated ZNE summary table."""
+    """Render Phase 4 + R2/R3 uncertainty, QAOA ratio Wilson CI, and ZNE summary table."""
     relevant = [
         r for r in rows
         if bool(r.get("mitigated"))
         or r.get("ci95_mha") is not None
         or r.get("raw_energy") is not None
         or r.get("delta_mha") is not None
+        or r.get("approximation_ratio") is not None
     ]
     if not relevant:
         return ""
     lines = [
-        "All discrepancies $\\Delta$ below are reported alongside their recorded 95\\% "
-        "confidence interval (\\texttt{CI95}) when available; entries without a sampled "
-        "interval are explicitly tagged \\texttt{point estimate} and must not be read as "
-        "statistically separated claims.",
+        "All discrepancies $\\Delta$ and approximation ratios below are reported alongside their "
+        "recorded 95\\% confidence interval (\\texttt{CI95}) or Wilson score interval when shot "
+        "counts are known; entries without a sampled interval are explicitly tagged "
+        "\\texttt{point estimate} (with explicit histogram retention status) and must not be "
+        "read as statistically separated claims.",
         "",
         r"\begin{table}[H]",
         r"\centering\scriptsize",
         r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{@{}lllrrrr@{}}",
         r"\toprule",
-        r"Job & Kind & Mode & Energy (Ha) & Anchor (Ha) & $\Delta$ (mHa) & CI95 / Status \\",
+        r"Job & Kind & Mode & Value & Anchor & $\Delta$ / Ratio & CI95 / Status \\",
         r"\midrule",
     ]
-    for r in relevant[:24]:
+    for r in relevant[:28]:
         jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
         kind = latex_escape(str(r.get("kind") or "--")[:16])
         mode = "ZNE mitigated" if bool(r.get("mitigated")) else ("hardware" if bool(r.get("hardware")) else "simulator")
+        cstatus = str(r.get("counts_status") or "")
+        if r.get("approximation_ratio") is not None:
+            ratio = float(r["approximation_ratio"])
+            shots_i = int(r["shots"]) if r.get("shots") is not None else 0
+            if shots_i > 0:
+                lo, hi = wilson_ci95(ratio, shots_i)
+                ci_s = f"[{lo:.3f}, {hi:.3f}] (Wilson)"
+            else:
+                ci_s = r"\texttt{point estimate}"
+            mc = r.get("measured_cut")
+            oc = r.get("optimal_cut")
+            lines.append(
+                f"{jid} & {kind} & {mode} & {fmt_num(mc, 3)} & {fmt_num(oc, 3)} & {ratio:.4f} & {ci_s} \\\\"
+            )
+            continue
         e = r.get("energy", r.get("mitigated_energy", r.get("ground_energy")))
         anc = extract_anchor_energy(r)
         delta = r.get("delta_mha", r.get("delta"))
         if delta is None and e is not None and anc is not None:
             delta = abs(float(e) - float(anc)) * 1000.0
         ci = r.get("ci95_mha")
-        ci_s = f"$\\pm${fmt_num(ci, 3)} mHa" if ci is not None else r"\texttt{point estimate}"
+        if ci is not None:
+            ci_s = f"$\\pm${fmt_num(ci, 3)} mHa"
+        elif cstatus == "not_retained":
+            ci_s = r"\texttt{point est. (no counts)}"
+        else:
+            ci_s = r"\texttt{point estimate}"
         lines.append(
             f"{jid} & {kind} & {mode} & {fmt_num(e, 6)} & {fmt_num(anc, 6)} & {fmt_num(delta, 3)} & {ci_s} \\\\"
         )
@@ -235,7 +354,7 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         r"\bottomrule",
         r"\end{tabular}%",
         r"}",
-        r"\caption{Uncertainty and Zero-Noise Extrapolation (ZNE) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
+        r"\caption{Uncertainty, QAOA Wilson 95\% ratio CI, and Zero-Noise Extrapolation (ZNE) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
         r"\end{table}",
     ])
     return "\n".join(lines)

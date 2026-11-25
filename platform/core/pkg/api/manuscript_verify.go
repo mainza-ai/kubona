@@ -114,10 +114,10 @@ func (s *Server) manuscriptVerificationEvidence(sessionID string, ms *ledger.Man
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil {
 		add("campaign.live", string(raw))
 	}
-	if jobs, err := s.jobRunner.ListJobs(sessionID, 200); err == nil {
+	if jobsList, err := s.jobRunner.ListAllSessionJobs(sessionID); err == nil {
 		var totalHWShots int64
 		var totalAllShots int64
-		for _, j := range jobs {
+		for _, j := range jobsList {
 			add("job:"+j.ID, string(j.ResultJSON))
 			if len(j.ResultJSON) > 0 {
 				var m map[string]any

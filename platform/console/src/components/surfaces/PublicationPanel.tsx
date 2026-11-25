@@ -77,6 +77,11 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
   const [draftAbstract, setDraftAbstract] = useState('');
   const [documentType, setDocumentType] = useState<'academic_preprint' | 'white_paper' | 'discovery_dossier' | 'technical_report'>('academic_preprint');
   const [formalProofs, setFormalProofs] = useState<FormalVerificationEntry[] | null>(null);
+  const [affiliation, setAffiliation] = useState('');
+  const [correspondingAuthor, setCorrespondingAuthor] = useState('');
+  const [competingInterests, setCompetingInterests] = useState('');
+  const [funding, setFunding] = useState('');
+  const [license, setLicense] = useState('CC-BY-4.0 / Apache-2.0');
 
   const downloadJson = (filename: string, payload: unknown) => {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -303,12 +308,19 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
             pending={busy === 'create'}
             onClick={() => void run('create', async () => {
               if (!sessionId) return { ok: false as const, error: 'no session' };
+              const scholarly: Record<string, string> = {};
+              if (affiliation.trim()) scholarly.affiliation = affiliation.trim();
+              if (correspondingAuthor.trim()) scholarly.corresponding_author = correspondingAuthor.trim();
+              if (competingInterests.trim()) scholarly.competing_interests = competingInterests.trim();
+              if (funding.trim()) scholarly.funding = funding.trim();
+              if (license.trim()) scholarly.license = license.trim();
               const created = await createManuscript(sessionId, {
                 request_id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
                   ? crypto.randomUUID()
                   : `ms-${Date.now()}`,
                 document_type: documentType,
                 auto_figures: true,
+                ...(Object.keys(scholarly).length > 0 ? { scholarly } : {}),
               });
               return created.ok ? created : { ok: false as const, error: created.error };
             }, 'Draft created from the stored campaign.')}
@@ -317,6 +329,17 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
           </Button>
         </div>
       </div>
+
+      <details className="rounded-control border border-border bg-surface px-3 py-2 text-label">
+        <summary className="cursor-pointer font-medium text-text">Scholarly metadata (required for empirical hardware deposit)</summary>
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Field label="Affiliation" value={affiliation} onChange={(e) => setAffiliation(e.target.value)} placeholder="Institution / Lab" />
+          <Field label="Corresponding author" value={correspondingAuthor} onChange={(e) => setCorrespondingAuthor(e.target.value)} placeholder="Name <email>" />
+          <Field label="Competing interests" value={competingInterests} onChange={(e) => setCompetingInterests(e.target.value)} placeholder="None declared" />
+          <Field label="Funding" value={funding} onChange={(e) => setFunding(e.target.value)} placeholder="Grant / infrastructure" />
+          <Field label="License" value={license} onChange={(e) => setLicense(e.target.value)} placeholder="CC-BY-4.0 / Apache-2.0" />
+        </div>
+      </details>
 
       {error && (
         <p role="alert" className="text-label text-danger border border-danger rounded-control px-3 py-2">

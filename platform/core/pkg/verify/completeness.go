@@ -166,17 +166,18 @@ func CheckPublicationCompleteness(
 		})
 	}
 
-	// 4. Scholarly metadata & reference count (warning on draft; checked on submission)
-	var ev map[string]any
-	_ = json.Unmarshal([]byte(evidenceJSON), &ev)
-	hasMeta := false
-	if ev != nil {
-		if meta, ok := ev["_scholarly"].(map[string]any); ok && len(meta) > 0 {
-			hasMeta = true
-		}
-	}
-	if !hasMeta {
-		rep.Warnings = append(rep.Warnings, "scholarly metadata using default Kubona affiliations/COI/funding")
+	// 4. Scholarly metadata & reference count (warning on draft; enforced at deposit)
+	missingMeta := CheckScholarlyMetadata(evidenceJSON)
+	if len(missingMeta) > 0 {
+		msg := "scholarly metadata missing or using placeholder defaults: " + strings.Join(missingMeta, ", ")
+		rep.Warnings = append(rep.Warnings, msg)
+		rep.Checks = append(rep.Checks, CompletenessCheck{
+			ID: "scholarly_metadata", Passed: false, Severity: "warning", Detail: msg,
+		})
+	} else {
+		rep.Checks = append(rep.Checks, CompletenessCheck{
+			ID: "scholarly_metadata", Passed: true, Severity: "warning", Detail: "operator scholarly metadata supplied",
+		})
 	}
 	if citationsCount < 8 && bibliographyCount < 8 {
 		msg := fmt.Sprintf("manuscript has %d citation(s) and %d printed bibliography entr(ies); recommended >= 8 for archival submission", citationsCount, bibliographyCount)
@@ -227,4 +228,27 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// CheckScholarlyMetadata returns the list of required scholarly metadata fields
+// that are missing or empty in evidenceJSON._scholarly (R6 deposit gate).
+func CheckScholarlyMetadata(evidenceJSON string) []string {
+	required := []string{"affiliation", "corresponding_author", "competing_interests", "funding", "license"}
+	var ev map[string]any
+	if err := json.Unmarshal([]byte(evidenceJSON), &ev); err != nil || ev == nil {
+		return required
+	}
+	meta, _ := ev["_scholarly"].(map[string]any)
+	if len(meta) == 0 {
+		return required
+	}
+	var missing []string
+	for _, k := range required {
+		val, _ := meta[k].(string)
+		trimmed := strings.TrimSpace(val)
+		if trimmed == "" || strings.EqualFold(trimmed, "placeholder") || strings.EqualFold(trimmed, "tbd") {
+			missing = append(missing, k)
+		}
+	}
+	return missing
 }

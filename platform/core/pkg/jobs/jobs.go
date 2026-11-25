@@ -1752,3 +1752,39 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	}
 	return jobsList, nil
 }
+
+// ListAllSessionJobs pages through every job in a session in 200-row chunks
+// (R7 fix: eliminates the 200-job truncation cap in manuscript enrichment,
+// supplement staging, and verification-v1).
+func (r *Runner) ListAllSessionJobs(sessionID string) ([]*Job, error) {
+	if sessionID == "" {
+		return nil, fmt.Errorf("session_id is required: refusing unscoped job list (would cross tenants)")
+	}
+	const pageSize = 200
+	const maxTotal = 10000
+	var all []*Job
+	for offset := 0; offset < maxTotal; offset += pageSize {
+		rows, err := r.ledger.DB().Query(
+			`SELECT `+jobIdentityColumns+` FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+			sessionID, pageSize, offset,
+		)
+		if err != nil {
+			return nil, err
+		}
+		count := 0
+		for rows.Next() {
+			j, err := scanJob(rows)
+			if err != nil {
+				rows.Close()
+				return nil, err
+			}
+			all = append(all, j)
+			count++
+		}
+		rows.Close()
+		if count < pageSize {
+			break
+		}
+	}
+	return all, nil
+}

@@ -488,7 +488,164 @@ def _render_calibration_overview(rows: List[Dict[str, Any]]) -> Tuple[str, bytes
     return "fig_calibration_overview.png", _to_png_bytes(img), caption
 
 
-def generate_campaign_figures(rows: List[Dict[str, Any]]) -> List[Tuple[str, bytes, str]]:
+def _parse_qasm_for_schematic(qasm: str) -> Tuple[int, List[Tuple[str, List[int]]], int, int]:
+    """Parse OpenQASM 2/3 text into (n_qubits, gates, total_gates, two_qubit_gates)."""
+    import re
+
+    n_qubits = 0
+    gates: List[Tuple[str, List[int]]] = []
+    two_q = 0
+    qreg_re = re.compile(r"(?:qreg\s+\w+\[(\d+)\]|qubit\[(\d+)\])", re.IGNORECASE)
+    idx_re = re.compile(r"\[(\d+)\]")
+    for raw_line in qasm.splitlines():
+        line = raw_line.split("//", 1)[0].strip().rstrip(";")
+        if not line:
+            continue
+        low = line.lower()
+        if low.startswith(("openqasm", "include ", "creg ", "bit", "barrier")):
+            continue
+        m_reg = qreg_re.search(line)
+        if m_reg:
+            n_qubits = max(n_qubits, int(m_reg.group(1) or m_reg.group(2) or 0))
+            continue
+        if low.startswith("measure"):
+            qs = [int(x) for x in idx_re.findall(line)]
+            if qs:
+                gates.append(("M", [qs[0]]))
+                n_qubits = max(n_qubits, qs[0] + 1)
+            continue
+        # Gate statement: name[(params)] q[i], q[j]
+        tok = line.split(None, 1)
+        if len(tok) < 2:
+            continue
+        gname = tok[0].split("(", 1)[0].strip().upper()[:5]
+        qs = [int(x) for x in idx_re.findall(tok[1])]
+        if not qs:
+            continue
+        n_qubits = max(n_qubits, max(qs) + 1)
+        if len(qs) >= 2:
+            two_q += 1
+        gates.append((gname, qs))
+    return n_qubits, gates, len(gates), two_q
+
+
+def _render_circuit_schematics(
+    rows: List[Dict[str, Any]],
+    circuit_samples: Dict[str, str] | None = None,
+) -> List[Tuple[str, bytes, str]]:
+    """R1: Render deterministic 300-DPI gate-grid circuit schematics (<= 1 per family)."""
+    if not HAS_PIL or not circuit_samples:
+        return []
+    import hashlib
+    import re
+
+    rows_by_id = {str(r.get("job_id") or ""): r for r in rows if r.get("job_id")}
+    out: List[Tuple[str, bytes, str]] = []
+    seen_families: set[str] = set()
+
+    for jid in sorted(circuit_samples.keys()):
+        qasm = str(circuit_samples.get(jid) or "").strip()
+        if not qasm:
+            continue
+        row = rows_by_id.get(jid, {})
+        raw_kind = str(row.get("kind") or "circuit").strip().lower()
+        fam = re.sub(r"[^a-z0-9]+", "_", raw_kind).strip("_") or "circuit"
+        if fam in seen_families:
+            continue
+        n_q, gates, total_gates, two_q = _parse_qasm_for_schematic(qasm)
+        if n_q <= 0 or not gates:
+            continue
+        seen_families.add(fam)
+
+        # Pack gates greedily into parallel layers; display up to 18 layers and 12 wires
+        max_wires = min(n_q, 12)
+        layers: List[List[Tuple[str, List[int]]]] = []
+        wire_free = [0] * n_q
+        for gname, qs in gates:
+            col = max((wire_free[q] for q in qs if q < n_q), default=0)
+            while len(layers) <= col:
+                layers.append([])
+            layers[col].append((gname, qs))
+            for q in qs:
+                if q < n_q:
+                    wire_free[q] = col + 1
+
+        total_depth = len(layers)
+        shown_layers = layers[:18]
+        folded = total_depth > len(shown_layers) or n_q > max_wires
+
+        w, h = 1600, max(540, 210 + max_wires * 58)
+        img, draw = _new_canvas(w, h)
+        font_title = _load_font(26)
+        font_sub = _load_font(18)
+        font_gate = _load_font(15)
+        q_sha = str(row.get("circuit_sha256") or hashlib.sha256(qasm.encode("utf-8")).hexdigest())[:12]
+        be = _short_backend_label(row.get("backend"))
+        shots = row.get("shots")
+        seed = row.get("seed")
+        title = f"Circuit Schematic: {raw_kind} ({n_q}Q, depth {total_depth}, {two_q} 2Q gates)"
+        sub = f"Job {jid[:8]} · backend={be} · shots={shots if shots is not None else '--'} · seed={seed if seed is not None else '--'} · sha256={q_sha}"
+        draw.text((60, 24), title, fill=INK, font=font_title)
+        draw.text((60, 62), sub, fill=SLATE, font=font_sub)
+
+        x_start, x_end = 130, w - 90
+        y_top = 125
+        y_step = 56
+        col_w = max(58, min(86, (x_end - x_start) // max(len(shown_layers) + (1 if folded else 0), 1)))
+
+        for q in range(max_wires):
+            wy = y_top + q * y_step
+            draw.text((48, wy - 10), f"q[{q}]", fill=SLATE, font=font_gate)
+            draw.line([(x_start - 10, wy), (x_end, wy)], fill=SLATE, width=2)
+
+        for ci, layer in enumerate(shown_layers):
+            cx = x_start + int((ci + 0.5) * col_w)
+            for gname, qs in layer:
+                vis_qs = [q for q in qs if q < max_wires]
+                if not vis_qs:
+                    continue
+                if len(qs) >= 2:
+                    ys = [y_top + q * y_step for q in vis_qs]
+                    if len(ys) >= 2:
+                        draw.line([(cx, min(ys)), (cx, max(ys))], fill=TEAL, width=3)
+                    # Control dot on first qubit, target box on last
+                    c_y = y_top + vis_qs[0] * y_step
+                    draw.ellipse([cx - 7, c_y - 7, cx + 7, c_y + 7], fill=TEAL, outline=INK, width=1)
+                    if len(vis_qs) >= 2:
+                        t_y = y_top + vis_qs[-1] * y_step
+                        draw.rectangle([cx - 22, t_y - 16, cx + 22, t_y + 16], fill=ORANGE, outline=INK, width=2)
+                        draw.text((cx, t_y), gname[:4], fill=BG, font=font_gate, anchor="mm")
+                else:
+                    qy = y_top + vis_qs[0] * y_step
+                    fill = NAVY if gname != "M" else PURPLE
+                    draw.rectangle([cx - 22, qy - 16, cx + 22, qy + 16], fill=fill, outline=INK, width=2)
+                    draw.text((cx, qy), gname[:4], fill=BG, font=font_gate, anchor="mm")
+
+        if folded:
+            note = (
+                f"Schematic shows first {len(shown_layers)}/{total_depth} layers and "
+                f"{max_wires}/{n_q} qubits ({total_gates} total gates); full OpenQASM in supplement/qasm/{jid[:8]}..."
+            )
+            draw.text((60, h - 42), note, fill=SLATE, font=font_sub)
+
+        fname = f"fig_circuit_{fam}.png"
+        caption = (
+            f"Representative quantum circuit schematic for {raw_kind} "
+            f"(n={n_q} qubits, depth={total_depth}, {two_q} two-qubit gates, "
+            f"shots={shots if shots is not None else 'n/a'}, seed={seed if seed is not None else 'n/a'}, "
+            f"circuit SHA-256 prefix {q_sha}). Complete OpenQASM source archived in supplement/qasm/."
+        )
+        out.append((fname, _to_png_bytes(img), caption))
+        if len(out) >= 4:
+            break
+    return out
+
+
+def generate_campaign_figures(
+    rows: List[Dict[str, Any]],
+    *,
+    circuit_samples: Dict[str, str] | None = None,
+) -> List[Tuple[str, bytes, str]]:
     """Synthesize deterministic 300-DPI PNG figures from settled campaign rows."""
     if not HAS_PIL or not rows:
         return []
@@ -508,4 +665,9 @@ def generate_campaign_figures(rows: List[Dict[str, Any]]) -> List[Tuple[str, byt
                 out.append(res)
         except Exception:
             continue
+    if circuit_samples:
+        try:
+            out.extend(_render_circuit_schematics(rows, circuit_samples))
+        except Exception:
+            pass
     return out

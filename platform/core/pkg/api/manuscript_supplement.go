@@ -84,15 +84,109 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 	if len(resultJSON) > 0 {
 		var res map[string]any
 		if json.Unmarshal(resultJSON, &res) == nil && res != nil {
-			if counts, ok := res["counts"].(map[string]any); ok && len(counts) > 0 {
-				rawCounts, _ := json.Marshal(counts)
+			countsMap, _ := res["counts"].(map[string]any)
+			if len(countsMap) == 0 {
+				countsMap, _ = res["bitstring_counts"].(map[string]any)
+			}
+			if len(countsMap) > 0 {
+				rawCounts, _ := json.Marshal(countsMap)
 				sum := sha256.Sum256(rawCounts)
 				row["counts_sha256"] = hex.EncodeToString(sum[:])
-				row["counts_unique_bitstrings"] = len(counts)
-				row["top_k_counts"] = topKCounts(counts, 8)
+				row["counts_unique_bitstrings"] = len(countsMap)
+				row["top_k_counts"] = topKCounts(countsMap, 8)
+				row["counts_status"] = "retained"
+			} else if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
+				ptCounts := 0
+				for _, p := range pts {
+					if pm, ok := p.(map[string]any); ok {
+						if pc, ok := pm["counts"].(map[string]any); ok && len(pc) > 0 {
+							ptCounts++
+						}
+					}
+				}
+				if ptCounts > 0 {
+					row["counts_status"] = "retained"
+					row["counts_points"] = ptCounts
+				} else {
+					row["counts_status"] = "not_retained"
+				}
+			} else {
+				row["counts_status"] = "not_retained"
 			}
 		}
 	}
+	if _, hasStatus := row["counts_status"]; !hasStatus {
+		row["counts_status"] = "not_retained"
+	}
+}
+
+// collectRepresentativeCircuits selects up to 6 representative QASM circuits
+// (one per experiment kind, <= 32 KiB each) from the session's job ledger for
+// transient circuit-diagram rendering (R1). Never persisted into CampaignJSON
+// or EvidenceJSON so verification-v1 stays isolated from QASM rotation literals.
+func (s *Server) collectRepresentativeCircuits(sessionID, campaignJSON string) map[string]string {
+	if s.jobRunner == nil || strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	allJobs, err := s.jobRunner.ListAllSessionJobs(sessionID)
+	if err != nil || len(allJobs) == 0 {
+		return nil
+	}
+	jobsByID := make(map[string]*jobs.Job, len(allJobs))
+	for _, j := range allJobs {
+		if j != nil {
+			jobsByID[j.ID] = j
+		}
+	}
+	var camp map[string]any
+	if json.Unmarshal([]byte(campaignJSON), &camp) != nil || camp == nil {
+		return nil
+	}
+	rawList, _ := camp["experiments"].([]any)
+	const maxSamples = 6
+	const maxBytes = 32 * 1024
+	out := map[string]string{}
+	seenFamily := map[string]bool{}
+	for _, item := range rawList {
+		if len(out) >= maxSamples {
+			break
+		}
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		jid, _ := m["job_id"].(string)
+		kind, _ := m["kind"].(string)
+		fam := strings.ToLower(strings.TrimSpace(kind))
+		if jid == "" || fam == "" || seenFamily[fam] {
+			continue
+		}
+		j := jobsByID[jid]
+		if j == nil || len(j.ParamsJSON) == 0 {
+			continue
+		}
+		var params map[string]any
+		if json.Unmarshal(j.ParamsJSON, &params) != nil || params == nil {
+			continue
+		}
+		qasm, _ := params["qasm"].(string)
+		if strings.TrimSpace(qasm) == "" {
+			if pts, ok := params["points"].([]any); ok && len(pts) > 0 {
+				if pm, ok := pts[0].(map[string]any); ok {
+					qasm, _ = pm["qasm"].(string)
+				}
+			}
+		}
+		if strings.TrimSpace(qasm) == "" || len(qasm) > maxBytes {
+			continue
+		}
+		seenFamily[fam] = true
+		out[jid] = qasm
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func summarizeQASMLines(qasm string) (gateLines int, twoQGates int) {
@@ -164,7 +258,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 
 	jobsByID := map[string]*jobs.Job{}
 	if s.jobRunner != nil {
-		if allJobs, err := s.jobRunner.ListJobs(sessionID, 200); err == nil {
+		if allJobs, err := s.jobRunner.ListAllSessionJobs(sessionID); err == nil {
 			for _, j := range allJobs {
 				if j != nil {
 					jobsByID[j.ID] = j
@@ -225,17 +319,43 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 				}
 			}
 		}
+		countsPaths := []string{}
 		if j != nil && len(j.ResultJSON) > 0 {
 			var res map[string]any
 			if json.Unmarshal(j.ResultJSON, &res) == nil && res != nil {
-				if counts, ok := res["counts"].(map[string]any); ok && len(counts) > 0 {
-					if raw, err := json.Marshal(counts); err == nil && len(raw) <= maxCountsFileBytes {
+				countsMap, _ := res["counts"].(map[string]any)
+				if len(countsMap) == 0 {
+					countsMap, _ = res["bitstring_counts"].(map[string]any)
+				}
+				if len(countsMap) > 0 {
+					if raw, err := json.Marshal(countsMap); err == nil && len(raw) <= maxCountsFileBytes {
 						countsPath = "supplement/counts/" + jid + ".json"
 						artifacts[countsPath] = raw
+						countsPaths = append(countsPaths, countsPath)
+					}
+				}
+				if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
+					for i, p := range pts {
+						if pm, ok := p.(map[string]any); ok {
+							if pc, ok := pm["counts"].(map[string]any); ok && len(pc) > 0 {
+								if raw, err := json.Marshal(pc); err == nil && len(raw) <= maxCountsFileBytes {
+									pPath := fmt.Sprintf("supplement/counts/%s_p%d.json", jid, i)
+									artifacts[pPath] = raw
+									countsPaths = append(countsPaths, pPath)
+								}
+							}
+						}
 					}
 				}
 			}
 		}
+		countsStatus := "not_retained"
+		if len(countsPaths) > 0 {
+			countsStatus = "retained"
+		}
+
+		// R4: extract used physical qubits from layout / transpile.layout
+		usedQubits := extractUsedQubits(r["layout"], r["transpile"])
 
 		dsEntry := map[string]any{
 			"job_id":          jid,
@@ -246,6 +366,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"shots":           r["shots"],
 			"seed":            r["seed"],
 			"layout":          r["layout"],
+			"used_qubits":     usedQubits,
 			"transpile":       r["transpile"],
 			"circuit_sha256":  r["circuit_sha256"],
 			"qasm_path":       qasmPath,
@@ -253,8 +374,10 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"qasm_points":     r["qasm_points"],
 			"points":          pointsSummary,
 			"status":          r["status"],
+			"counts_status":   countsStatus,
 			"counts_sha256":   r["counts_sha256"],
 			"counts_path":     countsPath,
+			"counts_paths":    countsPaths,
 			"calibration":     r["calibration"],
 			"energy":          r["energy"],
 			"anchor_energy":   firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
@@ -265,6 +388,9 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"vendor_ref":      r["vendor_ref"],
 			"qasm_gate_lines": r["qasm_gate_lines"],
 			"two_qubit_gates": r["two_qubit_gate_count"],
+			"basis":           r["basis"],
+			"active_space":    r["active_space"],
+			"geometry":        r["geometry"],
 		}
 		datasheetRows = append(datasheetRows, dsEntry)
 		_ = cw.Write([]string{
@@ -326,6 +452,9 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		var tooling map[string]any
 		if json.Unmarshal(raw, &tooling) == nil && tooling != nil {
 			envDoc["tooling"] = tooling
+			if lh, ok := tooling["uv_lock_sha256"].(string); ok && lh != "" {
+				envDoc["uv_lock_sha256"] = lh
+			}
 		}
 	}
 	if envBytes, err := json.MarshalIndent(envDoc, "", "  "); err == nil {
@@ -358,6 +487,40 @@ func firstNonNil(m map[string]any, keys ...string) any {
 		}
 	}
 	return nil
+}
+
+func extractUsedQubits(layout, transpile any) []int {
+	seen := map[int]bool{}
+	collect := func(v any) {
+		switch t := v.(type) {
+		case []any:
+			for _, x := range t {
+				if f, ok := x.(float64); ok {
+					seen[int(f)] = true
+				}
+			}
+		case map[string]any:
+			for _, x := range t {
+				if f, ok := x.(float64); ok {
+					seen[int(f)] = true
+				}
+			}
+		}
+	}
+	collect(layout)
+	if tm, ok := transpile.(map[string]any); ok {
+		collect(tm["layout"])
+		collect(tm["final_layout"])
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]int, 0, len(seen))
+	for q := range seen {
+		out = append(out, q)
+	}
+	sort.Ints(out)
+	return out
 }
 
 func fmtVal(v any) string {

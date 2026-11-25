@@ -42,7 +42,7 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	}
 
 	// Complete bundle passes
-	ok := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona"}}`, 12, 12, map[string]string{
+	ok := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona","corresponding_author":"A <a@b.org>","competing_interests":"None","funding":"OSS","license":"CC-BY-4.0"}}`, 12, 12, map[string]string{
 		"main.pdf":                      "deadbeef",
 		"supplement/qasm/job_hw_1.qasm": "abc123def456",
 		"supplement/datasheet.json":     "111",
@@ -51,6 +51,19 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	})
 	if !ok.Complete || ok.HardwareCircuitsBundled != 1 || ok.SupplementFiles != 4 {
 		t.Fatalf("expected complete report, got %+v", ok)
+	}
+	if len(ok.Warnings) != 0 {
+		t.Fatalf("expected 0 warnings with full scholarly metadata, got %+v", ok.Warnings)
+	}
+
+	// R6: CheckScholarlyMetadata flags missing and placeholder fields
+	missEmpty := CheckScholarlyMetadata("{}")
+	if len(missEmpty) != 5 {
+		t.Fatalf("expected 5 missing fields for empty evidence, got %+v", missEmpty)
+	}
+	missPlaceholder := CheckScholarlyMetadata(`{"_scholarly":{"affiliation":"TBD","corresponding_author":"A","competing_interests":"None","funding":"OSS","license":"CC-BY-4.0"}}`)
+	if len(missPlaceholder) != 1 || missPlaceholder[0] != "affiliation" {
+		t.Fatalf("expected placeholder affiliation flagged, got %+v", missPlaceholder)
 	}
 }
 

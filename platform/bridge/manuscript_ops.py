@@ -55,6 +55,15 @@ def _tooling_versions() -> Dict[str, str]:
             versions[dist] = _importlib_metadata.version(dist)
         except Exception:
             versions[dist] = "unknown"
+    # R5: record uv.lock SHA-256 when present in the container or repo root
+    here = Path(__file__).resolve().parent
+    for cand in (here.parent / "uv.lock", Path("/app/uv.lock")):
+        try:
+            if cand.is_file():
+                versions["uv_lock_sha256"] = _dig(cand.read_bytes())
+                break
+        except OSError:
+            continue
     return versions
 
 
@@ -668,7 +677,8 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     if auto_figures is None:
         auto_figures = True
     if bool(auto_figures) and reportable:
-        for fname, fbytes, fcap in generate_campaign_figures(reportable):
+        circuit_samples = req.get("circuit_samples") if isinstance(req.get("circuit_samples"), dict) else None
+        for fname, fbytes, fcap in generate_campaign_figures(reportable, circuit_samples=circuit_samples):
             if fname not in seen:
                 seen.add(fname)
                 figures.append((fname, fbytes))

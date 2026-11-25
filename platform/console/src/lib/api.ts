@@ -4527,6 +4527,7 @@ export async function createManuscript(
     abstract?: string;
     evidence_refs?: string[];
     proof_hash?: string;
+    scholarly?: Record<string, string>;
     build?: boolean;
   },
 ): Promise<ManuscriptResult<ManuscriptDetail>> {

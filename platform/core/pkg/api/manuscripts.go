@@ -79,20 +79,21 @@ type manuscriptBridgeBuildMeta struct {
 
 // manuscriptRequest is the bridge JSON contract (not the HTTP body).
 type manuscriptRequest struct {
-	ManuscriptID    string           `json:"manuscript_id"`
-	Title           string           `json:"title,omitempty"`
-	Subtitle        string           `json:"subtitle,omitempty"`
-	DocumentType    string           `json:"document_type,omitempty"`
-	AutoFigures     *bool            `json:"auto_figures,omitempty"`
-	Authors         []string         `json:"authors"`
-	Abstract        string           `json:"abstract,omitempty"`
-	TargetSystem    string           `json:"target_system"`
-	Campaign        json.RawMessage  `json:"campaign"`
-	Evidence        map[string]any   `json:"evidence"`
-	Citations       []map[string]any `json:"citations,omitempty"`
-	Figures         []map[string]any `json:"figures,omitempty"`
-	Build           bool             `json:"build"`
-	SourceDateEpoch int64            `json:"source_date_epoch"`
+	ManuscriptID    string            `json:"manuscript_id"`
+	Title           string            `json:"title,omitempty"`
+	Subtitle        string            `json:"subtitle,omitempty"`
+	DocumentType    string            `json:"document_type,omitempty"`
+	AutoFigures     *bool             `json:"auto_figures,omitempty"`
+	Authors         []string          `json:"authors"`
+	Abstract        string            `json:"abstract,omitempty"`
+	TargetSystem    string            `json:"target_system"`
+	Campaign        json.RawMessage   `json:"campaign"`
+	Evidence        map[string]any    `json:"evidence"`
+	Citations       []map[string]any  `json:"citations,omitempty"`
+	Figures         []map[string]any  `json:"figures,omitempty"`
+	CircuitSamples  map[string]string `json:"circuit_samples,omitempty"`
+	Build           bool              `json:"build"`
+	SourceDateEpoch int64             `json:"source_date_epoch"`
 }
 
 type manuscriptCreateBody struct {
@@ -108,6 +109,7 @@ type manuscriptCreateBody struct {
 	CitationDistance *float64             `json:"citation_distance"`
 	Citations        []manuscriptCiteIn   `json:"citations"`
 	Figures          []manuscriptFigureIn `json:"figures"`
+	Scholarly        map[string]any       `json:"scholarly,omitempty"`
 	Build            bool                 `json:"build"`
 }
 
@@ -336,6 +338,9 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 	resolved, unresolved := s.resolveManuscriptReceipts(&campaign, body.EvidenceRefs)
 	proofHash, proofOK := s.resolveManuscriptProof(sessionID, strings.TrimSpace(body.ProofHash))
 	evidence := manuscriptEvidencePayload(resolved, unresolved, proofHash, proofOK)
+	if len(body.Scholarly) > 0 {
+		evidence["_scholarly"] = body.Scholarly
+	}
 	if body.CitationDistance != nil {
 		if *body.CitationDistance < 0 || *body.CitationDistance > 100 {
 			WriteAPIError(w, "bad_request", "citation_distance must be between 0 and 100", nil)
@@ -378,6 +383,7 @@ func (s *Server) handleManuscriptCreate(w http.ResponseWriter, r *http.Request, 
 		Evidence:        evidence,
 		Citations:       citations,
 		Figures:         figures,
+		CircuitSamples:  s.collectRepresentativeCircuits(sessionID, string(rawState)),
 		Build:           false,
 		SourceDateEpoch: epoch,
 	}
@@ -921,6 +927,16 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 				map[string]any{"completeness": comp})
 			return
 		}
+		// R6: scholarly metadata deposit gate when hardware results are deposited
+		// (or when _scholarly_strict is requested). Draft builds remain unblocked.
+		if comp.HardwareJobs > 0 {
+			if missing := verify.CheckScholarlyMetadata(ms.EvidenceJSON); len(missing) > 0 {
+				WriteAPIError(w, "metadata_incomplete",
+					"empirical hardware deposit requires scholarly metadata: "+strings.Join(missing, ", "),
+					map[string]any{"missing_fields": missing})
+				return
+			}
+		}
 	}
 	if len(ms.Artifacts) == 0 {
 		WriteAPIError(w, "build_required", "deposit staging requires a built PDF", nil)
@@ -1045,6 +1061,7 @@ func (s *Server) storedManuscriptRequest(ms *ledger.Manuscript, build bool) (man
 		Evidence:        evidence,
 		Citations:       citations,
 		Figures:         figures,
+		CircuitSamples:  s.collectRepresentativeCircuits(ms.SessionID, ms.CampaignJSON),
 		Build:           build,
 		SourceDateEpoch: ms.SourceDateEpoch,
 	}, nil
@@ -1185,7 +1202,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 	if s.jobRunner == nil {
 		return rawState
 	}
-	allJobs, err := s.jobRunner.ListJobs(sessionID, 200)
+	allJobs, err := s.jobRunner.ListAllSessionJobs(sessionID)
 	if err != nil || len(allJobs) == 0 {
 		return rawState
 	}
