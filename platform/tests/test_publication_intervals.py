@@ -56,3 +56,14 @@ def test_r2_ratio_interval_is_rendered_only_when_recorded():
     assert "point est. (no counts)" in tex
     # The invalid proportion-on-ratio estimator must not reappear.
     assert "Wilson" not in tex
+
+
+def test_r2_uncertainty_table_prioritises_hardware_and_declares_truncation():
+    rows = [
+        {"job_id": f"sim-{i}", "kind": "vqe", "ci95_mha": 1.0, "delta_mha": 0.5}
+        for i in range(30)
+    ]
+    rows.append({"job_id": "hardware-claim", "kind": "vqe_hardware", "hardware": True, "ci95_mha": 2.0, "delta_mha": 1.0})
+    tex = manuscript_datasheet.build_zne_and_uncertainty_section(rows)
+    assert "hardware-claim" in tex
+    assert "Showing first 28 of 31 rows" in tex

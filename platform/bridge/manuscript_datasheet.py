@@ -288,6 +288,12 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
     ]
     if not relevant:
         return ""
+    # Hardware rows with a recorded interval are the claims a reader is most
+    # likely to scrutinise; show them first so the 28-row cap cannot hide them.
+    relevant.sort(key=lambda r: (
+        0 if bool(r.get("hardware")) else 1,
+        0 if (r.get("ci95_mha") is not None or r.get("ratio_ci95") is not None) else 1,
+    ))
     lines = [
         "All discrepancies $\\Delta$ and approximation ratios below are reported alongside their "
         "recorded 95\\% confidence interval (\\texttt{CI95}) or a count-derived ratio interval when "
@@ -303,7 +309,8 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         r"Job & Kind & Mode & Value & Anchor & $\Delta$ / Ratio & CI95 / Status \\",
         r"\midrule",
     ]
-    for r in relevant[:28]:
+    shown = relevant[:28]
+    for r in shown:
         jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
         kind = latex_escape(str(r.get("kind") or "--")[:16])
         mode = "ZNE mitigated" if bool(r.get("mitigated")) else ("hardware" if bool(r.get("hardware")) else "simulator")
@@ -337,6 +344,11 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
             ci_s = r"\texttt{point estimate}"
         lines.append(
             f"{jid} & {kind} & {mode} & {fmt_num(e, 6)} & {fmt_num(anc, 6)} & {fmt_num(delta, 3)} & {ci_s} \\\\"
+        )
+    if len(relevant) > len(shown):
+        lines.append(
+            rf"\multicolumn{{7}}{{l}}{{\textit{{Showing first {len(shown)} of {len(relevant)} rows; "
+            rf"complete record in {_breakable_path('supplement/datasheet.json')}.}}}} \\\\"
         )
     lines.extend([
         r"\bottomrule",
