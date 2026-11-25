@@ -858,6 +858,44 @@ def run_vqe_hardware(
             }
             for scale in xs
         }
+        # R2 Phase 2: per-term ZNE diagnostic. Non-identity Pauli terms decay
+        # to zero under a unital Pauli channel; the identity term is constant.
+        per_term = []
+        per_term_total = 0.0
+        per_term_var = 0.0
+        for term in sorted(coeffs):
+            coefficient = float(coeffs[term])
+            if set(term) == {"I"}:
+                per_term.append({"term": term, "coefficient": coefficient, "mitigated": coefficient,
+                                 "uncertainty": 0.0, "method": "constant_identity"})
+                per_term_total += coefficient
+                continue
+            ys_term, se_term = [], []
+            for scale in xs:
+                counts = counts_by_scale[str(scale)].get(term) or {}
+                if not counts:
+                    ys_term = []
+                    break
+                mterm = _hardware_counts_to_energy(
+                    [counts], {term: coefficient}, calibration=cal_data,
+                    used_qubits=used_q, readout_mitigation=bool(readout_mitigation),
+                )
+                ys_term.append(float(mterm["energy"]))
+                se_term.append(float(mterm["uncertainty"]))
+            if len(ys_term) != len(xs):
+                per_term.append({"term": term, "coefficient": coefficient, "error": "missing_term_counts"})
+                continue
+            try:
+                eterm = _extrapolate_zne(xs, ys_term, se_term, extrapolator=extrapolator, asymptote=0.0)
+                val = float(eterm["mitigated"]); unc = float(eterm["uncertainty"])
+                per_term.append({"term": term, "coefficient": coefficient, "mitigated": val,
+                                 "uncertainty": unc, "method": eterm["extrapolator_used"],
+                                 "chi2_reduced": eterm["chi2_reduced"]})
+                per_term_total += val
+                per_term_var += unc ** 2
+            except Exception:
+                per_term.append({"term": term, "coefficient": coefficient, "error": "fit_failed"})
+        per_term_unc = float(math.sqrt(max(per_term_var, 0.0)))
         # R2: measured total-gate/error axis, model adequacy, and a difference CI.
         e1 = e2 = None
         ro = 0.0
@@ -939,6 +977,9 @@ def run_vqe_hardware(
             "model_spread_ha": model_spread,
             "model_adequate": model_adequate,
             "lack_of_fit_p": lack_of_fit_p,
+            "per_term": per_term,
+            "per_term_energy": per_term_total,
+            "per_term_uncertainty": per_term_unc,
             "baseline_energy": baseline_energy,
             "baseline_uncertainty": baseline_unc,
             "difference_ha": difference,
@@ -1009,6 +1050,8 @@ def run_vqe_hardware(
         "fold_axis": fold_axis if mitigation_receipt else None,
         "axis_valid": axis_valid if mitigation_receipt else None,
         "model_adequate": model_adequate if mitigation_receipt else None,
+        "per_term_energy": per_term_total if mitigation_receipt else None,
+        "per_term_uncertainty": per_term_unc if mitigation_receipt else None,
         "fci_exact_energy": float(fci_exact_energy),
         "delta_mha": float(delta * 1000.0),
         "chemical_accuracy": claimable,

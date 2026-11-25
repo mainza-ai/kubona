@@ -195,6 +195,9 @@ def test_h1_vqe_hardware_retains_per_term_counts(monkeypatch):
     assert zne["counts_scale"] == 1
     assert zne["mitigation"]["uncertainty_method"] == "wls_linear_propagated_plus_fit_rmse"
     assert len(zne["mitigation"]["intercept_weights"]) == 3
+    assert zne["counts_by_scale"] and set(zne["counts_by_scale"]) == {"1.0", "3.0", "5.0"}
+    assert zne["fold_axis"] and zne["axis_valid"] is True
+    assert zne["per_term_energy"] is not None
 
 
 def test_c_e_snapshot_from_target_partial_calibration_fallback():
