@@ -476,3 +476,40 @@ def test_g4_tfim_ansatz_qasm_is_qasm2_loadable_for_hardware():
     assert res["success"] is True
     assert "rzz" not in res["ansatz_qasm"] and "sx" not in res["ansatz_qasm"]
     qasm2.loads(res["ansatz_qasm"])
+
+
+def test_p6_local_fractional_folding_and_actual_scale_guard(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+    from qiskit import QuantumCircuit, transpile
+
+    def cx_count(circ):
+        return sum(1 for inst in circ.data if len(inst.qubits) >= 2 and inst.operation.name != "barrier")
+
+    base = QuantumCircuit(4)
+    base.h(0)
+    for a, b in ((0, 1), (1, 2), (2, 3), (3, 0)):
+        base.cx(a, b)
+    counts = {}
+    for scale in (1.0, 1.5, 2.0):
+        folded = experiments._fold_circuit(base, scale)
+        counts[scale] = cx_count(transpile(folded, basis_gates=["rz", "sx", "x", "cx"], optimization_level=3))
+    assert counts == {1.0: 4, 1.5: 6, 2.0: 8}
+
+    # A 2-CX H2 circuit cannot represent 1.5x and 2.0x distinctly; the runner
+    # must refuse instead of fitting two circuits at the same nominal scale.
+    def _must_not_dispatch(*args, **kwargs):
+        raise AssertionError("hardware batch must not be dispatched on collapsed scales")
+
+    monkeypatch.setattr(experiments, "_hardware_batch", _must_not_dispatch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    out = experiments.run_vqe_hardware(
+        theta=[0.1, 0.2], pauli_coefficients={"XX": 0.5, "ZZ": 0.5}, layers=1,
+        shots=1024, seed=7, bond_distance=0.735, fci_exact_energy=-0.5,
+        ansatz_qasm=qasm, constant_energy=0.0, mitigation="ZNE",
+        mitigation_scales=[1.0, 1.5, 2.0],
+    )
+    assert out["success"] is False
+    assert "collapse" in out["error"]

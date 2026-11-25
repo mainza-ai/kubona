@@ -654,12 +654,37 @@ def run_vqe_hardware(
 
     qasms: list[str] = []
     fold_keys: list[tuple[str, float]] = []
+    scale_map: list[tuple[float, float, Any]] = []
     if method:
+        # Fractional local folding can round to the same 2Q count for small
+        # circuits (H2 has 2 CX; 1.5x and 2.0x both yield 4 CX). Fit on the
+        # ACTUAL 2Q ratio and refuse duplicate actual scales rather than
+        # labelling two different circuits with the same nominal x.
+        def _count_2q(circuit: Any) -> int:
+            return sum(
+                1 for inst in circuit.data
+                if len(inst.qubits) >= 2
+                and str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
+            )
+        base_2q = _count_2q(qc)
+        seen_scales: set[float] = set()
+        for requested in mitigation_scales:
+            folded_qc = _fold_circuit(qc, float(requested))
+            actual = (float(_count_2q(folded_qc)) / float(base_2q)) if base_2q > 0 else float(requested)
+            actual = round(actual, 6)
+            if actual in seen_scales:
+                return {
+                    "success": False,
+                    "error": (
+                        f"ZNE scales collapse to the same 2Q ratio on this circuit: {requested!r} -> {actual:.3f}x"
+                    ),
+                }
+            seen_scales.add(actual)
+            scale_map.append((float(requested), actual, folded_qc))
         for term in sorted(coeffs):
-            for scale in mitigation_scales:
-                s_val = float(scale)
-                qasms.append(_measurement_qasm(_fold_circuit(qc, s_val), term))
-                fold_keys.append((term, s_val))
+            for _, actual, folded_qc in scale_map:
+                qasms.append(_measurement_qasm(folded_qc, term))
+                fold_keys.append((term, actual))
     else:
         for term in sorted(coeffs):
             qasms.append(_measurement_qasm(qc, term))
@@ -676,6 +701,7 @@ def run_vqe_hardware(
     used_q = _layout_physical_qubits(batch.get("layout"))
     readout_meta = None
     if method:
+        xs = [actual for _, actual, _ in scale_map]
         # G1 fail-closed guard: if transpilation collapsed folded 2Q gates back to
         # scale-1, refuse rather than reporting a spurious extrapolation.
         t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
@@ -684,7 +710,7 @@ def run_vqe_hardware(
             and "min_transpiled_two_qubit_gates" in t_env
             and "max_transpiled_two_qubit_gates" in t_env
             and int(t_env["min_transpiled_two_qubit_gates"]) > 0
-            and max(float(s) for s in mitigation_scales) > 1.0
+            and max(xs) > 1.0
             and int(t_env["max_transpiled_two_qubit_gates"]) <= int(t_env["min_transpiled_two_qubit_gates"])
         ):
             return {
@@ -694,7 +720,6 @@ def run_vqe_hardware(
                     f"min_2Q={t_env['min_transpiled_two_qubit_gates']} == max_2Q={t_env['max_transpiled_two_qubit_gates']}"
                 ),
             }
-        xs = [float(s) for s in mitigation_scales]
         by_scale: dict[float, list[tuple[str, dict[str, int]]]] = {s: [] for s in xs}
         for (term, scale), counts in zip(fold_keys, counts_list):
             by_scale[scale].append((term, counts))
@@ -735,6 +760,7 @@ def run_vqe_hardware(
             "extrapolator_used": ext["extrapolator_used"],
             "fit_degree": ext["fit_degree"],
             "scales": [int(s) if abs(s - round(s)) < 1e-9 else s for s in xs],
+            "requested_scales": [req for req, _, _ in scale_map],
             "scale_energies": scale_energies,
             "scale_uncertainties": scale_uncertainties,
             "fit_condition_number": ext["fit_condition_number"],
@@ -1877,7 +1903,7 @@ def run_hardware_pes(
             return {"success": False, "error": "hardware PES ZNE needs >=2 distinct scales in [1.0, 15.0]"}
     try:
         from qiskit import qasm2
-        from experiments import _measurement_qasm, _hardware_batch, _hardware_counts_to_energy, _fold_unitary, _calibration_quality, _claimable_against_anchor
+        from experiments import _measurement_qasm, _hardware_batch, _hardware_counts_to_energy, _fold_circuit, _calibration_quality, _claimable_against_anchor
     except Exception as exc:  # noqa: BLE001
         return {"success": False, "error": f"hardware PES dependencies unavailable: {exc}"}
 

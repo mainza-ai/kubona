@@ -407,7 +407,7 @@ def main() -> int:
         record(checks, "pillar1_h2_vqe_hw_raw", raw_res.get("success") is True, f"job={raw_jid} |Δ_raw|={raw_delta:.3f} mHa")
 
         if "vqe_zne" in hw_pillars:
-            zne_scales = [1.0, 1.5, 2.0, 3.0]
+            zne_scales = [1.0, 2.0, 3.0]
             _, zne_prep = client.request(
                 "POST",
                 "/api/experiments/vqe/hardware/prepare",
