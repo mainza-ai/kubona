@@ -288,6 +288,12 @@ def run_spin_chain(
         and not below_exact
         and mode == "vqe"
     )
+    try:
+        from qiskit import transpile as _transpile
+        _qasm_qc = _transpile(qc, basis_gates=["u3", "cx"], optimization_level=1)
+        _ansatz_qasm = qasm2.dumps(_qasm_qc)
+    except Exception:
+        _ansatz_qasm = qasm2.dumps(qc)
     return {
         "success": True,
         "kind": "spin_chain",
@@ -314,7 +320,10 @@ def run_spin_chain(
                          if ansatz_key == "hva" else "hardware-efficient RY/RZ + ring CX")),
         "ansatz_kind": ("exact" if mode == "exact" else ansatz_key),
         "theta": [float(v) for v in theta],
-        "ansatz_qasm": qasm2.dumps(qc),
+        # Hardware consumers load this as OpenQASM 2; HVA uses `rzz`, which is
+        # not in qelib1. The emitted source is basis-transpiled so it is
+        # executable on the QPU rail (G4 hardware follow-up).
+        "ansatz_qasm": _ansatz_qasm,
         "energy": energy,
         "energy_exact": exact_energy,
         "energy_measured": energy,

@@ -1246,7 +1246,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		"finite_size", "thermodynamic_limit", "anisotropy", "bond_dim",
 		"points", "status", "verdict", "law", "expression",
 		"mitigated", "hardware", "actual_usd", "usage_seconds",
-		"seed", "layout", "transpile", "zne_scales", "raw_energy", "mitigated_energy", "optimizer_iterations",
+		"seed", "layout", "transpile", "readout_mitigation", "error_suppression", "zne_scales", "raw_energy", "mitigated_energy", "optimizer_iterations",
 		"backend", "requested_backend", "model",
 		"hardware_job_id", "vendor_ref",
 		"calibration", "calibration_fresh", "calibration_checked_at", "calibration_snapshot_id",

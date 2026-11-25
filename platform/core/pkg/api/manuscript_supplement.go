@@ -543,6 +543,8 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"used_qubits":            usedQubits,
 			"used_qubit_calibration": usedQubitCal,
 			"transpile":              r["transpile"],
+			"readout_mitigation":     r["readout_mitigation"],
+			"error_suppression":      r["error_suppression"],
 			"circuit_sha256":         r["circuit_sha256"],
 			"qasm_path":              qasmPath,
 			"qasm_paths":             qasmPaths,
