@@ -119,14 +119,15 @@ from .claims import (
     evaluate_circuit_gates,
     lookup_circuit_catalog,
 )
-from .qec_joint import (
-    build_joint_qec_codesign_claim,
-    verify_five_qubit_logical_gate,
-    verify_logical_gate_stim,
-    verify_magic_state_factory,
-    verify_steane_logical_cnot,
-)
 from .rs12 import build_rs_decoder, rs12_layout
+
+_LAZY_QEC_JOINT = {
+    "build_joint_qec_codesign_claim",
+    "verify_five_qubit_logical_gate",
+    "verify_logical_gate_stim",
+    "verify_magic_state_factory",
+    "verify_steane_logical_cnot",
+}
 
 __all__ = [
     "Builder",
@@ -520,3 +521,13 @@ __all__ = [
     "zero_flag_spec_n",
     "zero_flag_spec_param",
 ]
+
+
+def __getattr__(name: str):
+    if name in _LAZY_QEC_JOINT:
+        from . import qec_joint
+
+        val = getattr(qec_joint, name)
+        globals()[name] = val
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

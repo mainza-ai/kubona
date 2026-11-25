@@ -30,8 +30,8 @@ from kubona.codesign import (  # noqa: E402
     ledger_rows,
     union_bound,
 )
-from kubona.codesign.factories import factory_report
-from kubona.codesign.frontier import ParetoFrontier
+from kubona.codesign.factories import factory_report  # noqa: E402
+from kubona.codesign.frontier import ParetoFrontier  # noqa: E402
 
 
 def _canonical_sha256(obj) -> str:

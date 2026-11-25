@@ -1,118 +1,95 @@
-"""Kubona QEC scientific core (Phases 1-6 — zero-GPL Apache-2.0/MIT stack)."""
+"""Kubona QEC scientific core (Phases 1-6 — zero-GPL Apache-2.0/MIT stack).
 
-from kubona.qec.batch import build_surface_sinter_tasks, run_sinter_batch
-from kubona.qec.campaigns import (
-    DEFAULT_HERON_R2_CALIBRATION,
-    run_campaign_a_catalog_benchmark,
-    run_campaign_b_schedule_search,
-)
-from kubona.qec.canon import are_tanner_isomorphic, canonical_fingerprint, is_lc_equivalent_css, tanner_graph_rx
-from kubona.qec.catalog import CatalogEntry, build_builtin_catalog, load_qcode_discovery_json, lookup_catalog
-from kubona.qec.circuits import (
-    CircuitNoiseModel,
-    build_css_memory_circuit,
-    build_surface_code_memory_circuit,
-    heron_calibration_noise,
-    load_heron_calibration_from_ledger,
-    si1000_noise,
-    uniform_depolarizing_noise,
-    verify_circuit_distance,
-)
-from kubona.qec.claims import (
-    DiscoveryClaim,
-    canonical_claim_sign_message,
-    evaluate_seven_gates,
-    reverify_claims,
-    sign_discovery_claim_ed25519,
-    verify_discovery_claim_ed25519,
-)
-from kubona.qec.codes import BBCodeSpec, KNOWN_BB_SPECS, build_bb_code, direct_sum_css, relabel_qubits_css
-from kubona.qec.decoders import decode_bposd, decode_pymatching, dem_to_matrices, tune_ebposd_weights
-from kubona.qec.distance import estimate_distance_bposd, prove_distance_milp
-from kubona.qec.evaluator import evaluate_bb_code, evaluate_css_code
-from kubona.qec.formal import PERMITTED_LEAN_AXIOMS, build_qec_formal_attestation
-from kubona.qec.gf2 import css_logicals, css_parameters, css_validate, gf2_nullspace, gf2_rank, gf2_rref, is_decomposable_css
-from kubona.qec.magic_state import (
-    S5_MAGIC_STATE_TARGETS,
-    compute_gamma,
-    hamming_15_1_3_parity_matrix,
-    verify_magic_state_syndromes,
-)
-from kubona.qec.search import (
-    DiscoveryController,
-    Island,
-    IslandSearchPool,
-    MapElitesQecArchive,
-    QecCandidate,
-    evaluate_bb_candidate_fast,
-    mutate_bb_terms,
-    verifier_in_loop_refine,
-)
-from kubona.qec.sim import benchmark_css_vs_surface, simulate_memory_circuit, wilson_ci_95
+Exports are resolved lazily via PEP 562 ``__getattr__`` so importing lightweight
+submodules such as ``kubona.qec.claims`` (used by ``kubona.codesign`` in CI jobs
+that do not install ``--extra qec``) does not eagerly pull optional dependencies
+like ``sinter``, ``stim``, ``pymatching``, or ``rustworkx``.
+"""
 
-__all__ = [
-    "BBCodeSpec",
-    "CatalogEntry",
-    "CircuitNoiseModel",
-    "DEFAULT_HERON_R2_CALIBRATION",
-    "DiscoveryClaim",
-    "DiscoveryController",
-    "Island",
-    "IslandSearchPool",
-    "KNOWN_BB_SPECS",
-    "MapElitesQecArchive",
-    "PERMITTED_LEAN_AXIOMS",
-    "QecCandidate",
-    "S5_MAGIC_STATE_TARGETS",
-    "are_tanner_isomorphic",
-    "benchmark_css_vs_surface",
-    "build_bb_code",
-    "build_builtin_catalog",
-    "build_css_memory_circuit",
-    "build_qec_formal_attestation",
-    "build_surface_code_memory_circuit",
-    "build_surface_sinter_tasks",
-    "canonical_claim_sign_message",
-    "canonical_fingerprint",
-    "compute_gamma",
-    "css_logicals",
-    "css_parameters",
-    "css_validate",
-    "decode_bposd",
-    "decode_pymatching",
-    "dem_to_matrices",
-    "direct_sum_css",
-    "estimate_distance_bposd",
-    "evaluate_bb_candidate_fast",
-    "evaluate_bb_code",
-    "evaluate_css_code",
-    "evaluate_seven_gates",
-    "gf2_nullspace",
-    "gf2_rank",
-    "gf2_rref",
-    "hamming_15_1_3_parity_matrix",
-    "heron_calibration_noise",
-    "is_decomposable_css",
-    "is_lc_equivalent_css",
-    "load_heron_calibration_from_ledger",
-    "load_qcode_discovery_json",
-    "lookup_catalog",
-    "mutate_bb_terms",
-    "prove_distance_milp",
-    "relabel_qubits_css",
-    "reverify_claims",
-    "run_campaign_a_catalog_benchmark",
-    "run_campaign_b_schedule_search",
-    "run_sinter_batch",
-    "si1000_noise",
-    "sign_discovery_claim_ed25519",
-    "simulate_memory_circuit",
-    "tanner_graph_rx",
-    "tune_ebposd_weights",
-    "verify_discovery_claim_ed25519",
-    "uniform_depolarizing_noise",
-    "verifier_in_loop_refine",
-    "verify_circuit_distance",
-    "verify_magic_state_syndromes",
-    "wilson_ci_95",
-]
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "build_surface_sinter_tasks": ("kubona.qec.batch", "build_surface_sinter_tasks"),
+    "run_sinter_batch": ("kubona.qec.batch", "run_sinter_batch"),
+    "DEFAULT_HERON_R2_CALIBRATION": ("kubona.qec.campaigns", "DEFAULT_HERON_R2_CALIBRATION"),
+    "run_campaign_a_catalog_benchmark": ("kubona.qec.campaigns", "run_campaign_a_catalog_benchmark"),
+    "run_campaign_b_schedule_search": ("kubona.qec.campaigns", "run_campaign_b_schedule_search"),
+    "are_tanner_isomorphic": ("kubona.qec.canon", "are_tanner_isomorphic"),
+    "canonical_fingerprint": ("kubona.qec.canon", "canonical_fingerprint"),
+    "is_lc_equivalent_css": ("kubona.qec.canon", "is_lc_equivalent_css"),
+    "tanner_graph_rx": ("kubona.qec.canon", "tanner_graph_rx"),
+    "CatalogEntry": ("kubona.qec.catalog", "CatalogEntry"),
+    "build_builtin_catalog": ("kubona.qec.catalog", "build_builtin_catalog"),
+    "load_qcode_discovery_json": ("kubona.qec.catalog", "load_qcode_discovery_json"),
+    "lookup_catalog": ("kubona.qec.catalog", "lookup_catalog"),
+    "CircuitNoiseModel": ("kubona.qec.circuits", "CircuitNoiseModel"),
+    "build_css_memory_circuit": ("kubona.qec.circuits", "build_css_memory_circuit"),
+    "build_surface_code_memory_circuit": ("kubona.qec.circuits", "build_surface_code_memory_circuit"),
+    "heron_calibration_noise": ("kubona.qec.circuits", "heron_calibration_noise"),
+    "load_heron_calibration_from_ledger": ("kubona.qec.circuits", "load_heron_calibration_from_ledger"),
+    "si1000_noise": ("kubona.qec.circuits", "si1000_noise"),
+    "uniform_depolarizing_noise": ("kubona.qec.circuits", "uniform_depolarizing_noise"),
+    "verify_circuit_distance": ("kubona.qec.circuits", "verify_circuit_distance"),
+    "DiscoveryClaim": ("kubona.qec.claims", "DiscoveryClaim"),
+    "canonical_claim_sign_message": ("kubona.qec.claims", "canonical_claim_sign_message"),
+    "evaluate_seven_gates": ("kubona.qec.claims", "evaluate_seven_gates"),
+    "reverify_claims": ("kubona.qec.claims", "reverify_claims"),
+    "sign_discovery_claim_ed25519": ("kubona.qec.claims", "sign_discovery_claim_ed25519"),
+    "verify_discovery_claim_ed25519": ("kubona.qec.claims", "verify_discovery_claim_ed25519"),
+    "BBCodeSpec": ("kubona.qec.codes", "BBCodeSpec"),
+    "KNOWN_BB_SPECS": ("kubona.qec.codes", "KNOWN_BB_SPECS"),
+    "build_bb_code": ("kubona.qec.codes", "build_bb_code"),
+    "direct_sum_css": ("kubona.qec.codes", "direct_sum_css"),
+    "relabel_qubits_css": ("kubona.qec.codes", "relabel_qubits_css"),
+    "decode_bposd": ("kubona.qec.decoders", "decode_bposd"),
+    "decode_pymatching": ("kubona.qec.decoders", "decode_pymatching"),
+    "dem_to_matrices": ("kubona.qec.decoders", "dem_to_matrices"),
+    "tune_ebposd_weights": ("kubona.qec.decoders", "tune_ebposd_weights"),
+    "estimate_distance_bposd": ("kubona.qec.distance", "estimate_distance_bposd"),
+    "prove_distance_milp": ("kubona.qec.distance", "prove_distance_milp"),
+    "evaluate_bb_code": ("kubona.qec.evaluator", "evaluate_bb_code"),
+    "evaluate_css_code": ("kubona.qec.evaluator", "evaluate_css_code"),
+    "PERMITTED_LEAN_AXIOMS": ("kubona.qec.formal", "PERMITTED_LEAN_AXIOMS"),
+    "build_qec_formal_attestation": ("kubona.qec.formal", "build_qec_formal_attestation"),
+    "css_logicals": ("kubona.qec.gf2", "css_logicals"),
+    "css_parameters": ("kubona.qec.gf2", "css_parameters"),
+    "css_validate": ("kubona.qec.gf2", "css_validate"),
+    "gf2_nullspace": ("kubona.qec.gf2", "gf2_nullspace"),
+    "gf2_rank": ("kubona.qec.gf2", "gf2_rank"),
+    "gf2_rref": ("kubona.qec.gf2", "gf2_rref"),
+    "is_decomposable_css": ("kubona.qec.gf2", "is_decomposable_css"),
+    "S5_MAGIC_STATE_TARGETS": ("kubona.qec.magic_state", "S5_MAGIC_STATE_TARGETS"),
+    "compute_gamma": ("kubona.qec.magic_state", "compute_gamma"),
+    "hamming_15_1_3_parity_matrix": ("kubona.qec.magic_state", "hamming_15_1_3_parity_matrix"),
+    "verify_magic_state_syndromes": ("kubona.qec.magic_state", "verify_magic_state_syndromes"),
+    "DiscoveryController": ("kubona.qec.search", "DiscoveryController"),
+    "Island": ("kubona.qec.search", "Island"),
+    "IslandSearchPool": ("kubona.qec.search", "IslandSearchPool"),
+    "MapElitesQecArchive": ("kubona.qec.search", "MapElitesQecArchive"),
+    "QecCandidate": ("kubona.qec.search", "QecCandidate"),
+    "evaluate_bb_candidate_fast": ("kubona.qec.search", "evaluate_bb_candidate_fast"),
+    "mutate_bb_terms": ("kubona.qec.search", "mutate_bb_terms"),
+    "verifier_in_loop_refine": ("kubona.qec.search", "verifier_in_loop_refine"),
+    "benchmark_css_vs_surface": ("kubona.qec.sim", "benchmark_css_vs_surface"),
+    "simulate_memory_circuit": ("kubona.qec.sim", "simulate_memory_circuit"),
+    "wilson_ci_95": ("kubona.qec.sim", "wilson_ci_95"),
+}
+
+__all__ = sorted(_LAZY_EXPORTS.keys())
+
+
+def __getattr__(name: str) -> Any:
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    mod_name, attr_name = target
+    value = getattr(importlib.import_module(mod_name), attr_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals().keys()) | set(__all__))
