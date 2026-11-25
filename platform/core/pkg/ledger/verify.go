@@ -27,6 +27,7 @@ var CommitEventTypes = map[string]bool{
 	"tribunal_commit": true, "peer_review": true,
 	"manuscript_signed":             true,
 	"manuscript_deleted":            true,
+	"manuscript_reopened":           true,
 	"formal_verification":           true,
 	"mandate_verified_client":       true,
 	"mandate_verified_pqc_mlkem768": true,

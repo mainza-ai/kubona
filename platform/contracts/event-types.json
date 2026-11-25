@@ -996,6 +996,17 @@
         "content_hash"
       ]
     },
+    "manuscript_reopened": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "A reviewed/signed/built manuscript was reopened to draft by a scholarly-metadata correction; review, verification, signoff, build hash, and artifacts were cleared.",
+      "required": [
+        "manuscript_id",
+        "from_state",
+        "previous_content_hash"
+      ]
+    },
     "manuscript_deleted": {
       "emitters": [
         "go"

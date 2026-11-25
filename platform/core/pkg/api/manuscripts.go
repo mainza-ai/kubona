@@ -1791,8 +1791,15 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 	ms.ContentHash = manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, req.Figures, resp.FigureSHA)
 	ms.ReviewJSON = "{}"
 	if ms.State != ledger.ManuscriptStateDraft {
+		previousState, previousHash := ms.State, ms.ContentHash
 		if err := s.ledger.ResetManuscriptToDraft(sessionID, id); err != nil {
 			WriteAPIError(w, "internal", "manuscript reset failed: "+err.Error(), nil)
+			return
+		}
+		if err := s.recordManuscriptEvent(sessionID, "manuscript_reopened", map[string]any{
+			"manuscript_id": id, "from_state": previousState, "previous_content_hash": previousHash,
+		}); err != nil {
+			WriteAPIError(w, "internal", "manuscript event failed: "+err.Error(), nil)
 			return
 		}
 	}
