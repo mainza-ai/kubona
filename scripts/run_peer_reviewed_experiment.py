@@ -407,7 +407,8 @@ def main() -> int:
         record(checks, "pillar1_h2_vqe_hw_raw", raw_res.get("success") is True, f"job={raw_jid} |Δ_raw|={raw_delta:.3f} mHa")
 
         if "vqe_zne" in hw_pillars:
-            zne_scales = [1.0, 2.0, 3.0]
+            # R2: 4 achievable scales [1, 2, 3, 4] on 2-CX H2 -> 2, 4, 6, 8 CX (dof = 2 for 2-param exp)
+            zne_scales = [1.0, 2.0, 3.0, 4.0]
             _, zne_prep = client.request(
                 "POST",
                 "/api/experiments/vqe/hardware/prepare",
@@ -576,7 +577,14 @@ def main() -> int:
         hq_jid = (hq_resp.get("job") or hq_resp).get("id") if isinstance(hq_resp, dict) else None
         hq_job = client.poll_job(sid, hq_jid, timeout_s=900) if hq_jid else {}
         hq_res = json.loads(hq_job.get("result_json") or "{}") if isinstance(hq_job.get("result_json"), str) else (hq_job.get("result_json") or hq_job.get("result") or {})
-        record(checks, "pillar2_qaoa_hw", hq_res.get("success") is True, f"job={hq_jid} ratio={hq_res.get('approximation_ratio')}")
+        hq_ratio = float(hq_res.get("approximation_ratio") or 0.0)
+        hq_lq = hq_res.get("layout_quality") or {}
+        record(
+            checks,
+            "pillar2_qaoa_hw",
+            hq_res.get("success") is True and hq_ratio >= FARHI_P1_3REG_BOUND and not hq_lq.get("suspicious"),
+            f"job={hq_jid} ratio={hq_ratio:.4f} (bound>={FARHI_P1_3REG_BOUND}) suspicious_layout={hq_lq.get('suspicious')}",
+        )
 
     print("\n=== Stage 4: Pillar 3 — 1D Critical TFIM (Pfeuty 1970 / Kandala 2017) ===")
     _, sl = client.request(

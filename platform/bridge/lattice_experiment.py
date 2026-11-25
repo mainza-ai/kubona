@@ -716,7 +716,8 @@ def run_spin_chain_hardware(
             scale_energies.append(float(m["energy"]))
             scale_uncertainties.append(float(m["uncertainty"]))
         try:
-            ext = _extrapolate_zne(scales, scale_energies, scale_uncertainties, extrapolator=extrapolator)
+            asymptote = float(coeffs.get("I" * n, 0.0))
+            ext = _extrapolate_zne(scales, scale_energies, scale_uncertainties, extrapolator=extrapolator, asymptote=asymptote)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         energy = float(ext["mitigated"])
@@ -800,6 +801,7 @@ def run_spin_chain_hardware(
         "n_sites": n,
         "readout_mitigation": readout_meta,
         "error_suppression": batch.get("error_suppression"),
+        "layout_quality": batch.get("layout_quality"),
         "mitigated": bool(mitigation_receipt),
         "mitigation": mitigation_receipt,
         "counts_by_term": counts_by_term,

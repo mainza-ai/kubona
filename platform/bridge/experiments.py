@@ -440,11 +440,16 @@ def _extrapolate_zne(
     scale_energies: list[float],
     scale_uncertainties: list[float],
     extrapolator: str = "linear",
+    asymptote: float | None = None,
 ) -> dict[str, Any]:
-    """Shared ZNE extrapolator supporting WLS linear, exponential, and polynomial fits (P6-1).
+    """Shared ZNE extrapolator supporting WLS linear, 2-param/3-param exponential, and polynomial fits (P6-1 / R2).
 
-    Combines propagated statistical variance and fit residual in quadrature
-    (``sqrt(var0 + rmse**2)``) and reports ``chi2_reduced`` transparently.
+    When ``asymptote`` (the exact depolarizing maximally-mixed energy ``c_II``)
+    is provided, ``exponential`` fits the 2-parameter model
+    ``E(x) = asymptote + b * exp(-c * x)`` so 3 scales give ``dof = 1`` and 4
+    scales give ``dof = 2`` (avoiding the 3-point ``dof = 0`` covariance blow-up).
+    Without an asymptote, 3-parameter exponential requires ``len(xs) >= 4`` and
+    falls back to WLS linear otherwise.
     """
     mode = str(extrapolator or "linear").strip().lower()
     if mode not in ("linear", "exponential", "quadratic", "richardson"):
@@ -454,11 +459,53 @@ def _extrapolate_zne(
     sig_arr = np.maximum(np.asarray(scale_uncertainties, dtype=float), 1e-9)
 
     used_mode = mode
-    if mode == "exponential" and len(xs) >= 3:
-        # Fit E(x) = a + b * exp(-c * x) with c > 0. Falls back cleanly to WLS
-        # linear when the data are non-monotonic or curve_fit fails to converge.
+    if mode == "exponential" and (
+        (asymptote is not None and math.isfinite(float(asymptote)) and len(xs) >= 3)
+        or len(xs) >= 4
+    ):
         try:
             from scipy.optimize import curve_fit
+
+            if asymptote is not None and math.isfinite(float(asymptote)):
+                a_fixed = float(asymptote)
+
+                def _exp2(x, b, c):
+                    return a_fixed + b * np.exp(-c * x)
+
+                b0 = float(ys_arr[0] - a_fixed)
+                if abs(b0) < 1e-9:
+                    raise ValueError("scale-1 equals asymptote")
+                popt, pcov = curve_fit(
+                    _exp2,
+                    xs_arr,
+                    ys_arr,
+                    p0=[b0, 0.25],
+                    sigma=sig_arr,
+                    absolute_sigma=True,
+                    bounds=([-np.inf, 1e-4], [np.inf, 10.0]),
+                    maxfev=4000,
+                )
+                b_fit, c_fit = float(popt[0]), float(popt[1])
+                mitigated = float(a_fixed + b_fit)
+                predicted = _exp2(xs_arr, b_fit, c_fit)
+                rmse = float(np.sqrt(np.mean((ys_arr - predicted) ** 2)))
+                var0 = float(pcov[0, 0]) if (pcov is not None and np.isfinite(pcov[0, 0]) and pcov[0, 0] >= 0) else float(sig_arr[0] ** 2)
+                dof = max(1, len(xs) - 2)
+                chi2_red = float(np.sum(((ys_arr - predicted) / sig_arr) ** 2) / dof)
+                uncertainty = float(math.sqrt(max(var0, 0.0) + rmse * rmse))
+                return {
+                    "extrapolator": mode,
+                    "extrapolator_used": "exponential_fixed_asymptote",
+                    "fit_degree": 0,
+                    "mitigated": mitigated,
+                    "uncertainty": uncertainty,
+                    "fit_rmse": rmse,
+                    "chi2_reduced": chi2_red,
+                    "fit_condition_number": float(np.linalg.cond(pcov)) if (pcov is not None and np.all(np.isfinite(pcov))) else 1.0,
+                    "intercept_weights": [],
+                    "exp_params": {"asymptote": a_fixed, "asymptote_fixed": True, "amplitude": b_fit, "decay_rate": c_fit},
+                    "uncertainty_method": "exponential_2param_wls_quadrature_rmse",
+                }
 
             def _exp_model(x, a, b, c):
                 return a + b * np.exp(-c * x)
@@ -481,13 +528,12 @@ def _extrapolate_zne(
             mitigated = float(a_fit + b_fit)
             predicted = _exp_model(xs_arr, a_fit, b_fit, c_fit)
             rmse = float(np.sqrt(np.mean((ys_arr - predicted) ** 2)))
-            # Var(a + b) = Var(a) + Var(b) + 2 Cov(a, b)
             if pcov is not None and np.all(np.isfinite(pcov[:2, :2])):
                 var0 = float(max(0.0, pcov[0, 0] + pcov[1, 1] + 2.0 * pcov[0, 1]))
             else:
                 var0 = float(sig_arr[0] ** 2)
             dof = max(1, len(xs) - 3)
-            chi2_red = float(np.sum(((ys_arr - predicted) / sig_arr) ** 2) / dof) if len(xs) > 3 else 0.0
+            chi2_red = float(np.sum(((ys_arr - predicted) / sig_arr) ** 2) / dof)
             uncertainty = float(math.sqrt(max(var0, 0.0) + rmse * rmse))
             return {
                 "extrapolator": mode,
@@ -499,11 +545,13 @@ def _extrapolate_zne(
                 "chi2_reduced": chi2_red,
                 "fit_condition_number": float(np.linalg.cond(pcov[:2, :2])) if (pcov is not None and np.all(np.isfinite(pcov[:2, :2]))) else 1.0,
                 "intercept_weights": [],
-                "exp_params": {"asymptote": a_fit, "amplitude": b_fit, "decay_rate": c_fit},
+                "exp_params": {"asymptote": a_fit, "asymptote_fixed": False, "amplitude": b_fit, "decay_rate": c_fit},
                 "uncertainty_method": "exponential_wls_quadrature_rmse",
             }
         except Exception:
             used_mode = "linear"
+    elif mode == "exponential":
+        used_mode = "linear"
 
     if used_mode == "linear":
         deg = 1
@@ -736,7 +784,9 @@ def run_vqe_hardware(
             scale_energies.append(float(m["energy"]))
             scale_uncertainties.append(float(m["uncertainty"]))
         try:
-            ext = _extrapolate_zne(xs, scale_energies, scale_uncertainties, extrapolator=extrapolator)
+            id_key = "I" * int(qc.num_qubits)
+            asymptote = float(coeffs[id_key]) if id_key in coeffs else 0.0
+            ext = _extrapolate_zne(xs, scale_energies, scale_uncertainties, extrapolator=extrapolator, asymptote=asymptote)
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
         mitigated = float(ext["mitigated"])
@@ -838,6 +888,7 @@ def run_vqe_hardware(
         "provider": "ibm-qiskit",
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
+        "layout_quality": batch.get("layout_quality"),
         "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **calibration_quality,
@@ -2002,7 +2053,10 @@ def run_hardware_pes(
                 energies.append(float(m["energy"]))
                 uncs.append(float(m["uncertainty"]))
             try:
-                ext = _extrapolate_zne(xs, energies, uncs, extrapolator=extrapolator)
+                sample_lbl = next(iter(point["coeffs"]))
+                id_key = "I" * len(sample_lbl)
+                asymptote = float(point["coeffs"][id_key]) if id_key in point["coeffs"] else 0.0
+                ext = _extrapolate_zne(xs, energies, uncs, extrapolator=extrapolator, asymptote=asymptote)
             except ValueError as exc:
                 return {"success": False, "error": str(exc)}
             energy = float(ext["mitigated"]) + point["constant"]
@@ -2075,6 +2129,7 @@ def run_hardware_pes(
         "hardware_job_id": parent_vendor_ref,
         "vendor_ref": parent_vendor_ref or None,
         "layout": batch.get("layout"),
+        "layout_quality": batch.get("layout_quality"),
         "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **quality,
@@ -2835,7 +2890,10 @@ def run_qaoa_hardware(
         "backend": str(batch.get("backend") or "ibm-qiskit"),
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
+        "layout_quality": batch.get("layout_quality"),
         "transpile": batch.get("transpile"),
+        "error_suppression": batch.get("error_suppression"),
+        "readout_mitigation": {"enabled": False, "applied": False, "method": "not_applicable_bitstring_cut"},
         "calibration": batch.get("calibration"),
         **_calibration_quality(batch.get("calibration")),
         "usage_seconds": batch.get("usage_seconds"),

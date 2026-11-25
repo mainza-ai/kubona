@@ -512,91 +512,180 @@ class QiskitProvider(Provider):
         return self.capability.backend or None
 
     def _calibrated_initial_layout(self, qc, backend) -> list[int] | None:
-        """Pick a low-error connected physical subgraph for this circuit.
+        """Pick a globally low-error connected physical subgraph for this circuit (R1).
 
-        The default pass-manager layout is topology-only: on 2026-10-28 it put
-        a Bell pair on physical qubits 0/1 while q1's readout error was 15.7%
-        (and |1> measured as 0 far more often than that calibration implies).
-        Selecting from live readout/edge calibration is the minimum needed to
-        avoid knowingly running on a bad pair. Returns None when calibration
-        is unavailable (fall back to the pass manager's own layout).
+        Evaluates connected n-qubit subgraphs seeded from every physical qubit
+        on the device, scoring readout error (with a strong >3% outlier penalty),
+        minimum-spanning-tree 2Q gate error, and T2 coherence time. This avoids
+        the single-edge greedy trap that previously locked 4-qubit TFIM and
+        8-qubit QAOA into high-readout clusters (e.g. [58,71,70,69]).
         """
-        try:
-            props = backend.properties()
-        except Exception:
-            return None
-        if props is None:
-            return None
         n = qc.num_qubits
+        if n <= 0:
+            return None
+        props = None
+        try:
+            props = backend.properties() if hasattr(backend, "properties") else None
+        except Exception:
+            props = None
+        target = getattr(backend, "target", None)
         try:
             nphys = int(backend.num_qubits)
-            readout = [float(props.readout_error(q)) for q in range(nphys)]
         except Exception:
             return None
         if n > nphys:
             return None
 
-        coupling = getattr(backend, "coupling_map", None)
-        if coupling is None:
+        readout: list[float] = []
+        t2_us: list[float] = []
+        if props is not None:
             try:
-                target = backend.target
+                for q in range(nphys):
+                    ro = props.readout_error(q)
+                    readout.append(float(ro) if ro is not None else 0.05)
+                    t2 = props.t2(q) if hasattr(props, "t2") else None
+                    t2_us.append(float(t2) * 1e6 if t2 is not None else 100.0)
+            except Exception:
+                readout, t2_us = [], []
+        if not readout and target is not None:
+            qprops = getattr(target, "qubit_properties", None) or []
+            meas_map = {}
+            try:
+                meas_map = target["measure"] if "measure" in target else {}
+            except Exception:
+                meas_map = {}
+            for q in range(nphys):
+                mp = meas_map.get((q,)) if isinstance(meas_map, dict) else None
+                ro = getattr(mp, "error", None) if mp is not None else None
+                readout.append(float(ro) if ro is not None else 0.05)
+                qp = qprops[q] if q < len(qprops) else None
+                t2 = getattr(qp, "t2", None) if qp is not None else None
+                t2_us.append(float(t2) * 1e6 if t2 is not None else 100.0)
+        if len(readout) != nphys:
+            return None
+
+        coupling = getattr(backend, "coupling_map", None)
+        if coupling is None and target is not None:
+            try:
                 coupling = target.build_coupling_map()
             except Exception:
                 coupling = None
         edges: dict[frozenset[int], float] = {}
+        adj: dict[int, set[int]] = {q: set() for q in range(nphys)}
         if coupling is not None:
             for a, b in coupling:
-                key = frozenset((int(a), int(b)))
-                if len(key) != 2:
+                ia, ib = int(a), int(b)
+                if ia == ib or not (0 <= ia < nphys and 0 <= ib < nphys):
                     continue
+                adj[ia].add(ib)
+                adj[ib].add(ia)
+                key = frozenset((ia, ib))
                 best = edges.get(key, float("inf"))
                 for gate in ("cx", "ecr", "cz"):
-                    try:
-                        err = float(props.gate_error(gate, [int(a), int(b)]))
-                    except Exception:
-                        continue
-                    best = min(best, err)
-                edges[key] = best
+                    err = None
+                    if props is not None:
+                        try:
+                            err = float(props.gate_error(gate, [ia, ib]))
+                        except Exception:
+                            err = None
+                    if err is None and target is not None:
+                        try:
+                            gmap = target[gate] if gate in target else {}
+                            gp = gmap.get((ia, ib)) if isinstance(gmap, dict) else None
+                            if gp is not None and getattr(gp, "error", None) is not None:
+                                err = float(gp.error)
+                        except Exception:
+                            err = None
+                    if err is not None:
+                        best = min(best, err)
+                edges[key] = best if best < float("inf") else 0.01
 
-        def neighbours(q: int) -> set[int]:
-            return {next(iter(e - {q})) for e in edges if q in e}
+        def node_cost(q: int) -> float:
+            ro = readout[q]
+            outlier_pen = 10.0 * max(0.0, ro - 0.03)
+            coherence_pen = 10.0 / max(t2_us[q], 5.0)
+            return 2.0 * ro + outlier_pen + coherence_pen
 
-        selected: list[int] = []
-        if n >= 2 and edges:
-            # Best first edge: readout on both ends plus the native 2q error.
-            a, b = min(
-                (tuple(e) for e in edges),
-                key=lambda pair: (readout[pair[0]] + readout[pair[1]]
-                                  + (edges[frozenset(pair)] if edges[frozenset(pair)] < float("inf") else 0.0)),
-            )
-            selected = [a, b]
-        if not selected:
-            selected = [min(range(nphys), key=lambda q: readout[q])]
-        while len(selected) < n:
-            candidates = set().union(*(neighbours(q) for q in selected)) - set(selected)
-            if not candidates:
-                candidates = set(range(nphys)) - set(selected)
-            def cost(q: int) -> tuple[float, float]:
-                edge_cost = min(
-                    (edges.get(frozenset((q, s)), 0.0) for s in selected
-                     if frozenset((q, s)) in edges), default=0.0)
-                return (readout[q] + edge_cost, readout[q])
-            selected.append(min(candidates, key=cost))
-        return selected
+        if n == 1:
+            return [min(range(nphys), key=node_cost)]
+
+        def subgraph_cost(nodes: list[int]) -> float:
+            # Node cost + MST 2Q edge error over the induced subgraph (Prim's).
+            total = sum(node_cost(q) for q in nodes)
+            in_tree = {nodes[0]}
+            remaining = set(nodes[1:])
+            mst_err = 0.0
+            while remaining:
+                best_e = float("inf")
+                best_v = None
+                for u in in_tree:
+                    for v in remaining:
+                        e = edges.get(frozenset((u, v)))
+                        if e is not None and e < best_e:
+                            best_e = e
+                            best_v = v
+                if best_v is None:
+                    # Disconnected penalty
+                    best_v = min(remaining, key=node_cost)
+                    best_e = 0.5
+                in_tree.add(best_v)
+                remaining.remove(best_v)
+                mst_err += best_e
+            return total + 1.5 * mst_err
+
+        best_layout: list[int] | None = None
+        best_score = float("inf")
+        # Multi-seed global search across every physical qubit
+        for seed_q in range(nphys):
+            selected = [seed_q]
+            sel_set = {seed_q}
+            while len(selected) < n:
+                frontier = set()
+                for s in selected:
+                    frontier.update(adj[s])
+                frontier -= sel_set
+                if not frontier:
+                    frontier = set(range(nphys)) - sel_set
+                nxt = min(
+                    frontier,
+                    key=lambda q: node_cost(q) + 1.5 * min(
+                        (edges.get(frozenset((q, s)), 0.5) for s in selected if frozenset((q, s)) in edges),
+                        default=0.5,
+                    ),
+                )
+                selected.append(nxt)
+                sel_set.add(nxt)
+            sc = subgraph_cost(selected)
+            if sc < best_score:
+                best_score = sc
+                best_layout = selected
+        return best_layout
 
     def _layout_quality(self, layout: list[int] | None, backend) -> dict[str, Any] | None:
         """Calibration summary for the chosen physical qubits (post-hoc trust)."""
         if not layout:
             return None
+        readouts: dict[str, float] = {}
+        t2s: list[float] = []
         try:
-            props = backend.properties()
-            readouts = {str(q): float(props.readout_error(q)) for q in layout}
+            props = backend.properties() if hasattr(backend, "properties") else None
+            if props is not None:
+                for q in layout:
+                    readouts[str(q)] = float(props.readout_error(q))
+                    if hasattr(props, "t2"):
+                        t2 = props.t2(q)
+                        if t2 is not None:
+                            t2s.append(round(float(t2) * 1e6, 3))
         except Exception:
+            readouts = {}
+        if not readouts:
             return None
         return {
             "physical_qubits": list(layout),
             "readout_error": readouts,
             "max_readout_error": max(readouts.values()) if readouts else None,
+            "sum_readout_error": round(sum(readouts.values()), 6),
+            "min_t2_us": min(t2s) if t2s else None,
             "suspicious": any(v > 0.05 for v in readouts.values()),
             "source": f"backend-properties:{getattr(backend, 'name', 'backend')}",
         }
@@ -847,6 +936,7 @@ class QiskitProvider(Provider):
                     pass
         circuits = []
         layout = None
+        layout_quality = None
         transpile_meta = None
         transpile_samples: list[dict[str, int]] = []
         for qasm in qasm_list:
@@ -857,6 +947,9 @@ class QiskitProvider(Provider):
                 qc = self._transpile_for_backend(original, backend, chosen)
                 if layout is None:
                     layout = self._layout_summary(original, qc)
+                    if layout_quality is None:
+                        phys = layout.get("physical_qubits") if isinstance(layout, dict) else chosen
+                        layout_quality = self._layout_quality(phys, backend)
                 try:
                     def _twoq(circuit):
                         return sum(
@@ -912,6 +1005,7 @@ class QiskitProvider(Provider):
             "hardware": True,
             "channel": self._channel(),
             "layout": layout,
+            "layout_quality": layout_quality,
             "transpile": transpile_meta,
             "error_suppression": error_suppression,
             "plan": self._plan,

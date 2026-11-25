@@ -540,6 +540,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"shots":                  r["shots"],
 			"seed":                   r["seed"],
 			"layout":                 r["layout"],
+			"layout_quality":         r["layout_quality"],
 			"used_qubits":            usedQubits,
 			"used_qubit_calibration": usedQubitCal,
 			"transpile":              r["transpile"],

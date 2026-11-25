@@ -409,6 +409,96 @@ def test_p6_3_hardware_pes_readout_and_error_suppression_parity(monkeypatch):
     assert out["error_suppression"]["dynamical_decoupling"] is True
 
 
+def test_r1_global_layout_selector_avoids_high_readout_trap():
+    from kubona.providers.qiskit_provider import QiskitProvider
+    from kubona.schema import load_provider
+
+    # Synthetic 10-qubit graph: edge (0,1) is the single best edge on the chip,
+    # but sits inside a high-readout trap (q2=0.08, q3=0.06). Cluster {5,6,7,8}
+    # has uniformly low readout (0.008..0.012) and good 2Q edges.
+    ro = [0.004, 0.004, 0.080, 0.060, 0.070, 0.009, 0.010, 0.011, 0.012, 0.050]
+    t2 = [150e-6] * 10
+    coupling = [(0, 1), (1, 2), (2, 3), (3, 4), (5, 6), (6, 7), (7, 8), (8, 5), (8, 9)]
+
+    class TrapProps:
+        def readout_error(self, q):
+            return ro[q]
+
+        def t2(self, q):
+            return t2[q]
+
+        def gate_error(self, gate, qubits):
+            return 0.002 if set(qubits) == {0, 1} else 0.004
+
+    class TrapBackend:
+        name = "ibm_trap_mock"
+        num_qubits = 10
+        coupling_map = coupling
+
+        def properties(self):
+            return TrapProps()
+
+    prov = QiskitProvider(load_provider("ibm-qiskit"))
+    chosen = prov._calibrated_initial_layout(SimpleNamespace(num_qubits=4), TrapBackend())
+    assert chosen is not None and len(chosen) == 4
+    assert set(chosen) == {5, 6, 7, 8}, f"R1 violated: trapped in {chosen}"
+    lq = prov._layout_quality(chosen, TrapBackend())
+    assert lq is not None and lq["suspicious"] is False and lq["max_readout_error"] <= 0.012
+
+
+def test_r2_fixed_asymptote_exponential_zne_avoids_dof0_blowup():
+    import pytest
+    pytest.importorskip("scipy")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    # 3 scales [1, 2, 3] with exact depolarizing asymptote c_II = -0.42287 -> dof = 1
+    ext = experiments._extrapolate_zne(
+        [1.0, 2.0, 3.0],
+        [-1.1227, -1.1060, -1.0910],
+        [0.0020, 0.0020, 0.0020],
+        extrapolator="exponential",
+        asymptote=-0.42287,
+    )
+    assert ext["extrapolator_used"] == "exponential_fixed_asymptote"
+    assert ext["exp_params"]["asymptote_fixed"] is True
+    assert ext["uncertainty"] < 0.006  # ~±11 mHa 95% CI, not ±38 mHa blowup!
+
+    # Without asymptote on only 3 scales, falls back cleanly to WLS linear (never dof=0 blowup)
+    ext_fb = experiments._extrapolate_zne(
+        [1.0, 2.0, 3.0],
+        [-1.1227, -1.1060, -1.0910],
+        [0.0020, 0.0020, 0.0020],
+        extrapolator="exponential",
+    )
+    assert ext_fb["extrapolator_used"] == "linear"
+
+
+def test_r3_qaoa_hardware_emits_error_suppression_and_layout_quality(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"01": shots // 2, "10": shots // 2}],
+            "backend": "ibm_fez",
+            "hardware_job_id": "fake-qaoa",
+            "layout": {"physical_qubits": [5, 6]},
+            "layout_quality": {"physical_qubits": [5, 6], "max_readout_error": 0.01, "suspicious": False},
+            "error_suppression": {"dynamical_decoupling": True, "gate_twirling": True, "measure_twirling": True},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    out = experiments.run_qaoa_hardware(qasm=qasm, optimal_cut=1, nodes=2, edges=[[0, 1]], shots=1024, seed=7)
+    assert out["success"] is True
+    assert out["error_suppression"]["dynamical_decoupling"] is True
+    assert out["layout_quality"]["suspicious"] is False
+    assert out["readout_mitigation"]["method"] == "not_applicable_bitstring_cut"
+
+
 def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
     sys.path.insert(0, BRIDGE_DIR)
     import experiments  # noqa: E402
