@@ -6,8 +6,8 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | Metric | Value | Source |
 |---|---:|---|
 | HTTP route patterns (Go API) | 164 | `s.route` registrations in `platform/core/pkg/api/server.go` (sub-paths share a pattern) |
-| OpenAPI paths | 188 | generated `platform/contracts/console-openapi.json` |
-| OpenAPI operations | 219 | method+path operations in the generated document |
+| OpenAPI paths | 189 | generated `platform/contracts/console-openapi.json` |
+| OpenAPI operations | 220 | method+path operations in the generated document |
 | Go packages | 48 | directories under `platform/core` containing `.go` files |
 | Go test functions | 1191 | top-level `func Test...` in `*_test.go` |
 | Python test files (tests/) | 200 | `test_*.py` under `platform/tests` |

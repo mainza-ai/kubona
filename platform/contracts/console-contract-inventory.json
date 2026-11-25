@@ -46,6 +46,7 @@
     "codesign.families",
     "codesign.packs",
     "codesign.rerun",
+    "codesign.runs",
     "codesign.verified",
     "cost.summary",
     "discovery",
@@ -239,6 +240,7 @@
     "codesign.families",
     "codesign.packs",
     "codesign.rerun",
+    "codesign.runs",
     "codesign.verified",
     "cost.summary",
     "discovery",
@@ -740,6 +742,12 @@
       "path": "/api/codesign/packs",
       "method": "GET",
       "contract": "codesign.packs"
+    },
+    {
+      "function": "fetchCodesignRuns",
+      "path": "/api/codesign/runs",
+      "method": "GET",
+      "contract": "codesign.runs"
     },
     {
       "function": "fetchCodesignVerified",

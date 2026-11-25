@@ -19,7 +19,10 @@ Honesty contract:
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata as _importlib_metadata
+import json
 import os
+import platform as _platform
 import re
 import shutil
 import signal
@@ -35,6 +38,24 @@ _MAX_TOTAL_ARTIFACT_BYTES = 32 * 1024 * 1024
 _MAX_BUILD_LOG = 6000
 _FIGURE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|pdf|jpg|jpeg)$")
 _CITE_KEY_RE = re.compile(r"[^A-Za-z0-9_]")
+
+
+def _tooling_versions() -> Dict[str, str]:
+    """Best-effort tool versions for the reproducibility archive.
+
+    Values are recorded verbatim with ``unknown`` fallbacks; a missing package
+    never blocks a build.
+    """
+    versions: Dict[str, str] = {
+        "python": _platform.python_version(),
+        "platform": _platform.platform(),
+    }
+    for dist in ("qiskit", "qiskit-aer", "pyscf", "numpy", "scipy", "stim"):
+        try:
+            versions[dist] = _importlib_metadata.version(dist)
+        except Exception:
+            versions[dist] = "unknown"
+    return versions
 
 
 class ManuscriptError(Exception):
@@ -996,6 +1017,16 @@ def build_project(
         pdf = pdf_path.read_bytes()
         if not pdf.startswith(b"%PDF-") or len(pdf) < 1024:
             raise ManuscriptError("build_failed", "main.pdf is not a plausible PDF")
+
+        # Phase 3: record the software environment that produced the archive.
+        # Written into the project so it ships with the artifacts and reaches
+        # both the Zenodo manifest and the RO-Crate hasPart set.
+        supplement_dir = project / "supplement"
+        supplement_dir.mkdir(parents=True, exist_ok=True)
+        (supplement_dir / "tooling.json").write_text(
+            json.dumps(_tooling_versions(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
         # Keep a scrubbed build log: it is the diagnostic record for a
         # successful build (the error path already returns the tail). The

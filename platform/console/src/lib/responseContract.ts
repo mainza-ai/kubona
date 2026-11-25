@@ -327,6 +327,10 @@ export const RESPONSE_SCHEMAS = {
   'codesign.rerun': obj({
     ok: bool,
   }),
+  'codesign.runs': obj({
+    session_id: str,
+    runs: arr(any),
+  }),
   'llm.models': obj(
     {
       provider: str,

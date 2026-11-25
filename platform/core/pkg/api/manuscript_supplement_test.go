@@ -55,7 +55,10 @@ func TestAttachSupplementArtifactsStagesDatasheetCSVEnvAndCompleteness(t *testin
 		EvidenceJSON:    "{}",
 		SourceDateEpoch: 1700000000,
 	}
-	arts := map[string][]byte{"main.pdf": []byte("%PDF-1.4")}
+	arts := map[string][]byte{
+		"main.pdf":                []byte("%PDF-1.4"),
+		"supplement/tooling.json": []byte(`{"python":"3.11.9","qiskit":"2.6.2"}`),
+	}
 	srv.attachSupplementArtifacts("sess_1", ms, arts)
 
 	for _, need := range []string{
@@ -67,5 +70,34 @@ func TestAttachSupplementArtifactsStagesDatasheetCSVEnvAndCompleteness(t *testin
 		if len(arts[need]) == 0 {
 			t.Fatalf("expected %s to be staged in artifacts", need)
 		}
+	}
+	var env map[string]any
+	if err := json.Unmarshal(arts["supplement/environment.json"], &env); err != nil {
+		t.Fatalf("environment.json is not decodable: %v", err)
+	}
+	tooling, _ := env["tooling"].(map[string]any)
+	if tooling["qiskit"] != "2.6.2" {
+		t.Fatalf("expected bridge tooling versions merged into environment.json, got %#v", env["tooling"])
+	}
+	if _, ok := env["kubona_commit"]; !ok {
+		// Test binaries built without VCS stamping may omit it; the schema must
+		// still be present only when Go can read build info.
+		t.Logf("kubona_commit unavailable in this test build (buildvcs off)")
+	}
+}
+
+func TestEnrichJobFromParamsHashesPerPointCircuits(t *testing.T) {
+	row := map[string]any{"job_id": "job_pes_1", "hardware": true}
+	params := []byte(`{"kind":"hardware_pes","points":[{"bond_distance":0.5,"qasm":"OPENQASM 2.0;\nqreg q[2];\nry(0.5) q[0];\n"},{"bond_distance":0.7,"qasm":"OPENQASM 2.0;\nqreg q[2];\nry(0.7) q[0];\n"}]}`)
+	enrichJobFromParams(row, params, nil)
+	if row["qasm_points"] != 2 {
+		t.Fatalf("expected qasm_points=2, got %#v", row["qasm_points"])
+	}
+	shas, _ := row["point_circuits_sha256"].([]string)
+	if len(shas) != 2 || len(shas[0]) != 64 {
+		t.Fatalf("expected two 64-hex point hashes, got %#v", row["point_circuits_sha256"])
+	}
+	if _, leaked := row["qasm"]; leaked {
+		t.Fatalf("raw per-point qasm must not be stored in the campaign row")
 	}
 }

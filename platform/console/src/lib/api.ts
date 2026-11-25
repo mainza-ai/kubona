@@ -2236,7 +2236,9 @@ export async function fetchCodesignRuns(
       headers: authHeaders(),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    const data = (await res.json()) as { runs?: unknown };
+    const data = contract('codesign.runs', (await res.json()) as Record<string, unknown>) as {
+      runs?: unknown;
+    };
     return { ok: true, runs: Array.isArray(data.runs) ? (data.runs as Array<Record<string, unknown>>) : [] };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };

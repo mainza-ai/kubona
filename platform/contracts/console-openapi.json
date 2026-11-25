@@ -2023,6 +2023,26 @@
         }
       }
     },
+    "/api/codesign/runs": {
+      "get": {
+        "operationId": "fetchCodesignRuns",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.runs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/codesign/verified": {
       "get": {
         "operationId": "fetchCodesignVerified",
@@ -7309,6 +7329,22 @@
         "properties": {
           "ok": {
             "type": "boolean"
+          }
+        }
+      },
+      "codesign.runs": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "runs"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "runs": {
+            "type": "array",
+            "items": {}
           }
         }
       },

@@ -509,6 +509,11 @@ export type CodesignRerun = {
   "ok": boolean;
 };
 
+export type CodesignRuns = {
+  "session_id": string;
+  "runs": unknown[];
+};
+
 export type LlmModels = {
   "provider"?: string;
   "models": {
@@ -1469,6 +1474,7 @@ export type ApiOperationResponse = {
   fetchClaimReviews: ClaimsReviews;
   fetchClaimsPage: ClaimsPage;
   fetchCodesignPacks: CodesignPacks;
+  fetchCodesignRuns: CodesignRuns;
   fetchCodesignVerified: CodesignVerified;
   fetchCostSummary: CostSummary;
   fetchCustomAgents: AgentsCustom;
@@ -1692,6 +1698,7 @@ export const API_OPERATIONS = {
   fetchClaimReviews: { method: "get", path: "/api/sessions/{sessionId}/claims/{claimId}/reviews", response: "claims.reviews" },
   fetchClaimsPage: { method: "get", path: "/api/sessions/{sessionId}/claims", response: "claims.page" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },
+  fetchCodesignRuns: { method: "get", path: "/api/codesign/runs", response: "codesign.runs" },
   fetchCodesignVerified: { method: "get", path: "/api/codesign/verified", response: "codesign.verified" },
   fetchCostSummary: { method: "get", path: "/api/cost/summary", response: "cost.summary" },
   fetchCustomAgents: { method: "get", path: "/api/agents/custom", response: "agents.custom" },

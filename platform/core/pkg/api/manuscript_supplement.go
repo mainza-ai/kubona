@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -297,13 +298,32 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 	}
 	artifacts["supplement/jobs.csv"] = csvBuf.Bytes()
 
-	if envBytes, err := json.MarshalIndent(map[string]any{
+	envDoc := map[string]any{
 		"schema":            "kubona-environment/v1",
 		"go_version":        runtime.Version(),
 		"ledger_schema":     ledger.CurrentSchemaVersion,
 		"source_date_epoch": ms.SourceDateEpoch,
 		"generated_at_utc":  time.Now().UTC().Format(time.RFC3339),
-	}, "", "  "); err == nil {
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range bi.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				envDoc["kubona_commit"] = s.Value
+			case "vcs.time":
+				envDoc["kubona_commit_time"] = s.Value
+			case "vcs.modified":
+				envDoc["kubona_commit_dirty"] = s.Value == "true"
+			}
+		}
+	}
+	if raw, ok := artifacts["supplement/tooling.json"]; ok {
+		var tooling map[string]any
+		if json.Unmarshal(raw, &tooling) == nil && tooling != nil {
+			envDoc["tooling"] = tooling
+		}
+	}
+	if envBytes, err := json.MarshalIndent(envDoc, "", "  "); err == nil {
 		artifacts["supplement/environment.json"] = envBytes
 	}
 
