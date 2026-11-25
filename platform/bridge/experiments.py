@@ -434,7 +434,14 @@ def run_vqe_hardware(
         mitigated = float(np.polyval(coeffs_fit, 0.0))
         predicted = np.polyval(coeffs_fit, np.asarray(xs, dtype=float))
         rmse = float(np.sqrt(np.mean((np.asarray(scale_energies) - predicted) ** 2)))
-        uncertainty = float(rmse + scale_uncertainties[0])
+        # Propagate each scale's standard error through the polynomial fit to
+        # the zero-scale intercept. A 3-point quadratic interpolates the data
+        # exactly, so the residual RMSE is ~0 and cannot represent extrapolation
+        # uncertainty; using scale-1's error alone understates it.
+        vander = np.vander(np.asarray(xs, dtype=float), deg + 1)
+        intercept_weights = np.linalg.pinv(vander)[deg]
+        var0 = float(np.sum((intercept_weights * np.asarray(scale_uncertainties, dtype=float)) ** 2))
+        uncertainty = float(math.sqrt(max(var0, 0.0)) + rmse)
         unmitigated = float(scale_energies[0])
         measured = {"energy": mitigated, "uncertainty": uncertainty, "terms": {}}
         counts_scale = int(mitigation_scales[0])
@@ -455,6 +462,8 @@ def run_vqe_hardware(
             "scale_uncertainties": scale_uncertainties,
             "fit_condition_number": cond,
             "fit_rmse": rmse,
+            "uncertainty_method": "propagated_scale_errors_plus_fit_rmse",
+            "intercept_weights": [float(w) for w in intercept_weights],
             "unmitigated_energy": unmitigated,
             "mitigated_energy": mitigated,
             "mitigated_measured": False,

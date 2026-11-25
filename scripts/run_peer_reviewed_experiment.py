@@ -629,7 +629,7 @@ def main() -> int:
     code, cs_steane = client.request(
         "POST",
         "/api/codesign/qec-joint",
-        {"kind": "steane_cnot"},
+        {"mode": "steane_cnot"},
     )
     steane_res = (cs_steane.get("result") or cs_steane) if isinstance(cs_steane, dict) else {}
     sfc = steane_res.get("single_fault_check") or {}
@@ -644,7 +644,7 @@ def main() -> int:
     code, cs_magic = client.request(
         "POST",
         "/api/codesign/qec-joint",
-        {"kind": "magic_state_15_to_1"},
+        {"mode": "magic_state_15_to_1"},
     )
     magic_res = (cs_magic.get("result") or cs_magic) if isinstance(cs_magic, dict) else {}
     record(

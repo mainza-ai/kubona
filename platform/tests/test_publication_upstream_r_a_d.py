@@ -193,6 +193,8 @@ def test_h1_vqe_hardware_retains_per_term_counts(monkeypatch):
     assert zne["success"] is True
     assert set(zne["counts_by_term"]) == {"XX", "ZZ"}
     assert zne["counts_scale"] == 1
+    assert zne["mitigation"]["uncertainty_method"] == "propagated_scale_errors_plus_fit_rmse"
+    assert len(zne["mitigation"]["intercept_weights"]) == 3
 
 
 def test_c_e_snapshot_from_target_partial_calibration_fallback():

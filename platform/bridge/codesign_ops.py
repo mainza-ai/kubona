@@ -292,7 +292,11 @@ def op_qec_joint(body):
         verify_magic_state_factory,
         verify_steane_logical_cnot,
     )
-    mode = str(body.get("mode") or "steane_cnot").strip()
+    # Accept the historical `kind` alias, but never silently default: a typo
+    # must not run a different verifier and pass the wrong artifact.
+    mode = str(body.get("mode") or body.get("kind") or "").strip()
+    if not mode:
+        raise ValueError("qec_joint requires mode: steane_cnot, five_qubit, or magic_state_15_to_1")
     if mode == "steane_cnot":
         return verify_steane_logical_cnot(body.get("ops"))
     if mode == "five_qubit":

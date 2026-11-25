@@ -118,3 +118,18 @@ def test_phase5_pack_promotion_refusal_and_persistence(tmp_path, monkeypatch):
     num_pack = next(p for p in listed["packs"] if p["name"] == "numerics")
     assert num_pack["status"] == "active"
     assert num_pack["anchor_ref"] == "ledger:anchor:42"
+
+
+def test_qec_joint_dispatch_requires_mode_and_returns_requested_verifier():
+    import pytest
+
+    steane = codesign_ops.op_qec_joint({"mode": "steane_cnot"})
+    assert steane["code_name"] == "steane_7_1_3"
+    magic = codesign_ops.op_qec_joint({"mode": "magic_state_15_to_1"})
+    assert magic["distance_ge_3"] is True
+    assert magic["gamma"] == pytest.approx(2.464974)
+    # The historical `kind` alias works, but a typo/omission must not silently
+    # run the Steane verifier.
+    assert codesign_ops.op_qec_joint({"kind": "magic_state_15_to_1"})["distance_ge_3"] is True
+    with pytest.raises(ValueError):
+        codesign_ops.op_qec_joint({})
