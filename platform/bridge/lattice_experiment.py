@@ -574,6 +574,9 @@ def run_spin_chain_hardware(
     backend: str | None = None,
     state_mode: str = "vqe",
     source_job_id: str = "",
+    mitigation: str | None = None,
+    mitigation_scales: list[float] | None = None,
+    extrapolator: str = "linear",
 ) -> dict[str, Any]:
     """Execute a locally optimized spin-chain ansatz on a governed QPU batch.
 
@@ -630,10 +633,36 @@ def run_spin_chain_hardware(
     # measurement circuits and the coefficient map. Relying on the uniform
     # model's reflection symmetry would hide this for TFIM but silently
     # mis-measure asymmetric coefficients.
+    from experiments import (
+        _layout_physical_qubits,
+        _fold_circuit,
+        _extrapolate_zne,
+    )
+    method = (mitigation or "").strip().upper()
+    if method and method != "ZNE":
+        return {"success": False, "error": f"spin-chain mitigation {method!r} is unsupported; use ZNE"}
+    scales: list[float] = []
+    if method:
+        raw_scales = mitigation_scales if mitigation_scales is not None else [1.0, 2.0, 3.0]
+        try:
+            scales = [float(s) for s in raw_scales]
+        except (TypeError, ValueError):
+            return {"success": False, "error": "ZNE mitigation_scales must be numeric values >= 1.0"}
+        if len(set(scales)) < 2 or any(not math.isfinite(s) or s < 1.0 or s > 15.0 for s in scales):
+            return {"success": False, "error": "ZNE mitigation requires at least two distinct scales in [1.0, 15.0]"}
+
     qiskit_coeffs = {_qiskit_pauli_label(label): float(coeff) for label, coeff in coeffs.items()}
+    sorted_qiskit_labels = sorted(qiskit_coeffs)
     qasms: list[str] = []
-    for label in sorted(qiskit_coeffs):
-        qasms.append(_measurement_qasm(qc, label))
+    fold_keys: list[tuple[str, float]] = []
+    if method:
+        for label in sorted_qiskit_labels:
+            for s in scales:
+                qasms.append(_measurement_qasm(_fold_circuit(qc, s), label))
+                fold_keys.append((label, s))
+    else:
+        for label in sorted_qiskit_labels:
+            qasms.append(_measurement_qasm(qc, label))
     # One extra Z-basis circuit for the measured magnetization vector.
     z_circuit = qc.copy()
     z_circuit.measure_all()
@@ -646,18 +675,101 @@ def run_spin_chain_hardware(
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
     cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
-    from experiments import _layout_physical_qubits
     used_q = _layout_physical_qubits(batch.get("layout"))
-    measured = _hardware_counts_to_energy(
-        counts_list[:-1], qiskit_coeffs,
-        calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
-    )
-    measured_terms = {
-        label: measured["terms"][_qiskit_pauli_label(label)]
-        for label in coeffs
-        if _qiskit_pauli_label(label) in measured["terms"]
-    }
+    readout_meta = None
+    mitigation_receipt = None
+    counts_by_term: dict[str, dict[str, int]] = {}
+    counts_scale: float | int = 1
+    if method:
+        t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
+        if (
+            t_env is not None
+            and "min_transpiled_two_qubit_gates" in t_env
+            and "max_transpiled_two_qubit_gates" in t_env
+            and int(t_env["min_transpiled_two_qubit_gates"]) > 0
+            and max(scales) > 1.0
+            and int(t_env["max_transpiled_two_qubit_gates"]) <= int(t_env["min_transpiled_two_qubit_gates"])
+        ):
+            return {
+                "success": False,
+                "error": (
+                    "ZNE fold scaling collapsed during transpilation: "
+                    f"min_2Q={t_env['min_transpiled_two_qubit_gates']} == max_2Q={t_env['max_transpiled_two_qubit_gates']}"
+                ),
+            }
+        by_scale: dict[float, list[tuple[str, dict[str, int]]]] = {s: [] for s in scales}
+        for (label, s), cdict in zip(fold_keys, counts_list[:-1]):
+            by_scale[s].append((label, cdict))
+        scale_energies: list[float] = []
+        scale_uncertainties: list[float] = []
+        base_terms: dict[str, Any] = {}
+        for s in scales:
+            ordered = [dict(cdict) for _, cdict in by_scale[s]]
+            m = _hardware_counts_to_energy(
+                ordered, qiskit_coeffs,
+                calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
+            )
+            if readout_meta is None and "readout_mitigation" in m:
+                readout_meta = m["readout_mitigation"]
+            if s == scales[0]:
+                base_terms = m["terms"]
+            scale_energies.append(float(m["energy"]))
+            scale_uncertainties.append(float(m["uncertainty"]))
+        try:
+            ext = _extrapolate_zne(scales, scale_energies, scale_uncertainties, extrapolator=extrapolator)
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        energy = float(ext["mitigated"])
+        uncertainty = float(ext["uncertainty"])
+        measured_terms = {
+            label: base_terms[_qiskit_pauli_label(label)]
+            for label in coeffs
+            if _qiskit_pauli_label(label) in base_terms
+        }
+        counts_scale = int(scales[0]) if abs(scales[0] - round(scales[0])) < 1e-9 else scales[0]
+        counts_by_term = {
+            str(label): {str(k): int(v) for k, v in cdict.items()}
+            for label, cdict in by_scale[scales[0]]
+        }
+        mitigation_receipt = {
+            "method": "ZNE",
+            "extrapolator": ext["extrapolator"],
+            "extrapolator_used": ext["extrapolator_used"],
+            "fit_degree": ext["fit_degree"],
+            "scales": scales,
+            "scale_energies": scale_energies,
+            "scale_uncertainties": scale_uncertainties,
+            "fit_condition_number": ext["fit_condition_number"],
+            "fit_rmse": ext["fit_rmse"],
+            "chi2_reduced": ext["chi2_reduced"],
+            "uncertainty_method": ext["uncertainty_method"],
+            "intercept_weights": ext["intercept_weights"],
+            "unmitigated_energy": float(scale_energies[0]),
+            "mitigated_energy": energy,
+            "mitigated_measured": False,
+            "measured": False,
+        }
+        if "exp_params" in ext:
+            mitigation_receipt["exp_params"] = ext["exp_params"]
+    else:
+        measured = _hardware_counts_to_energy(
+            counts_list[:-1], qiskit_coeffs,
+            calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
+        )
+        readout_meta = measured.get("readout_mitigation")
+        measured_terms = {
+            label: measured["terms"][_qiskit_pauli_label(label)]
+            for label in coeffs
+            if _qiskit_pauli_label(label) in measured["terms"]
+        }
+        counts_by_term = {
+            str(label): {str(k): int(v) for k, v in cdict.items()}
+            for label, cdict in zip(sorted_qiskit_labels, counts_list[:-1])
+        }
+        energy = float(measured["energy"])
+        uncertainty = float(measured["uncertainty"])
     z_counts = counts_list[-1]
+    counts_by_term["Z_mag"] = {str(k): int(v) for k, v in z_counts.items()}
     z_total = sum(int(v) for v in z_counts.values())
     if z_total <= 0:
         return {"success": False, "error": "hardware Z-basis measurement returned zero counts"}
@@ -670,13 +782,12 @@ def run_spin_chain_hardware(
                 return {"success": False, "error": f"counts bitstring {bitstring!r} is shorter than {n}"}
             acc += int(count) * (1 if bits[q] == "0" else -1)
         magnetization.append(float(acc) / float(z_total))
-    energy = float(measured["energy"])
-    uncertainty = float(measured["uncertainty"])
     delta = abs(energy - float(energy_exact))
     below_exact = bool(energy < float(energy_exact) - 3.0 * uncertainty)
     calibration_quality = _calibration_quality(batch.get("calibration"))
     claimable = bool(
-        delta <= float(target_error)
+        not mitigation_receipt
+        and delta <= float(target_error)
         and uncertainty <= float(target_error)
         and not below_exact
         and calibration_quality["calibration_fresh"] is not False
@@ -687,8 +798,12 @@ def run_spin_chain_hardware(
         "result_version": "experiment-result-v1",
         "model": str(model),
         "n_sites": n,
-        "readout_mitigation": measured.get("readout_mitigation"),
+        "readout_mitigation": readout_meta,
         "error_suppression": batch.get("error_suppression"),
+        "mitigated": bool(mitigation_receipt),
+        "mitigation": mitigation_receipt,
+        "counts_by_term": counts_by_term,
+        "counts_scale": counts_scale,
         "coupling": float(coupling),
         "field": float(field),
         "anisotropy": float(anisotropy),

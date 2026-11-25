@@ -200,6 +200,9 @@ def main() -> int:
     parser.add_argument("--backend", default="ibm_fez")
     parser.add_argument("--budget-usd", type=float, default=25.0)
     parser.add_argument("--shots", type=int, default=4096)
+    parser.add_argument("--zne-shots", type=int, default=16384, help="Shots per circuit for H2 VQE ZNE")
+    parser.add_argument("--extrapolator", default="exponential", choices=("linear", "exponential", "quadratic", "richardson"))
+    parser.add_argument("--tfim-zne", action="store_true", help="Enable ZNE [1.0, 2.0, 3.0] on hardware TFIM")
     parser.add_argument("--tenant-id", default=os.environ.get("KUBONA_TENANT_ID", ""),
                         help="Tenant that owns the session and signs hardware mandates")
     parser.add_argument("--admin-key-file", default=os.environ.get("KUBONA_TENANT_ADMIN_KEY_FILE", ""),
@@ -404,6 +407,7 @@ def main() -> int:
         record(checks, "pillar1_h2_vqe_hw_raw", raw_res.get("success") is True, f"job={raw_jid} |Δ_raw|={raw_delta:.3f} mHa")
 
         if "vqe_zne" in hw_pillars:
+            zne_scales = [1.0, 1.5, 2.0, 3.0]
             _, zne_prep = client.request(
                 "POST",
                 "/api/experiments/vqe/hardware/prepare",
@@ -412,9 +416,10 @@ def main() -> int:
                     "source_job_id": vqe_job_id,
                     "backend": args.backend,
                     "budget_usd": 8.0,
-                    "shots": args.shots,
+                    "shots": args.zne_shots,
                     "mitigation": "ZNE",
-                    "mitigation_scales": [1, 3, 5],
+                    "mitigation_scales": zne_scales,
+                    "extrapolator": args.extrapolator,
                 },
             )
             mref_zne = sign_mandate(client, zne_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=8.0)
@@ -426,9 +431,10 @@ def main() -> int:
                     "source_job_id": vqe_job_id,
                     "backend": args.backend,
                     "budget_usd": 8.0,
-                    "shots": args.shots,
+                    "shots": args.zne_shots,
                     "mitigation": "ZNE",
-                    "mitigation_scales": [1, 3, 5],
+                    "mitigation_scales": zne_scales,
+                    "extrapolator": args.extrapolator,
                     "caller_jurisdictions": ["US"],
                     "caller_export_class": "public",
                     "export_reviewed": True,
@@ -606,29 +612,33 @@ def main() -> int:
         f"job={spin_jid} E_VQE={e_spin} vs E_exact={e_exact} (rel_err={sim_rel_err*100:.2f}%, E_exact/4={float(e_exact)/4.0 if e_exact is not None else 0:.5f} vs -4/pi=-1.27324)",
     )
 
+    spin_prep_body: dict[str, Any] = {
+        "session_id": sid, "source_job_id": spin_jid, "backend": args.backend, "budget_usd": 4.0, "shots": args.shots,
+    }
+    if args.tfim_zne:
+        spin_prep_body["mitigation"] = "ZNE"
+        spin_prep_body["mitigation_scales"] = [1.0, 2.0, 3.0]
+        spin_prep_body["extrapolator"] = "linear"
     code, spin_prep = client.request(
         "POST",
         "/api/experiments/spin-chain/hardware/prepare",
-        {"session_id": sid, "source_job_id": spin_jid, "backend": args.backend, "budget_usd": 4.0, "shots": args.shots},
+        spin_prep_body,
     )
     record(checks, "pillar3_tfim_hw_prepare", code == 200 and bool(spin_prep.get("binding")), f"code={code}")
 
     if args.mode == "hardware" and "tfim" in hw_pillars and code == 200:
         mref_s = sign_mandate(client, spin_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=4.0)
+        spin_launch_body: dict[str, Any] = {
+            **spin_prep_body,
+            "caller_jurisdictions": ["US"],
+            "caller_export_class": "public",
+            "export_reviewed": True,
+            "mandate_ref": mref_s,
+        }
         _, hs_resp = client.request(
             "POST",
             "/api/experiments/spin-chain/hardware",
-            {
-                "session_id": sid,
-                "source_job_id": spin_jid,
-                "backend": args.backend,
-                "budget_usd": 4.0,
-                "shots": args.shots,
-                "caller_jurisdictions": ["US"],
-                "caller_export_class": "public",
-                "export_reviewed": True,
-                "mandate_ref": mref_s,
-            },
+            spin_launch_body,
         )
         hs_jid = (hs_resp.get("job") or hs_resp).get("id") if isinstance(hs_resp, dict) else None
         hs_job = client.poll_job(sid, hs_jid, timeout_s=900) if hs_jid else {}

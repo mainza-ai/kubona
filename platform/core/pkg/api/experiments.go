@@ -379,22 +379,23 @@ func hardwarePricing(capUSD float64) map[string]any {
 // Prepare returns the parent mandate binding; launch requires the resulting
 // mandate_ref. Both load only a local source job in the same session.
 type hardwareVQEIntent struct {
-	SessionID           string   `json:"session_id"`
-	SourceJobID         string   `json:"source_job_id"`
-	Shots               int      `json:"shots"`
-	Seed                int      `json:"seed"`
-	BudgetUSD           float64  `json:"budget_usd"`
-	Backend             string   `json:"backend"`
-	MandateRef          string   `json:"mandate_ref"`
-	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
-	Loop                bool     `json:"loop"`
-	MaxIterations       int      `json:"max_iterations"`
-	Mitigation          string   `json:"mitigation"`
-	MitigationScales    []int    `json:"mitigation_scales"`
-	CallerJurisdictions []string `json:"caller_jurisdictions"`
-	CallerExportClass   string   `json:"caller_export_class"`
-	ExportReviewed      bool     `json:"export_reviewed"`
-	RequestID           string   `json:"request_id"`
+	SessionID           string    `json:"session_id"`
+	SourceJobID         string    `json:"source_job_id"`
+	Shots               int       `json:"shots"`
+	Seed                int       `json:"seed"`
+	BudgetUSD           float64   `json:"budget_usd"`
+	Backend             string    `json:"backend"`
+	MandateRef          string    `json:"mandate_ref"`
+	RunAllowanceID      string    `json:"run_allowance_id,omitempty"`
+	Loop                bool      `json:"loop"`
+	MaxIterations       int       `json:"max_iterations"`
+	Mitigation          string    `json:"mitigation"`
+	MitigationScales    []float64 `json:"mitigation_scales"`
+	Extrapolator        string    `json:"extrapolator,omitempty"`
+	CallerJurisdictions []string  `json:"caller_jurisdictions"`
+	CallerExportClass   string    `json:"caller_export_class"`
+	ExportReviewed      bool      `json:"export_reviewed"`
+	RequestID           string    `json:"request_id"`
 }
 
 // hardwareVQEParamsFromSource builds the one canonical parent spec from a
@@ -461,7 +462,8 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		FCIExactEnergy: res.FCIExactEnergy, ConstantEnergy: res.ConstantEnergy,
 		Provider: "ibm-qiskit", QASM: res.AnsatzQASM,
 		Mitigation: req.Mitigation, MitigationScales: req.MitigationScales,
-		Loop: req.Loop, MaxIterations: req.MaxIterations, AnsatzQPY: res.AnsatzQPY,
+		Extrapolator: req.Extrapolator,
+		Loop:         req.Loop, MaxIterations: req.MaxIterations, AnsatzQPY: res.AnsatzQPY,
 		RequestedBackend: backend, FidelityQASM: res.AnsatzQASM,
 		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID,
 		CallerJurisdictions: req.CallerJurisdictions,
@@ -571,19 +573,22 @@ func (s *Server) handleHardwareVQE(w http.ResponseWriter, r *http.Request) {
 
 // spinChainHardwareIntent is shared by prepare and launch.
 type spinChainHardwareIntent struct {
-	SessionID           string   `json:"session_id"`
-	SourceJobID         string   `json:"source_job_id"`
-	Shots               int      `json:"shots"`
-	Seed                int      `json:"seed"`
-	BudgetUSD           float64  `json:"budget_usd"`
-	Backend             string   `json:"backend"`
-	MandateRef          string   `json:"mandate_ref"`
-	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
-	TargetError         float64  `json:"target_error"`
-	CallerJurisdictions []string `json:"caller_jurisdictions"`
-	CallerExportClass   string   `json:"caller_export_class"`
-	ExportReviewed      bool     `json:"export_reviewed"`
-	RequestID           string   `json:"request_id"`
+	SessionID           string    `json:"session_id"`
+	SourceJobID         string    `json:"source_job_id"`
+	Shots               int       `json:"shots"`
+	Seed                int       `json:"seed"`
+	BudgetUSD           float64   `json:"budget_usd"`
+	Backend             string    `json:"backend"`
+	MandateRef          string    `json:"mandate_ref"`
+	RunAllowanceID      string    `json:"run_allowance_id,omitempty"`
+	TargetError         float64   `json:"target_error"`
+	Mitigation          string    `json:"mitigation,omitempty"`
+	MitigationScales    []float64 `json:"mitigation_scales,omitempty"`
+	Extrapolator        string    `json:"extrapolator,omitempty"`
+	CallerJurisdictions []string  `json:"caller_jurisdictions"`
+	CallerExportClass   string    `json:"caller_export_class"`
+	ExportReviewed      bool      `json:"export_reviewed"`
+	RequestID           string    `json:"request_id"`
 }
 
 func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) (jobs.HardwareExperimentParams, error) {
@@ -651,6 +656,7 @@ func (s *Server) spinChainHardwareParamsFromSource(req spinChainHardwareIntent) 
 		QASM: res.AnsatzQASM, FidelityQASM: res.AnsatzQASM,
 		PauliCoefficients: res.PauliCoefficients, EnergyExact: res.EnergyExact,
 		Provider: "ibm-qiskit", RequestedBackend: backend,
+		Mitigation: req.Mitigation, MitigationScales: req.MitigationScales, Extrapolator: req.Extrapolator,
 		MaxCostUSD: req.BudgetUSD, MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID,
 		CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass:   req.CallerExportClass, ExportReviewed: req.ExportReviewed,
@@ -760,20 +766,21 @@ func (s *Server) handleSpinChainHardware(w http.ResponseWriter, r *http.Request)
 
 // hardwarePESIntent is shared by the PES hardware prepare and launch routes.
 type hardwarePESIntent struct {
-	SessionID           string   `json:"session_id"`
-	SourceJobID         string   `json:"source_job_id"`
-	Shots               int      `json:"shots"`
-	Seed                int      `json:"seed"`
-	BudgetUSD           float64  `json:"budget_usd"`
-	Backend             string   `json:"backend"`
-	MandateRef          string   `json:"mandate_ref"`
-	RunAllowanceID      string   `json:"run_allowance_id,omitempty"`
-	Mitigation          string   `json:"mitigation"`
-	MitigationScales    []int    `json:"mitigation_scales"`
-	CallerJurisdictions []string `json:"caller_jurisdictions"`
-	CallerExportClass   string   `json:"caller_export_class"`
-	ExportReviewed      bool     `json:"export_reviewed"`
-	RequestID           string   `json:"request_id"`
+	SessionID           string    `json:"session_id"`
+	SourceJobID         string    `json:"source_job_id"`
+	Shots               int       `json:"shots"`
+	Seed                int       `json:"seed"`
+	BudgetUSD           float64   `json:"budget_usd"`
+	Backend             string    `json:"backend"`
+	MandateRef          string    `json:"mandate_ref"`
+	RunAllowanceID      string    `json:"run_allowance_id,omitempty"`
+	Mitigation          string    `json:"mitigation"`
+	MitigationScales    []float64 `json:"mitigation_scales"`
+	Extrapolator        string    `json:"extrapolator,omitempty"`
+	CallerJurisdictions []string  `json:"caller_jurisdictions"`
+	CallerExportClass   string    `json:"caller_export_class"`
+	ExportReviewed      bool      `json:"export_reviewed"`
+	RequestID           string    `json:"request_id"`
 }
 
 func (s *Server) hardwarePESParamsFromSource(req hardwarePESIntent) (jobs.HardwareExperimentParams, error) {
@@ -840,7 +847,7 @@ func (s *Server) hardwarePESParamsFromSource(req hardwarePESIntent) (jobs.Hardwa
 		Points: points, Shots: req.Shots, Seed: req.Seed,
 		Provider: "ibm-qiskit", RequestedBackend: backend,
 		FidelityQASM: points[0].QASM, Mitigation: req.Mitigation,
-		MitigationScales: req.MitigationScales, MaxCostUSD: req.BudgetUSD,
+		MitigationScales: req.MitigationScales, Extrapolator: req.Extrapolator, MaxCostUSD: req.BudgetUSD,
 		MandateRef: req.MandateRef, RunAllowanceID: req.RunAllowanceID, CallerJurisdictions: req.CallerJurisdictions,
 		CallerExportClass: req.CallerExportClass, ExportReviewed: req.ExportReviewed,
 	}

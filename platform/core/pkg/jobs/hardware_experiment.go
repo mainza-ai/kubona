@@ -44,7 +44,8 @@ type HardwareExperimentParams struct {
 	FidelityQASM        string             `json:"fidelity_qasm"`
 	QASM                string             `json:"qasm"`
 	Mitigation          string             `json:"mitigation,omitempty"`
-	MitigationScales    []int              `json:"mitigation_scales,omitempty"`
+	MitigationScales    []float64          `json:"mitigation_scales,omitempty"`
+	Extrapolator        string             `json:"extrapolator,omitempty"`
 	Loop                bool               `json:"loop,omitempty"`
 	MaxIterations       int                `json:"max_iterations,omitempty"`
 	AnsatzQPY           string             `json:"ansatz_qpy,omitempty"`
@@ -89,7 +90,8 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		RequestedBackend  string             `json:"requested_backend"`
 		QASM              string             `json:"qasm"`
 		Mitigation        string             `json:"mitigation,omitempty"`
-		MitigationScales  []int              `json:"mitigation_scales,omitempty"`
+		MitigationScales  []float64          `json:"mitigation_scales,omitempty"`
+		Extrapolator      string             `json:"extrapolator,omitempty"`
 		Loop              bool               `json:"loop,omitempty"`
 		MaxIterations     int                `json:"max_iterations,omitempty"`
 		AnsatzQPY         string             `json:"ansatz_qpy,omitempty"`
@@ -106,7 +108,8 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		FCIExactEnergy: p.FCIExactEnergy, ConstantEnergy: p.ConstantEnergy, Provider: p.Provider,
 		RequestedBackend: p.RequestedBackend, QASM: p.QASM,
 		Mitigation: p.Mitigation, MitigationScales: p.MitigationScales,
-		Loop: p.Loop, MaxIterations: p.MaxIterations, AnsatzQPY: p.AnsatzQPY,
+		Extrapolator: p.Extrapolator,
+		Loop:         p.Loop, MaxIterations: p.MaxIterations, AnsatzQPY: p.AnsatzQPY,
 		OptimalCut: p.OptimalCut, EnergyExact: p.EnergyExact,
 		Nodes: p.Nodes, Edges: p.Edges,
 	}
@@ -229,10 +232,10 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (only ZNE)", p.Mitigation)
 		}
 		if len(p.MitigationScales) > 0 {
-			seen := map[int]bool{}
+			seen := map[float64]bool{}
 			for _, scale := range p.MitigationScales {
-				if scale < 1 || scale%2 == 0 {
-					return "", 0, fmt.Errorf("mitigation scale %d must be a positive odd integer", scale)
+				if scale < 1.0 || scale > 15.0 {
+					return "", 0, fmt.Errorf("mitigation scale %g must be in [1.0, 15.0]", scale)
 				}
 				seen[scale] = true
 			}
@@ -251,12 +254,13 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 	if strings.EqualFold(strings.TrimSpace(p.Mitigation), "ZNE") {
 		fidelityScale = 5
 		if len(p.MitigationScales) > 0 {
-			fidelityScale = 1
+			maxS := 1.0
 			for _, s := range p.MitigationScales {
-				if s > fidelityScale {
-					fidelityScale = s
+				if s > maxS {
+					maxS = s
 				}
 			}
+			fidelityScale = int(maxS + 0.999999)
 		}
 	}
 	if err := r.admitFidelityScaled(sessionID, p.RequestedBackend, p.FidelityQASM, fidelityScale); err != nil {

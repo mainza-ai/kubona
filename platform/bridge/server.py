@@ -1232,6 +1232,9 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     backend=spec.get("requested_backend"),
                     state_mode=str(spec.get("state_mode") or "vqe"),
                     source_job_id=str(spec.get("source_job_id") or ""),
+                    mitigation=spec.get("mitigation"),
+                    mitigation_scales=spec.get("mitigation_scales"),
+                    extrapolator=str(spec.get("extrapolator") or "linear"),
                 )
             elif kind == "lattice_dynamics":
                 from lattice_experiment import run_lattice_dynamics
@@ -1264,6 +1267,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     backend=spec.get("requested_backend"),
                     mitigation=spec.get("mitigation"),
                     mitigation_scales=spec.get("mitigation_scales"),
+                    extrapolator=str(spec.get("extrapolator") or "linear"),
                     source_job_id=str(spec.get("source_job_id") or ""),
                 )
             elif kind == "vqe_hardware":
@@ -1298,6 +1302,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         constant_energy=float(spec.get("constant_energy", 0.0)),
                         mitigation=spec.get("mitigation"),
                         mitigation_scales=spec.get("mitigation_scales"),
+                        extrapolator=str(spec.get("extrapolator") or "linear"),
                     )
             elif kind == "qaoa_hardware":
                 from experiments import run_qaoa_hardware, run_qaoa_hardware_loop

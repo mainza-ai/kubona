@@ -310,6 +310,105 @@ def test_g5_canonical_citations_auto_seeded_for_campaign():
     assert {"OMalley2016", "Kandala2017", "Kandala2019", "Zhou2020QAOA", "Harrigan2021", "Pfeuty1970"}.issubset(keys)
 
 
+def test_p6_1_4_local_fractional_folding_and_exponential_zne():
+    import pytest
+    pytest.importorskip("qiskit")
+    from qiskit import QuantumCircuit, transpile
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    # P6-4: local fractional 2Q folding survives opt_level=3 on a 4-CX circuit
+    qc = QuantumCircuit(4)
+    for i in range(4):
+        qc.ry(0.2 + 0.1 * i, i)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+    qc.cx(2, 3)
+    qc.cx(3, 0)
+    c1 = transpile(experiments._fold_circuit(qc, 1.0), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3).count_ops().get("cx", 0)
+    c15 = transpile(experiments._fold_circuit(qc, 1.5), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3).count_ops().get("cx", 0)
+    c20 = transpile(experiments._fold_circuit(qc, 2.0), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3).count_ops().get("cx", 0)
+    assert c1 == 4 and c15 == 6 and c20 == 8, (c1, c15, c20)
+
+    # P6-1: exponential ZNE recovers saturating hardware curve [-1.12947, -1.10692, -1.10415]
+    ext = experiments._extrapolate_zne(
+        [1.0, 3.0, 5.0],
+        [-1.12947, -1.10692, -1.10415],
+        [0.0034, 0.0035, 0.0035],
+        extrapolator="exponential",
+    )
+    assert ext["extrapolator_used"] == "exponential"
+    assert ext["mitigated"] < -1.135  # extrapolates below scale-1 toward FCI -1.1373
+    assert ext["fit_rmse"] < 1e-4
+
+
+def test_p6_2_spin_chain_hardware_zne_and_counts_by_term(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+    from lattice_experiment import run_spin_chain_hardware  # noqa: E402
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"0000": shots} for _ in qasms],
+            "backend": "ibm_fez",
+            "hardware_job_id": "fake-tfim",
+            "calibration": {"calibration_fresh": True, "per_qubit": {"0": {"readout_error": 0.01}, "1": {"readout_error": 0.01}, "2": {"readout_error": 0.01}, "3": {"readout_error": 0.01}}},
+            "layout": {"physical_qubits": [0, 1, 2, 3]},
+            "transpile": {"circuits": len(qasms), "min_transpiled_two_qubit_gates": 8, "max_transpiled_two_qubit_gates": 16},
+            "error_suppression": {"dynamical_decoupling": True, "gate_twirling": True, "measure_twirling": True},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[4];\nh q[0];\ncx q[0],q[1];\n'
+    out = run_spin_chain_hardware(
+        qasm=qasm,
+        pauli_coefficients={"ZZII": -1.0, "XIIII"[:4]: -1.0},
+        n_sites=4,
+        energy_exact=-5.226252,
+        mitigation="ZNE",
+        mitigation_scales=[1.0, 2.0],
+        extrapolator="linear",
+    )
+    assert out["success"] is True
+    assert out["mitigated"] is True
+    assert out["mitigation"]["method"] == "ZNE"
+    assert "counts_by_term" in out and "Z_mag" in out["counts_by_term"]
+    assert out["counts_scale"] == 1
+    assert out["readout_mitigation"]["applied"] is True
+    assert out["error_suppression"]["dynamical_decoupling"] is True
+
+
+def test_p6_3_hardware_pes_readout_and_error_suppression_parity(monkeypatch):
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    def fake_batch(qasms, shots, seed, backend=None):
+        return {
+            "counts": [{"00": 512, "11": 512} for _ in qasms],
+            "backend": "ibm_fez",
+            "hardware_job_id": "fake-pes",
+            "calibration": {"calibration_fresh": True, "per_qubit": {"22": {"readout_error": 0.01}, "23": {"readout_error": 0.01}}},
+            "layout": {"physical_qubits": [22, 23]},
+            "error_suppression": {"dynamical_decoupling": True, "gate_twirling": True, "measure_twirling": True},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+    qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    points = [
+        {"bond_distance": b, "pauli_coefficients": {"XX": 0.5, "ZZ": 0.5},
+         "fci_exact_energy": -0.5, "constant_energy": 0.0, "ansatz_qasm": qasm}
+        for b in (0.75, 1.50)
+    ]
+    out = experiments.run_hardware_pes(points=points, shots=1024, seed=7)
+    assert out["success"] is True
+    assert out["readout_mitigation"]["applied"] is True
+    assert out["error_suppression"]["dynamical_decoupling"] is True
+
+
 def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
     sys.path.insert(0, BRIDGE_DIR)
     import experiments  # noqa: E402
