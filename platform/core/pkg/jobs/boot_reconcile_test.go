@@ -290,3 +290,33 @@ func TestBootReconcileOverflowFeedsQueue(t *testing.T) {
 	r.cancel()
 	r.wg.Wait()
 }
+
+func TestListAllSessionJobsPagesBeyondThe200RowCap(t *testing.T) {
+	l, cleanup := openJobDB(t)
+	defer cleanup()
+	sm := session.NewManager(l)
+	if _, err := sm.EnsureSessionWithID("sess-page", "page", 100, "default"); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	insert := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, owner_epoch) VALUES (?, 'sess-page', 'JOB_STATUS_COMPLETED', 'vqe', '{}', CURRENT_TIMESTAMP, 'default', 0, 0)`
+	for i := 0; i < 205; i++ {
+		id := fmt.Sprintf("page-%03d", i)
+		if _, err := l.DB().Exec(insert, id); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+	got, err := NewRunner(l, nil, 1).ListAllSessionJobs("sess-page")
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(got) != 205 {
+		t.Fatalf("expected 205 jobs across pages, got %d", len(got))
+	}
+	seen := map[string]bool{}
+	for _, j := range got {
+		if seen[j.ID] {
+			t.Fatalf("duplicate job %s across pages", j.ID)
+		}
+		seen[j.ID] = true
+	}
+}
