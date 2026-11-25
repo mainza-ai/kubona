@@ -553,15 +553,29 @@ export function PublicationPanel({ sessionId }: PublicationPanelProps) {
                 onChange={(e) => setDraftAbstract(e.target.value)}
                 rows={4}
               />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Field label="Affiliation" value={affiliation} onChange={(e) => setAffiliation(e.target.value)} placeholder="Institution / Lab" />
+                <Field label="Corresponding author" value={correspondingAuthor} onChange={(e) => setCorrespondingAuthor(e.target.value)} placeholder="Name <email>" />
+                <Field label="Competing interests" value={competingInterests} onChange={(e) => setCompetingInterests(e.target.value)} placeholder="None declared" />
+                <Field label="Funding" value={funding} onChange={(e) => setFunding(e.target.value)} placeholder="Grant / infrastructure" />
+                <Field label="License" value={license} onChange={(e) => setLicense(e.target.value)} placeholder="CC-BY-4.0 / Apache-2.0" />
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="compact"
                   variant="primary"
                   pending={busy === 'save-draft'}
                   onClick={() => void run('save-draft', async () => {
+                    const scholarly: Record<string, string> = {};
+                    if (affiliation.trim()) scholarly.affiliation = affiliation.trim();
+                    if (correspondingAuthor.trim()) scholarly.corresponding_author = correspondingAuthor.trim();
+                    if (competingInterests.trim()) scholarly.competing_interests = competingInterests.trim();
+                    if (funding.trim()) scholarly.funding = funding.trim();
+                    if (license.trim()) scholarly.license = license.trim();
                     const res = await updateManuscriptDraft(sessionId, selected.manuscript.id, {
                       title: draftTitle,
                       abstract: draftAbstract,
+                      ...(Object.keys(scholarly).length > 0 ? { scholarly } : {}),
                     });
                     if (res.ok) setEditingDraft(false);
                     return res.ok ? res : { ok: false as const, error: res.error };

@@ -4822,7 +4822,7 @@ export async function verifyManuscript(
 export async function updateManuscriptDraft(
   sessionId: string,
   id: string,
-  patch: { title?: string; abstract?: string; authors?: string[] },
+  patch: { title?: string; abstract?: string; authors?: string[]; scholarly?: Record<string, string> },
 ): Promise<ManuscriptResult<ManuscriptDetail>> {
   try {
     const res = await apiFetch(

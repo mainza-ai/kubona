@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from kubona.circuits import Circuit, to_qasm
+from kubona.circuits import Circuit
 from kubona.schema import ProviderCapability
 
 from .base import Provider, ProviderError
@@ -138,9 +138,44 @@ def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] |
             if len(getattr(g, "qubits", [])) == 1
             and str(g.name).rstrip("0123456789") in ("sx", "x")]
     twoq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 2]
+    # R-B: capture compact per-qubit T1/T2/readout/1Q error alongside device medians
+    sx_by_q: dict[int, float] = {}
+    for g in getattr(props, "gates", []) or []:
+        qs = getattr(g, "qubits", [])
+        if len(qs) == 1 and str(getattr(g, "name", "")).rstrip("0123456789") in ("sx", "x"):
+            params = getattr(g, "parameters", [])
+            if params and getattr(params[0], "value", None) is not None:
+                sx_by_q[int(qs[0])] = round(float(params[0].value), 6)
+    per_qubit: dict[str, dict[str, float]] = {}
+    for q in range(n):
+        entry: dict[str, float] = {}
+        try:
+            v_t1 = props.t1(q)
+            if v_t1 is not None:
+                entry["t1_us"] = round(float(v_t1 * 1e6), 3)
+        except Exception:
+            pass
+        try:
+            v_t2 = props.t2(q)
+            if v_t2 is not None:
+                entry["t2_us"] = round(float(v_t2 * 1e6), 3)
+        except Exception:
+            pass
+        try:
+            v_ro = props.readout_error(q)
+            if v_ro is not None:
+                entry["readout_error"] = round(float(v_ro), 6)
+        except Exception:
+            pass
+        if q in sx_by_q:
+            entry["sx_error"] = sx_by_q[q]
+        if entry:
+            per_qubit[str(q)] = entry
     snap: dict[str, Any] = {
         "qubits": int(n), "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
         "readout_error": float(ro), "source": f"backend-properties:{backend_name}"}
+    if per_qubit:
+        snap["per_qubit"] = per_qubit
     measured = getattr(props, "last_update_date", None)
     if measured is not None:
         snap["calibrated_at"] = measured.isoformat() if hasattr(measured, "isoformat") else str(measured)

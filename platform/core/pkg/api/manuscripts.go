@@ -1696,8 +1696,9 @@ func (s *Server) observeManuscriptBuild(err error, elapsed time.Duration) {
 // and the review is cleared, so an edited draft cannot carry a stale review.
 func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, sessionID, id string) {
 	var body struct {
-		Title    string `json:"title"`
-		Abstract string `json:"abstract"`
+		Title     string         `json:"title"`
+		Abstract  string         `json:"abstract"`
+		Scholarly map[string]any `json:"scholarly,omitempty"`
 	}
 	if err := decodeStrict(r, &body); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid update: %v", err), nil)
@@ -1722,6 +1723,25 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 	}
 	if abstract := strings.TrimSpace(body.Abstract); abstract != "" {
 		ms.Abstract = abstract
+	}
+	// R-C: allow updating scholarly metadata on an existing draft so authors
+	// can clear 422 metadata_incomplete without recreating the manuscript.
+	if len(body.Scholarly) > 0 {
+		ev := map[string]any{}
+		if strings.TrimSpace(ms.EvidenceJSON) != "" {
+			_ = json.Unmarshal([]byte(ms.EvidenceJSON), &ev)
+		}
+		existing, _ := ev["_scholarly"].(map[string]any)
+		if existing == nil {
+			existing = map[string]any{}
+		}
+		for k, v := range body.Scholarly {
+			existing[k] = v
+		}
+		ev["_scholarly"] = existing
+		if rawEv, merr := json.Marshal(ev); merr == nil {
+			ms.EvidenceJSON = string(rawEv)
+		}
 	}
 	sections := make([]manuscriptBridgeSection, 0, len(ms.Sections))
 	for _, sec := range ms.Sections {

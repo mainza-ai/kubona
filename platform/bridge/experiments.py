@@ -1663,6 +1663,8 @@ def run_hardware_pes(
             "energy_exact": point["fci"],
             "fci_exact_energy": point["fci"],
             "uncertainty": uncertainty,
+            "ci95_mha": float(1.96 * uncertainty * 1000.0) if math.isfinite(uncertainty) else None,
+            "counts": (by_scale[scales[0]][0] if method and by_scale.get(scales[0]) else (chunk[0] if chunk else None)),
             "delta_mha": delta * 1000.0,
             "claimable": claimable,
             "measured": measured,
@@ -2184,10 +2186,36 @@ def run_qaoa(
     except Exception:
         qaoa_qasm = ""
     shot_cut = _counts_cut(counts, edges)
+    # R-A: retain shot histogram and derive normal-approximation 95% CI from the
+    # sampled cut distribution (counts x graph edges), matching Go ratioCIFromCounts.
+    counts_clean = {str(k): int(v) for k, v in counts.items()}
+    total_shots = sum(counts_clean.values())
+    cut_se = None
+    ratio_ci95 = None
+    if total_shots > 1 and best > 0:
+        sq_diff = 0.0
+        for bitstr, cnt in counts_clean.items():
+            bits = bitstr.replace(" ", "")
+            c_val = 0
+            for u, v in edges:
+                bu = int(bits[len(bits) - 1 - u]) if u < len(bits) else 0
+                bv = int(bits[len(bits) - 1 - v]) if v < len(bits) else 0
+                if bu != bv:
+                    c_val += 1
+            sq_diff += cnt * ((c_val - shot_cut) ** 2)
+        var = sq_diff / (total_shots - 1)
+        cut_se = math.sqrt(max(var, 0.0) / total_shots)
+        half_r = 1.959963984540054 * (cut_se / float(best))
+        r_mean = shot_cut / float(best)
+        ratio_ci95 = [
+            round(max(0.0, r_mean - half_r), 6),
+            round(min(1.0, r_mean + half_r), 6),
+        ]
     return {
         "success": True, "kind": "qaoa", "result_version": "experiment-result-v1", "molecule": "MaxCut",
         "graph": {"nodes": n, "edges": edges, "regular_degree": 3},
         "circuit_qasm": qaoa_qasm,
+        "counts": counts_clean,
         "layers": int(layers), "shots": int(shots), "seed": int(seed),
         "theta": [float(v) for v in theta],
         "energy": float(shot_cut), "energy_exact": float(value),
@@ -2195,7 +2223,9 @@ def run_qaoa(
         "cut_value": float(shot_cut), "cut_value_exact": float(value),
         "optimal_cut": int(best), "optimal_assignment": int(mask_best),
         "approximation_ratio": float(shot_cut / best) if best > 0 else None,
-        "uncertainty": None, "measured": True,
+        "ratio_ci95": ratio_ci95,
+        "ratio_ci_method": "normal_from_sampled_cuts" if ratio_ci95 is not None else None,
+        "uncertainty": float(cut_se) if cut_se is not None else None, "measured": True,
         "backend": "qiskit-aer-simulator",
         "provider": "qiskit-aer-simulator",
         "hardware": False,

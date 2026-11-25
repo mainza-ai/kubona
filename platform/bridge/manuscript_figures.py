@@ -489,14 +489,29 @@ def _render_calibration_overview(rows: List[Dict[str, Any]]) -> Tuple[str, bytes
 
 
 def _parse_qasm_for_schematic(qasm: str) -> Tuple[int, List[Tuple[str, List[int]]], int, int]:
-    """Parse OpenQASM 2/3 text into (n_qubits, gates, total_gates, two_qubit_gates)."""
+    """Parse OpenQASM 2/3 text (including multi-register declarations and OQ3 if-blocks)
+    into (n_qubits, gates, total_gates, two_qubit_gates)."""
     import re
 
     n_qubits = 0
+    reg_offsets: Dict[str, int] = {}
     gates: List[Tuple[str, List[int]]] = []
     two_q = 0
-    qreg_re = re.compile(r"(?:qreg\s+\w+\[(\d+)\]|qubit\[(\d+)\])", re.IGNORECASE)
-    idx_re = re.compile(r"\[(\d+)\]")
+    qreg_re = re.compile(r"(?:qreg\s+(\w+)\[(\d+)\]|qubit\[(\d+)\]\s+(\w+))", re.IGNORECASE)
+    ref_re = re.compile(r"(\w+)\[(\d+)\]")
+    if_prefix_re = re.compile(r"^if\s*\([^)]*\)\s*", re.IGNORECASE)
+
+    def _resolve_qubits(expr: str) -> List[int]:
+        nonlocal n_qubits
+        out_qs: List[int] = []
+        for rname, idx_s in ref_re.findall(expr):
+            idx = int(idx_s)
+            off = reg_offsets.get(rname, 0)
+            gidx = off + idx
+            out_qs.append(gidx)
+            n_qubits = max(n_qubits, gidx + 1)
+        return out_qs
+
     for raw_line in qasm.splitlines():
         line = raw_line.split("//", 1)[0].strip().rstrip(";")
         if not line:
@@ -506,23 +521,30 @@ def _parse_qasm_for_schematic(qasm: str) -> Tuple[int, List[Tuple[str, List[int]
             continue
         m_reg = qreg_re.search(line)
         if m_reg:
-            n_qubits = max(n_qubits, int(m_reg.group(1) or m_reg.group(2) or 0))
+            rname = m_reg.group(1) or m_reg.group(4) or "q"
+            rsize = int(m_reg.group(2) or m_reg.group(3) or 0)
+            if rname not in reg_offsets:
+                reg_offsets[rname] = n_qubits
+                n_qubits += rsize
             continue
+        # R-D: strip OpenQASM 2/3 classical conditional prefix `if (c == 1) x q[0]`
+        line = if_prefix_re.sub("", line).strip()
+        if not line:
+            continue
+        low = line.lower()
         if low.startswith("measure"):
-            qs = [int(x) for x in idx_re.findall(line)]
+            qs = _resolve_qubits(line.split("->", 1)[0])
             if qs:
                 gates.append(("M", [qs[0]]))
-                n_qubits = max(n_qubits, qs[0] + 1)
             continue
-        # Gate statement: name[(params)] q[i], q[j]
+        # Gate statement: name[(params)] reg[i], reg[j]
         tok = line.split(None, 1)
         if len(tok) < 2:
             continue
         gname = tok[0].split("(", 1)[0].strip().upper()[:5]
-        qs = [int(x) for x in idx_re.findall(tok[1])]
+        qs = _resolve_qubits(tok[1])
         if not qs:
             continue
-        n_qubits = max(n_qubits, max(qs) + 1)
         if len(qs) >= 2:
             two_q += 1
         gates.append((gname, qs))

@@ -197,8 +197,19 @@ func (s *Server) collectRepresentativeCircuits(sessionID, campaignJSON string) m
 				}
 			}
 		}
-		if strings.TrimSpace(qasm) == "" || len(qasm) > maxBytes {
+		if strings.TrimSpace(qasm) == "" {
 			continue
+		}
+		// R-D: for large transpiled circuits > 32 KiB, pass a clean newline-bounded
+		// prefix so the schematic renderer still emits a folded diagram (full QASM
+		// remains archived verbatim in supplement/qasm/).
+		if len(qasm) > maxBytes {
+			cut := strings.LastIndex(qasm[:maxBytes], "\n")
+			if cut > 0 {
+				qasm = qasm[:cut]
+			} else {
+				qasm = qasm[:maxBytes]
+			}
 		}
 		seenFamily[fam] = true
 		out[jid] = qasm
@@ -478,45 +489,47 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			countsStatus = "retained"
 		}
 
-		// R4: extract used physical qubits from layout / transpile.layout
+		// R4 + R-B: extract used physical qubits and slice per-qubit calibration if captured
 		usedQubits := extractUsedQubits(r["layout"], r["transpile"])
+		usedQubitCal := extractUsedQubitCalibration(r["calibration"], usedQubits)
 
 		dsEntry := map[string]any{
-			"job_id":          jid,
-			"kind":            r["kind"],
-			"backend":         r["backend"],
-			"hardware":        r["hardware"],
-			"mitigated":       r["mitigated"],
-			"shots":           r["shots"],
-			"seed":            r["seed"],
-			"layout":          r["layout"],
-			"used_qubits":     usedQubits,
-			"transpile":       r["transpile"],
-			"circuit_sha256":  r["circuit_sha256"],
-			"qasm_path":       qasmPath,
-			"qasm_paths":      qasmPaths,
-			"qasm_points":     r["qasm_points"],
-			"ratio_ci95":      r["ratio_ci95"],
-			"ratio_ci_method": r["ratio_ci_method"],
-			"points":          pointsSummary,
-			"status":          r["status"],
-			"counts_status":   countsStatus,
-			"counts_sha256":   r["counts_sha256"],
-			"counts_path":     countsPath,
-			"counts_paths":    countsPaths,
-			"calibration":     r["calibration"],
-			"energy":          r["energy"],
-			"anchor_energy":   firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
-			"delta_mha":       firstNonNil(r, "delta_mha", "delta"),
-			"ci95_mha":        r["ci95_mha"],
-			"usage_seconds":   r["usage_seconds"],
-			"actual_usd":      r["actual_usd"],
-			"vendor_ref":      r["vendor_ref"],
-			"qasm_gate_lines": r["qasm_gate_lines"],
-			"two_qubit_gates": r["two_qubit_gate_count"],
-			"basis":           r["basis"],
-			"active_space":    r["active_space"],
-			"geometry":        r["geometry"],
+			"job_id":                 jid,
+			"kind":                   r["kind"],
+			"backend":                r["backend"],
+			"hardware":               r["hardware"],
+			"mitigated":              r["mitigated"],
+			"shots":                  r["shots"],
+			"seed":                   r["seed"],
+			"layout":                 r["layout"],
+			"used_qubits":            usedQubits,
+			"used_qubit_calibration": usedQubitCal,
+			"transpile":              r["transpile"],
+			"circuit_sha256":         r["circuit_sha256"],
+			"qasm_path":              qasmPath,
+			"qasm_paths":             qasmPaths,
+			"qasm_points":            r["qasm_points"],
+			"ratio_ci95":             r["ratio_ci95"],
+			"ratio_ci_method":        r["ratio_ci_method"],
+			"points":                 pointsSummary,
+			"status":                 r["status"],
+			"counts_status":          countsStatus,
+			"counts_sha256":          r["counts_sha256"],
+			"counts_path":            countsPath,
+			"counts_paths":           countsPaths,
+			"calibration":            r["calibration"],
+			"energy":                 r["energy"],
+			"anchor_energy":          firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
+			"delta_mha":              firstNonNil(r, "delta_mha", "delta"),
+			"ci95_mha":               r["ci95_mha"],
+			"usage_seconds":          r["usage_seconds"],
+			"actual_usd":             r["actual_usd"],
+			"vendor_ref":             r["vendor_ref"],
+			"qasm_gate_lines":        r["qasm_gate_lines"],
+			"two_qubit_gates":        r["two_qubit_gate_count"],
+			"basis":                  r["basis"],
+			"active_space":           r["active_space"],
+			"geometry":               r["geometry"],
 		}
 		datasheetRows = append(datasheetRows, dsEntry)
 		_ = cw.Write([]string{
@@ -657,6 +670,31 @@ func extractUsedQubits(layout, transpile any) []int {
 		out = append(out, q)
 	}
 	sort.Ints(out)
+	return out
+}
+
+// extractUsedQubitCalibration slices calibration.per_qubit down to the
+// physical qubits that actually executed the circuit (R-B). Returns nil when
+// the snapshot predates per-qubit capture.
+func extractUsedQubitCalibration(cal any, usedQubits []int) map[string]any {
+	cm, ok := cal.(map[string]any)
+	if !ok || len(usedQubits) == 0 {
+		return nil
+	}
+	pq, ok := cm["per_qubit"].(map[string]any)
+	if !ok || len(pq) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for _, q := range usedQubits {
+		key := strconv.Itoa(q)
+		if v, exists := pq[key]; exists {
+			out[key] = v
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
