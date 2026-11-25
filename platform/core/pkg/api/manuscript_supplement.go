@@ -31,7 +31,7 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 	var params map[string]any
 	if len(paramsJSON) > 0 {
 		if json.Unmarshal(paramsJSON, &params) == nil && params != nil {
-			for _, k := range []string{"seed", "shots", "layout", "transpile", "basis", "active_space", "geometry", "layers"} {
+			for _, k := range []string{"seed", "shots", "layout", "transpile", "basis", "active_space", "geometry", "bond_distance", "n_sites", "layers"} {
 				if v, ok := params[k]; ok && v != nil {
 					if cur, exists := row[k]; !exists || cur == nil {
 						row[k] = v
@@ -85,6 +85,16 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 	if len(resultJSON) > 0 {
 		var res map[string]any
 		if json.Unmarshal(resultJSON, &res) == nil && res != nil {
+			// Lattice/spin-chain results record `ci95` in Hartree while the
+			// manuscript table expects `ci95_mha`. Without this mapping those
+			// rows print as point estimates even though an interval exists.
+			if row["ci95_mha"] == nil {
+				if v, ok := res["ci95_mha"].(float64); ok && v > 0 {
+					row["ci95_mha"] = v
+				} else if v, ok := res["ci95"].(float64); ok && v > 0 {
+					row["ci95_mha"] = v * 1000.0
+				}
+			}
 			countsMap, _ := res["counts"].(map[string]any)
 			if len(countsMap) == 0 {
 				countsMap, _ = res["bitstring_counts"].(map[string]any)
@@ -424,6 +434,9 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 							if v, has := pm[k]; has && v != nil {
 								row[k] = v
 							}
+						}
+						if u, ok := pm["uncertainty"].(float64); ok && u > 0 {
+							row["ci95_mha"] = u * 1.959963984540054 * 1000.0
 						}
 						pointsSummary = append(pointsSummary, row)
 					}

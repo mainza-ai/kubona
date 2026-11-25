@@ -155,3 +155,13 @@ func TestUsedQubitsFromNestedLayout(t *testing.T) {
 		t.Fatalf("expected sorted [1 3], got %v", flat)
 	}
 }
+
+func TestEnrichJobFromParamsMapsHartreeCI95ToMilliHartree(t *testing.T) {
+	row := map[string]any{"job_id": "job_spin_1", "hardware": true}
+	result := []byte(`{"ci95":0.1,"energy":-2.5,"shots":1024}`)
+	enrichJobFromParams(row, nil, result)
+	v, ok := row["ci95_mha"].(float64)
+	if !ok || v != 100.0 {
+		t.Fatalf("expected ci95 0.1 Ha -> 100 mHa, got %#v", row["ci95_mha"])
+	}
+}

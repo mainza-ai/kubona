@@ -248,7 +248,12 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
         ])
         for r in classical_rows[:24]:
             jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
-            tgt = latex_escape(str(r.get("molecule") or r.get("model") or r.get("kind") or "--")[:18])
+            tgt_s = str(r.get("molecule") or r.get("model") or r.get("kind") or "--")
+            if r.get("bond_distance") is not None:
+                tgt_s += f" R={float(r['bond_distance']):.3f}"
+            elif r.get("n_sites") is not None:
+                tgt_s += f" n={int(r['n_sites'])}"
+            tgt = latex_escape(tgt_s[:26])
             basis = latex_escape(str(r.get("basis") or r.get("optimizer") or "--")[:16])
             asp = r.get("active_space")
             bdim = r.get("max_bond_dim", r.get("bond_dim"))
