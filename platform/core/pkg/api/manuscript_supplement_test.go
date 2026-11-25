@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 )
 
 func TestEnrichJobFromParamsIsolatesRawQASMAndHashesCircuit(t *testing.T) {
@@ -55,6 +56,9 @@ func TestAttachSupplementArtifactsStagesDatasheetCSVEnvAndCompleteness(t *testin
 		EvidenceJSON:    "{}",
 		SourceDateEpoch: 1700000000,
 	}
+	oldCommit := version.Commit
+	version.Commit = "0123456789abcdef0123456789abcdef01234567"
+	defer func() { version.Commit = oldCommit }()
 	arts := map[string][]byte{
 		"main.pdf":                []byte("%PDF-1.4"),
 		"supplement/tooling.json": []byte(`{"python":"3.11.9","qiskit":"2.6.2"}`),
@@ -79,10 +83,8 @@ func TestAttachSupplementArtifactsStagesDatasheetCSVEnvAndCompleteness(t *testin
 	if tooling["qiskit"] != "2.6.2" {
 		t.Fatalf("expected bridge tooling versions merged into environment.json, got %#v", env["tooling"])
 	}
-	if _, ok := env["kubona_commit"]; !ok {
-		// Test binaries built without VCS stamping may omit it; the schema must
-		// still be present only when Go can read build info.
-		t.Logf("kubona_commit unavailable in this test build (buildvcs off)")
+	if env["kubona_commit"] != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("expected injected commit in environment.json, got %#v", env["kubona_commit"])
 	}
 }
 

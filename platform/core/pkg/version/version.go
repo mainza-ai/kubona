@@ -16,6 +16,12 @@ import "runtime/debug"
 // When uninjected ("dev"), init enriches it with Go VCS build info if present.
 var Version = "dev"
 
+// Commit is the exact source revision injected at image-build time
+// (“-X .../version.Commit=$(git rev-parse HEAD)“). Docker builds exclude
+// .git from the context, so Go VCS stamping is unavailable there; without
+// this injection a publication archive cannot state the code it came from.
+var Commit = ""
+
 func init() {
 	if Version != "dev" {
 		return

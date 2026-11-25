@@ -19,6 +19,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/verify"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 )
 
 // enrichJobFromParams extracts compact circuit/execution provenance from
@@ -304,6 +305,10 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		"ledger_schema":     ledger.CurrentSchemaVersion,
 		"source_date_epoch": ms.SourceDateEpoch,
 		"generated_at_utc":  time.Now().UTC().Format(time.RFC3339),
+		"kubona_version":    version.Version,
+	}
+	if version.Commit != "" && version.Commit != "unknown" {
+		envDoc["kubona_commit"] = version.Commit
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range bi.Settings {

@@ -114,6 +114,7 @@ services:
       dockerfile: docker/Dockerfile.kubonad
       args:
         VERSION: ${KUBONA_VERSION:-dev}
+        COMMIT: ${KUBONA_COMMIT:-unknown}
     <<: *default-hardening
     entrypoint: ["/usr/local/bin/kubonad", "preflight"]
     command:
@@ -153,6 +154,7 @@ services:
       dockerfile: docker/Dockerfile.kubonad
       args:
         VERSION: ${KUBONA_VERSION:-dev}
+        COMMIT: ${KUBONA_COMMIT:-unknown}
     image: kubona/kubonad:prod
     <<: *default-hardening
     # Container-internal bind is 0.0.0.0 so Docker's healthcheck and the
@@ -309,6 +311,7 @@ services:
       dockerfile: docker/Dockerfile.kubonad
       args:
         VERSION: ${KUBONA_VERSION:-dev}
+        COMMIT: ${KUBONA_COMMIT:-unknown}
     <<: *default-hardening
     entrypoint: ["/bin/sh", "/usr/local/bin/backup-loop.sh"]
     environment:
