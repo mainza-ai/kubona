@@ -330,16 +330,28 @@ def test_p6_1_4_local_fractional_folding_and_exponential_zne():
     c20 = transpile(experiments._fold_circuit(qc, 2.0), basis_gates=["rz", "sx", "x", "cx"], optimization_level=3).count_ops().get("cx", 0)
     assert c1 == 4 and c15 == 6 and c20 == 8, (c1, c15, c20)
 
-    # P6-1: exponential ZNE recovers saturating hardware curve [-1.12947, -1.10692, -1.10415]
-    ext = experiments._extrapolate_zne(
-        [1.0, 3.0, 5.0],
-        [-1.12947, -1.10692, -1.10415],
-        [0.0034, 0.0035, 0.0035],
+    # R2: a 3-point exponential without an exact asymptote is underdetermined
+    # (dof=0); it must fall back to WLS linear rather than explode pcov.
+    fallback = experiments._extrapolate_zne(
+        [1.0, 2.0, 3.0],
+        [-1.118758, -1.108218, -1.102873],
+        [0.0018, 0.0020, 0.0020],
         extrapolator="exponential",
     )
-    assert ext["extrapolator_used"] == "exponential"
-    assert ext["mitigated"] < -1.135  # extrapolates below scale-1 toward FCI -1.1373
-    assert ext["fit_rmse"] < 1e-4
+    assert fallback["extrapolator_used"] == "linear"
+
+    # With the exact depolarizing asymptote c_II, the 2-parameter fit is
+    # determined (dof=1) and gives a tight, finite interval.
+    fixed = experiments._extrapolate_zne(
+        [1.0, 2.0, 3.0],
+        [-1.118758, -1.108218, -1.102873],
+        [0.0018, 0.0020, 0.0020],
+        extrapolator="exponential",
+        asymptote=-0.4228698512159958,
+    )
+    assert fixed["extrapolator_used"] == "exponential_fixed_asymptote"
+    assert fixed["chi2_reduced"] >= 0.0
+    assert fixed["uncertainty"] < 0.008
 
 
 def test_p6_2_spin_chain_hardware_zne_and_counts_by_term(monkeypatch):

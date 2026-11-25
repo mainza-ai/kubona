@@ -186,6 +186,8 @@ services:
       # keeps legacy plaintext readable (dev migration) and logs a warning.
       KUBONA_SECRET_KEY: ${KUBONA_SECRET_KEY:-}
       KUBONA_CALIBRATION_CHECK_SECONDS: ${KUBONA_CALIBRATION_CHECK_SECONDS:-3600}
+      # C-F/R4 smoke: lower this to force a live .json.gz counts artifact.
+      KUBONA_COUNTS_GZIP_THRESHOLD_BYTES: ${KUBONA_COUNTS_GZIP_THRESHOLD_BYTES:-}
       # Optional live provider refresh cadence (seconds; 0/unset disables).
       KUBONA_CALIBRATION_REFRESH_SECONDS: ${KUBONA_CALIBRATION_REFRESH_SECONDS:-0}
       # >=32 chars; required for /api/vault/leases (secret lease rail).
