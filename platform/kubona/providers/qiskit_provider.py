@@ -616,10 +616,14 @@ class QiskitProvider(Provider):
         layout = getattr(isa, "layout", None)
         if layout is None or getattr(layout, "initial_layout", None) is None:
             return None
-        out: dict[str, Any] = {"initial": {}, "final": {}}
+        out: dict[str, Any] = {"initial": {}, "final": {}, "physical_qubits": []}
         try:
+            physical: list[int] = []
             for i, q in enumerate(original.qubits):
-                out["initial"][str(i)] = int(layout.initial_layout[q])
+                phys = int(layout.initial_layout[q])
+                out["initial"][str(i)] = phys
+                physical.append(phys)
+            out["physical_qubits"] = physical
         except Exception:
             return None
         try:

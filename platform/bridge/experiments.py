@@ -255,6 +255,22 @@ def _hardware_batch(qasm_list: list[str], shots: int, seed: int,
     return provider.submit_batch(qasm_list, shots=int(shots), seed=int(seed))
 
 
+def _layout_physical_qubits(layout: Any) -> list[int] | None:
+    """Logical→physical qubits in logical order (falls back to layout.initial)."""
+    if not isinstance(layout, dict):
+        return None
+    pq = layout.get("physical_qubits")
+    if isinstance(pq, list) and all(isinstance(v, int) for v in pq):
+        return pq
+    initial = layout.get("initial")
+    if isinstance(initial, dict):
+        try:
+            return [int(initial[k]) for k in sorted(initial, key=lambda x: int(x))]
+        except Exception:
+            return None
+    return None
+
+
 def _readout_mitigation_factor(term: str, calibration: dict[str, Any] | None, used_qubits: list[int] | None = None) -> float:
     """Diagonal TREX readout correction factor Π_{q ∈ supp(P)} (1 - 2 ε_q).
 
@@ -465,11 +481,7 @@ def run_vqe_hardware(
 
     below_fci = False
     cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
-    used_q = None
-    if isinstance(batch.get("layout"), dict):
-        pq = batch["layout"].get("physical_qubits")
-        if isinstance(pq, list) and all(isinstance(v, int) for v in pq):
-            used_q = pq
+    used_q = _layout_physical_qubits(batch.get("layout"))
     readout_meta = None
     if method:
         # G1 fail-closed guard: if transpilation collapsed folded 2Q gates back to

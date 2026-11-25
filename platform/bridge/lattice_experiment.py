@@ -637,11 +637,8 @@ def run_spin_chain_hardware(
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned no per-term counts"}
     cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
-    used_q = None
-    if isinstance(batch.get("layout"), dict):
-        pq = batch["layout"].get("physical_qubits")
-        if isinstance(pq, list) and all(isinstance(v, int) for v in pq):
-            used_q = pq
+    from experiments import _layout_physical_qubits
+    used_q = _layout_physical_qubits(batch.get("layout"))
     measured = _hardware_counts_to_energy(
         counts_list[:-1], qiskit_coeffs,
         calibration=cal_data, used_qubits=used_q, readout_mitigation=True,

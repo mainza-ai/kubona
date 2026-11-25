@@ -323,3 +323,43 @@ def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
     assert ci[0] <= ratio <= ci[1]
     # Symmetric distribution around the mean, clamped to [0,1].
     assert abs(((ci[0] + ci[1]) / 2.0) - ratio) < 1e-6
+
+
+def test_g2_trex_uses_physical_layout_qubits_not_logical_indices():
+    import pytest
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    assert experiments._layout_physical_qubits({"initial": {"0": 22, "1": 23}}) == [22, 23]
+    assert experiments._layout_physical_qubits({"physical_qubits": [22, 23]}) == [22, 23]
+    cal = {"per_qubit": {
+        "0": {"readout_error": 0.01},
+        "22": {"readout_error": 0.10},
+    }}
+    # Logical qubit 0 ran on physical 22; TREX must use 22's error (0.10).
+    assert experiments._readout_mitigation_factor("Z", cal, [22, 23]) == pytest.approx(0.80)
+    assert experiments._readout_mitigation_factor("Z", cal, None) == pytest.approx(0.98)
+
+
+def test_g1_barrier_protected_folding_survives_opt_level_3():
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+    from qiskit import QuantumCircuit, transpile
+
+    def twoq(circ):
+        return sum(1 for inst in circ.data if len(inst.qubits) == 2 and inst.operation.name != "barrier")
+
+    base = QuantumCircuit(2)
+    base.h(0)
+    base.cx(0, 1)
+    base.cx(1, 0)
+    counts = {}
+    for scale in (1, 3, 5):
+        folded = experiments._fold_unitary(base, scale)
+        transpiled = transpile(folded, basis_gates=["rz", "sx", "x", "cx"], optimization_level=3)
+        counts[scale] = twoq(transpiled)
+    assert counts[1] < counts[3] < counts[5], counts
+    assert counts[3] == 3 * counts[1]
+    assert counts[5] == 5 * counts[1]
