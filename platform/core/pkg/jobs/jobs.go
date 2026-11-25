@@ -1765,7 +1765,7 @@ func (r *Runner) ListAllSessionJobs(sessionID string) ([]*Job, error) {
 	var all []*Job
 	for offset := 0; offset < maxTotal; offset += pageSize {
 		rows, err := r.ledger.DB().Query(
-			`SELECT `+jobIdentityColumns+` FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+			`SELECT `+jobIdentityColumns+` FROM jobs WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
 			sessionID, pageSize, offset,
 		)
 		if err != nil {
@@ -1784,6 +1784,11 @@ func (r *Runner) ListAllSessionJobs(sessionID string) ([]*Job, error) {
 		rows.Close()
 		if count < pageSize {
 			break
+		}
+		if offset+pageSize >= maxTotal {
+			// Fail closed rather than silently truncating the enrichment set:
+			// a partial job list would produce a manuscript missing circuits.
+			return nil, fmt.Errorf("session job list exceeds %d rows: refusing a truncated manuscript projection", maxTotal)
 		}
 	}
 	return all, nil

@@ -1,4 +1,4 @@
-"""R2 + R3 tests: QAOA Wilson 95% ratio CIs, overlapping-CI guard, and explicit counts_status."""
+"""R2 + R3 tests: count-derived QAOA ratio CIs, and explicit counts_status."""
 
 from __future__ import annotations
 
@@ -12,16 +12,7 @@ if BRIDGE_DIR not in sys.path:
 import manuscript_datasheet  # noqa: E402
 
 
-def test_r2_wilson_ci_and_overlap_guard():
-    lo, hi = manuscript_datasheet.wilson_ci95(0.85, 1024)
-    assert 0.80 < lo < 0.85 < hi < 0.90
-
-    # Overlapping intervals MUST be flagged as overlapping
-    assert manuscript_datasheet.ci_intervals_overlap(0.80, 0.86, 0.84, 0.90) is True
-    assert manuscript_datasheet.ci_intervals_overlap(0.70, 0.78, 0.82, 0.90) is False
-
-
-def test_r2_r3_uncertainty_table_renders_qaoa_wilson_and_not_retained_status():
+def test_r2_ratio_interval_is_rendered_only_when_recorded():
     rows = [
         {
             "job_id": "qaoa_hw_1",
@@ -31,6 +22,18 @@ def test_r2_r3_uncertainty_table_renders_qaoa_wilson_and_not_retained_status():
             "measured_cut": 8.5,
             "optimal_cut": 10.0,
             "approximation_ratio": 0.85,
+            "ratio_ci95": [0.812345, 0.887655],
+            "ratio_ci_method": "normal_approx_95",
+            "counts_status": "retained",
+        },
+        {
+            "job_id": "qaoa_hw_2",
+            "kind": "qaoa_hardware",
+            "hardware": True,
+            "shots": 1024,
+            "measured_cut": 7.5,
+            "optimal_cut": 10.0,
+            "approximation_ratio": 0.75,
             "counts_status": "retained",
         },
         {
@@ -45,6 +48,11 @@ def test_r2_r3_uncertainty_table_renders_qaoa_wilson_and_not_retained_status():
         },
     ]
     tex = manuscript_datasheet.build_zne_and_uncertainty_section(rows)
-    assert "(Wilson)" in tex
-    assert "0.8500" in tex
+    # Recorded interval is printed with its endpoints; an unrecorded ratio is a
+    # point estimate, never a fabricated interval.
+    assert "[0.812, 0.888]" in tex
+    assert "0.7500" in tex
+    assert "point estimate" in tex
     assert "point est. (no counts)" in tex
+    # The invalid proportion-on-ratio estimator must not reappear.
+    assert "Wilson" not in tex

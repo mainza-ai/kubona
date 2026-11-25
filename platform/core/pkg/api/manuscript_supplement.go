@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -27,8 +28,8 @@ import (
 // QASM text or full counts maps (Phase 0: preserves verification-v1 isolation
 // so QASM rotation literals never pollute numeric evidence).
 func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
+	var params map[string]any
 	if len(paramsJSON) > 0 {
-		var params map[string]any
 		if json.Unmarshal(paramsJSON, &params) == nil && params != nil {
 			for _, k := range []string{"seed", "shots", "layout", "transpile", "basis", "active_space", "geometry", "layers"} {
 				if v, ok := params[k]; ok && v != nil {
@@ -95,6 +96,15 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 				row["counts_unique_bitstrings"] = len(countsMap)
 				row["top_k_counts"] = topKCounts(countsMap, 8)
 				row["counts_status"] = "retained"
+				// R2: a ratio interval must come from the sampled cut
+				// distribution, not from treating the ratio as a binomial
+				// proportion. The normal-approximation interval is derived here
+				// from ledger counts and graph edges and recorded in the
+				// campaign so verification-v1 can trace the printed bounds.
+				if lo, hi, ok := ratioCIFromCounts(countsMap, params, res); ok {
+					row["ratio_ci95"] = []float64{lo, hi}
+					row["ratio_ci_method"] = "normal_approx_95"
+				}
 			} else if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
 				ptCounts := 0
 				for _, p := range pts {
@@ -187,6 +197,107 @@ func (s *Server) collectRepresentativeCircuits(sessionID, campaignJSON string) m
 		return nil
 	}
 	return out
+}
+
+// ratioCIFromCounts derives a 95% normal-approximation interval for a QAOA
+// approximation ratio from the sampled cut distribution.
+//
+// The ratio is not a binomial proportion: treating it as one (a Wilson
+// interval over `shots`) is statistically invalid. Here the per-shot cut
+// values are reconstructed from the recorded bitstrings and graph edges, the
+// sample variance of the mean cut is estimated, and the interval is propagated
+// through the ratio. The bounds are recorded in the campaign row so
+// verification-v1 can trace the printed values back to ledger data.
+func ratioCIFromCounts(counts map[string]any, params, res map[string]any) (float64, float64, bool) {
+	edges := qaoaEdges(params, res)
+	optimal := qaoaOptimalCut(params, res)
+	if optimal <= 0 || len(edges) == 0 {
+		return 0, 0, false
+	}
+	n := 0.0
+	sum := 0.0
+	sumSq := 0.0
+	for bitstring, raw := range counts {
+		cnt, ok := raw.(float64)
+		if !ok || cnt <= 0 {
+			continue
+		}
+		cut := float64(cutForBitstring(bitstring, edges))
+		n += cnt
+		sum += cnt * cut
+		sumSq += cnt * cut * cut
+	}
+	if n < 2 {
+		return 0, 0, false
+	}
+	mean := sum / n
+	variance := (sumSq - n*mean*mean) / (n - 1)
+	if variance < 0 {
+		variance = 0
+	}
+	se := math.Sqrt(variance / n)
+	ratio := mean / optimal
+	half := 1.959963984540054 * se / optimal
+	lo := math.Max(0, ratio-half)
+	hi := math.Min(1, ratio+half)
+	// Six decimals keep the campaign JSON stable while still rounding cleanly
+	// to the three decimals printed in the paper.
+	return math.Round(lo*1e6) / 1e6, math.Round(hi*1e6) / 1e6, true
+}
+
+func qaoaEdges(params, res map[string]any) []any {
+	if params != nil {
+		if e, ok := params["edges"].([]any); ok && len(e) > 0 {
+			return e
+		}
+	}
+	if res != nil {
+		if g, ok := res["graph"].(map[string]any); ok {
+			if e, ok := g["edges"].([]any); ok && len(e) > 0 {
+				return e
+			}
+		}
+	}
+	return nil
+}
+
+func qaoaOptimalCut(params, res map[string]any) float64 {
+	for _, m := range []map[string]any{res, params} {
+		if m == nil {
+			continue
+		}
+		if v, ok := m["optimal_cut"].(float64); ok && v > 0 {
+			return v
+		}
+	}
+	return 0
+}
+
+func cutForBitstring(bitstring string, edges []any) int {
+	bits := []byte(strings.ReplaceAll(bitstring, " ", ""))
+	for i, j := 0, len(bits)-1; i < j; i, j = i+1, j-1 {
+		bits[i], bits[j] = bits[j], bits[i]
+	}
+	cut := 0
+	for _, e := range edges {
+		pair, ok := e.([]any)
+		if !ok || len(pair) < 2 {
+			continue
+		}
+		a, okA := pair[0].(float64)
+		b, okB := pair[1].(float64)
+		if !okA || !okB {
+			continue
+		}
+		ia, ib := int(a), int(b)
+		if ia < 0 || ib < 0 || ia >= len(bits) || ib >= len(bits) {
+			continue
+		}
+		if bits[ia] != bits[ib] {
+			cut++
+		}
+	}
+	return cut
 }
 
 func summarizeQASMLines(qasm string) (gateLines int, twoQGates int) {

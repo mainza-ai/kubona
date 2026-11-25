@@ -103,3 +103,34 @@ func TestEnrichJobFromParamsHashesPerPointCircuits(t *testing.T) {
 		t.Fatalf("raw per-point qasm must not be stored in the campaign row")
 	}
 }
+
+func TestRatioCIFromCountsUsesCutDistribution(t *testing.T) {
+	row := map[string]any{"job_id": "job_qaoa_1", "hardware": true}
+	params := []byte(`{"kind":"qaoa_hardware","edges":[[0,1]],"optimal_cut":1}`)
+	result := []byte(`{"counts":{"00":100,"01":100,"10":100,"11":100},"optimal_cut":1,"approximation_ratio":0.5}`)
+
+	enrichJobFromParams(row, params, result)
+
+	ci, ok := row["ratio_ci95"].([]float64)
+	if !ok || len(ci) != 2 {
+		t.Fatalf("expected ratio_ci95 [lo,hi], got %#v", row["ratio_ci95"])
+	}
+	// cut values are 0,1,1,0 over 400 shots: mean 0.5, 95% normal interval
+	// around 0.5 with se≈0.0250 => about [0.451, 0.549].
+	if !(ci[0] > 0.44 && ci[0] < 0.46 && ci[1] > 0.54 && ci[1] < 0.56) {
+		t.Fatalf("unexpected CI %#v for the known cut distribution", ci)
+	}
+	if row["ratio_ci_method"] != "normal_approx_95" {
+		t.Fatalf("expected the CI method to be recorded, got %#v", row["ratio_ci_method"])
+	}
+}
+
+func TestRatioCIFromCountsRefusesWithoutGraph(t *testing.T) {
+	row := map[string]any{"job_id": "job_qaoa_2", "hardware": true}
+	params := []byte(`{"kind":"qaoa_hardware","optimal_cut":1}`)
+	result := []byte(`{"counts":{"00":100,"11":100},"optimal_cut":1}`)
+	enrichJobFromParams(row, params, result)
+	if _, ok := row["ratio_ci95"]; ok {
+		t.Fatalf("must not fabricate a ratio interval without graph edges: %#v", row["ratio_ci95"])
+	}
+}

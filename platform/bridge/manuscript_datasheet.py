@@ -15,28 +15,10 @@ the settled campaign rows passed in; declarations contain no fabricated numbers.
 
 from __future__ import annotations
 
-import math
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from manuscript_sections import extract_anchor_energy, fmt_num, latex_escape, short_job_id
 
-
-def wilson_ci95(p: float, n: int) -> Tuple[float, float]:
-    """Deterministic 95% Wilson score interval for a proportion p in [0, 1] over n shots."""
-    if n <= 0:
-        return (0.0, 1.0)
-    p_clamped = max(0.0, min(1.0, float(p)))
-    z = 1.959963984540054
-    z2 = z * z
-    denom = 1.0 + z2 / n
-    center = (p_clamped + z2 / (2.0 * n)) / denom
-    half = (z * math.sqrt((p_clamped * (1.0 - p_clamped) + z2 / (4.0 * n)) / n)) / denom
-    return (max(0.0, round(center - half, 6)), min(1.0, round(center + half, 6)))
-
-
-def ci_intervals_overlap(a_low: float, a_high: float, b_low: float, b_high: float) -> bool:
-    """Return True iff two closed confidence intervals overlap (cannot claim statistical separation)."""
-    return max(float(a_low), float(b_low)) <= min(float(a_high), float(b_high))
 
 # Canonical method & benchmark bibliography (Phase 5: expands from 3 to 12 entries)
 CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
@@ -290,7 +272,7 @@ def build_experiment_datasheet_section(rows: List[Dict[str, Any]]) -> str:
 
 
 def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
-    """Render Phase 4 + R2/R3 uncertainty, QAOA ratio Wilson CI, and ZNE summary table."""
+    """Render Phase 4 + R2/R3 uncertainty, count-derived QAOA ratio CI, and ZNE summary table."""
     relevant = [
         r for r in rows
         if bool(r.get("mitigated"))
@@ -303,8 +285,8 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         return ""
     lines = [
         "All discrepancies $\\Delta$ and approximation ratios below are reported alongside their "
-        "recorded 95\\% confidence interval (\\texttt{CI95}) or Wilson score interval when shot "
-        "counts are known; entries without a sampled interval are explicitly tagged "
+        "recorded 95\\% confidence interval (\\texttt{CI95}) or a count-derived ratio interval when "
+        "the sampled cut distribution is retained; entries without a sampled interval are explicitly tagged "
         "\\texttt{point estimate} (with explicit histogram retention status) and must not be "
         "read as statistically separated claims.",
         "",
@@ -323,10 +305,11 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         cstatus = str(r.get("counts_status") or "")
         if r.get("approximation_ratio") is not None:
             ratio = float(r["approximation_ratio"])
-            shots_i = int(r["shots"]) if r.get("shots") is not None else 0
-            if shots_i > 0:
-                lo, hi = wilson_ci95(ratio, shots_i)
-                ci_s = f"[{lo:.3f}, {hi:.3f}] (Wilson)"
+            interval = r.get("ratio_ci95")
+            if isinstance(interval, (list, tuple)) and len(interval) == 2:
+                # Server-derived from the sampled cut distribution; recorded in
+                # the campaign so verification-v1 can trace these endpoints.
+                ci_s = f"[{float(interval[0]):.3f}, {float(interval[1]):.3f}] (95\\% CI)"
             else:
                 ci_s = r"\texttt{point estimate}"
             mc = r.get("measured_cut")
@@ -354,7 +337,7 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         r"\bottomrule",
         r"\end{tabular}%",
         r"}",
-        r"\caption{Uncertainty, QAOA Wilson 95\% ratio CI, and Zero-Noise Extrapolation (ZNE) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
+        r"\caption{Uncertainty, QAOA count-derived 95\% ratio CI, and Zero-Noise Extrapolation (ZNE) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
         r"\end{table}",
     ])
     return "\n".join(lines)
