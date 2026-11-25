@@ -363,3 +363,17 @@ def test_g1_barrier_protected_folding_survives_opt_level_3():
     assert counts[1] < counts[3] < counts[5], counts
     assert counts[3] == 3 * counts[1]
     assert counts[5] == 5 * counts[1]
+
+
+def test_g4_tfim_ansatz_qasm_is_qasm2_loadable_for_hardware():
+    import pytest
+    pytest.importorskip("qiskit")
+    sys.path.insert(0, BRIDGE_DIR)
+    from lattice_experiment import run_spin_chain
+    from qiskit import qasm2
+
+    res = run_spin_chain(n_sites=4, model="tfim", layers=2, shots=256,
+                         max_iterations=20, target_error=1e-2)
+    assert res["success"] is True
+    assert "rzz" not in res["ansatz_qasm"] and "sx" not in res["ansatz_qasm"]
+    qasm2.loads(res["ansatz_qasm"])
