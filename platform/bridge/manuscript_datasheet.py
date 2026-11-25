@@ -147,6 +147,15 @@ CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
         "  doi = {10.1038/s41567-020-01105-y}\n"
         "}"
     ),
+    "Zhou2020QAOA": (
+        "@article{Zhou2020QAOA,\n"
+        "  author = {Zhou, Leo and Wang, Sheng-Tao and Choi, Soonwon and Pichler, Hannes and Lukin, Mikhail D.},\n"
+        "  title = {Quantum Approximate Optimization Algorithm: Performance, Mechanism, and Implementation on Near-Term Devices},\n"
+        "  journal = {Physical Review X},\n"
+        "  year = {2020},\n"
+        "  doi = {10.1103/PhysRevX.10.021067}\n"
+        "}"
+    ),
     "Pfeuty1970": (
         "@article{Pfeuty1970,\n"
         "  author = {Pfeuty, Pierre},\n"
@@ -183,7 +192,7 @@ CANONICAL_CITATION_METADATA: Dict[str, Dict[str, str]] = {
     "Kandala2017": {"key": "Kandala2017", "title": "Hardware-efficient variational quantum eigensolver for small molecules and quantum magnets", "authors": "Kandala et al.", "year": "2017", "doi": "10.1038/nature23879"},
     "Kandala2019": {"key": "Kandala2019", "title": "Error mitigation extends the computational reach of a noisy quantum processor", "authors": "Kandala et al.", "year": "2019", "doi": "10.1038/s41586-019-1040-7"},
     "Sun2018PySCF": {"key": "Sun2018PySCF", "title": "PySCF: the Python-based simulations of chemistry framework", "authors": "Sun et al.", "year": "2018", "doi": "10.1002/wcms.1340"},
-    "Farhi2014QAOA": {"key": "Farhi2014QAOA", "title": "A Quantum Approximate Optimization Algorithm", "authors": "Farhi, Goldstone, Gutmann", "year": "2014", "doi": "10.48550/arXiv.1411.4028"},
+    "Zhou2020QAOA": {"key": "Zhou2020QAOA", "title": "Quantum Approximate Optimization Algorithm: Performance, Mechanism, and Implementation on Near-Term Devices", "authors": "Zhou et al.", "year": "2020", "doi": "10.1103/PhysRevX.10.021067"},
     "Harrigan2021": {"key": "Harrigan2021", "title": "Quantum approximate optimization of non-planar graph problems on a planar superconducting processor", "authors": "Harrigan et al.", "year": "2021", "doi": "10.1038/s41567-020-01105-y"},
     "Pfeuty1970": {"key": "Pfeuty1970", "title": "The one-dimensional Ising model with a transverse field", "authors": "Pfeuty", "year": "1970", "doi": "10.1016/0003-4916(70)90270-8"},
     "Kim2023": {"key": "Kim2023", "title": "Evidence for the utility of quantum computing before fault tolerance", "authors": "Kim et al.", "year": "2023", "doi": "10.1038/s41586-023-06096-3"},
@@ -199,7 +208,7 @@ def canonical_citations_for_campaign(rows: List[Dict[str, Any]]) -> List[Dict[st
     if any(k in kind for kind in kinds for k in ("vqe", "pes", "excited", "geometry", "reaction")):
         keys.extend(["Peruzzo2014", "OMalley2016", "Kandala2017", "Kandala2019", "Sun2018PySCF"])
     if any("qaoa" in kind for kind in kinds):
-        keys.extend(["Farhi2014QAOA", "Harrigan2021"])
+        keys.extend(["Zhou2020QAOA", "Harrigan2021"])
     if any(k in kind for kind in kinds for k in ("spin_chain", "tfim", "lattice", "thermodynamic")):
         keys.extend(["Pfeuty1970", "Kim2023"])
     if any(k in kind for kind in kinds for k in ("qec", "codesign")):

@@ -1197,7 +1197,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     max_iterations=int(spec.get("max_iterations", 160)),
                     target_error=float(spec.get("target_error", 1e-3)),
                     state_mode=str(spec.get("state_mode") or "vqe"),
-                    ansatz=str(spec.get("ansatz") or "hea"),
+                    ansatz=str(spec.get("ansatz") or ""),
                     restarts=int(spec.get("restarts", 0)),
                 )
             elif kind == "thermodynamic_limit":

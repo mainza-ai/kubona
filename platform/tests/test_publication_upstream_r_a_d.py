@@ -307,7 +307,7 @@ def test_g5_canonical_citations_auto_seeded_for_campaign():
     }
     resp = manuscript_ops.run({"title": "Cross-Domain Test", "campaign": campaign, "evidence": {}})
     keys = {c["key"] for c in resp["citations"]}
-    assert {"OMalley2016", "Kandala2017", "Kandala2019", "Farhi2014QAOA", "Harrigan2021", "Pfeuty1970"}.issubset(keys)
+    assert {"OMalley2016", "Kandala2017", "Kandala2019", "Zhou2020QAOA", "Harrigan2021", "Pfeuty1970"}.issubset(keys)
 
 
 def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
