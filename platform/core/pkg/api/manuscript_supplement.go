@@ -503,8 +503,15 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			}
 		}
 		countsStatus := "not_retained"
+		countsEncoding := ""
+		countsFileSHA := ""
 		if len(countsPaths) > 0 {
 			countsStatus = "retained"
+			primaryCounts := countsPath
+			if primaryCounts == "" {
+				primaryCounts = countsPaths[0]
+			}
+			countsEncoding, countsFileSHA = countsArtifactMeta(primaryCounts, artifacts)
 		}
 
 		// R4 + R-B: extract used physical qubits and slice per-qubit calibration if captured
@@ -533,6 +540,8 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"status":                 r["status"],
 			"counts_status":          countsStatus,
 			"counts_sha256":          r["counts_sha256"],
+			"counts_encoding":        countsEncoding,
+			"counts_file_sha256":     countsFileSHA,
 			"counts_path":            countsPath,
 			"counts_paths":           countsPaths,
 			"calibration":            r["calibration"],
@@ -745,6 +754,25 @@ func stageCountsArtifact(base string, obj any, plainCap int, artifacts map[strin
 	p := base + ".json.gz"
 	artifacts[p] = buf.Bytes()
 	return p, true
+}
+
+// countsArtifactMeta returns the on-disk encoding ("json" or "gzip") and
+// SHA-256 hex digest of the staged artifact bytes so downstream consumers can
+// verify the archive file directly alongside the uncompressed counts_sha256 (C-C).
+func countsArtifactMeta(stagedPath string, artifacts map[string][]byte) (string, string) {
+	if stagedPath == "" {
+		return "", ""
+	}
+	encoding := "json"
+	if strings.HasSuffix(stagedPath, ".gz") {
+		encoding = "gzip"
+	}
+	raw, ok := artifacts[stagedPath]
+	if !ok || len(raw) == 0 {
+		return encoding, ""
+	}
+	sum := sha256.Sum256(raw)
+	return encoding, hex.EncodeToString(sum[:])
 }
 
 func fmtVal(v any) string {

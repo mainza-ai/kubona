@@ -193,3 +193,40 @@ def test_h1_vqe_hardware_retains_per_term_counts(monkeypatch):
     assert zne["success"] is True
     assert set(zne["counts_by_term"]) == {"XX", "ZZ"}
     assert zne["counts_scale"] == 1
+
+
+def test_c_e_snapshot_from_target_partial_calibration_fallback():
+    import pytest
+    from kubona.providers.qiskit_provider import _snapshot_from_target
+
+    class PartialTarget:
+        qubit_properties = [
+            SimpleNamespace(t1=None, t2=None),
+            SimpleNamespace(t1=None, t2=None),
+        ]
+
+        def __contains__(self, key):
+            return key in ("measure", "sx")
+
+        def __getitem__(self, key):
+            if key == "measure":
+                return {(0,): SimpleNamespace(error=0.011), (1,): SimpleNamespace(error=0.013)}
+            if key == "sx":
+                return {(0,): SimpleNamespace(error=0.00025), (1,): SimpleNamespace(error=0.00035)}
+            return {}
+
+    snap = _snapshot_from_target(PartialTarget(), "ibm_marrakesh")
+    assert snap is not None
+    assert "t1_us" not in snap and "t2_us" not in snap
+    assert snap["readout_error"] == pytest.approx(0.012)
+    assert snap["single_qubit_error"] == pytest.approx(0.0003)
+    assert snap["per_qubit"]["0"]["readout_error"] == 0.011
+    assert snap["per_qubit"]["1"]["sx_error"] == 0.00035
+
+    class EmptyTarget:
+        qubit_properties = [SimpleNamespace(t1=None, t2=None)]
+
+        def __contains__(self, key):
+            return False
+
+    assert _snapshot_from_target(EmptyTarget(), "ibm_empty") is None

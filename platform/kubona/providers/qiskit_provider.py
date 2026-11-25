@@ -252,21 +252,22 @@ def _snapshot_from_target(target: Any, backend_name: str) -> dict[str, Any] | No
         if entry:
             per_qubit[str(q)] = entry
 
-    if not t1_vals or not t2_vals:
+    if not per_qubit:
         return None
     snap: dict[str, Any] = {
         "qubits": int(n),
-        "t1_us": float(statistics.median(t1_vals) * 1e6),
-        "t2_us": float(statistics.median(t2_vals) * 1e6),
         "source": f"backend-target:{backend_name}",
         "backend": backend_name,
+        "per_qubit": per_qubit,
     }
+    if t1_vals:
+        snap["t1_us"] = float(statistics.median(t1_vals) * 1e6)
+    if t2_vals:
+        snap["t2_us"] = float(statistics.median(t2_vals) * 1e6)
     if ro_vals:
         snap["readout_error"] = float(statistics.median(ro_vals))
     if sx_vals:
         snap["single_qubit_error"] = float(statistics.median(sx_vals))
-    if per_qubit:
-        snap["per_qubit"] = per_qubit
     return snap
 
 

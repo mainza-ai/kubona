@@ -1041,3 +1041,74 @@ func TestReopeningBuiltManuscriptRequiresOperatorBearer(t *testing.T) {
 		t.Fatalf("operator reopen of built = %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestHardwareManuscriptSignoffChecksScholarlyMetadata(t *testing.T) {
+	bridge := &fakeManuscriptBridge{recommendation: "ACCEPT"}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	state := agents.CampaignState{
+		SessionID:    sid,
+		TargetSystem: "H2",
+		Experiments: []agents.CampaignExperiment{{
+			JobID: "hw-1", Kind: "vqe_hardware", Energy: ptr(-1.137), Measured: true, Backend: "ibm_fez",
+		}},
+		ResultReceipts: []agents.CampaignResultRef{{
+			JobID: "hw-1",
+			Receipt: &experimentresult.Receipt{
+				Algorithm: "ed25519", ResultSHA256: "abc123", Signed: true, Signature: "sig",
+			},
+		}},
+	}
+	raw, _ := json.Marshal(state)
+	if err := srv.Ledger().SaveCampaignState(sid, raw); err != nil {
+		t.Fatalf("save campaign: %v", err)
+	}
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "Hardware Signoff Gate"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Manuscript struct {
+			ID          string `json:"id"`
+			ContentHash string `json:"content_hash"`
+		} `json:"manuscript"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+	mid := created.Manuscript.ID
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/reviews", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("review = %d: %s", w.Code, w.Body.String())
+	}
+	// C-B: signoff refuses 422 metadata_incomplete while still in `reviewed` state.
+	w = doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/signoff", "op-token", map[string]any{
+		"content_hash":           created.Manuscript.ContentHash,
+		"acknowledge_unverified": true,
+	})
+	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "metadata_incomplete") {
+		t.Fatalf("hardware signoff without scholarly = %d, want 422 metadata_incomplete: %s", w.Code, w.Body.String())
+	}
+	// Because signoff refused before signing, a session caller can still edit scholarly metadata.
+	scholarly := map[string]any{"scholarly": map[string]any{
+		"affiliation": "Kubona Research", "corresponding_author": "Op <op@kubona.ai>",
+		"competing_interests": "None", "funding": "Internal", "license": "CC-BY-4.0",
+	}}
+	w = doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", scholarly)
+	if w.Code != http.StatusOK {
+		t.Fatalf("session scholarly update on reviewed = %d: %s", w.Code, w.Body.String())
+	}
+	var updated struct {
+		Manuscript struct {
+			ContentHash string `json:"content_hash"`
+		} `json:"manuscript"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &updated)
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/reviews", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("re-review = %d: %s", w.Code, w.Body.String())
+	}
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/signoff", "op-token", map[string]any{
+		"content_hash":           updated.Manuscript.ContentHash,
+		"acknowledge_unverified": true,
+	}); w.Code != http.StatusOK {
+		t.Fatalf("hardware signoff with scholarly = %d: %s", w.Code, w.Body.String())
+	}
+}

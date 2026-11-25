@@ -3,6 +3,8 @@ package api
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"testing"
@@ -59,5 +61,17 @@ func TestExtractUsedQubitCalibrationSlicesPerQubitMap(t *testing.T) {
 	plain, err := io.ReadAll(gz)
 	if err != nil || !json.Valid(plain) {
 		t.Fatalf("gzip payload does not decompress to JSON: %v", err)
+	}
+	// C-C: countsArtifactMeta distinguishes plain vs gzip encoding and hashes the staged bytes
+	encSmall, shaSmall := countsArtifactMeta(pSmall, arts)
+	wantSmall := sha256.Sum256(arts[pSmall])
+	if encSmall != "json" || shaSmall != hex.EncodeToString(wantSmall[:]) {
+		t.Fatalf("C-C violated for plain json: enc=%q sha=%q", encSmall, shaSmall)
+	}
+	encBig, shaBig := countsArtifactMeta(pBig, arts)
+	wantBig := sha256.Sum256(arts[pBig])
+	plainSum := sha256.Sum256(plain)
+	if encBig != "gzip" || shaBig != hex.EncodeToString(wantBig[:]) || shaBig == hex.EncodeToString(plainSum[:]) {
+		t.Fatalf("C-C violated for gzip json: enc=%q sha=%q", encBig, shaBig)
 	}
 }
