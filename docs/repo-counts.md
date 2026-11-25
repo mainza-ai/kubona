@@ -10,13 +10,13 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | OpenAPI operations | 219 | method+path operations in the generated document |
 | Go packages | 48 | directories under `platform/core` containing `.go` files |
 | Go test functions | 1186 | top-level `func Test...` in `*_test.go` |
-| Python test files (tests/) | 197 | `test_*.py` under `platform/tests` |
+| Python test files (tests/) | 198 | `test_*.py` under `platform/tests` |
 | Bridge test files | 7 | `test_*.py` under `platform/bridge` |
 | Console test files | 161 | `*.test.ts` / `*.test.tsx` under `platform/console/src` |
 | Console test cases | 859 | `it(` / `test(` declarations in console test files |
 | Rust tests | 34 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 7 | reviewed `platform/contracts/mcp-catalog.json` |
-| MCP tools | 49 | reviewed `platform/contracts/mcp-catalog.json` |
+| MCP tools | 54 | reviewed `platform/contracts/mcp-catalog.json` |
 | Wiki pages | 168 | markdown files under `wiki/` |
 
 The console case count is a source-level count. Vitest is the runtime authority;

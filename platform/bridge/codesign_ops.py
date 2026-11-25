@@ -10,7 +10,10 @@ snippets: handler tests assert them, and the Go rail maps the outer
 
 import hashlib
 import json
+import os
+import re
 import sys
+from pathlib import Path
 
 from kubona.codesign import (
     BudgetEntry,
@@ -24,6 +27,7 @@ from kubona.codesign import (
     union_bound,
 )
 from kubona.codesign.factories import factory_report
+from kubona.codesign.frontier import ParetoFrontier
 
 
 def _canonical_sha256(obj) -> str:
@@ -125,19 +129,32 @@ def op_batch(body):
         raise ValueError("artifacts must be a list of <=64: refusing")
     h = CircuitCodesignHarness(spec, num_tests=32, kappa=kappa)
     f = MapElitesFrontier(kappa=kappa)
+    pareto = ParetoFrontier(kappa=kappa)
     details = []
     for art in artifacts:
         r = h.run(art)
         details.append({"valid": r["valid"], "toffoli": r["toffoli"],
                         "peak_qubits": r["peak_qubits"], "tq": r["tq"],
+                        "artifact_sha256": _canonical_sha256(art),
                         "eps_bound_97_5": r.get("eps_bound_97_5"),
                         "depth": r.get("depth"),
                         "toffoli_depth": r.get("toffoli_depth"),
                         "active_qubits": r.get("active_qubits")})
         if r["valid"]:
-            f.offer(art, r["toffoli"], r["peak_qubits"], {"tq": r["tq"]})
+            t_depth = int(r.get("toffoli_depth") or 0)
+            f.offer(art, r["toffoli"], r["peak_qubits"], {"tq": r["tq"]}, toffoli_depth=t_depth)
+            pareto.offer(art, r["toffoli"], r["peak_qubits"], t_depth, {"artifact_sha256": _canonical_sha256(art)})
     return {"ok": True, "spec_kind": label,
-            "frontier": f.to_dict(), "details": details}
+            "frontier": f.to_dict(), "pareto": pareto.to_dict(), "details": details}
+
+
+def _island_state_path(campaign_id: str) -> Path:
+    safe = re.sub(r"[^a-zA-Z0-9_.-]+", "_", campaign_id.strip())[:64]
+    if not safe:
+        raise ValueError("campaign_id must be non-empty alphanumeric")
+    base = Path(os.environ.get("KUBONA_STATE_DIR") or "/tmp/.kubona") / "codesign_islands"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"{safe}.json"
 
 
 def op_families(body):
@@ -150,8 +167,25 @@ def op_families(body):
     if not isinstance(offers_in, list) or len(offers_in) > 64:
         raise ValueError("offers must be a list of <=64: refusing")
     share_rounds = strict_int(body.get("share_rounds", 1), "share_rounds", 0, 3)
+    max_stagnant = strict_int(body.get("max_stagnant_steps", 8), "max_stagnant_steps", 1, 100)
+    campaign_id = str(body.get("campaign_id") or "").strip()
+
+    # Phase 2: restore persistent islands/lineage when campaign_id is provided
+    fs = None
+    state_path = None
+    if campaign_id:
+        state_path = _island_state_path(campaign_id)
+        if state_path.is_file():
+            try:
+                loaded = json.loads(state_path.read_text(encoding="utf-8"))
+                if set(loaded.get("families") or []) == set(families):
+                    fs = FamilySearch.from_snapshot(loaded)
+            except Exception:
+                fs = None
+    if fs is None:
+        fs = FamilySearch(families, kappa=kappa)
+
     num_tests = 32
-    fs = FamilySearch(families, kappa=kappa)
     h = CircuitCodesignHarness(spec, num_tests=num_tests, max_failures=0,
                                kappa=kappa, seed=7)
     offers = []
@@ -165,12 +199,18 @@ def op_families(body):
             continue
         improved = fs.offer(fam, o["artifact"], r["toffoli"], r["peak_qubits"])
         offers.append({"family": fam, "valid": True,
+                       "artifact_sha256": _canonical_sha256(o["artifact"]),
                        "toffoli": r["toffoli"], "qubits": r["peak_qubits"],
                        "tq": r["tq"], "improved": improved})
     shares = []
     for _ in range(share_rounds):
         shares.append(fs.share_elites())
+    if state_path is not None:
+        state_path.write_text(json.dumps(fs.snapshot(), sort_keys=True), encoding="utf-8")
     return {"ok": True, "spec_kind": label, "kappa": kappa,
+            "campaign_id": campaign_id or None,
+            "persisted": state_path is not None,
+            "stop_rule": fs.check_stop_rule(max_stagnant),
             "offers": offers, "elites": fs.elites(),
             "stagnation": dict(fs._stagnant),
             "lineage_len": len(fs.lineage),

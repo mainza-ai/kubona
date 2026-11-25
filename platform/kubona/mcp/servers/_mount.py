@@ -51,6 +51,11 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
     })
     gw.mount("cost", {
         "codesign_rerun": cost.codesign_rerun,
+        "codesign_spec": cost.codesign_spec,
+        "codesign_evaluate": cost.codesign_evaluate,
+        "codesign_frontier": cost.codesign_frontier,
+        "codesign_verify": cost.codesign_verify,
+        "codesign_claim": cost.codesign_claim,
         "create_session": cost.create_session,
         "estimate_cost": cost.estimate_cost,
         "request_approval": cost.request_approval,

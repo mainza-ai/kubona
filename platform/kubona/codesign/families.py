@@ -95,6 +95,67 @@ class FamilySearch:
         return {"families": self.families, "stagnation": dict(self._stagnant),
                 "elites": self.elites(), "lineage_len": len(self.lineage)}
 
+    def check_stop_rule(self, max_stagnant_steps: int = 8) -> dict[str, Any]:
+        """Explicit stop rule (Phase 2): stop when every family has stagnated
+        for at least ``max_stagnant_steps`` consecutive offers."""
+        if max_stagnant_steps <= 0:
+            raise ValueError("max_stagnant_steps must be positive")
+        min_stag = min(self._stagnant.values()) if self._stagnant else 0
+        should_stop = bool(self._stagnant) and min_stag >= max_stagnant_steps
+        return {
+            "should_stop": should_stop,
+            "reason": f"all_families_stagnated_ge_{max_stagnant_steps}" if should_stop else "continue",
+            "min_stagnant": min_stag,
+            "max_stagnant_steps": max_stagnant_steps,
+        }
+
+    def snapshot(self) -> dict[str, Any]:
+        """Serialize full island frontiers, lineage, and stagnation for durable persistence."""
+        kappa = next(iter(self.frontiers.values())).kappa if self.frontiers else 1
+        return {
+            "version": 1,
+            "kappa": kappa,
+            "families": list(self.families),
+            "stagnation": dict(self._stagnant),
+            "lineage": list(self.lineage[-512:]),
+            "frontiers": {
+                f: [
+                    {
+                        "artifact": e.artifact,
+                        "toffoli": e.toffoli,
+                        "qubits": e.qubits,
+                        "toffoli_depth": e.toffoli_depth,
+                        "meta": e.meta,
+                    }
+                    for e in fr.entries()
+                ]
+                for f, fr in self.frontiers.items()
+            },
+        }
+
+    @classmethod
+    def from_snapshot(cls, data: dict[str, Any]) -> "FamilySearch":
+        """Restore a persisted FamilySearch island pool."""
+        families = list(data.get("families") or [])
+        kappa = int(data.get("kappa", 1))
+        fs = cls(families, kappa=kappa)
+        for f, entries in (data.get("frontiers") or {}).items():
+            if f not in fs.frontiers:
+                continue
+            for e in entries:
+                fs.frontiers[f].offer(
+                    e["artifact"],
+                    int(e["toffoli"]),
+                    int(e["qubits"]),
+                    e.get("meta") or {},
+                    toffoli_depth=int(e.get("toffoli_depth", 0)),
+                )
+        for f, stag in (data.get("stagnation") or {}).items():
+            if f in fs._stagnant:
+                fs._stagnant[f] = int(stag)
+        fs.lineage = list(data.get("lineage") or [])
+        return fs
+
 
 def deterministic_mutator(artifact: list, step: int) -> list:
     """No-network proposer for tests: toggles a trailing marker op deterministically."""

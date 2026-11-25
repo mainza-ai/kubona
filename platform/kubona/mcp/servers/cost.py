@@ -168,8 +168,8 @@ def codesign_rerun(
         return {"ok": False, "error": "KUBONA_API_TOKEN absent: rerun requires operator auth (no anonymous spend)"}
     if not session_id.strip():
         return {"ok": False, "error": "session_id is required: rerun is spend-attributed"}
-    if not 1 <= budget_steps <= 12:
-        return {"ok": False, "error": "budget_steps must be in [1,12]: refusing"}
+    if not 1 <= budget_steps <= 48:
+        return {"ok": False, "error": "budget_steps must be in [1,48]: refusing"}
     if not 1 <= max_tokens_per_step <= 1024:
         return {"ok": False, "error": "max_tokens_per_step must be in [1,1024]: refusing"}
     if not 1 <= num_tests <= 512:
@@ -224,6 +224,142 @@ def codesign_rerun(
     return out
 
 
+def _codesign_api_call(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    *,
+    require_token: bool = False,
+    timeout: int = 120,
+) -> dict:
+    """Shared HTTP helper for Codesign MCP tools talking to kubonad."""
+    import json
+    import os
+    import urllib.error
+    import urllib.request
+
+    token = os.environ.get("KUBONA_API_TOKEN", "").strip()
+    if require_token and not token:
+        return {"ok": False, "error": "KUBONA_API_TOKEN absent: this operation requires operator auth"}
+    base = os.environ.get("KUBONA_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(f"{base}{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            out = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", "replace")
+        try:
+            err = json.loads(raw)
+            msg = err.get("message") or err.get("error") or raw[:280]
+        except Exception:
+            msg = raw[:280]
+        return {"ok": False, "error": str(msg)[:280], "http_status": e.code}
+    except Exception as e:  # noqa: BLE001 — transport refusal, never a fake success
+        return {"ok": False, "error": f"codesign API unreachable: {e}"[:280]}
+    if not isinstance(out, dict):
+        return {"ok": False, "error": "unparseable response from kubonad"}
+    return out
+
+
+def codesign_spec(spec_kind: str = "and2") -> dict:
+    """Return metadata and supported kinds for a Kickmix circuit specification."""
+    from kubona.codesign.specs import NAMED_KINDS, build_spec
+
+    try:
+        spec = build_spec(spec_kind)
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "supported_kinds": list(NAMED_KINDS),
+        }
+    return {
+        "ok": True,
+        "spec_kind": spec_kind,
+        "num_qubits": spec.num_qubits,
+        "inputs": list(spec.inputs),
+        "outputs": list(spec.outputs),
+        "ancillas": list(spec.ancillas),
+        "exhaustive_domain_size": 1 << len(spec.inputs),
+        "supported_kinds": list(NAMED_KINDS),
+    }
+
+
+def codesign_evaluate(
+    spec_kind: str,
+    artifact: list,
+    session_id: str = "",
+    num_tests: int = 64,
+    kappa: int = 1,
+    seed: int = 7,
+) -> dict:
+    """Evaluate a Kickmix circuit artifact via kubonad; receipts in SQLite when session_id is set."""
+    if not spec_kind.strip():
+        return {"ok": False, "error": "spec_kind is required"}
+    if not isinstance(artifact, list) or not artifact:
+        return {"ok": False, "error": "artifact must be a non-empty list of [op, qubits, cond] tuples"}
+    payload: dict = {
+        "spec_kind": spec_kind,
+        "artifact": artifact,
+        "num_tests": num_tests,
+        "kappa": kappa,
+        "seed": seed,
+    }
+    if session_id.strip():
+        payload["session_id"] = session_id.strip()
+    return _codesign_api_call("POST", "/api/codesign/evaluate", payload, require_token=bool(session_id.strip()))
+
+
+def codesign_frontier(entries: list, kappa: int = 1) -> dict:
+    """Score a batch of circuit metrics onto the MAP-Elites and Pareto frontiers."""
+    if not isinstance(entries, list) or not entries:
+        return {"ok": False, "error": "entries must be a non-empty list"}
+    return _codesign_api_call("POST", "/api/codesign/frontier", {"entries": entries, "kappa": kappa})
+
+
+def codesign_verify(session_id: str, run_id: str) -> dict:
+    """Fetch a persisted session-scoped codesign run receipt and its verification details."""
+    import urllib.parse
+
+    if not session_id.strip() or not run_id.strip():
+        return {"ok": False, "error": "session_id and run_id are required"}
+    q = urllib.parse.urlencode({"session_id": session_id.strip()})
+    rid = urllib.parse.quote(run_id.strip(), safe="")
+    return _codesign_api_call("GET", f"/api/codesign/runs/{rid}?{q}", require_token=True)
+
+
+def codesign_claim(
+    session_id: str,
+    claim_id: str,
+    code_name: str,
+    eval_run_id: str,
+    baseline_run_id: str,
+    repro_run_id: str,
+) -> dict:
+    """Register a server-derived circuit discovery claim (C0-C7) from session-owned codesign runs."""
+    if not all(x.strip() for x in (session_id, claim_id, code_name, eval_run_id, baseline_run_id, repro_run_id)):
+        return {
+            "ok": False,
+            "error": "session_id, claim_id, code_name, eval_run_id, baseline_run_id, and repro_run_id are required",
+        }
+    import urllib.parse
+
+    sid = urllib.parse.quote(session_id.strip(), safe="")
+    payload = {
+        "claim_id": claim_id.strip(),
+        "kind": "circuit",
+        "code_name": code_name.strip(),
+        "eval_job_id": eval_run_id.strip(),
+        "baseline_job_id": baseline_run_id.strip(),
+        "repro_job_id": repro_run_id.strip(),
+    }
+    return _codesign_api_call("POST", f"/api/sessions/{sid}/discovery-claims", payload, require_token=True)
+
+
 for fn, desc in [
     (create_session, "Open a session with a hard budget ceiling."),
     (estimate_cost, "Estimate cost + pre-flight verdict for a circuit on a provider."),
@@ -235,6 +371,11 @@ for fn, desc in [
     (quote_payment, "x402-compatible price quote (the request is the transaction)."),
     (verify_payment, "Verify an x402 payment proof."),
     (codesign_rerun, "Run the governed circuit-proposal rerun via the Go API (BYOK estimate)."),
+    (codesign_spec, "Inspect a Kickmix circuit specification and its exhaustive domain size."),
+    (codesign_evaluate, "Evaluate a Kickmix circuit artifact and optionally persist a session-scoped receipt."),
+    (codesign_frontier, "Project circuit candidates onto the MAP-Elites and Pareto frontiers."),
+    (codesign_verify, "Retrieve a persisted session-scoped codesign run receipt by run_id."),
+    (codesign_claim, "Create a server-derived circuit discovery claim (C0-C7) from persisted codesign runs."),
 ]:
     mcp.add_tool(fn, name=fn.__name__, description=desc)
 

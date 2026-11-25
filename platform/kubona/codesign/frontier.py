@@ -1,7 +1,9 @@
-"""MAP-Elites (T,Q) frontier: keep min-TQ per cell.
+"""MAP-Elites (T,Q) frontier and multi-objective Pareto frontier (Phase 3).
 
 Paper: divide the (T,Q) plane into cells, keep lowest TQ per cell so a
-space-efficient circuit survives a worse TQ. Progress need not be monotonic.
+space-efficient circuit survives a worse TQ. Phase 3 adds ``ParetoFrontier``
+over ``(tq, toffoli_depth, qubits)`` with explicit non-dominance so a circuit
+that improves TQ while worsening T-depth is never silently discarded.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ class FrontierEntry:
     qubits: int
     tq: int
     meta: dict[str, Any] = field(default_factory=dict)
+    toffoli_depth: int = 0
 
 
 class MapElitesFrontier:
@@ -43,12 +46,20 @@ class MapElitesFrontier:
     def cell(self, t: int, q: int) -> tuple[int, int]:
         return (self._bucket(t, self.t_buckets), self._bucket(q, self.q_buckets))
 
-    def offer(self, artifact: Any, toffoli: int, qubits: int, meta: dict | None = None) -> bool:
+    def offer(
+        self,
+        artifact: Any,
+        toffoli: int,
+        qubits: int,
+        meta: dict | None = None,
+        *,
+        toffoli_depth: int = 0,
+    ) -> bool:
         tq = tq_cost(toffoli, qubits, self.kappa)
         c = self.cell(toffoli, qubits)
         cur = self._cells.get(c)
         if cur is None or tq < cur.tq:
-            self._cells[c] = FrontierEntry(artifact, toffoli, qubits, tq, dict(meta or {}))
+            self._cells[c] = FrontierEntry(artifact, toffoli, qubits, tq, dict(meta or {}), int(toffoli_depth))
             return True
         return False
 
@@ -69,9 +80,83 @@ class MapElitesFrontier:
                 "toffoli": best.toffoli,
                 "qubits": best.qubits,
                 "tq": best.tq,
+                "toffoli_depth": best.toffoli_depth,
             },
             "entries": [
-                {"toffoli": e.toffoli, "qubits": e.qubits, "tq": e.tq, "meta": e.meta}
+                {
+                    "toffoli": e.toffoli,
+                    "qubits": e.qubits,
+                    "tq": e.tq,
+                    "toffoli_depth": e.toffoli_depth,
+                    "meta": e.meta,
+                }
+                for e in self.entries()
+            ],
+        }
+
+
+class ParetoFrontier:
+    """Multi-objective non-dominated frontier over ``(tq, toffoli_depth, qubits)`` (Phase 3).
+
+    Entry A dominates B iff ``A.tq <= B.tq``, ``A.toffoli_depth <= B.toffoli_depth``,
+    ``A.qubits <= B.qubits``, and at least one inequality is strict.
+    """
+
+    def __init__(self, kappa: int = TQ_KAPPA_DEFAULT):
+        self.kappa = kappa
+        self._entries: list[FrontierEntry] = []
+
+    @staticmethod
+    def dominates(a: FrontierEntry, b: FrontierEntry) -> bool:
+        le_all = (a.tq <= b.tq) and (a.toffoli_depth <= b.toffoli_depth) and (a.qubits <= b.qubits)
+        lt_any = (a.tq < b.tq) or (a.toffoli_depth < b.toffoli_depth) or (a.qubits < b.qubits)
+        return le_all and lt_any
+
+    def offer(
+        self,
+        artifact: Any,
+        toffoli: int,
+        qubits: int,
+        toffoli_depth: int,
+        meta: dict | None = None,
+    ) -> bool:
+        cand = FrontierEntry(
+            artifact=artifact,
+            toffoli=int(toffoli),
+            qubits=int(qubits),
+            tq=tq_cost(int(toffoli), int(qubits), self.kappa),
+            meta=dict(meta or {}),
+            toffoli_depth=int(toffoli_depth),
+        )
+        for existing in self._entries:
+            if self.dominates(existing, cand):
+                return False
+            if (
+                existing.tq == cand.tq
+                and existing.toffoli_depth == cand.toffoli_depth
+                and existing.qubits == cand.qubits
+            ):
+                return False
+        self._entries = [e for e in self._entries if not self.dominates(cand, e)]
+        self._entries.append(cand)
+        return True
+
+    def entries(self) -> list[FrontierEntry]:
+        return sorted(self._entries, key=lambda e: (e.tq, e.toffoli_depth, e.qubits))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kappa": self.kappa,
+            "objectives": ["tq", "toffoli_depth", "qubits"],
+            "size": len(self._entries),
+            "entries": [
+                {
+                    "toffoli": e.toffoli,
+                    "qubits": e.qubits,
+                    "tq": e.tq,
+                    "toffoli_depth": e.toffoli_depth,
+                    "meta": e.meta,
+                }
                 for e in self.entries()
             ],
         }

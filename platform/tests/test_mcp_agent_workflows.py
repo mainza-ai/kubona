@@ -76,7 +76,7 @@ def test_mcp_initialize_resources_prompts_and_profiles():
         assert "classical anchor" in res.get("instructions", "").lower()
         assert res["serverInfo"]["name"] == "kubona-science"
 
-        # Profile scoping: read-only excludes mutating tools; all exposes 49 tools
+        # Profile scoping: read-only excludes mutating tools; all exposes 54 tools
         r_ro = _rpc_post(client, "/mcp?profile=read-only", "tools/list", {})
         assert r_ro.status_code == 200
         ro_names = {t["name"] for t in r_ro.json()["result"]["tools"]}
@@ -89,7 +89,7 @@ def test_mcp_initialize_resources_prompts_and_profiles():
         r_all = _rpc_post(client, "/mcp?profile=all", "tools/list", {})
         assert r_all.status_code == 200
         all_names = {t["name"] for t in r_all.json()["result"]["tools"]}
-        assert len(all_names) == 49
+        assert len(all_names) == 54
 
         # Resources: index + skill body + error catalog
         r_res = _rpc_post(client, "/mcp", "resources/list", {})

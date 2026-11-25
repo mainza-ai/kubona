@@ -32,6 +32,11 @@ TOOL_SCOPES: dict[str, str] = {
     "execution/list_provider_registry": "providers:read",
     # cost governance
     "cost/codesign_rerun": "cost:manage",
+    "cost/codesign_spec": "cost:read",
+    "cost/codesign_evaluate": "cost:read",
+    "cost/codesign_frontier": "cost:read",
+    "cost/codesign_verify": "cost:read",
+    "cost/codesign_claim": "cost:manage",
     "cost/create_session": "cost:manage",
     "cost/estimate_cost": "cost:read",
     "cost/request_approval": "cost:manage",

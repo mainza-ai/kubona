@@ -9,7 +9,7 @@ any LLM proposal calls; oMLX/OpenCode are parked during development.
 
 from .kickmix import Builder, KickmixEvaluator, Op, TaskSpec, TrajectoryResult, active_qubits, binom_tail, circuit_depth, emit_xor_cover, eps_upper_exact, toffoli_depth, transfer_bounds
 from .tq import TQ_KAPPA_DEFAULT, TQ_KAPPA_MAX, TQ_KAPPA_MIN, kappa_sweep, tq_cost
-from .frontier import FrontierEntry, MapElitesFrontier
+from .frontier import FrontierEntry, MapElitesFrontier, ParetoFrontier
 from .harness import CircuitCodesignHarness, artifact_from_builder
 from .horner import build_horner_quad, emit_add, emit_mul_rows, emit_sub, horner_quad_model, horner_quad_spec, trunc_mul_bound
 from .passes import build_barrel_rotl4, build_routed_1bit_madd, barrel_rotl4_spec, detect_routing_opportunity, emit_cswap, madd_costs, mbu_saving, rotl_words, routed_1bit_spec, routed_madd_costs
@@ -452,6 +452,8 @@ __all__ = [
     "trace_dual",
     "CircuitCodesignHarness",
     "FrontierEntry",
+    "MapElitesFrontier",
+    "ParetoFrontier",
     "FieldWalker",
     "Op",
     "artifact_from_builder",
