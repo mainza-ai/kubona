@@ -5,6 +5,7 @@ import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCode
 import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
 import type { Session } from '@/types';
 import { Chart } from '@/components/data/LazyChart';
+import { Button } from '@/components/ui/Button';
 import type { ChartSpec } from '@/components/data/chart';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
@@ -690,6 +691,34 @@ export function CodesignCockpit() {
                 {(evalRes.factory as Record<string, unknown>).within_failure_budget ? 'within accuracy budget' : 'EXCEEDS accuracy budget'}
               </div>
             )}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Button
+                size="compact"
+                variant="ghost"
+                onClick={() => {
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    void navigator.clipboard.writeText(evalArtifact);
+                  }
+                }}
+              >
+                Copy artifact
+              </Button>
+              <Button
+                size="compact"
+                variant="ghost"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify({ spec_kind: evalSpecKind, artifact: evalArtifact, result: evalRes }, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `codesign-${evalSpecKind || 'eval'}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                Download JSON
+              </Button>
+            </div>
           </div>
         )}
       </div>

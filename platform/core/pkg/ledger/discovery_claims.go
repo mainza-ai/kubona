@@ -16,6 +16,7 @@ const discoveryClaimsSchema = `
 	CREATE TABLE IF NOT EXISTS discovery_claims (
 		claim_id TEXT PRIMARY KEY,
 		session_id TEXT NOT NULL DEFAULT '',
+		kind TEXT NOT NULL DEFAULT 'qec_code',
 		code_name TEXT NOT NULL,
 		status TEXT NOT NULL DEFAULT 'candidate',
 		evidence_tier TEXT NOT NULL DEFAULT 'T3_SAMPLED',
@@ -57,6 +58,9 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 		return err
 	}
 
+	if rec.Kind == "" {
+		rec.Kind = "qec_code"
+	}
 	if rec.Status == "" {
 		rec.Status = qec.ClaimCandidate
 	}
@@ -70,12 +74,13 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 	}
 	_, err = l.db.Exec(`
 		INSERT INTO discovery_claims (
-			claim_id, session_id, code_name, status, evidence_tier, credibility_tier,
+			claim_id, session_id, kind, code_name, status, evidence_tier, credibility_tier,
 			artifact_sha256, gates_digest, gates_0_to_6_passed,
 			operator_pubkey_hex, operator_signature_hex, retraction_reason,
 			gate_report_json, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(claim_id) DO UPDATE SET
+			kind=excluded.kind,
 			code_name=excluded.code_name,
 			status=excluded.status,
 			evidence_tier=excluded.evidence_tier,
@@ -90,7 +95,7 @@ func (l *Ledger) SaveDiscoveryClaim(rec qec.DiscoveryClaimRecord) error {
 			updated_at=excluded.updated_at
 		WHERE discovery_claims.session_id = excluded.session_id
 	`,
-		cid, sid, rec.CodeName, string(rec.Status), rec.EvidenceTier, rec.CredibilityTier,
+		cid, sid, rec.Kind, rec.CodeName, string(rec.Status), rec.EvidenceTier, rec.CredibilityTier,
 		rec.ArtifactSHA256, rec.GatesDigest, passedInt,
 		rec.OperatorPubkeyHex, rec.OperatorSignatureHex, rec.RetractionReason,
 		rec.GateReportJSON, now, now,
@@ -114,13 +119,13 @@ func (l *Ledger) GetDiscoveryClaim(sessionID, claimID string) (*qec.DiscoveryCla
 		passedInt int
 	)
 	err := l.db.QueryRow(`
-		SELECT claim_id, session_id, code_name, status, evidence_tier, credibility_tier,
+		SELECT claim_id, session_id, kind, code_name, status, evidence_tier, credibility_tier,
 		       artifact_sha256, gates_digest, gates_0_to_6_passed,
 		       operator_pubkey_hex, operator_signature_hex, retraction_reason, gate_report_json
 		FROM discovery_claims
 		WHERE session_id = ? AND claim_id = ?
 	`, sid, cid).Scan(
-		&rec.ClaimID, &rec.SessionID, &rec.CodeName, &statusStr, &rec.EvidenceTier, &rec.CredibilityTier,
+		&rec.ClaimID, &rec.SessionID, &rec.Kind, &rec.CodeName, &statusStr, &rec.EvidenceTier, &rec.CredibilityTier,
 		&rec.ArtifactSHA256, &rec.GatesDigest, &passedInt,
 		&rec.OperatorPubkeyHex, &rec.OperatorSignatureHex, &rec.RetractionReason, &rec.GateReportJSON,
 	)
@@ -146,7 +151,7 @@ func (l *Ledger) ListDiscoveryClaims(sessionID string) ([]qec.DiscoveryClaimReco
 	)
 	if strings.TrimSpace(sessionID) != "" {
 		rows, err = l.db.Query(`
-			SELECT claim_id, session_id, code_name, status, evidence_tier, credibility_tier,
+			SELECT claim_id, session_id, kind, code_name, status, evidence_tier, credibility_tier,
 			       artifact_sha256, gates_digest, gates_0_to_6_passed,
 			       operator_pubkey_hex, operator_signature_hex, retraction_reason, gate_report_json
 			FROM discovery_claims
@@ -155,7 +160,7 @@ func (l *Ledger) ListDiscoveryClaims(sessionID string) ([]qec.DiscoveryClaimReco
 		`, sessionID)
 	} else {
 		rows, err = l.db.Query(`
-			SELECT claim_id, session_id, code_name, status, evidence_tier, credibility_tier,
+			SELECT claim_id, session_id, kind, code_name, status, evidence_tier, credibility_tier,
 			       artifact_sha256, gates_digest, gates_0_to_6_passed,
 			       operator_pubkey_hex, operator_signature_hex, retraction_reason, gate_report_json
 			FROM discovery_claims
@@ -174,7 +179,7 @@ func (l *Ledger) ListDiscoveryClaims(sessionID string) ([]qec.DiscoveryClaimReco
 			passedInt int
 		)
 		if err := rows.Scan(
-			&rec.ClaimID, &rec.SessionID, &rec.CodeName, &statusStr, &rec.EvidenceTier, &rec.CredibilityTier,
+			&rec.ClaimID, &rec.SessionID, &rec.Kind, &rec.CodeName, &statusStr, &rec.EvidenceTier, &rec.CredibilityTier,
 			&rec.ArtifactSHA256, &rec.GatesDigest, &passedInt,
 			&rec.OperatorPubkeyHex, &rec.OperatorSignatureHex, &rec.RetractionReason, &rec.GateReportJSON,
 		); err != nil {

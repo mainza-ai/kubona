@@ -8,6 +8,10 @@ snippets: handler tests assert them, and the Go rail maps the outer
 ``ok`` flag to status exactly as before.
 """
 
+import hashlib
+import json
+import sys
+
 from kubona.codesign import (
     BudgetEntry,
     CircuitCodesignHarness,
@@ -20,6 +24,18 @@ from kubona.codesign import (
     union_bound,
 )
 from kubona.codesign.factories import factory_report
+
+
+def _canonical_sha256(obj) -> str:
+    raw = json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _tool_versions() -> dict:
+    return {
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "kubona_codesign": "1.0",
+    }
 
 
 def strict_int(v, name, lo, hi):
@@ -63,9 +79,10 @@ def op_evaluate(body):
     max_failures = strict_int(body.get("max_failures", 0), "max_failures", 0, num_tests)
     kappa = strict_int(body.get("kappa", 1), "kappa", 1, 3)
     seed = strict_int(body.get("seed", 7), "seed", 0, 2**31 - 1)
+    artifact = body.get("artifact", [])
     h = CircuitCodesignHarness(spec, num_tests=num_tests,
                                max_failures=max_failures, kappa=kappa, seed=seed)
-    res = h.run(body.get("artifact", []))
+    res = h.run(artifact)
     if res.get("valid"):
         res["kappa_sweep"] = {str(k): v for k, v in
                               kappa_sweep(res["toffoli"], res["peak_qubits"]).items()}
@@ -78,7 +95,26 @@ def op_evaluate(body):
         res["factory"] = factory_report(toffoli=res["toffoli"], qubits=res["peak_qubits"],
                                         toffoli_depth=res.get("toffoli_depth", 0), factory=fac,
                                         code_distance=cd, cycle_us=cu)
-    return {"ok": True, "spec_kind": label, "result": res}
+    spec_table_sha256 = _canonical_sha256({
+        "spec_kind": label,
+        "num_qubits": spec.num_qubits,
+        "inputs": list(spec.inputs),
+        "outputs": list(spec.outputs),
+        "ancillas": list(spec.ancillas),
+    })
+    artifact_sha256 = _canonical_sha256(artifact)
+    return {
+        "ok": True,
+        "spec_kind": label,
+        "spec_table_sha256": spec_table_sha256,
+        "artifact_sha256": artifact_sha256,
+        "kappa": kappa,
+        "seed": seed,
+        "num_tests": num_tests,
+        "max_failures": max_failures,
+        "tool_versions": _tool_versions(),
+        "result": res,
+    }
 
 
 def op_batch(body):

@@ -21,10 +21,12 @@ const (
 	ClaimSignDomain = "kubona:discovery_claim:v1"
 )
 
-// DiscoveryClaimRecord mirrors the ledger-persisted state of a QEC discovery claim.
+// DiscoveryClaimRecord mirrors the ledger-persisted state of a QEC or Circuit
+// Codesign discovery claim (Schema 18 unified lifecycle).
 type DiscoveryClaimRecord struct {
 	ClaimID              string               `json:"claim_id"`
 	SessionID            string               `json:"session_id,omitempty"`
+	Kind                 string               `json:"kind,omitempty"` // "qec_code" (default) | "circuit"
 	CodeName             string               `json:"code_name"`
 	Status               DiscoveryClaimStatus `json:"status"`
 	EvidenceTier         string               `json:"evidence_tier"`    // T1_VERIFIED | T3_SAMPLED

@@ -101,6 +101,7 @@ func isCompletedJobStatus(st string) bool {
 
 type discoveryClaimCreateReq struct {
 	ClaimID               string `json:"claim_id"`
+	Kind                  string `json:"kind"` // "qec_code" (default) | "circuit"
 	CodeName              string `json:"code_name"`
 	EvalJobID             string `json:"eval_job_id"`
 	SimJobID              string `json:"sim_job_id"`
@@ -108,6 +109,131 @@ type discoveryClaimCreateReq struct {
 	HeldOutSimJobID       string `json:"held_out_sim_job_id"`
 	HeldOutBaselineSimJob string `json:"held_out_baseline_sim_job_id"`
 	ReproSimJobID         string `json:"repro_sim_job_id"`
+	// Phase 1 CircuitClaim fields (kind="circuit")
+	EvalRunID     string `json:"eval_run_id"`
+	BaselineRunID string `json:"baseline_run_id"`
+	ReproRunID    string `json:"repro_run_id"`
+}
+
+// deriveServerSideCircuitClaim enforces CircuitClaim gates C0-C7 strictly from
+// durable, session-scoped codesign_runs rows (Phase 1 / Decisions A1 & A2:
+// unified discovery_claims table, exhaustive equivalence eps=0 only).
+func (s *Server) deriveServerSideCircuitClaim(
+	sessionID string,
+	req discoveryClaimCreateReq,
+) (qec.DiscoveryClaimRecord, error) {
+	claimID := strings.TrimSpace(req.ClaimID)
+	codeName := strings.TrimSpace(req.CodeName)
+	evalRunID := strings.TrimSpace(req.EvalRunID)
+	baseRunID := strings.TrimSpace(req.BaselineRunID)
+	reproRunID := strings.TrimSpace(req.ReproRunID)
+
+	evalRun, err := s.ledger.GetCodesignRun(sessionID, evalRunID)
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, fmt.Errorf("eval_run_id %q not found in session %q", evalRunID, sessionID)
+	}
+	c0 := evalRun.ArtifactSHA256 != "" && evalRun.SpecKind != ""
+	// Decision A2: exhaustive equivalence only (verification_method == "exhaustive" and eps == 0)
+	c1 := evalRun.Valid && evalRun.VerificationMethod == "exhaustive" && evalRun.EpsBound == 0
+	c1Reason := "ok"
+	if !evalRun.Valid {
+		c1Reason = "not_equivalent"
+	} else if !c1 {
+		c1Reason = "non_exhaustive_not_claimable"
+	}
+	c2 := evalRun.TQ >= 0
+
+	c3 := false
+	c3Reason := "missing_baseline_run"
+	if baseRunID != "" && baseRunID != evalRunID {
+		baseRun, bErr := s.ledger.GetCodesignRun(sessionID, baseRunID)
+		if bErr != nil {
+			return qec.DiscoveryClaimRecord{}, fmt.Errorf("baseline_run_id %q not found in session %q", baseRunID, sessionID)
+		}
+		if baseRun.SpecKind != evalRun.SpecKind || baseRun.Kappa != evalRun.Kappa {
+			c3Reason = "baseline_spec_or_kappa_mismatch"
+		} else if !baseRun.Valid {
+			c3Reason = "baseline_invalid"
+		} else {
+			betterTQ := evalRun.TQ < baseRun.TQ
+			betterTDepth := evalRun.ToffoliDepth < baseRun.ToffoliDepth && evalRun.TQ <= baseRun.TQ
+			betterQ := evalRun.PeakQubits < baseRun.PeakQubits && evalRun.TQ <= baseRun.TQ
+			if betterTQ || betterTDepth || betterQ {
+				c3 = true
+				c3Reason = "ok"
+			} else {
+				c3Reason = "no_frontier_advantage"
+			}
+		}
+	}
+
+	c4 := false
+	c4Reason := "missing_repro_run"
+	if reproRunID != "" && reproRunID != evalRunID {
+		reproRun, rErr := s.ledger.GetCodesignRun(sessionID, reproRunID)
+		if rErr != nil {
+			return qec.DiscoveryClaimRecord{}, fmt.Errorf("repro_run_id %q not found in session %q", reproRunID, sessionID)
+		}
+		if reproRun.ArtifactSHA256 != evalRun.ArtifactSHA256 {
+			c4Reason = "artifact_mismatch"
+		} else if reproRun.Seed == evalRun.Seed {
+			c4Reason = "repro_seed_not_distinct"
+		} else if !reproRun.Valid || reproRun.VerificationMethod != "exhaustive" || reproRun.EpsBound != 0 {
+			c4Reason = "repro_not_exhaustive_valid"
+		} else {
+			c4 = true
+			c4Reason = "ok"
+		}
+	}
+
+	allPassed := c0 && c1 && c2 && c3 && c4
+	gatesObj := map[string]any{
+		"gate0_valid":       map[string]any{"passed": c0, "eval_run_id": evalRunID, "artifact_sha256": evalRun.ArtifactSHA256},
+		"gate1_equivalence": map[string]any{"passed": c1, "reason": c1Reason, "verification_method": evalRun.VerificationMethod, "eps_bound": evalRun.EpsBound},
+		"gate2_cost":        map[string]any{"passed": c2, "toffoli": evalRun.Toffoli, "peak_qubits": evalRun.PeakQubits, "tq": evalRun.TQ, "kappa": evalRun.Kappa},
+		"gate3_frontier":    map[string]any{"passed": c3, "reason": c3Reason, "baseline_run_id": baseRunID},
+		"gate4_reproduced":  map[string]any{"passed": c4, "reason": c4Reason, "repro_run_id": reproRunID},
+	}
+
+	artPayload := map[string]any{
+		"claim_id":        claimID,
+		"session_id":      sessionID,
+		"kind":            "circuit",
+		"code_name":       codeName,
+		"spec_kind":       evalRun.SpecKind,
+		"eval_run_id":     evalRunID,
+		"baseline_run_id": baseRunID,
+		"repro_run_id":    reproRunID,
+		"artifact_sha256": evalRun.ArtifactSHA256,
+	}
+	artBytes, _ := json.Marshal(artPayload)
+	artSum := sha256.Sum256(artBytes)
+	artHex := hex.EncodeToString(artSum[:])
+
+	gatesBytes, _ := json.Marshal(gatesObj)
+	gatesSum := sha256.Sum256(gatesBytes)
+	gatesHex := hex.EncodeToString(gatesSum[:])
+
+	tier := "T3_SAMPLED"
+	cred := "L2"
+	if allPassed {
+		tier = "T1_VERIFIED"
+		cred = "L4"
+	}
+
+	return qec.DiscoveryClaimRecord{
+		ClaimID:         claimID,
+		SessionID:       sessionID,
+		Kind:            "circuit",
+		CodeName:        codeName,
+		Status:          qec.ClaimCandidate,
+		EvidenceTier:    tier,
+		CredibilityTier: cred,
+		ArtifactSHA256:  artHex,
+		GatesDigest:     gatesHex,
+		Gates0To6Passed: allPassed,
+		GateReportJSON:  string(gatesBytes),
+	}, nil
 }
 
 func (s *Server) loadCompletedSimJob(sessionID, jobID, label string) (map[string]any, error) {
@@ -388,11 +514,30 @@ func (s *Server) handleDiscoveryClaimsRoute(w http.ResponseWriter, r *http.Reque
 				WriteAPIError(w, "bad_request", "invalid discovery claim JSON", nil)
 				return
 			}
-			if strings.TrimSpace(req.ClaimID) == "" || strings.TrimSpace(req.CodeName) == "" || strings.TrimSpace(req.EvalJobID) == "" {
-				WriteAPIError(w, "bad_request", "claim_id, code_name, and settled eval_job_id are required (client-supplied gate flags and artifact hashes are not accepted)", nil)
+			kind := strings.TrimSpace(req.Kind)
+			if kind == "" {
+				kind = "qec_code"
+			}
+			var (
+				rec qec.DiscoveryClaimRecord
+				err error
+			)
+			if kind == "circuit" {
+				if strings.TrimSpace(req.ClaimID) == "" || strings.TrimSpace(req.CodeName) == "" || strings.TrimSpace(req.EvalRunID) == "" {
+					WriteAPIError(w, "bad_request", "claim_id, code_name, and settled eval_run_id are required for kind=circuit", nil)
+					return
+				}
+				rec, err = s.deriveServerSideCircuitClaim(sessionID, req)
+			} else if kind == "qec_code" {
+				if strings.TrimSpace(req.ClaimID) == "" || strings.TrimSpace(req.CodeName) == "" || strings.TrimSpace(req.EvalJobID) == "" {
+					WriteAPIError(w, "bad_request", "claim_id, code_name, and settled eval_job_id are required (client-supplied gate flags and artifact hashes are not accepted)", nil)
+					return
+				}
+				rec, err = s.deriveServerSideDiscoveryClaim(sessionID, req)
+			} else {
+				WriteAPIError(w, "bad_request", fmt.Sprintf("unsupported discovery claim kind %q (allowed: qec_code, circuit)", kind), nil)
 				return
 			}
-			rec, err := s.deriveServerSideDiscoveryClaim(sessionID, req)
 			if err != nil {
 				WriteAPIError(w, "bad_request", err.Error(), nil)
 				return

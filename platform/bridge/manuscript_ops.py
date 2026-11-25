@@ -178,6 +178,8 @@ def _row_status(row: Dict[str, Any]) -> str:
         return "proved" if str(row.get("d_kind") or "") == "proved" else "upper-bound"
     if kind_l == "qec_memory_sim":
         return "qec-sim"
+    if kind_l in ("codesign_run", "circuit_claim"):
+        return "exhaustive" if str(row.get("verification_method") or "") == "exhaustive" else "codesign"
     return "inferred"
 
 
@@ -348,6 +350,16 @@ def _results_table(rows: List[Dict[str, Any]]) -> str:
                 delta_str = _latex_escape(f"{dec_name} ({float(lat_us):.1f} us)")
             else:
                 delta_str = _latex_escape(dec_name)
+        elif kind_l in ("codesign_run", "circuit_claim"):
+            t_cnt = row.get("toffoli")
+            q_cnt = row.get("peak_qubits")
+            tq_v = row.get("tq")
+            if t_cnt is not None and q_cnt is not None:
+                measured_str = f"{int(t_cnt)}T $\\times$ {int(q_cnt)}Q"
+            if tq_v is not None:
+                exact_str = f"TQ={int(tq_v)}"
+            vm = str(row.get("verification_method") or "")
+            delta_str = "exhaustive ($\\varepsilon=0$)" if vm == "exhaustive" else _latex_escape(vm or "verified")
         else:
             measured_v = row.get("energy")
             if measured_v is None:

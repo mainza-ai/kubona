@@ -838,6 +838,8 @@ func (s *Server) registerRoutes() {
 	// Evaluator proxy (Phase 1 migration): stateless Python compute only.
 	s.route("/api/codesign/evaluate", s.handleCodesignEvaluate)
 	s.route("/api/codesign/evaluate-batch", s.handleCodesignEvaluateBatch)
+	s.route("/api/codesign/runs", s.handleCodesignRuns)
+	s.route("/api/codesign/runs/", s.handleCodesignRuns)
 	s.route("/api/codesign/families", s.handleCodesignFamilies)
 	s.route("/api/codesign/budget", s.handleCodesignBudget)
 	// Verified results (G4): versioned JSON, numbers not verdicts.
