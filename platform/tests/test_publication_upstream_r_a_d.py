@@ -71,6 +71,41 @@ def test_r_d_multi_register_and_openqasm3_if_schematic_parsing():
     assert any(name == "fig_circuit_qec_memory_sim.png" and raw.startswith(b"\x89PNG\r\n\x1a\n") for name, raw, _ in figs)
 
 
+def test_h4_snapshot_from_target_fallback_and_h6_prefix_caption():
+    from kubona.providers.qiskit_provider import _snapshot_from_target
+
+    class FakeTarget:
+        qubit_properties = [
+            SimpleNamespace(t1=2.4e-4, t2=1.5e-4),
+            SimpleNamespace(t1=2.6e-4, t2=1.3e-4),
+        ]
+
+        def __contains__(self, key):
+            return key in ("measure", "sx")
+
+        def __getitem__(self, key):
+            if key == "measure":
+                return {(0,): SimpleNamespace(error=0.012), (1,): SimpleNamespace(error=0.015)}
+            if key == "sx":
+                return {(0,): SimpleNamespace(error=0.0002), (1,): SimpleNamespace(error=0.0003)}
+            return {}
+
+    snap = _snapshot_from_target(FakeTarget(), "ibm_kingston")
+    assert snap is not None
+    assert snap["qubits"] == 2
+    assert snap["per_qubit"]["0"]["t1_us"] == 240.0
+    assert snap["per_qubit"]["1"]["readout_error"] == 0.015
+    assert snap["per_qubit"]["0"]["sx_error"] == 0.0002
+
+    # H6: KUBONA_PREFIX_TRUNCATED triggers explicit prefix notice in caption
+    prefixed = '// KUBONA_PREFIX_TRUNCATED\nOPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];\n'
+    figs = manuscript_figures.generate_campaign_figures(
+        [{"job_id": "job_big", "kind": "vqe_hardware", "hardware": True, "shots": 1024, "seed": 7}],
+        circuit_samples={"job_big": prefixed},
+    )
+    assert any("rendered from 32 KiB prefix" in cap for _, _, cap in figs)
+
+
 def test_r_a_qaoa_simulator_retains_counts_and_derives_ratio_interval():
     import pytest
     pytest.importorskip("qiskit")

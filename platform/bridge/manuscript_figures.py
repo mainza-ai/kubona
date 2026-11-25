@@ -594,7 +594,8 @@ def _render_circuit_schematics(
 
         total_depth = len(layers)
         shown_layers = layers[:18]
-        folded = total_depth > len(shown_layers) or n_q > max_wires
+        prefix_truncated = "KUBONA_PREFIX_TRUNCATED" in qasm
+        folded = prefix_truncated or total_depth > len(shown_layers) or n_q > max_wires
 
         w, h = 1600, max(540, 210 + max_wires * 58)
         img, draw = _new_canvas(w, h)
@@ -671,8 +672,9 @@ def _render_circuit_schematics(
             draw.text((60, h - 42), note, fill=SLATE, font=font_sub)
 
         fname = f"fig_circuit_{fam}.png"
+        trunc_note = " (rendered from 32 KiB prefix)" if prefix_truncated else ""
         caption = (
-            f"Representative quantum circuit schematic for {raw_kind} "
+            f"Representative quantum circuit schematic for {raw_kind}{trunc_note} "
             f"(n={n_q} qubits, depth={total_depth}, {two_q} two-qubit gates, "
             f"shots={shots if shots is not None else 'n/a'}, seed={seed if seed is not None else 'n/a'}, "
             f"circuit SHA-256 prefix {q_sha}). Complete OpenQASM source archived in supplement/qasm/."

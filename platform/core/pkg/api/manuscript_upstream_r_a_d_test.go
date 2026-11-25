@@ -29,4 +29,23 @@ func TestExtractUsedQubitCalibrationSlicesPerQubitMap(t *testing.T) {
 	if miss := verify.CheckScholarlyMetadata(ev); len(miss) != 0 {
 		t.Fatalf("expected 0 missing scholarly fields, got %+v", miss)
 	}
+
+	// H3 (C-B): stageCountsArtifact writes .json when <= cap and auto-gzips to .json.gz when > cap
+	arts := map[string][]byte{}
+	pSmall, okSmall := stageCountsArtifact("supplement/counts/j1", map[string]int{"00": 512, "11": 512}, 256*1024, arts)
+	if !okSmall || pSmall != "supplement/counts/j1.json" || len(arts[pSmall]) == 0 {
+		t.Fatalf("expected plain .json staging, got %q ok=%v", pSmall, okSmall)
+	}
+	big := map[string]map[string]int{}
+	for i := 0; i < 60; i++ {
+		term := map[string]int{}
+		for j := 0; j < 200; j++ {
+			term[string(rune('a'+(j%26)))+string(rune('0'+(j%10)))+string(rune('A'+(i%26)))+string(rune('0'+(i%10)))] = j + 1
+		}
+		big[string(rune('A'+(i%26)))+string(rune('0'+(i%10)))] = term
+	}
+	pBig, okBig := stageCountsArtifact("supplement/counts/j2", big, 1024, arts)
+	if !okBig || pBig != "supplement/counts/j2.json.gz" || len(arts[pBig]) == 0 {
+		t.Fatalf("H3 violated: expected .json.gz fallback for large histogram, got %q ok=%v", pBig, okBig)
+	}
 }

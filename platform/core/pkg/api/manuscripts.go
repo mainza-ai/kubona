@@ -1725,6 +1725,15 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 	// manuscript; a title or abstract change still requires a new draft so a
 	// reviewed document cannot be silently rewritten.
 	if ms.State != ledger.ManuscriptStateDraft {
+		// H5 (C-C): reopening signed/built evidence requires operator bearer
+		// (matching handleManuscriptDelete custody symmetry); reviewed stays session-editable.
+		if ms.Signoff != nil || ms.State == ledger.ManuscriptStateSigned || ms.State == ledger.ManuscriptStateBuilt {
+			tenant, _, code := s.checkAuth(r)
+			if code != http.StatusOK || tenant != "" {
+				WriteAPIError(w, "forbidden", "reopening a signed or built manuscript requires the operator bearer", nil)
+				return
+			}
+		}
 		if len(body.Scholarly) == 0 {
 			WriteAPIError(w, "manuscript_immutable",
 				"only a draft can be edited; supply scholarly metadata to correct a reviewed manuscript", nil)
@@ -1785,13 +1794,14 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
 		return
 	}
+	// H2: capture pre-reopen state & content hash BEFORE overwriting ms.ContentHash.
+	previousState, previousHash := ms.State, ms.ContentHash
 	ms.Title = resp.Title
 	ms.Abstract = resp.Abstract
 	ms.Sections = manuscriptSections(resp.Sections)
 	ms.ContentHash = manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, req.Figures, resp.FigureSHA)
 	ms.ReviewJSON = "{}"
-	if ms.State != ledger.ManuscriptStateDraft {
-		previousState, previousHash := ms.State, ms.ContentHash
+	if previousState != ledger.ManuscriptStateDraft {
 		if err := s.ledger.ResetManuscriptToDraft(sessionID, id); err != nil {
 			WriteAPIError(w, "internal", "manuscript reset failed: "+err.Error(), nil)
 			return

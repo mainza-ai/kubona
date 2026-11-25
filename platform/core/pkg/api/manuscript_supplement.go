@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
@@ -98,6 +99,9 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 			countsMap, _ := res["counts"].(map[string]any)
 			if len(countsMap) == 0 {
 				countsMap, _ = res["bitstring_counts"].(map[string]any)
+			}
+			if len(countsMap) == 0 {
+				countsMap, _ = res["counts_by_term"].(map[string]any)
 			}
 			if len(countsMap) > 0 {
 				rawCounts, _ := json.Marshal(countsMap)
@@ -208,9 +212,9 @@ func (s *Server) collectRepresentativeCircuits(sessionID, campaignJSON string) m
 		if len(qasm) > maxBytes {
 			cut := strings.LastIndex(qasm[:maxBytes], "\n")
 			if cut > 0 {
-				qasm = qasm[:cut]
+				qasm = "// KUBONA_PREFIX_TRUNCATED\n" + qasm[:cut]
 			} else {
-				qasm = qasm[:maxBytes]
+				qasm = "// KUBONA_PREFIX_TRUNCATED\n" + qasm[:maxBytes]
 			}
 		}
 		seenFamily[fam] = true
@@ -464,11 +468,13 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 				if len(countsMap) == 0 {
 					countsMap, _ = res["bitstring_counts"].(map[string]any)
 				}
+				if len(countsMap) == 0 {
+					countsMap, _ = res["counts_by_term"].(map[string]any)
+				}
 				if len(countsMap) > 0 {
-					if raw, err := json.Marshal(countsMap); err == nil && len(raw) <= maxCountsFileBytes {
-						countsPath = "supplement/counts/" + jid + ".json"
-						artifacts[countsPath] = raw
-						countsPaths = append(countsPaths, countsPath)
+					if staged, ok := stageCountsArtifact("supplement/counts/"+jid, countsMap, maxCountsFileBytes, artifacts); ok {
+						countsPath = staged
+						countsPaths = append(countsPaths, staged)
 					}
 				}
 				if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
@@ -479,10 +485,8 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 								countsObj, _ = pm["counts_by_term"].(map[string]any)
 							}
 							if len(countsObj) > 0 {
-								if raw, err := json.Marshal(countsObj); err == nil && len(raw) <= maxCountsFileBytes {
-									pPath := fmt.Sprintf("supplement/counts/%s_p%d.json", jid, i)
-									artifacts[pPath] = raw
-									countsPaths = append(countsPaths, pPath)
+								if staged, ok := stageCountsArtifact(fmt.Sprintf("supplement/counts/%s_p%d", jid, i), countsObj, maxCountsFileBytes, artifacts); ok {
+									countsPaths = append(countsPaths, staged)
 								}
 							}
 						}
@@ -702,6 +706,37 @@ func extractUsedQubitCalibration(cal any, usedQubits []int) map[string]any {
 		return nil
 	}
 	return out
+}
+
+// stageCountsArtifact writes a shot histogram as `<base>.json` when <= plainCap
+// bytes, or automatically gzip-compresses it as `<base>.json.gz` (up to 2 MiB
+// compressed) so large multi-term VQE/PES histograms are never silently dropped (H3 / C-B).
+func stageCountsArtifact(base string, obj any, plainCap int, artifacts map[string][]byte) (string, bool) {
+	raw, err := json.Marshal(obj)
+	if err != nil || len(raw) == 0 {
+		return "", false
+	}
+	if len(raw) <= plainCap {
+		p := base + ".json"
+		artifacts[p] = raw
+		return p, true
+	}
+	const maxGzipBytes = 2 * 1024 * 1024
+	var buf bytes.Buffer
+	gz, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return "", false
+	}
+	if _, err := gz.Write(raw); err != nil {
+		_ = gz.Close()
+		return "", false
+	}
+	if err := gz.Close(); err != nil || buf.Len() > maxGzipBytes {
+		return "", false
+	}
+	p := base + ".json.gz"
+	artifacts[p] = buf.Bytes()
+	return p, true
 }
 
 func fmtVal(v any) string {

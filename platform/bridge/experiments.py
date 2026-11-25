@@ -437,6 +437,11 @@ def run_vqe_hardware(
         uncertainty = float(rmse + scale_uncertainties[0])
         unmitigated = float(scale_energies[0])
         measured = {"energy": mitigated, "uncertainty": uncertainty, "terms": {}}
+        counts_scale = int(mitigation_scales[0])
+        counts_by_term = {
+            str(term): {str(k): int(v) for k, v in counts.items()}
+            for term, counts in by_scale[counts_scale]
+        }
         energy = mitigated + float(constant_energy)
         delta = abs(energy - float(fci_exact_energy))
         # A ZNE value is an extrapolation, not a direct measurement. It must
@@ -457,6 +462,11 @@ def run_vqe_hardware(
         }
     else:
         measured = _hardware_counts_to_energy(counts_list, coeffs)
+        counts_scale = 1
+        counts_by_term = {
+            str(term): {str(k): int(v) for k, v in counts.items()}
+            for term, counts in zip(sorted(coeffs), counts_list)
+        }
         energy = measured["energy"] + float(constant_energy)
         delta = abs(energy - float(fci_exact_energy))
         claimable = _claimable_against_anchor(energy, float(fci_exact_energy), measured["uncertainty"])
@@ -491,6 +501,8 @@ def run_vqe_hardware(
         "uncertainty": float(measured["uncertainty"]),
         "ci95_mha": _ci95_mha(measured["uncertainty"]),
         "measurements": measured["terms"],
+        "counts_by_term": counts_by_term,
+        "counts_scale": counts_scale,
         "fci_exact_energy": float(fci_exact_energy),
         "delta_mha": float(delta * 1000.0),
         "chemical_accuracy": claimable,
@@ -503,6 +515,7 @@ def run_vqe_hardware(
         "provider": "ibm-qiskit",
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
+        "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **calibration_quality,
         "usage_seconds": batch.get("usage_seconds"),
@@ -1703,6 +1716,7 @@ def run_hardware_pes(
         "hardware_job_id": parent_vendor_ref,
         "vendor_ref": parent_vendor_ref or None,
         "layout": batch.get("layout"),
+        "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **quality,
         "usage_seconds": batch.get("usage_seconds"),
@@ -2451,6 +2465,7 @@ def run_qaoa_hardware(
         "backend": str(batch.get("backend") or "ibm-qiskit"),
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
+        "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **_calibration_quality(batch.get("calibration")),
         "usage_seconds": batch.get("usage_seconds"),

@@ -197,6 +197,79 @@ def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] |
     return snap
 
 
+def _snapshot_from_target(target: Any, backend_name: str) -> dict[str, Any] | None:
+    """Fallback per-qubit calibration extractor from Qiskit BackendV2 Target (H4).
+
+    Used when ``backend.properties()`` returns None or omits per-qubit data on
+    newer IBM Runtime backends. Never invents values; missing fields are skipped.
+    """
+    import statistics
+
+    if target is None:
+        return None
+    qprops = getattr(target, "qubit_properties", None)
+    if not qprops:
+        return None
+    n = len(qprops)
+    t1_vals: list[float] = []
+    t2_vals: list[float] = []
+    ro_vals: list[float] = []
+    sx_vals: list[float] = []
+    per_qubit: dict[str, dict[str, float]] = {}
+
+    meas_map = target.get("measure", {}) if hasattr(target, "get") else {}
+    sx_map = target.get("sx", {}) if hasattr(target, "get") else {}
+    if not meas_map and hasattr(target, "__contains__"):
+        try:
+            meas_map = target["measure"] if "measure" in target else {}
+        except Exception:
+            meas_map = {}
+    if not sx_map and hasattr(target, "__contains__"):
+        try:
+            sx_map = target["sx"] if "sx" in target else {}
+        except Exception:
+            sx_map = {}
+
+    for q in range(n):
+        qp = qprops[q]
+        entry: dict[str, float] = {}
+        v_t1 = getattr(qp, "t1", None)
+        if v_t1 is not None:
+            t1_vals.append(float(v_t1))
+            entry["t1_us"] = round(float(v_t1) * 1e6, 3)
+        v_t2 = getattr(qp, "t2", None)
+        if v_t2 is not None:
+            t2_vals.append(float(v_t2))
+            entry["t2_us"] = round(float(v_t2) * 1e6, 3)
+        mp = meas_map.get((q,)) if isinstance(meas_map, dict) else None
+        if mp is not None and getattr(mp, "error", None) is not None:
+            ro_vals.append(float(mp.error))
+            entry["readout_error"] = round(float(mp.error), 6)
+        sp = sx_map.get((q,)) if isinstance(sx_map, dict) else None
+        if sp is not None and getattr(sp, "error", None) is not None:
+            sx_vals.append(float(sp.error))
+            entry["sx_error"] = round(float(sp.error), 6)
+        if entry:
+            per_qubit[str(q)] = entry
+
+    if not t1_vals or not t2_vals:
+        return None
+    snap: dict[str, Any] = {
+        "qubits": int(n),
+        "t1_us": float(statistics.median(t1_vals) * 1e6),
+        "t2_us": float(statistics.median(t2_vals) * 1e6),
+        "source": f"backend-target:{backend_name}",
+        "backend": backend_name,
+    }
+    if ro_vals:
+        snap["readout_error"] = float(statistics.median(ro_vals))
+    if sx_vals:
+        snap["single_qubit_error"] = float(statistics.median(sx_vals))
+    if per_qubit:
+        snap["per_qubit"] = per_qubit
+    return snap
+
+
 class QiskitProvider(Provider):
     def __init__(self, capability: ProviderCapability, secrets=None, backend_name: str | None = None):
         self.capability = capability
@@ -736,6 +809,7 @@ class QiskitProvider(Provider):
                 raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
         circuits = []
         layout = None
+        transpile_meta = None
         for qasm in qasm_list:
             qc = qasm2.loads(str(qasm))
             original = qc
@@ -744,6 +818,17 @@ class QiskitProvider(Provider):
                 qc = self._transpile_for_backend(original, backend, chosen)
                 if layout is None:
                     layout = self._layout_summary(original, qc)
+                    try:
+                        log_2q = sum(1 for inst in original.data if len(inst.qubits) >= 2)
+                        tr_2q = sum(1 for inst in qc.data if len(inst.qubits) >= 2)
+                        transpile_meta = {
+                            "logical_depth": int(original.depth()),
+                            "logical_two_qubit_gates": int(log_2q),
+                            "transpiled_depth": int(qc.depth()),
+                            "transpiled_two_qubit_gates": int(tr_2q),
+                        }
+                    except Exception:
+                        transpile_meta = None
             self._validate_job_limits(qc, shots, backend)
             circuits.append(qc)
         job = sampler.run(circuits, shots=shots)
@@ -772,13 +857,19 @@ class QiskitProvider(Provider):
             "hardware": True,
             "channel": self._channel(),
             "layout": layout,
+            "transpile": transpile_meta,
             "plan": self._plan,
         }
         try:
-            cal_snap = _snapshot_from_properties(
-                backend.properties(),
-                str(getattr(backend, "name", self.backend_name or "")),
-            )
+            bname = str(getattr(backend, "name", self.backend_name or ""))
+            props = backend.properties() if hasattr(backend, "properties") else None
+            cal_snap = _snapshot_from_properties(props, bname) if props is not None else None
+            if cal_snap is None or not cal_snap.get("per_qubit"):
+                t_snap = _snapshot_from_target(getattr(backend, "target", None), bname)
+                if cal_snap is None:
+                    cal_snap = t_snap
+                elif t_snap and t_snap.get("per_qubit"):
+                    cal_snap["per_qubit"] = t_snap["per_qubit"]
             if cal_snap:
                 out["calibration"] = cal_snap
         except Exception:
