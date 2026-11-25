@@ -505,8 +505,15 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		countsStatus := "not_retained"
 		countsEncoding := ""
 		countsFileSHA := ""
+		countsArtifacts := []map[string]any{}
 		if len(countsPaths) > 0 {
 			countsStatus = "retained"
+			for _, p := range countsPaths {
+				enc, sha := countsArtifactMeta(p, artifacts)
+				countsArtifacts = append(countsArtifacts, map[string]any{
+					"path": p, "encoding": enc, "file_sha256": sha,
+				})
+			}
 			primaryCounts := countsPath
 			if primaryCounts == "" {
 				primaryCounts = countsPaths[0]
@@ -544,6 +551,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"counts_file_sha256":     countsFileSHA,
 			"counts_path":            countsPath,
 			"counts_paths":           countsPaths,
+			"counts_artifacts":       countsArtifacts,
 			"calibration":            r["calibration"],
 			"energy":                 r["energy"],
 			"anchor_energy":          firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
