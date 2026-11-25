@@ -20,7 +20,7 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	})
 
 	// Missing QASM and datasheet -> fail closed (Complete == false)
-	bad := CheckPublicationCompleteness(string(campBytes), "{}", 3, map[string]string{
+	bad := CheckPublicationCompleteness(string(campBytes), "{}", 3, 0, map[string]string{
 		"main.pdf": "deadbeef",
 	})
 	if bad.Complete {
@@ -31,7 +31,7 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	}
 
 	// Deleting only the QASM file still fails closed with named missing job
-	noQasm := CheckPublicationCompleteness(string(campBytes), "{}", 12, map[string]string{
+	noQasm := CheckPublicationCompleteness(string(campBytes), "{}", 12, 12, map[string]string{
 		"main.pdf":                    "deadbeef",
 		"supplement/datasheet.json":   "111",
 		"supplement/jobs.csv":         "222",
@@ -42,7 +42,7 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	}
 
 	// Complete bundle passes
-	ok := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona"}}`, 12, map[string]string{
+	ok := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona"}}`, 12, 12, map[string]string{
 		"main.pdf":                      "deadbeef",
 		"supplement/qasm/job_hw_1.qasm": "abc123def456",
 		"supplement/datasheet.json":     "111",
@@ -51,5 +51,60 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 	})
 	if !ok.Complete || ok.HardwareCircuitsBundled != 1 || ok.SupplementFiles != 4 {
 		t.Fatalf("expected complete report, got %+v", ok)
+	}
+}
+
+func TestCompletenessSkipsFailedHardwareAndGatesEveryPESPoint(t *testing.T) {
+	campBytes, _ := json.Marshal(map[string]any{
+		"experiments": []map[string]any{
+			{
+				"job_id":   "job_failed",
+				"kind":     "hardware_experiment",
+				"hardware": false,
+				"status":   "failed",
+			},
+			{
+				"job_id":      "job_pes",
+				"kind":        "hardware_pes",
+				"hardware":    true,
+				"seed":        7,
+				"qasm_points": 2,
+			},
+		},
+	})
+	base := map[string]string{
+		"supplement/datasheet.json":   "111",
+		"supplement/jobs.csv":         "222",
+		"supplement/environment.json": "333",
+	}
+	partial := map[string]string{
+		"supplement/qasm/job_pes_p0.qasm": "aaa",
+	}
+	for k, v := range base {
+		partial[k] = v
+	}
+	rep := CheckPublicationCompleteness(string(campBytes), "{}", 0, 0, partial)
+	if rep.Complete || rep.HardwareJobs != 1 {
+		t.Fatalf("expected one settled hardware job and an incomplete report, got %+v", rep)
+	}
+	if !strings.Contains(strings.Join(rep.Blocking, " "), "job_pes") {
+		t.Fatalf("expected the missing second PES point to block, got %+v", rep.Blocking)
+	}
+
+	full := map[string]string{
+		"supplement/qasm/job_pes_p0.qasm": "aaa",
+		"supplement/qasm/job_pes_p1.qasm": "bbb",
+	}
+	for k, v := range base {
+		full[k] = v
+	}
+	done := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"x":"y"}}`, 1, 12, full)
+	if !done.Complete || done.HardwareCircuitsBundled != 1 {
+		t.Fatalf("expected complete report once both point circuits are bundled, got %+v", done)
+	}
+	for _, c := range done.Checks {
+		if c.ID == "references_count" && !c.Passed {
+			t.Fatalf("printed bibliography count of 12 should satisfy references_count, got %+v", c)
+		}
 	}
 }

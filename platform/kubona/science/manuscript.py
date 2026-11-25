@@ -280,6 +280,10 @@ class ScientificManuscript:
             _validate_section_slug(sec.slug)
             out.append(f"\\input{{sections/{sec.slug}}}")
 
+        # Print every canonical method/benchmark reference even when it is not
+        # cited inline; otherwise BibTeX silently drops those entries and the
+        # bibliography shrinks to only the caller-supplied citations.
+        out.append(r"\nocite{*}")
         out.append(r"\bibliographystyle{unsrt}")
         out.append(r"\bibliography{references}")
         out.append(r"\end{document}")

@@ -28,6 +28,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from manuscript_datasheet import CANONICAL_METHOD_REFERENCES
+
 _MAX_FIGURE_BYTES = 8 * 1024 * 1024
 _MAX_TOTAL_ARTIFACT_BYTES = 32 * 1024 * 1024
 _MAX_BUILD_LOG = 6000
@@ -593,12 +595,23 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
 
     citations: List[Dict[str, Any]] = []
     used_keys: set[str] = set()
+    canonical_by_lower = {k.lower(): k for k in CANONICAL_METHOD_REFERENCES}
     for entry in req.get("citations") or []:
         if not isinstance(entry, dict):
             continue
         raw_key = str(entry.get("key") or entry.get("doi") or entry.get("title") or "")
         key = _CITE_KEY_RE.sub("_", raw_key).strip("_")[:64]
         if not key:
+            continue
+        # BibTeX keys are case-insensitive. A caller key such as "kandala2017"
+        # therefore collides with the canonical "Kandala2017" entry and aborts
+        # the build with "Repeated entry"; remap the citation onto the
+        # canonical key so the richer reference is used exactly once.
+        canonical_key = canonical_by_lower.get(key.lower())
+        if canonical_key is not None:
+            if canonical_key not in used_keys:
+                used_keys.add(canonical_key)
+                citations.append({**entry, "key": canonical_key})
             continue
         # Two distinct references can sanitize to the same BibTeX key
         # ("10.1/x" and "10.1_x"). Silently reusing it makes the PDF cite the
@@ -704,7 +717,6 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     # Phase 1, 3, 4 & 5: Experiment Datasheet, ZNE/Uncertainty audit,
     # Data & Code Availability, Scholarly Declarations, and canonical references.
     from manuscript_datasheet import (
-        CANONICAL_METHOD_REFERENCES,
         build_data_availability_section,
         build_experiment_datasheet_section,
         build_scholarly_declarations_section,
@@ -745,8 +757,14 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     bibtex_entries: Dict[str, str] = dict(CANONICAL_METHOD_REFERENCES)
+    canonical_lower = {k.lower() for k in bibtex_entries}
     for entry in citations:
         key = entry["key"]
+        if key.lower() in canonical_lower:
+            # Case-insensitive duplicate of a canonical reference: keep the
+            # canonical (complete) entry instead of emitting a second BibTeX
+            # key that makes BibTeX abort.
+            continue
         cite_authors = _latex_escape(str(entry.get("authors") or "Unknown"))
         raw_year = str(entry.get("year") or "n.d.").strip()
         year = raw_year if re.fullmatch(r"(?:\d{4}|n\.d\.)", raw_year) else _latex_escape(raw_year)

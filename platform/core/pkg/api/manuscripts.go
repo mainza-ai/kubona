@@ -17,6 +17,7 @@ package api
 //   * deposit staging requires an ACCEPT review and a valid, unexpired signoff.
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -909,7 +910,11 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		for _, a := range ms.Artifacts {
 			artIndex[a.Name] = a.SHA256
 		}
-		comp := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), artIndex)
+		bibCount := 0
+		if bbl, _, aerr := s.ledger.GetManuscriptArtifact(sessionID, id, "main.bbl"); aerr == nil {
+			bibCount = bytes.Count(bbl, []byte(`\bibitem`))
+		}
+		comp := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), bibCount, artIndex)
 		if !comp.Complete {
 			WriteAPIError(w, "incomplete_manuscript",
 				"empirical deposit refused: "+strings.Join(comp.Blocking, "; "),

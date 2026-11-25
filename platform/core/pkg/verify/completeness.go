@@ -34,6 +34,7 @@ func CheckPublicationCompleteness(
 	campaignJSON string,
 	evidenceJSON string,
 	citationsCount int,
+	bibliographyCount int,
 	artifactNames map[string]string,
 ) CompletenessReport {
 	rep := CompletenessReport{
@@ -71,10 +72,33 @@ func CheckPublicationCompleteness(
 		if !isHW && !strings.Contains(strings.ToLower(kind), "hardware") {
 			continue
 		}
+		// A failed/cancelled submission has no settled result to reproduce;
+		// requiring its circuit would make every campaign with a retried job
+		// permanently incomplete. Only settled rows are gated.
+		if !isSettledRow(r) {
+			continue
+		}
 		rep.HardwareJobs++
 		jid, _ := r["job_id"].(string)
-		if _, hasSeed := r["seed"]; !hasSeed {
+		if seed, hasSeed := r["seed"]; !hasSeed || seed == nil {
 			missingSeed++
+		}
+		points := intValue(r["qasm_points"])
+		if points > 0 {
+			// Batch-shaped jobs (hardware PES) carry one circuit per point.
+			allPresent := true
+			for i := 0; i < points; i++ {
+				if artifactNames[fmt.Sprintf("supplement/qasm/%s_p%d.qasm", jid, i)] == "" {
+					allPresent = false
+					break
+				}
+			}
+			if allPresent {
+				rep.HardwareCircuitsBundled++
+			} else {
+				missingQASM = append(missingQASM, fmt.Sprintf("%s (point circuits)", jid))
+			}
+			continue
 		}
 		qasmPath := "supplement/qasm/" + jid + ".qasm"
 		cHash, _ := r["circuit_sha256"].(string)
@@ -154,19 +178,48 @@ func CheckPublicationCompleteness(
 	if !hasMeta {
 		rep.Warnings = append(rep.Warnings, "scholarly metadata using default Kubona affiliations/COI/funding")
 	}
-	if citationsCount < 8 {
-		msg := fmt.Sprintf("manuscript has %d citation(s); recommended >= 8 for archival submission", citationsCount)
+	if citationsCount < 8 && bibliographyCount < 8 {
+		msg := fmt.Sprintf("manuscript has %d citation(s) and %d printed bibliography entr(ies); recommended >= 8 for archival submission", citationsCount, bibliographyCount)
 		rep.Warnings = append(rep.Warnings, msg)
 		rep.Checks = append(rep.Checks, CompletenessCheck{
 			ID: "references_count", Passed: false, Severity: "warning", Detail: msg,
 		})
 	} else {
 		rep.Checks = append(rep.Checks, CompletenessCheck{
-			ID: "references_count", Passed: true, Severity: "warning", Detail: fmt.Sprintf("%d citations attached", citationsCount),
+			ID: "references_count", Passed: true, Severity: "warning",
+			Detail: fmt.Sprintf("%d printed bibliography entr(ies) (%d caller-supplied)", bibliographyCount, citationsCount),
 		})
 	}
 
 	return rep
+}
+
+// isSettledRow reports whether a campaign row reached a terminal state that
+// produced a result. Failed, cancelled, and rejected submissions are excluded
+// from circuit/seed completeness requirements.
+func isSettledRow(r map[string]any) bool {
+	st, _ := r["status"].(string)
+	switch strings.ToLower(strings.TrimSpace(st)) {
+	case "failed", "error", "cancelled", "canceled", "rejected", "aborted":
+		return false
+	}
+	return true
+}
+
+func intValue(v any) int {
+	switch t := v.(type) {
+	case float64:
+		return int(t)
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case json.Number:
+		n, _ := t.Int64()
+		return int(n)
+	default:
+		return 0
+	}
 }
 
 func minInt(a, b int) int {

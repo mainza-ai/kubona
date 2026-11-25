@@ -96,3 +96,47 @@ def test_publication_completeness_datasheet_declarations_refs_and_figures():
     assert "caller's artifact" not in out["main_tex"]
     assert "Sun2018PySCF" in out["bibtex"]
     assert "Bravyi2024" in out["bibtex"]
+
+
+def test_case_insensitive_citation_collision_merges_into_one_bibtex_entry():
+    rows = [
+        {
+            "job_id": "11112222-3333-4444-5555-666677778888",
+            "kind": "vqe_hardware",
+            "backend": "ibm_fez",
+            "hardware": True,
+            "seed": 7,
+            "shots": 1024,
+            "energy": -1.131,
+            "fci_exact_energy": -1.137306,
+            "delta_mha": 6.306,
+        }
+    ]
+    out = manuscript_ops.compose(
+        {
+            "manuscript_id": "ms_cite_01",
+            "title": "Citation Collision Audit",
+            "authors": ["Mainza AI"],
+            "campaign": {"target_system": "H2", "experiments": rows},
+            "citations": [
+                {"key": "kandala2017", "title": "lower-case duplicate", "authors": "X", "year": "2017"},
+                {"key": "peruzzo2014", "title": "lower-case duplicate", "authors": "Y", "year": "2014"},
+                {"key": "kim2023", "title": "lower-case duplicate", "authors": "Z", "year": "2023"},
+            ],
+            "build": False,
+        }
+    )
+    assert out["ok"] is True
+    bib = out["bibtex"]
+    # BibTeX keys are case-insensitive: every key must appear exactly once.
+    lowered = [line[len("@misc{") :].rstrip(",").lower() for line in bib.splitlines() if line.startswith("@misc{")]
+    lowered += [line[len("@article{") :].rstrip(",").lower() for line in bib.splitlines() if line.startswith("@article{")]
+    assert len(lowered) == len(set(lowered)), f"duplicate BibTeX keys: {lowered}"
+    assert len(lowered) == len(manuscript_datasheet.CANONICAL_METHOD_REFERENCES)
+    # The canonical entries win and the canonical key is cited in the intro.
+    assert "Kandala2017" in bib and "kandala2017" not in bib
+    intro = next(s["latex"] for s in out["sections"] if s["slug"] == "introduction")
+    assert "\\cite{Kandala2017}" in intro
+    # Canonical references must actually print, not be silently dropped.
+    assert "\\nocite{*}" in out["main_tex"]
+

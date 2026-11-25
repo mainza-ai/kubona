@@ -57,6 +57,26 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 			if opt, ok := params["optimizer"].(string); ok && strings.TrimSpace(opt) != "" {
 				row["optimizer"] = opt
 			}
+			// Batch-shaped jobs (hardware PES) carry one circuit per point
+			// rather than a single top-level qasm. Hash each point circuit so
+			// the completeness gate can require every one of them in the
+			// supplement instead of treating the whole job as circuit-less.
+			if pts, ok := params["points"].([]any); ok && len(pts) > 0 {
+				shas := make([]string, 0, len(pts))
+				for _, p := range pts {
+					pm, _ := p.(map[string]any)
+					q, _ := pm["qasm"].(string)
+					if strings.TrimSpace(q) == "" {
+						continue
+					}
+					sum := sha256.Sum256([]byte(q))
+					shas = append(shas, hex.EncodeToString(sum[:]))
+				}
+				if len(shas) > 0 {
+					row["qasm_points"] = len(shas)
+					row["point_circuits_sha256"] = shas
+				}
+			}
 		}
 	}
 	if len(resultJSON) > 0 {
@@ -168,6 +188,8 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		}
 		j := jobsByID[jid]
 		qasmPath := ""
+		qasmPaths := []string{}
+		var pointsSummary []map[string]any
 		countsPath := ""
 		if j != nil && len(j.ParamsJSON) > 0 {
 			var params map[string]any
@@ -175,9 +197,29 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 				if qasm, ok := params["qasm"].(string); ok && strings.TrimSpace(qasm) != "" {
 					qasmPath = "supplement/qasm/" + jid + ".qasm"
 					artifacts[qasmPath] = []byte(qasm)
+					qasmPaths = append(qasmPaths, qasmPath)
 				}
 				if fq, ok := params["fidelity_qasm"].(string); ok && strings.TrimSpace(fq) != "" {
 					artifacts["supplement/qasm/"+jid+"_fidelity.qasm"] = []byte(fq)
+				}
+				if pts, ok := params["points"].([]any); ok && len(pts) > 0 {
+					for i, p := range pts {
+						pm, _ := p.(map[string]any)
+						q, _ := pm["qasm"].(string)
+						if strings.TrimSpace(q) == "" {
+							continue
+						}
+						path := fmt.Sprintf("supplement/qasm/%s_p%d.qasm", jid, i)
+						artifacts[path] = []byte(q)
+						qasmPaths = append(qasmPaths, path)
+						row := map[string]any{"index": i, "qasm_path": path}
+						for _, k := range []string{"bond_distance", "energy", "delta_mha", "energy_exact", "fci_exact_energy"} {
+							if v, has := pm[k]; has && v != nil {
+								row[k] = v
+							}
+						}
+						pointsSummary = append(pointsSummary, row)
+					}
 				}
 			}
 		}
@@ -205,6 +247,10 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"transpile":       r["transpile"],
 			"circuit_sha256":  r["circuit_sha256"],
 			"qasm_path":       qasmPath,
+			"qasm_paths":      qasmPaths,
+			"qasm_points":     r["qasm_points"],
+			"points":          pointsSummary,
+			"status":          r["status"],
 			"counts_sha256":   r["counts_sha256"],
 			"counts_path":     countsPath,
 			"calibration":     r["calibration"],
@@ -266,7 +312,15 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		sum := sha256.Sum256(data)
 		artIndex[name] = hex.EncodeToString(sum[:])
 	}
-	comp := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), artIndex)
+	// Count the bibliography entries actually emitted into main.bbl. The
+	// canonical method references are \nocite'd, so this is larger than the
+	// caller-supplied citation count; using it keeps the completeness warning
+	// truthful about what a reader can see in the PDF.
+	bibliographyCount := 0
+	if bbl, ok := artifacts["main.bbl"]; ok {
+		bibliographyCount = bytes.Count(bbl, []byte(`\bibitem`))
+	}
+	comp := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), bibliographyCount, artIndex)
 	if compBytes, err := json.MarshalIndent(comp, "", "  "); err == nil {
 		artifacts["supplement/completeness_report.json"] = compBytes
 	}
@@ -317,7 +371,11 @@ func (s *Server) handleManuscriptCompleteness(w http.ResponseWriter, r *http.Req
 	for _, a := range ms.Artifacts {
 		artIndex[a.Name] = a.SHA256
 	}
-	rep := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), artIndex)
+	bibliographyCount := 0
+	if bbl, _, aerr := s.ledger.GetManuscriptArtifact(sessionID, id, "main.bbl"); aerr == nil {
+		bibliographyCount = bytes.Count(bbl, []byte(`\bibitem`))
+	}
+	rep := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), bibliographyCount, artIndex)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"manuscript_id": id,
 		"session_id":    sessionID,
