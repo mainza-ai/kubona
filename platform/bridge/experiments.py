@@ -1664,7 +1664,15 @@ def run_hardware_pes(
             "fci_exact_energy": point["fci"],
             "uncertainty": uncertainty,
             "ci95_mha": float(1.96 * uncertainty * 1000.0) if math.isfinite(uncertainty) else None,
-            "counts": (by_scale[scales[0]][0] if method and by_scale.get(scales[0]) else (chunk[0] if chunk else None)),
+            # One histogram exists per Pauli term (and per ZNE scale). Store the
+            # scale-1 histograms keyed by term instead of mislabelling the first
+            # term's counts as the whole point's distribution.
+            "counts_by_term": {
+                term: (by_scale[scales[0]][sorted(point["coeffs"]).index(term)]
+                       if method and by_scale.get(scales[0]) else chunk[sorted(point["coeffs"]).index(term)])
+                for term in sorted(point["coeffs"])
+            },
+            "counts_scale": int(scales[0]) if method else 1,
             "delta_mha": delta * 1000.0,
             "claimable": claimable,
             "measured": measured,

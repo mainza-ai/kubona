@@ -463,6 +463,47 @@ func (l *Ledger) UpdateManuscriptDraft(m *Manuscript) error {
 // SetManuscriptReviewState records the current review JSON and moves a draft
 // to reviewed. Recomputing a review on a built manuscript is allowed (the
 // review is over source content, not the PDF), but never downgrades the state.
+// ResetManuscriptToDraft reopens a reviewed/signed/built manuscript for an
+// edit: review, verification, signoff, build hash, and artifacts are cleared
+// so no stale evidence survives the content change. Deposit-ready manuscripts
+// are refused (staged evidence is immutable).
+func (l *Ledger) ResetManuscriptToDraft(sessionID, id string) error {
+	var state string
+	err := l.DB().QueryRow(`SELECT state FROM manuscripts WHERE session_id = ? AND id = ?`,
+		sessionID, id).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrManuscriptNotFound
+	}
+	if err != nil {
+		return err
+	}
+	switch state {
+	case ManuscriptStateDraft:
+		return nil
+	case ManuscriptStateReviewed, ManuscriptStateSigned, ManuscriptStateBuilt:
+	default:
+		return fmt.Errorf("%w: %s manuscript cannot be reopened for edit", ErrManuscriptState, state)
+	}
+	tx, err := l.DB().Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`UPDATE manuscripts SET state = ?, review_json = '{}',
+		verification_json = '', build_hash = '', updated_at = ?
+		WHERE session_id = ? AND id = ?`,
+		ManuscriptStateDraft, nowUTC(), sessionID, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM manuscript_signoffs WHERE manuscript_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM manuscript_artifacts WHERE manuscript_id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (l *Ledger) SetManuscriptReviewState(sessionID, id, reviewJSON string) error {
 	state := ManuscriptStateDraft
 	if err := l.DB().QueryRow(`SELECT state FROM manuscripts WHERE session_id = ? AND id = ?`,

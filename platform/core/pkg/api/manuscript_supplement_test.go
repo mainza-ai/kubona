@@ -165,3 +165,30 @@ func TestEnrichJobFromParamsMapsHartreeCI95ToMilliHartree(t *testing.T) {
 		t.Fatalf("expected ci95 0.1 Ha -> 100 mHa, got %#v", row["ci95_mha"])
 	}
 }
+
+func TestEnrichJobFromParamsMarksPESTermCountsRetained(t *testing.T) {
+	row := map[string]any{"job_id": "job_pes_counts", "hardware": true}
+	result := []byte(`{"points":[{"counts_by_term":{"ZZ":{"00":512,"11":512},"XX":{"00":500,"11":524}}}]}`)
+	enrichJobFromParams(row, nil, result)
+	if row["counts_status"] != "retained" || row["counts_points"] != 1 {
+		t.Fatalf("expected retained per-point counts, got status=%#v points=%#v", row["counts_status"], row["counts_points"])
+	}
+}
+
+func TestExtractUsedQubitCalibrationSlicesToLayout(t *testing.T) {
+	cal := map[string]any{"per_qubit": map[string]any{
+		"0": map[string]any{"t1_us": 100.0},
+		"1": map[string]any{"t1_us": 110.0},
+		"2": map[string]any{"t1_us": 120.0},
+	}}
+	out := extractUsedQubitCalibration(cal, []int{0, 2})
+	if len(out) != 2 || out["0"] == nil || out["2"] == nil {
+		t.Fatalf("expected calibration for qubits 0 and 2 only, got %#v", out)
+	}
+	if _, leaked := out["1"]; leaked {
+		t.Fatalf("unused qubit calibration leaked into the datasheet: %#v", out)
+	}
+	if extractUsedQubitCalibration(map[string]any{}, []int{0}) != nil {
+		t.Fatalf("historical snapshots without per_qubit must return nil")
+	}
+}

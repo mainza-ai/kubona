@@ -1691,9 +1691,12 @@ func (s *Server) observeManuscriptBuild(err error, elapsed time.Duration) {
 	s.manuscriptBuildCount++
 }
 
-// handleManuscriptUpdate edits a draft's title/abstract before the first
-// review. The content hash is recomputed over the stored sections/citations
-// and the review is cleared, so an edited draft cannot carry a stale review.
+// handleManuscriptUpdate edits a draft's title/abstract/scholarly metadata.
+// The bridge is re-run so the stored sections and content hash match the
+// recomposed source; a built/signed manuscript is reset to draft (its
+// artifacts and signoff are cleared) so metadata can be corrected without
+// recreating the manuscript. A deposit-ready manuscript is evidence and is
+// refused.
 func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, sessionID, id string) {
 	var body struct {
 		Title     string         `json:"title"`
@@ -1713,10 +1716,28 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "internal", "manuscript read failed", nil)
 		return
 	}
-	if ms.State != ledger.ManuscriptStateDraft {
+	if ms.State == ledger.ManuscriptStateDepositReady {
 		WriteAPIError(w, "manuscript_immutable",
-			"only a draft can be edited; create a new draft for changed content", nil)
+			"a deposit-ready manuscript is staged evidence; create a new draft to change it", nil)
 		return
+	}
+	// Only a scholarly-metadata correction may reopen a reviewed/signed/built
+	// manuscript; a title or abstract change still requires a new draft so a
+	// reviewed document cannot be silently rewritten.
+	if ms.State != ledger.ManuscriptStateDraft {
+		if len(body.Scholarly) == 0 {
+			WriteAPIError(w, "manuscript_immutable",
+				"only a draft can be edited; supply scholarly metadata to correct a reviewed manuscript", nil)
+			return
+		}
+		if t := strings.TrimSpace(body.Title); t != "" && t != ms.Title {
+			WriteAPIError(w, "manuscript_immutable", "a title change requires a new draft", nil)
+			return
+		}
+		if a := strings.TrimSpace(body.Abstract); a != "" && a != ms.Abstract {
+			WriteAPIError(w, "manuscript_immutable", "an abstract change requires a new draft", nil)
+			return
+		}
 	}
 	if title := strings.TrimSpace(body.Title); title != "" {
 		ms.Title = title
@@ -1724,8 +1745,8 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 	if abstract := strings.TrimSpace(body.Abstract); abstract != "" {
 		ms.Abstract = abstract
 	}
-	// R-C: allow updating scholarly metadata on an existing draft so authors
-	// can clear 422 metadata_incomplete without recreating the manuscript.
+	// R-C: merge scholarly metadata so authors can clear 422 metadata_incomplete
+	// and re-edit a built/signed draft without recreating it.
 	if len(body.Scholarly) > 0 {
 		ev := map[string]any{}
 		if strings.TrimSpace(ms.EvidenceJSON) != "" {
@@ -1743,26 +1764,38 @@ func (s *Server) handleManuscriptUpdate(w http.ResponseWriter, r *http.Request, 
 			ms.EvidenceJSON = string(rawEv)
 		}
 	}
-	sections := make([]manuscriptBridgeSection, 0, len(ms.Sections))
-	for _, sec := range ms.Sections {
-		sections = append(sections, manuscriptBridgeSection{Slug: sec.Slug, Title: sec.Title, Latex: sec.LaTeX})
+	// Recompose from the stored campaign/evidence so the declarations section
+	// and content hash reflect the edit. Hashing stale stored sections was the
+	// source of the post-update 409 source_changed.
+	req, reqErr := s.storedManuscriptRequest(ms, false)
+	if reqErr != nil {
+		WriteAPIError(w, "bad_request", "stored manuscript cannot be recomposed: "+reqErr.Error(), nil)
+		return
 	}
-	var figures []map[string]any
-	if ms.FiguresJSON != "" {
-		if err := json.Unmarshal([]byte(ms.FiguresJSON), &figures); err != nil {
-			WriteAPIError(w, "internal", "stored figures are unreadable", nil)
-			return
-		}
+	resp, _, berr := s.callManuscriptBridge(r.Context(), req)
+	if berr != nil {
+		writeBridgeUnavailable(w, "manuscript_update", berr.Error())
+		return
 	}
-	sha := map[string]string{}
-	if ms.FigureSHAJSON != "" {
-		if err := json.Unmarshal([]byte(ms.FigureSHAJSON), &sha); err != nil {
-			WriteAPIError(w, "internal", "stored figure hashes are unreadable", nil)
-			return
-		}
+	if !resp.OK {
+		WriteAPIError(w, manuscriptErrorCode(resp.ErrorCode), resp.Error, nil)
+		return
 	}
-	ms.ContentHash = manuscriptContentHash(ms.Title, ms.Abstract, sections, ms.Citations, figures, sha)
+	if err := verifyBridgeFigureHashes(req.Figures, resp.FigureSHA); err != nil {
+		WriteAPIError(w, "bridge_unavailable", err.Error(), nil)
+		return
+	}
+	ms.Title = resp.Title
+	ms.Abstract = resp.Abstract
+	ms.Sections = manuscriptSections(resp.Sections)
+	ms.ContentHash = manuscriptContentHash(resp.Title, resp.Abstract, resp.Sections, ms.Citations, req.Figures, resp.FigureSHA)
 	ms.ReviewJSON = "{}"
+	if ms.State != ledger.ManuscriptStateDraft {
+		if err := s.ledger.ResetManuscriptToDraft(sessionID, id); err != nil {
+			WriteAPIError(w, "internal", "manuscript reset failed: "+err.Error(), nil)
+			return
+		}
+	}
 	if err := s.ledger.UpdateManuscriptDraft(ms); err != nil {
 		WriteAPIError(w, "internal", "manuscript update failed: "+err.Error(), nil)
 		return

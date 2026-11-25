@@ -736,6 +736,64 @@ func TestManuscriptDraftEditResetsReview(t *testing.T) {
 	}
 }
 
+func TestScholarlyMetadataReopensReviewedDraftAndBuilds(t *testing.T) {
+	bridge := &fakeManuscriptBridge{}
+	srv, cleanup := setupManuscriptServer(t, bridge)
+	defer cleanup()
+	sid := createSession(t, srv, "default")
+	seedCampaign(t, srv, sid)
+	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts", "", map[string]any{"title": "Metadata Gate"})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		Manuscript struct {
+			ID string `json:"id"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	mid := created.Manuscript.ID
+
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/reviews", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("review = %d: %s", w.Code, w.Body.String())
+	}
+	// A title-only edit is still refused after review.
+	if w := doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", map[string]any{"title": "Nope"}); w.Code != http.StatusConflict {
+		t.Fatalf("title edit after review = %d: %s", w.Code, w.Body.String())
+	}
+	// A scholarly correction reopens the draft and clears stale review/artifacts.
+	w = doJSON(t, srv, http.MethodPut, "/api/sessions/"+sid+"/manuscripts/"+mid, "", map[string]any{
+		"scholarly": map[string]any{
+			"affiliation": "Kubona Research", "corresponding_author": "Op <op@kubona.ai>",
+			"competing_interests": "None", "funding": "Internal", "license": "CC-BY-4.0",
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("scholarly edit after review = %d: %s", w.Code, w.Body.String())
+	}
+	var detail struct {
+		Manuscript struct {
+			State       string         `json:"state"`
+			Review      map[string]any `json:"review"`
+			Signoff     any            `json:"signoff"`
+			Artifacts   []any          `json:"artifacts"`
+			ContentHash string         `json:"content_hash"`
+		} `json:"manuscript"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &detail)
+	if detail.Manuscript.State != "draft" || len(detail.Manuscript.Review) != 0 ||
+		detail.Manuscript.Signoff != nil || len(detail.Manuscript.Artifacts) != 0 {
+		t.Fatalf("scholarly edit did not reset the manuscript: %+v", detail.Manuscript)
+	}
+	// And the reopened draft builds from the recomposed source.
+	if w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sid+"/manuscripts/"+mid+"/build", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("build after scholarly edit = %d: %s", w.Code, w.Body.String())
+	}
+	if bridge.buildCalls == 0 {
+		t.Fatalf("expected the bridge to be called for the build")
+	}
+}
+
 func TestManuscriptDeleteRequiresOperatorForEvidence(t *testing.T) {
 	bridge := &fakeManuscriptBridge{}
 	srv, cleanup := setupManuscriptServer(t, bridge)

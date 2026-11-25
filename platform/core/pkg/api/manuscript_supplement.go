@@ -121,6 +121,8 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 					if pm, ok := p.(map[string]any); ok {
 						if pc, ok := pm["counts"].(map[string]any); ok && len(pc) > 0 {
 							ptCounts++
+						} else if cbt, ok := pm["counts_by_term"].(map[string]any); ok && len(cbt) > 0 {
+							ptCounts++
 						}
 					}
 				}
@@ -472,8 +474,12 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 				if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
 					for i, p := range pts {
 						if pm, ok := p.(map[string]any); ok {
-							if pc, ok := pm["counts"].(map[string]any); ok && len(pc) > 0 {
-								if raw, err := json.Marshal(pc); err == nil && len(raw) <= maxCountsFileBytes {
+							countsObj, _ := pm["counts"].(map[string]any)
+							if len(countsObj) == 0 {
+								countsObj, _ = pm["counts_by_term"].(map[string]any)
+							}
+							if len(countsObj) > 0 {
+								if raw, err := json.Marshal(countsObj); err == nil && len(raw) <= maxCountsFileBytes {
 									pPath := fmt.Sprintf("supplement/counts/%s_p%d.json", jid, i)
 									artifacts[pPath] = raw
 									countsPaths = append(countsPaths, pPath)
