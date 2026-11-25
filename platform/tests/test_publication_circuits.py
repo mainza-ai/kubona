@@ -99,3 +99,18 @@ def test_r1_circuit_schematic_renders_per_family_and_keeps_qasm_out_of_campaign(
     # R5 uv_lock_sha256 recorded in tooling versions
     tooling = manuscript_ops._tooling_versions()
     assert len(tooling.get("uv_lock_sha256", "")) == 64
+
+
+def test_r1_circuit_schematic_is_deterministic_and_handles_non_cx_gates():
+    qasm = (
+        'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[3];\n'
+        "h q[0];\ncz q[0],q[1];\nswap q[1],q[2];\nccx q[0],q[1],q[2];\n"
+        "rzz(0.5) q[0],q[2];\nmeasure q[0] -> c[0];\n"
+    )
+    rows = [{"job_id": "job_mixed", "kind": "vqe_hardware", "backend": "ibm_fez", "hardware": True, "shots": 1024, "seed": 7}]
+    first = manuscript_figures.generate_campaign_figures(rows, circuit_samples={"job_mixed": qasm})
+    second = manuscript_figures.generate_campaign_figures(rows, circuit_samples={"job_mixed": qasm})
+    assert {n for n, _, _ in first} == {n for n, _, _ in second} == {"fig_circuit_vqe_hardware.png"}
+    # Byte-identical repeats keep the manuscript content hash reproducible.
+    assert first[0][1] == second[0][1]
+    assert first[0][1].startswith(b"\x89PNG\r\n\x1a\n")

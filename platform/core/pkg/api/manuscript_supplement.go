@@ -384,7 +384,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 	cw := csv.NewWriter(&csvBuf)
 	_ = cw.Write([]string{
 		"job_id", "kind", "backend", "hardware", "mitigated", "shots", "seed",
-		"energy", "anchor_energy", "delta_mha", "ci95_mha", "usage_seconds", "actual_usd",
+		"energy", "anchor_energy", "delta_mha", "ci95_mha", "ratio_ci95", "usage_seconds", "actual_usd",
 		"circuit_sha256", "counts_sha256", "vendor_ref",
 	})
 
@@ -420,7 +420,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 						artifacts[path] = []byte(q)
 						qasmPaths = append(qasmPaths, path)
 						row := map[string]any{"index": i, "qasm_path": path}
-						for _, k := range []string{"bond_distance", "energy", "delta_mha", "energy_exact", "fci_exact_energy"} {
+						for _, k := range []string{"bond_distance", "energy", "delta_mha", "energy_exact", "fci_exact_energy", "uncertainty"} {
 							if v, has := pm[k]; has && v != nil {
 								row[k] = v
 							}
@@ -483,6 +483,8 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"qasm_path":       qasmPath,
 			"qasm_paths":      qasmPaths,
 			"qasm_points":     r["qasm_points"],
+			"ratio_ci95":      r["ratio_ci95"],
+			"ratio_ci_method": r["ratio_ci_method"],
 			"points":          pointsSummary,
 			"status":          r["status"],
 			"counts_status":   countsStatus,
@@ -516,6 +518,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			fmtVal(dsEntry["anchor_energy"]),
 			fmtVal(dsEntry["delta_mha"]),
 			fmtVal(r["ci95_mha"]),
+			fmtVal(r["ratio_ci95"]),
 			fmtVal(r["usage_seconds"]),
 			fmtVal(r["actual_usd"]),
 			fmtVal(r["circuit_sha256"]),
@@ -602,26 +605,33 @@ func firstNonNil(m map[string]any, keys ...string) any {
 
 func extractUsedQubits(layout, transpile any) []int {
 	seen := map[int]bool{}
-	collect := func(v any) {
+	// Layouts arrive in several shapes: a flat list of physical qubits, a
+	// logical->physical map, or a nested {"initial": {...}, "final": {...}}
+	// object. Descend recursively so the nested shape is not silently empty.
+	var collect func(v any, depth int)
+	collect = func(v any, depth int) {
+		if depth > 4 {
+			return
+		}
 		switch t := v.(type) {
 		case []any:
 			for _, x := range t {
-				if f, ok := x.(float64); ok {
-					seen[int(f)] = true
-				}
+				collect(x, depth+1)
 			}
 		case map[string]any:
 			for _, x := range t {
-				if f, ok := x.(float64); ok {
-					seen[int(f)] = true
-				}
+				collect(x, depth+1)
+			}
+		case float64:
+			if t >= 0 {
+				seen[int(t)] = true
 			}
 		}
 	}
-	collect(layout)
+	collect(layout, 0)
 	if tm, ok := transpile.(map[string]any); ok {
-		collect(tm["layout"])
-		collect(tm["final_layout"])
+		collect(tm["layout"], 0)
+		collect(tm["final_layout"], 0)
 	}
 	if len(seen) == 0 {
 		return nil

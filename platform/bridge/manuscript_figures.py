@@ -608,13 +608,33 @@ def _render_circuit_schematics(
                     ys = [y_top + q * y_step for q in vis_qs]
                     if len(ys) >= 2:
                         draw.line([(cx, min(ys)), (cx, max(ys))], fill=TEAL, width=3)
-                    # Control dot on first qubit, target box on last
-                    c_y = y_top + vis_qs[0] * y_step
-                    draw.ellipse([cx - 7, c_y - 7, cx + 7, c_y + 7], fill=TEAL, outline=INK, width=1)
-                    if len(vis_qs) >= 2:
+                    # Draw the gate according to its semantics: CX/CCX use
+                    # control dots + target box, CZ uses dots only, SWAP uses
+                    # X boxes, and multi-qubit rotations use a labelled box on
+                    # every wire. A CNOT glyph for CZ/SWAP would misstate the
+                    # circuit.
+                    if gname in ("CX", "CNOT", "CCX", "TOFFOLI"):
+                        for q in vis_qs[:-1]:
+                            c_y = y_top + q * y_step
+                            draw.ellipse([cx - 7, c_y - 7, cx + 7, c_y + 7], fill=TEAL, outline=INK, width=1)
                         t_y = y_top + vis_qs[-1] * y_step
                         draw.rectangle([cx - 22, t_y - 16, cx + 22, t_y + 16], fill=ORANGE, outline=INK, width=2)
                         draw.text((cx, t_y), gname[:4], fill=BG, font=font_gate, anchor="mm")
+                    elif gname == "CZ":
+                        for q in vis_qs:
+                            c_y = y_top + q * y_step
+                            draw.ellipse([cx - 7, c_y - 7, cx + 7, c_y + 7], fill=TEAL, outline=INK, width=1)
+                            draw.text((cx, c_y), "Z", fill=BG, font=font_gate, anchor="mm")
+                    elif gname in ("SWAP",):
+                        for q in vis_qs:
+                            c_y = y_top + q * y_step
+                            draw.rectangle([cx - 22, c_y - 16, cx + 22, c_y + 16], fill=ORANGE, outline=INK, width=2)
+                            draw.text((cx, c_y), "X", fill=BG, font=font_gate, anchor="mm")
+                    else:
+                        for q in vis_qs:
+                            c_y = y_top + q * y_step
+                            draw.rectangle([cx - 22, c_y - 16, cx + 22, c_y + 16], fill=NAVY, outline=INK, width=2)
+                            draw.text((cx, c_y), gname[:4], fill=BG, font=font_gate, anchor="mm")
                 else:
                     qy = y_top + vis_qs[0] * y_step
                     fill = NAVY if gname != "M" else PURPLE

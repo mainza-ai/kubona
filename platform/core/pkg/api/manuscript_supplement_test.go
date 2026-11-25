@@ -134,3 +134,24 @@ func TestRatioCIFromCountsRefusesWithoutGraph(t *testing.T) {
 		t.Fatalf("must not fabricate a ratio interval without graph edges: %#v", row["ratio_ci95"])
 	}
 }
+
+func TestUsedQubitsFromNestedLayout(t *testing.T) {
+	layout := map[string]any{
+		"initial": map[string]any{"0": float64(58), "1": float64(71), "2": float64(70)},
+		"final":   map[string]any{},
+	}
+	got := extractUsedQubits(layout, nil)
+	want := []int{58, 70, 71}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+	flat := extractUsedQubits([]any{float64(3), float64(1)}, nil)
+	if len(flat) != 2 || flat[0] != 1 || flat[1] != 3 {
+		t.Fatalf("expected sorted [1 3], got %v", flat)
+	}
+}
