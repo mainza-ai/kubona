@@ -157,6 +157,21 @@ def test_redteam_forged_distance_rejected_gate1():
     assert rep["failure_code"] == "distance_mismatch"
 
 
+def test_redteam_n10_steane_and_surface_are_known_in_builtin_catalog():
+    """N10: Steane [[7,1,3]] must be recognized as known in build_builtin_catalog(), never novel."""
+    from kubona.qec import evaluate_css_code, lookup_catalog
+
+    H = _steane_H()
+    cat = lookup_catalog(H, H)
+    assert cat["known"] is True
+    assert cat["matched_name"] == "steane_7_1_3"
+
+    # check_catalog=False must NOT mark claimable=True
+    ev = evaluate_css_code(H, H, name="steane_unchecked", prove_distance=True, check_catalog=False)
+    assert ev["catalog_relation"] == "unchecked"
+    assert ev["claimable"] is False
+
+
 def test_redteam_gate6_refuses_bare_reproduced_flag_without_measured_ci():
     """N2: reproduced=True without measured second-seed LER/CI is refused at Gate 6."""
     H = _steane_H()

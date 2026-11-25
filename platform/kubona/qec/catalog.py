@@ -32,9 +32,83 @@ class CatalogEntry:
     swapped_fingerprint: str
 
 
+def _builtin_classical_css_fixtures() -> list[tuple[str, int, int, int, str, np.ndarray, np.ndarray]]:
+    """Canonical published CSS codes that MUST never evaluate as novel_to_catalog (N10)."""
+    # [[7, 1, 3]] Steane code (Steane 1996)
+    steane = np.array(
+        [
+            [1, 0, 1, 0, 1, 0, 1],
+            [0, 1, 1, 0, 0, 1, 1],
+            [0, 0, 0, 1, 1, 1, 1],
+        ],
+        dtype=np.uint8,
+    )
+    # [[9, 1, 3]] Shor code (Shor 1995)
+    shor_hx = np.array(
+        [
+            [1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1],
+        ],
+        dtype=np.uint8,
+    )
+    shor_hz = np.array(
+        [
+            [1, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1],
+        ],
+        dtype=np.uint8,
+    )
+    # [[4, 2, 2]] CSS error-detecting code
+    css_4_2_2 = np.array([[1, 1, 1, 1]], dtype=np.uint8)
+    # [[9, 1, 3]] Rotated surface code d=3
+    surf_d3_hx = np.array(
+        [
+            [1, 1, 0, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 0, 1, 1],
+            [0, 1, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 1, 0],
+        ],
+        dtype=np.uint8,
+    )
+    surf_d3_hz = np.array(
+        [
+            [0, 1, 1, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 1, 1, 0],
+            [1, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 0, 0, 1],
+        ],
+        dtype=np.uint8,
+    )
+    return [
+        ("steane_7_1_3", 7, 1, 3, "Steane (PRL 1996)", steane, steane),
+        ("shor_9_1_3", 9, 1, 3, "Shor (PRA 1995)", shor_hx, shor_hz),
+        ("css_4_2_2", 4, 2, 2, "Vaidman-Goldenberg-Wiesner (1996)", css_4_2_2, css_4_2_2),
+        ("rotated_surface_d3_9_1_3", 9, 1, 3, "Bombin-Martin-Delgado (2007)", surf_d3_hx, surf_d3_hz),
+    ]
+
+
 def build_builtin_catalog() -> list[CatalogEntry]:
-    """Build the in-memory catalog of verified published BB codes."""
+    """Build the in-memory catalog of verified published BB and canonical CSS codes."""
     entries: list[CatalogEntry] = []
+    for name, n, k, d, source, hx, hz in _builtin_classical_css_fixtures():
+        entries.append(
+            CatalogEntry(
+                name=name,
+                n=n,
+                k=k,
+                d=d,
+                d_kind="proved",
+                source=source,
+                hx=hx,
+                hz=hz,
+                fingerprint=canonical_fingerprint(hx, hz),
+                swapped_fingerprint=canonical_fingerprint(hz, hx),
+            )
+        )
     for spec in KNOWN_BB_SPECS:
         hx, hz = build_bb_code(spec.ell, spec.m, spec.a_terms, spec.b_terms)
         entries.append(

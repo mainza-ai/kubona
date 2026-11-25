@@ -160,5 +160,6 @@ def test_custom_small_css_code_proved_distance():
     assert res["d"] == 3
     assert res["d_kind"] == "proved"
     assert res["decomposable"] is False
-    assert res["catalog_known"] is False
-    assert res["claimable"] is True
+    assert res["catalog_known"] is True
+    assert res["catalog_match"] == "steane_7_1_3"
+    assert res["claimable"] is False

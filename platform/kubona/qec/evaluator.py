@@ -78,7 +78,13 @@ def evaluate_css_code(
         "certificate": dist_res.get("certificate", {}),
         "measured": True,
         "hardware": False,
-        "claimable": bool(d_kind == "proved" and not decomp["decomposable"] and not cat_res["known"]),
+        "claimable": bool(
+            d_kind == "proved"
+            and not decomp["decomposable"]
+            and not cat_res["known"]
+            and cat_res["relation"] == "novel_to_catalog"
+            and bool(cat_res["canonical_hash"])
+        ),
     }
 
 

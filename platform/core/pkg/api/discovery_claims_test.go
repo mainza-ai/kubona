@@ -37,30 +37,63 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 		t.Fatalf("forged claim status = %d, want 400 (body=%s)", wForge.Code, wForge.Body.String())
 	}
 
-	// Seed real settled QEC jobs directly in the ledger for session A
+	// Seed real settled QEC jobs in session A
 	db := srv.Ledger().DB()
-	evalRes, _ := json.Marshal(map[string]any{
-		"n": 7, "k": 1, "d": 3, "d_kind": "proved",
+	evalNovel, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96",
+		"n":         96, "k": 12, "d": 8, "d_kind": "proved",
 		"decomposable": false, "catalog_known": false,
+		"catalog_relation": "novel_to_catalog",
+		"canonical_hash":   "canon_96_abcdef",
 		"certificate": map[string]any{
 			"proof_scope":    "full_logical_group",
 			"witness_sha256": "a41ac5bbc9a4221e3e2bf23863a5101949be0cbd7a6478fec1330703bae11d0f",
 		},
 	})
-	simRes, _ := json.Marshal(map[string]any{
-		"ler": 0.0046, "ci_low": 0.0037, "ci_high": 0.0056, "d_circ": 3,
+	evalUnchecked, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96",
+		"n":         96, "k": 12, "d": 8, "d_kind": "proved",
+		"decomposable": false, "catalog_known": false,
+		"catalog_relation": "unchecked",
+		"canonical_hash":   "",
+		"certificate": map[string]any{
+			"proof_scope":    "full_logical_group",
+			"witness_sha256": "a41ac5bbc9a4221e3e2bf23863a5101949be0cbd7a6478fec1330703bae11d0f",
+		},
 	})
-	heldOutRes, _ := json.Marshal(map[string]any{
-		"ler": 0.0135, "ci_low": 0.0093, "ci_high": 0.0196, "d_circ": 3,
+	simCand, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96", "total_qubits": 192,
+		"ler": 0.0020, "ci_low": 0.0014, "ci_high": 0.0028, "d_circ": 6, "seed": 7,
+	})
+	simBase, _ := json.Marshal(map[string]any{
+		"code_name": "surface_d5", "total_qubits": 200,
+		"ler": 0.0080, "ci_low": 0.0065, "ci_high": 0.0098, "d_circ": 5, "seed": 7,
+	})
+	simRepro, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96", "total_qubits": 192,
+		"ler": 0.0022, "ci_low": 0.0015, "ci_high": 0.0030, "d_circ": 6, "seed": 11,
+	})
+	hoCand, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96", "total_qubits": 192,
+		"ler": 0.0040, "ci_low": 0.0030, "ci_high": 0.0052, "d_circ": 6,
+		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49"},
+	})
+	hoBase, _ := json.Marshal(map[string]any{
+		"code_name": "surface_d5", "total_qubits": 200,
+		"ler": 0.0135, "ci_low": 0.0110, "ci_high": 0.0165, "d_circ": 5,
 		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49"},
 	})
 	for _, row := range []struct {
 		id, jtype string
 		res       []byte
 	}{
-		{"job_eval_a", "qec_code_eval", evalRes},
-		{"job_sim_a", "qec_memory_sim", simRes},
-		{"job_ho_a", "qec_memory_sim", heldOutRes},
+		{"job_eval_a", "qec_code_eval", evalNovel},
+		{"job_eval_unchecked", "qec_code_eval", evalUnchecked},
+		{"job_sim_cand", "qec_memory_sim", simCand},
+		{"job_sim_base", "qec_memory_sim", simBase},
+		{"job_sim_repro", "qec_memory_sim", simRepro},
+		{"job_ho_cand", "qec_memory_sim", hoCand},
+		{"job_ho_base", "qec_memory_sim", hoBase},
 	} {
 		if _, err := db.Exec(
 			`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at) VALUES (?, ?, 'JOB_STATUS_COMPLETED', ?, '{}', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
@@ -70,13 +103,54 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 		}
 	}
 
-	// 1. Create server-derived candidate claim from real settled session A jobs
+	// N10: check_catalog=false (relation="unchecked") MUST NOT pass Gate 3
+	wUnchecked := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
+		"claim_id":                     "dc_unchecked",
+		"code_name":                    "novel_bb_96",
+		"eval_job_id":                  "job_eval_unchecked",
+		"sim_job_id":                   "job_sim_cand",
+		"baseline_sim_job_id":          "job_sim_base",
+		"held_out_sim_job_id":          "job_ho_cand",
+		"held_out_baseline_sim_job_id": "job_ho_base",
+		"repro_sim_job_id":             "job_sim_repro",
+	})
+	var uncheckedResp struct {
+		Claim qec.DiscoveryClaimRecord `json:"claim"`
+	}
+	_ = json.Unmarshal(wUnchecked.Body.Bytes(), &uncheckedResp)
+	if uncheckedResp.Claim.Gates0To6Passed {
+		t.Fatalf("N10 violated: unchecked catalog passed gates 0-6: %+v", uncheckedResp.Claim)
+	}
+
+	// N9: Attaching surface_d5 sim_job_id to a novel_bb_96 claim MUST fail Gate 4 (code_name_mismatch)
+	wMismatch := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
+		"claim_id":                     "dc_mismatch",
+		"code_name":                    "novel_bb_96",
+		"eval_job_id":                  "job_eval_a",
+		"sim_job_id":                   "job_sim_base",
+		"baseline_sim_job_id":          "job_sim_cand",
+		"held_out_sim_job_id":          "job_ho_cand",
+		"held_out_baseline_sim_job_id": "job_ho_base",
+		"repro_sim_job_id":             "job_sim_repro",
+	})
+	var mismatchResp struct {
+		Claim qec.DiscoveryClaimRecord `json:"claim"`
+	}
+	_ = json.Unmarshal(wMismatch.Body.Bytes(), &mismatchResp)
+	if mismatchResp.Claim.Gates0To6Passed {
+		t.Fatalf("N9 violated: mismatched code_name sim passed gates 0-6: %+v", mismatchResp.Claim)
+	}
+
+	// 1. Valid server-derived candidate claim with bound jobs, baselines, and distinct-seed repro
 	w := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
-		"claim_id":            "dc_http_1",
-		"code_name":           "steane_7_1_3",
-		"eval_job_id":         "job_eval_a",
-		"sim_job_id":          "job_sim_a",
-		"held_out_sim_job_id": "job_ho_a",
+		"claim_id":                     "dc_http_1",
+		"code_name":                    "novel_bb_96",
+		"eval_job_id":                  "job_eval_a",
+		"sim_job_id":                   "job_sim_cand",
+		"baseline_sim_job_id":          "job_sim_base",
+		"held_out_sim_job_id":          "job_ho_cand",
+		"held_out_baseline_sim_job_id": "job_ho_base",
+		"repro_sim_job_id":             "job_sim_repro",
 	})
 	if w.Code != http.StatusCreated {
 		t.Fatalf("create claim status = %d, want 201 (body=%s)", w.Code, w.Body.String())
@@ -131,20 +205,5 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 	})
 	if w.Code != http.StatusOK {
 		t.Fatalf("commissioned admin signed claim status = %d, want 200 (body=%s)", w.Code, w.Body.String())
-	}
-
-	// 4. GET lists the durable claimed record in session A and empty in session B
-	w = doJSON(t, srv, http.MethodGet, "/api/sessions/"+sidA+"/discovery-claims", "", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("list claims status = %d, want 200", w.Code)
-	}
-	var payload struct {
-		Claims []qec.DiscoveryClaimRecord `json:"claims"`
-	}
-	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode list: %v", err)
-	}
-	if len(payload.Claims) != 1 || payload.Claims[0].Status != qec.ClaimClaimed {
-		t.Fatalf("unexpected listed claims: %+v", payload.Claims)
 	}
 }

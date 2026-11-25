@@ -99,16 +99,54 @@ func isCompletedJobStatus(st string) bool {
 	return strings.EqualFold(s, "completed") || strings.EqualFold(s, "JOB_STATUS_COMPLETED")
 }
 
+type discoveryClaimCreateReq struct {
+	ClaimID               string `json:"claim_id"`
+	CodeName              string `json:"code_name"`
+	EvalJobID             string `json:"eval_job_id"`
+	SimJobID              string `json:"sim_job_id"`
+	BaselineSimJobID      string `json:"baseline_sim_job_id"`
+	HeldOutSimJobID       string `json:"held_out_sim_job_id"`
+	HeldOutBaselineSimJob string `json:"held_out_baseline_sim_job_id"`
+	ReproSimJobID         string `json:"repro_sim_job_id"`
+}
+
+func (s *Server) loadCompletedSimJob(sessionID, jobID, label string) (map[string]any, error) {
+	id := strings.TrimSpace(jobID)
+	if id == "" {
+		return nil, nil
+	}
+	job, err := s.jobRunner.GetJob(id)
+	if err != nil || job == nil || job.SessionID != sessionID || !isCompletedJobStatus(job.Status.String()) || job.JobType != "qec_memory_sim" {
+		return nil, fmt.Errorf("%s %q must be a completed qec_memory_sim job in session %q", label, id, sessionID)
+	}
+	res := parseJSONObject(job.ResultJSON)
+	if res == nil {
+		return nil, fmt.Errorf("%s %q has empty or invalid result_json", label, id)
+	}
+	return res, nil
+}
+
 // deriveServerSideDiscoveryClaim computes artifact_sha256, gates_digest, and
-// gates_0_to_6_passed strictly from settled ledger jobs owned by sessionID (N1).
-// Never trusts client-supplied gate flags or hashes.
+// gates_0_to_6_passed strictly from settled ledger jobs owned by sessionID
+// (N1 + N9 + N10). Never trusts client-supplied gate flags, hashes, unchecked
+// novelty, or unbound simulation jobs.
 func (s *Server) deriveServerSideDiscoveryClaim(
-	sessionID, claimID, codeName, evalJobID, simJobID, heldOutJobID string,
+	sessionID string,
+	req discoveryClaimCreateReq,
 ) (qec.DiscoveryClaimRecord, error) {
 	if s.jobRunner == nil {
 		return qec.DiscoveryClaimRecord{}, errors.New("job runner unavailable")
 	}
-	evalJob, err := s.jobRunner.GetJob(strings.TrimSpace(evalJobID))
+	claimID := strings.TrimSpace(req.ClaimID)
+	codeName := strings.TrimSpace(req.CodeName)
+	evalJobID := strings.TrimSpace(req.EvalJobID)
+	simJobID := strings.TrimSpace(req.SimJobID)
+	baseSimJobID := strings.TrimSpace(req.BaselineSimJobID)
+	heldOutJobID := strings.TrimSpace(req.HeldOutSimJobID)
+	heldOutBaseJobID := strings.TrimSpace(req.HeldOutBaselineSimJob)
+	reproJobID := strings.TrimSpace(req.ReproSimJobID)
+
+	evalJob, err := s.jobRunner.GetJob(evalJobID)
 	if err != nil || evalJob == nil || evalJob.SessionID != sessionID {
 		return qec.DiscoveryClaimRecord{}, fmt.Errorf("eval_job_id %q not found in session %q", evalJobID, sessionID)
 	}
@@ -123,6 +161,11 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		return qec.DiscoveryClaimRecord{}, errors.New("eval_job result_json is empty or invalid")
 	}
 
+	evalCodeName := asStringField(evalRes, "code_name")
+	if evalCodeName == "" {
+		evalCodeName = codeName
+	}
+
 	nVal, okN := asFloatField(evalRes, "n")
 	kVal, okK := asFloatField(evalRes, "k")
 	dVal, okD := asFloatField(evalRes, "d")
@@ -135,42 +178,124 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 	witnessSha := asStringField(certObj, "witness_sha256")
 	decomposable, okDecomp := asBoolField(evalRes, "decomposable")
 	catalogKnown, okCat := asBoolField(evalRes, "catalog_known")
+	catalogRel := asStringField(evalRes, "catalog_relation")
+	canonicalHash := asStringField(evalRes, "canonical_hash")
 
 	g0 := okN && okK && nVal > 0 && kVal > 0
 	g1 := okD && dVal > 0 && dKind == "proved" && proofScope == "full_logical_group" && witnessSha != ""
 	g2 := okDecomp && !decomposable
-	g3 := okCat && !catalogKnown
-
-	g4 := false
-	g5 := false
-	g6 := false
-	var simRes, heldOutRes map[string]any
-
-	if strings.TrimSpace(simJobID) != "" {
-		simJob, sErr := s.jobRunner.GetJob(strings.TrimSpace(simJobID))
-		if sErr != nil || simJob == nil || simJob.SessionID != sessionID || !isCompletedJobStatus(simJob.Status.String()) || simJob.JobType != "qec_memory_sim" {
-			return qec.DiscoveryClaimRecord{}, fmt.Errorf("sim_job_id %q must be a completed qec_memory_sim job in session %q", simJobID, sessionID)
+	// N10: reject check_catalog=false (relation="unchecked") and require canonical_hash
+	g3 := okCat && !catalogKnown && catalogRel == "novel_to_catalog" && canonicalHash != ""
+	g3Reason := "ok"
+	if !g3 {
+		if catalogRel == "unchecked" || catalogRel == "" {
+			g3Reason = "catalog_unchecked"
+		} else if catalogKnown {
+			g3Reason = "known_in_catalog"
+		} else {
+			g3Reason = "missing_canonical_hash"
 		}
-		simRes = parseJSONObject(simJob.ResultJSON)
-		_, okLer := asFloatField(simRes, "ler")
-		_, okLo := asFloatField(simRes, "ci_low")
-		_, okHi := asFloatField(simRes, "ci_high")
-		dCirc, okDC := asFloatField(simRes, "d_circ")
-		g4 = okLer && okLo && okHi
-		g6 = okDC && dCirc > 0
 	}
 
-	if strings.TrimSpace(heldOutJobID) != "" {
-		hJob, hErr := s.jobRunner.GetJob(strings.TrimSpace(heldOutJobID))
-		if hErr != nil || hJob == nil || hJob.SessionID != sessionID || !isCompletedJobStatus(hJob.Status.String()) || hJob.JobType != "qec_memory_sim" {
-			return qec.DiscoveryClaimRecord{}, fmt.Errorf("held_out_sim_job_id %q must be a completed qec_memory_sim job in session %q", heldOutJobID, sessionID)
+	simRes, err := s.loadCompletedSimJob(sessionID, simJobID, "sim_job_id")
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, err
+	}
+	baseRes, err := s.loadCompletedSimJob(sessionID, baseSimJobID, "baseline_sim_job_id")
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, err
+	}
+	heldOutRes, err := s.loadCompletedSimJob(sessionID, heldOutJobID, "held_out_sim_job_id")
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, err
+	}
+	heldOutBaseRes, err := s.loadCompletedSimJob(sessionID, heldOutBaseJobID, "held_out_baseline_sim_job_id")
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, err
+	}
+	reproRes, err := s.loadCompletedSimJob(sessionID, reproJobID, "repro_sim_job_id")
+	if err != nil {
+		return qec.DiscoveryClaimRecord{}, err
+	}
+
+	// N9 Gate 4: sim_job bound to evalCodeName, matched qubit budget, non-overlapping 95% CI vs baseline_sim_job
+	g4 := false
+	g4Reason := "missing_sim_or_baseline"
+	baseLo := 0.0
+	hasBaseLo := false
+	if simRes != nil && baseRes != nil && simJobID != baseSimJobID {
+		simCode := asStringField(simRes, "code_name")
+		_, okLer := asFloatField(simRes, "ler")
+		simHi, okSimHi := asFloatField(simRes, "ci_high")
+		bLo, okBaseLo := asFloatField(baseRes, "ci_low")
+		simQ, okSimQ := asFloatField(simRes, "total_qubits")
+		baseQ, okBaseQ := asFloatField(baseRes, "total_qubits")
+		budgetOK := !okSimQ || !okBaseQ || simQ <= baseQ
+		if simCode != evalCodeName {
+			g4Reason = fmt.Sprintf("code_name_mismatch (sim=%q, eval=%q)", simCode, evalCodeName)
+		} else if !budgetOK {
+			g4Reason = "qubit_budget_exceeded"
+		} else if !okLer || !okSimHi || !okBaseLo {
+			g4Reason = "missing_ci_fields"
+		} else if simHi >= bLo {
+			g4Reason = "ci_overlap_with_baseline"
+		} else {
+			g4 = true
+			g4Reason = "ok"
+			baseLo = bLo
+			hasBaseLo = true
 		}
-		heldOutRes = parseJSONObject(hJob.ResultJSON)
-		noiseObj, _ := heldOutRes["noise"].(map[string]any)
-		isHeldOut, _ := asBoolField(noiseObj, "is_held_out")
-		snapID := asStringField(noiseObj, "calibration_snapshot_id")
-		_, okLer := asFloatField(heldOutRes, "ler")
-		g5 = isHeldOut && snapID != "" && okLer
+	}
+
+	// N9 Gate 5: held-out sim bound to evalCodeName, matching held-out snapshot, non-overlapping 95% CI vs held-out baseline
+	g5 := false
+	g5Reason := "missing_held_out_or_baseline"
+	if heldOutRes != nil && heldOutBaseRes != nil && heldOutJobID != heldOutBaseJobID {
+		hoCode := asStringField(heldOutRes, "code_name")
+		hoNoise, _ := heldOutRes["noise"].(map[string]any)
+		hoBaseNoise, _ := heldOutBaseRes["noise"].(map[string]any)
+		hoIsHeldOut, _ := asBoolField(hoNoise, "is_held_out")
+		hoBaseIsHeldOut, _ := asBoolField(hoBaseNoise, "is_held_out")
+		hoSnap := asStringField(hoNoise, "calibration_snapshot_id")
+		hoBaseSnap := asStringField(hoBaseNoise, "calibration_snapshot_id")
+		hoHi, okHoHi := asFloatField(heldOutRes, "ci_high")
+		hoBaseLo, okHoBaseLo := asFloatField(heldOutBaseRes, "ci_low")
+		if hoCode != evalCodeName {
+			g5Reason = fmt.Sprintf("code_name_mismatch (held_out=%q, eval=%q)", hoCode, evalCodeName)
+		} else if !hoIsHeldOut || !hoBaseIsHeldOut || hoSnap == "" || hoSnap != hoBaseSnap {
+			g5Reason = "held_out_snapshot_mismatch"
+		} else if !okHoHi || !okHoBaseLo {
+			g5Reason = "missing_ci_fields"
+		} else if hoHi >= hoBaseLo {
+			g5Reason = "held_out_ci_overlap"
+		} else {
+			g5 = true
+			g5Reason = "ok"
+		}
+	}
+
+	// N9 Gate 6: distinct second-seed reproduction sim bound to evalCodeName with d_circ > 0 and CI below baseline
+	g6 := false
+	g6Reason := "missing_repro_sim"
+	if reproRes != nil && reproJobID != simJobID {
+		reproCode := asStringField(reproRes, "code_name")
+		reproDCirc, okDC := asFloatField(reproRes, "d_circ")
+		reproHi, okReproHi := asFloatField(reproRes, "ci_high")
+		simSeed, okSimSeed := asFloatField(simRes, "seed")
+		reproSeed, okReproSeed := asFloatField(reproRes, "seed")
+		distinctSeed := !okSimSeed || !okReproSeed || simSeed != reproSeed
+		if reproCode != evalCodeName {
+			g6Reason = fmt.Sprintf("code_name_mismatch (repro=%q, eval=%q)", reproCode, evalCodeName)
+		} else if !distinctSeed {
+			g6Reason = "repro_seed_not_distinct"
+		} else if !okDC || reproDCirc <= 0 {
+			g6Reason = "d_circ_not_verified"
+		} else if !hasBaseLo || !okReproHi || reproHi >= baseLo {
+			g6Reason = "repro_ci_not_below_baseline"
+		} else {
+			g6 = true
+			g6Reason = "ok"
+		}
 	}
 
 	allPassed := g0 && g1 && g2 && g3 && g4 && g5 && g6
@@ -178,20 +303,24 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		"gate0_valid":          map[string]any{"passed": g0, "eval_job_id": evalJobID},
 		"gate1_exact_params":   map[string]any{"passed": g1, "d_kind": dKind, "proof_scope": proofScope, "witness_sha256": witnessSha},
 		"gate2_indecomposable": map[string]any{"passed": g2},
-		"gate3_novel":          map[string]any{"passed": g3},
-		"gate4_frontier":       map[string]any{"passed": g4, "sim_job_id": simJobID},
-		"gate5_held_out":       map[string]any{"passed": g5, "held_out_sim_job_id": heldOutJobID},
-		"gate6_reproduced":     map[string]any{"passed": g6},
+		"gate3_novel":          map[string]any{"passed": g3, "reason": g3Reason, "catalog_relation": catalogRel, "canonical_hash": canonicalHash},
+		"gate4_frontier":       map[string]any{"passed": g4, "reason": g4Reason, "sim_job_id": simJobID, "baseline_sim_job_id": baseSimJobID},
+		"gate5_held_out":       map[string]any{"passed": g5, "reason": g5Reason, "held_out_sim_job_id": heldOutJobID, "held_out_baseline_sim_job_id": heldOutBaseJobID},
+		"gate6_reproduced":     map[string]any{"passed": g6, "reason": g6Reason, "repro_sim_job_id": reproJobID},
 	}
 
 	artifactPayload := map[string]any{
-		"claim_id":            claimID,
-		"session_id":          sessionID,
-		"code_name":           codeName,
-		"eval_job_id":         evalJobID,
-		"sim_job_id":          simJobID,
-		"held_out_sim_job_id": heldOutJobID,
-		"witness_sha256":      witnessSha,
+		"claim_id":                     claimID,
+		"session_id":                   sessionID,
+		"code_name":                    evalCodeName,
+		"eval_job_id":                  evalJobID,
+		"sim_job_id":                   simJobID,
+		"baseline_sim_job_id":          baseSimJobID,
+		"held_out_sim_job_id":          heldOutJobID,
+		"held_out_baseline_sim_job_id": heldOutBaseJobID,
+		"repro_sim_job_id":             reproJobID,
+		"witness_sha256":               witnessSha,
+		"canonical_hash":               canonicalHash,
 	}
 	artBytes, _ := json.Marshal(artifactPayload)
 	artSum := sha256.Sum256(artBytes)
@@ -211,7 +340,7 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 	return qec.DiscoveryClaimRecord{
 		ClaimID:         claimID,
 		SessionID:       sessionID,
-		CodeName:        codeName,
+		CodeName:        evalCodeName,
 		Status:          qec.ClaimCandidate,
 		EvidenceTier:    tier,
 		CredibilityTier: cred,
@@ -223,7 +352,7 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 }
 
 // handleDiscoveryClaimsRoute exposes durable, session-scoped (N8),
-// server-verified (N1) Schema-17 QEC discovery_claims lifecycle operations:
+// server-verified (N1/N9/N10) Schema-17 QEC discovery_claims lifecycle operations:
 //
 //	GET  /api/sessions/{id}/discovery-claims
 //	POST /api/sessions/{id}/discovery-claims                      (create from settled session jobs only)
@@ -253,13 +382,7 @@ func (s *Server) handleDiscoveryClaimsRoute(w http.ResponseWriter, r *http.Reque
 			return
 
 		case http.MethodPost:
-			var req struct {
-				ClaimID         string `json:"claim_id"`
-				CodeName        string `json:"code_name"`
-				EvalJobID       string `json:"eval_job_id"`
-				SimJobID        string `json:"sim_job_id"`
-				HeldOutSimJobID string `json:"held_out_sim_job_id"`
-			}
+			var req discoveryClaimCreateReq
 			dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256*1024))
 			if err := dec.Decode(&req); err != nil {
 				WriteAPIError(w, "bad_request", "invalid discovery claim JSON", nil)
@@ -269,14 +392,7 @@ func (s *Server) handleDiscoveryClaimsRoute(w http.ResponseWriter, r *http.Reque
 				WriteAPIError(w, "bad_request", "claim_id, code_name, and settled eval_job_id are required (client-supplied gate flags and artifact hashes are not accepted)", nil)
 				return
 			}
-			rec, err := s.deriveServerSideDiscoveryClaim(
-				sessionID,
-				strings.TrimSpace(req.ClaimID),
-				strings.TrimSpace(req.CodeName),
-				strings.TrimSpace(req.EvalJobID),
-				strings.TrimSpace(req.SimJobID),
-				strings.TrimSpace(req.HeldOutSimJobID),
-			)
+			rec, err := s.deriveServerSideDiscoveryClaim(sessionID, req)
 			if err != nil {
 				WriteAPIError(w, "bad_request", err.Error(), nil)
 				return
