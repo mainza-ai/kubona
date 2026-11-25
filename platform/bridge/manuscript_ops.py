@@ -467,14 +467,25 @@ def _evidence_section(evidence: Dict[str, Any]) -> str:
     return "\n\n".join(lines)
 
 
-def _limitations(claimable: int) -> str:
+def _limitations(claimable: int, figures_count: int = 0) -> str:
+    claim_clause = (
+        f"{claimable} result(s) carry an explicit claimable flag scoped strictly to their "
+        "recorded classical anchor and backend."
+        if claimable > 0
+        else "No result in this draft carries a claimable discovery flag; all rows are "
+        "reported as empirical benchmarks against their recorded classical anchors."
+    )
+    fig_clause = (
+        f"All {figures_count} embedded figure(s) are deterministically synthesized from "
+        "settled ledger rows and bound by SHA-256 in the artifact bundle."
+        if figures_count > 0
+        else "All quantitative statements in this draft are bound to settled ledger rows."
+    )
     return (
         "This draft does not claim quantum advantage, novelty, or general correctness. "
-        f"{claimable} result(s) are claimable only against the recorded classical anchor and "
-        "backend. Results measured on a simulator are not hardware evidence; hardware results "
-        "carry the provider job id and calibration snapshot recorded with the job. "
-        "Any figure is the caller's artifact; the text reports only numbers present in the "
-        "campaign projection."
+        f"{claim_clause} Results measured on a simulator are not hardware evidence; hardware "
+        "results carry their provider job id, calibration snapshot, and OpenQASM checksum "
+        f"recorded in the ledger. {fig_clause}"
     )
 
 
@@ -685,12 +696,55 @@ def compose(req: Dict[str, Any]) -> Dict[str, Any]:
         ManuscriptSection(slug="provenance", title="Provenance and Review Evidence",
                           latex_content=_evidence_section(evidence)),
         ManuscriptSection(slug="limitations", title="Limitations, Epistemic Scope and Reproducibility",
-                          latex_content=_limitations(claimable)),
+                          latex_content=_limitations(claimable, len(figures))),
         ManuscriptSection(slug="appendix_provenance", title="Appendix A: Complete Ledger and Hardware Provenance",
                           latex_content=appendix_prov),
     ]
 
-    bibtex_entries: Dict[str, str] = {}
+    # Phase 1, 3, 4 & 5: Experiment Datasheet, ZNE/Uncertainty audit,
+    # Data & Code Availability, Scholarly Declarations, and canonical references.
+    from manuscript_datasheet import (
+        CANONICAL_METHOD_REFERENCES,
+        build_data_availability_section,
+        build_experiment_datasheet_section,
+        build_scholarly_declarations_section,
+        build_zne_and_uncertainty_section,
+    )
+
+    zne_unc_tex = build_zne_and_uncertainty_section(reportable)
+    if zne_unc_tex:
+        sections.append(
+            ManuscriptSection(
+                slug="uncertainty_zne",
+                title="Uncertainty and Error Mitigation Audit",
+                latex_content=zne_unc_tex,
+            )
+        )
+    sections.append(
+        ManuscriptSection(
+            slug="appendix_datasheet",
+            title="Appendix B: Experiment Datasheet",
+            latex_content=build_experiment_datasheet_section(reportable),
+        )
+    )
+    sections.append(
+        ManuscriptSection(
+            slug="data_availability",
+            title="Data and Code Availability",
+            latex_content=build_data_availability_section(
+                reportable, str(req.get("manuscript_id") or "ms_draft")
+            ),
+        )
+    )
+    sections.append(
+        ManuscriptSection(
+            slug="declarations",
+            title="Affiliations, Funding, Competing Interests, and Author Contributions",
+            latex_content=build_scholarly_declarations_section(evidence, authors),
+        )
+    )
+
+    bibtex_entries: Dict[str, str] = dict(CANONICAL_METHOD_REFERENCES)
     for entry in citations:
         key = entry["key"]
         cite_authors = _latex_escape(str(entry.get("authors") or "Unknown"))

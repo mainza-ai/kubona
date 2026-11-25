@@ -300,14 +300,16 @@ func TestManuscriptBuildSignoffAndDeposit(t *testing.T) {
 		t.Fatal(err)
 	}
 	ms := detail.Manuscript
-	if ms.BuildHash != "build-hash-1" || len(ms.Artifacts) != 2 {
+	if ms.BuildHash != "build-hash-1" || len(ms.Artifacts) != 6 {
 		t.Fatalf("build not installed: %+v", ms)
 	}
 	names := map[string]bool{}
 	for _, a := range ms.Artifacts {
 		names[a.Name] = true
 	}
-	if !names["main.pdf"] || !names["sections/results.tex"] {
+	if !names["main.pdf"] || !names["sections/results.tex"] ||
+		!names["supplement/datasheet.json"] || !names["supplement/jobs.csv"] ||
+		!names["supplement/environment.json"] || !names["supplement/completeness_report.json"] {
 		t.Fatalf("artifact set = %+v", names)
 	}
 

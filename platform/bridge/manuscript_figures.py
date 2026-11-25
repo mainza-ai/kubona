@@ -386,12 +386,122 @@ def _render_qec_benchmark(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] 
     return "fig_qec_benchmark.png", _to_png_bytes(img), caption
 
 
+def _render_transpile_overhead(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] | None:
+    """Phase 2: render two-qubit gate count and QASM gate-line summary for hardware jobs."""
+    hw = [
+        r for r in rows
+        if (bool(r.get("hardware")) or r.get("circuit_sha256"))
+        and (r.get("two_qubit_gate_count") is not None or r.get("qasm_gate_lines") is not None)
+    ]
+    if not hw:
+        return None
+    hw = hw[:12]
+    img, draw = _new_canvas(1600, 920)
+    box = (150, 110, 1520, 725)
+    vals = [float(r.get("two_qubit_gate_count") or r.get("qasm_gate_lines") or 0) for r in hw]
+    y_max = max(max(vals) * 1.2, 10.0)
+    _draw_axes(
+        draw,
+        box,
+        "Circuit Two-Qubit Gate & Transpilation Footprint",
+        "Settled Job & Backend (full OpenQASM archived in supplement/qasm/)",
+        "Two-Qubit Gates / Gate Lines",
+        0.0,
+        y_max,
+        xlabel_offset=96,
+    )
+    x0, y0, x1, y1 = box
+    slot = (x1 - x0) / len(hw)
+    bar_w = max(22, min(72, int(slot * 0.52)))
+    font_lbl = _load_font(14 if len(hw) > 8 else 16)
+    for i, r in enumerate(hw):
+        v = float(r.get("two_qubit_gate_count") or r.get("qasm_gate_lines") or 0)
+        cx = int(x0 + (i + 0.5) * slot)
+        top = int(y1 - min(1.0, v / y_max) * (y1 - y0))
+        color = ORANGE if bool(r.get("hardware")) else TEAL
+        draw.rectangle([cx - bar_w // 2, top, cx + bar_w // 2, y1], fill=color, outline=INK, width=1)
+        draw.text((cx, max(y0 + 18, top - 6)), f"{int(v)}", fill=INK, font=font_lbl, anchor="mb")
+        jid = str(r.get("job_id") or "")[:6]
+        be = _short_backend_label(r.get("backend"))
+        draw.text((cx, y1 + 12), jid, fill=SLATE, font=font_lbl, anchor="mt")
+        draw.text((cx, y1 + 32), be, fill=SLATE, font=font_lbl, anchor="mt")
+    hashes = [str(r.get("circuit_sha256") or "")[:8] for r in hw if r.get("circuit_sha256")]
+    hash_note = f" (circuit SHA-256 prefixes: {', '.join(hashes[:4])})" if hashes else ""
+    caption = (
+        f"Circuit two-qubit gate / gate-line footprint across {len(hw)} settled circuit jobs"
+        f"{hash_note}. Complete OpenQASM sources are archived in supplement/qasm/."
+    )
+    return "fig_transpile_overhead.png", _to_png_bytes(img), caption
+
+
+def _render_calibration_overview(rows: List[Dict[str, Any]]) -> Tuple[str, bytes, str] | None:
+    """Phase 2: render processor calibration metrics (median 2Q & readout error) across snapshots."""
+    cals = []
+    seen = set()
+    for r in rows:
+        cal = r.get("calibration")
+        if not isinstance(cal, dict):
+            continue
+        snap = str(cal.get("snapshot_id") or r.get("calibration_snapshot_id") or r.get("backend") or "")
+        if not snap or snap in seen:
+            continue
+        e2q = cal.get("median_two_qubit_error", cal.get("two_qubit_error"))
+        ero = cal.get("median_readout_error", cal.get("readout_error"))
+        if e2q is None and ero is None:
+            continue
+        seen.add(snap)
+        cals.append((str(r.get("backend") or "qpu"), snap[:12], float(e2q or 0.0) * 100.0, float(ero or 0.0) * 100.0))
+    if not cals:
+        return None
+    cals = cals[:10]
+    img, draw = _new_canvas(1600, 920)
+    box = (150, 110, 1520, 725)
+    y_max = max(max(max(a, b) for _, _, a, b in cals) * 1.25, 0.5)
+    _draw_axes(
+        draw,
+        box,
+        "QPU Calibration Snapshot Error Rates (Navy: Median 2Q %, Teal: Readout %)",
+        "Backend & Calibration Snapshot",
+        "Error Rate (%)",
+        0.0,
+        y_max,
+        xlabel_offset=96,
+    )
+    x0, y0, x1, y1 = box
+    slot = (x1 - x0) / len(cals)
+    bw = max(14, min(42, int(slot * 0.28)))
+    font_lbl = _load_font(14)
+    for i, (be, snap, e2q, ero) in enumerate(cals):
+        cx = int(x0 + (i + 0.5) * slot)
+        top1 = int(y1 - min(1.0, e2q / y_max) * (y1 - y0))
+        top2 = int(y1 - min(1.0, ero / y_max) * (y1 - y0))
+        draw.rectangle([cx - bw - 3, top1, cx - 3, y1], fill=NAVY, outline=INK, width=1)
+        draw.rectangle([cx + 3, top2, cx + bw + 3, y1], fill=TEAL, outline=INK, width=1)
+        draw.text((cx - bw // 2 - 3, max(y0 + 18, top1 - 4)), f"{e2q:.2f}%", fill=INK, font=font_lbl, anchor="mb")
+        draw.text((cx + bw // 2 + 3, max(y0 + 18, top2 - 4)), f"{ero:.2f}%", fill=INK, font=font_lbl, anchor="mb")
+        draw.text((cx, y1 + 12), _short_backend_label(be), fill=SLATE, font=font_lbl, anchor="mt")
+        draw.text((cx, y1 + 32), snap, fill=SLATE, font=font_lbl, anchor="mt")
+    caption = (
+        f"Hardware processor calibration error rates across {len(cals)} execution snapshot(s) "
+        "(navy: median two-qubit gate error %, teal: median readout error %)."
+    )
+    return "fig_calibration_overview.png", _to_png_bytes(img), caption
+
+
 def generate_campaign_figures(rows: List[Dict[str, Any]]) -> List[Tuple[str, bytes, str]]:
-    """Synthesize up to 4 deterministic PNG figures from settled campaign rows."""
+    """Synthesize deterministic 300-DPI PNG figures from settled campaign rows."""
     if not HAS_PIL or not rows:
         return []
     out: List[Tuple[str, bytes, str]] = []
-    for fn in (_render_energy_benchmark, _render_pes_or_depth, _render_quench_dynamics, _render_qaoa_or_dmrg, _render_qec_benchmark):
+    for fn in (
+        _render_energy_benchmark,
+        _render_pes_or_depth,
+        _render_quench_dynamics,
+        _render_qaoa_or_dmrg,
+        _render_qec_benchmark,
+        _render_transpile_overhead,
+        _render_calibration_overview,
+    ):
         try:
             res = fn(rows)
             if res is not None:

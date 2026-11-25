@@ -177,6 +177,10 @@ func (s *Server) handleManuscriptRoute(w http.ResponseWriter, r *http.Request, s
 		s.handleManuscriptVerification(w, r, sessionID, strings.TrimSuffix(rest, "/verify"))
 		return
 	}
+	if strings.HasSuffix(rest, "/completeness") {
+		s.handleManuscriptCompleteness(w, r, sessionID, strings.TrimSuffix(rest, "/completeness"))
+		return
+	}
 	if strings.HasSuffix(rest, "/export") {
 		s.handleManuscriptExport(w, r, sessionID, strings.TrimSuffix(rest, "/export"))
 		return
@@ -642,6 +646,9 @@ func (s *Server) buildStoredManuscript(ctx context.Context, ms *ledger.Manuscrip
 	if resp.Build == nil {
 		return &manuscriptRefusal{code: "build_failed", message: "bridge returned no build metadata"}
 	}
+	// Phase 1/3: stage QASM, counts, datasheet.json, jobs.csv, environment.json,
+	// and completeness_report.json into ms.Artifacts for Zenodo + RO-Crate parity.
+	s.attachSupplementArtifacts(ms.SessionID, ms, artifacts)
 	if err := s.checkArtifactCeiling(ms, artifacts); err != nil {
 		return err
 	}
@@ -894,6 +901,19 @@ func (s *Server) handleManuscriptDeposit(w http.ResponseWriter, r *http.Request,
 		}
 		if open, _ := s.ledger.CountOpenAnnotations(sessionID, id); open > 0 {
 			WriteAPIError(w, "annotations_open", "empirical deposit track requires 0 open annotations", nil)
+			return
+		}
+		// Phase 6 fail-closed completeness gate: hardware empirical deposits
+		// must carry bundled QASM + datasheet.json + jobs.csv + environment.json.
+		artIndex := make(map[string]string, len(ms.Artifacts))
+		for _, a := range ms.Artifacts {
+			artIndex[a.Name] = a.SHA256
+		}
+		comp := verify.CheckPublicationCompleteness(ms.CampaignJSON, ms.EvidenceJSON, len(ms.Citations), artIndex)
+		if !comp.Complete {
+			WriteAPIError(w, "incomplete_manuscript",
+				"empirical deposit refused: "+strings.Join(comp.Blocking, "; "),
+				map[string]any{"completeness": comp})
 			return
 		}
 	}
@@ -1192,7 +1212,8 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		"energy_per_site", "exact_energy_per_site", "max_bond_dim", "sizes",
 		"finite_size", "thermodynamic_limit", "anisotropy", "bond_dim",
 		"points", "status", "verdict", "law", "expression",
-		"mitigated", "hardware", "actual_usd",
+		"mitigated", "hardware", "actual_usd", "usage_seconds",
+		"seed", "layout", "transpile", "zne_scales", "raw_energy", "mitigated_energy", "optimizer_iterations",
 		"backend", "requested_backend", "model",
 		"hardware_job_id", "vendor_ref",
 		"calibration", "calibration_fresh", "calibration_checked_at", "calibration_snapshot_id",
@@ -1220,6 +1241,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 			if _, ok := existing["vendor_ref"]; !ok && j.VendorRef != "" {
 				existing["vendor_ref"] = j.VendorRef
 			}
+			enrichJobFromParams(existing, j.ParamsJSON, j.ResultJSON)
 			continue
 		}
 		kind, _ := res["kind"].(string)
@@ -1228,13 +1250,17 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		}
 		// Include every settled scientific experiment result (VQE, ZNE hardware,
 		// PES, QAOA, spin-chain, Krylov, 2D lattice dynamics, DMRG thermodynamic
-		// limit, and symbolic conjecture — W3-01 / N-02 / W4-09).
+		// limit, QEC, circuit codesign, and symbolic conjecture — W3-01 / N-02 / W4-09).
 		kindLower := strings.ToLower(strings.TrimSpace(kind))
 		jobTypeLower := strings.ToLower(strings.TrimSpace(j.JobType))
 		isKnownScientificKind := kindLower == "krylov" ||
 			kindLower == "hardware_pes" ||
 			kindLower == "lattice_dynamics" ||
 			kindLower == "thermodynamic_limit" ||
+			kindLower == "qec_code_eval" ||
+			kindLower == "qec_distance" ||
+			kindLower == "qec_memory_sim" ||
+			kindLower == "codesign_run" ||
 			strings.Contains(kindLower, "conjecture") ||
 			strings.Contains(jobTypeLower, "conjecture")
 		if isKnownScientificKind && strings.Contains(jobTypeLower, "conjecture") && kindLower == "" {
@@ -1273,6 +1299,7 @@ func (s *Server) enrichCampaignWithSettledJobs(sessionID string, rawState []byte
 		if _, ok := row["backend"]; !ok && j.VendorRef != "" {
 			row["backend"] = "ibm-qiskit"
 		}
+		enrichJobFromParams(row, j.ParamsJSON, j.ResultJSON)
 		exps = append(exps, row)
 		existingByID[j.ID] = row
 	}
