@@ -2122,6 +2122,34 @@ def _counts_cut(counts: dict[str, int], edges: list[tuple[int, int]]) -> float:
     return float(acc) / float(total)
 
 
+def _ratio_ci_from_counts(
+    counts: dict[str, int],
+    edges: list[tuple[int, int]],
+    optimal_cut: int,
+    mean_cut: float,
+) -> tuple[list[float] | None, float | None]:
+    """Normal-approximation 95% CI for a MaxCut ratio from a shot histogram.
+
+    Qiskit bitstrings place qubit 0 at the rightmost character, so the cut is
+    computed from ``int(bitstring, 2)`` exactly as ``_counts_cut`` does. Do not
+    reverse the string here: that double-reverses the qubit order and changes
+    the sampled variance.
+    """
+    total = sum(int(v) for v in counts.values())
+    if total <= 1 or int(optimal_cut) <= 0:
+        return None, None
+    sq_diff = 0.0
+    for bitstring, cnt in counts.items():
+        mask = int(str(bitstring).replace(" ", ""), 2)
+        c_val = sum(1 for a, b in edges if ((mask >> int(a)) & 1) != ((mask >> int(b)) & 1))
+        sq_diff += int(cnt) * ((float(c_val) - float(mean_cut)) ** 2)
+    var = sq_diff / (total - 1)
+    se = math.sqrt(max(var, 0.0) / total)
+    ratio = float(mean_cut) / float(optimal_cut)
+    half = 1.959963984540054 * (se / float(optimal_cut))
+    return [round(max(0.0, ratio - half), 6), round(min(1.0, ratio + half), 6)], se
+
+
 def run_qaoa(
     layers: int = 2,
     shots: int = 4096,
@@ -2211,28 +2239,7 @@ def run_qaoa(
     # R-A: retain shot histogram and derive normal-approximation 95% CI from the
     # sampled cut distribution (counts x graph edges), matching Go ratioCIFromCounts.
     counts_clean = {str(k): int(v) for k, v in counts.items()}
-    total_shots = sum(counts_clean.values())
-    cut_se = None
-    ratio_ci95 = None
-    if total_shots > 1 and best > 0:
-        sq_diff = 0.0
-        for bitstr, cnt in counts_clean.items():
-            bits = bitstr.replace(" ", "")
-            c_val = 0
-            for u, v in edges:
-                bu = int(bits[len(bits) - 1 - u]) if u < len(bits) else 0
-                bv = int(bits[len(bits) - 1 - v]) if v < len(bits) else 0
-                if bu != bv:
-                    c_val += 1
-            sq_diff += cnt * ((c_val - shot_cut) ** 2)
-        var = sq_diff / (total_shots - 1)
-        cut_se = math.sqrt(max(var, 0.0) / total_shots)
-        half_r = 1.959963984540054 * (cut_se / float(best))
-        r_mean = shot_cut / float(best)
-        ratio_ci95 = [
-            round(max(0.0, r_mean - half_r), 6),
-            round(min(1.0, r_mean + half_r), 6),
-        ]
+    ratio_ci95, cut_se = _ratio_ci_from_counts(counts_clean, edges, int(best), shot_cut)
     return {
         "success": True, "kind": "qaoa", "result_version": "experiment-result-v1", "molecule": "MaxCut",
         "graph": {"nodes": n, "edges": edges, "regular_degree": 3},
@@ -2444,6 +2451,7 @@ def run_qaoa_hardware(
         cut_sum += int(n) * sum(1 for a, b in edges if ((mask >> int(a)) & 1) != ((mask >> int(b)) & 1))
     measured_cut = float(cut_sum) / float(total)
     ratio = measured_cut / float(optimal_cut)
+    ratio_ci95, cut_se = _ratio_ci_from_counts(counts, edges, int(optimal_cut), measured_cut)
     return {
         "success": True,
         "kind": "qaoa_hardware",
@@ -2458,6 +2466,9 @@ def run_qaoa_hardware(
         "energy_exact": float(energy_exact),
         "optimal_cut": int(optimal_cut),
         "approximation_ratio": float(ratio),
+        "ratio_ci95": ratio_ci95,
+        "ratio_ci_method": "normal_from_sampled_cuts" if ratio_ci95 is not None else None,
+        "uncertainty": float(cut_se) if cut_se is not None else None,
         "hardware": True,
         "measured": True,
         "simulated_optimizer": True,

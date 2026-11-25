@@ -15,7 +15,11 @@ import re
 import sys
 from pathlib import Path
 
-from kubona.codesign import (
+_PLATFORM_ROOT = str(Path(__file__).resolve().parents[1])
+if _PLATFORM_ROOT not in sys.path:
+    sys.path.insert(0, _PLATFORM_ROOT)
+
+from kubona.codesign import (  # noqa: E402
     BudgetEntry,
     CircuitCodesignHarness,
     FamilySearch,

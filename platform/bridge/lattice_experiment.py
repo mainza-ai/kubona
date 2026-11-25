@@ -697,6 +697,7 @@ def run_spin_chain_hardware(
         "backend": str(batch.get("backend") or "ibm-qiskit"),
         "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
         "layout": batch.get("layout"),
+        "transpile": batch.get("transpile"),
         "calibration": batch.get("calibration"),
         **calibration_quality,
         "usage_seconds": batch.get("usage_seconds"),

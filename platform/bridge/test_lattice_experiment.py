@@ -118,6 +118,7 @@ def test_spin_chain_hardware_uses_one_governed_batch(monkeypatch):
             "hardware_job_id": "vendor-spin-1",
             "usage_seconds": 2.0,
             "actual_usd": 0.0,
+            "transpile": {"circuits": len(qasms), "max_transpiled_depth": 9},
         }
 
     monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
@@ -136,6 +137,7 @@ def test_spin_chain_hardware_uses_one_governed_batch(monkeypatch):
     assert res["hardware"] is True
     assert res["measured"] is True
     assert res["hardware_job_id"] == "vendor-spin-1"
+    assert res["transpile"]["circuits"] == 4
     assert calls and calls[0]["n"] == 4
     assert res["energy"] == pytest.approx(2.5)
     assert res["claimable"] is True

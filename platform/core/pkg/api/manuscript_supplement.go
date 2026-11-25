@@ -549,6 +549,7 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 			"counts_sha256":          r["counts_sha256"],
 			"counts_encoding":        countsEncoding,
 			"counts_file_sha256":     countsFileSHA,
+			"counts_terms":           r["counts_terms"],
 			"counts_path":            countsPath,
 			"counts_paths":           countsPaths,
 			"counts_artifacts":       countsArtifacts,

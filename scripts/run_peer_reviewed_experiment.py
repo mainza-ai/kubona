@@ -124,13 +124,72 @@ def record(checks: list[dict[str, Any]], name: str, ok: bool, detail: str) -> No
     print(f"  [{tag}] {name}: {detail}", flush=True)
 
 
-def sign_mandate(client: KubonaClient, binding: dict[str, Any]) -> str:
-    code, resp = client.request("POST", "/api/mandates/sign", {"binding": binding})
+def _load_admin_key(key_hex: str, key_file: str):
+    """Load the tenant admin Ed25519 private key from hex or a raw-hex file."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    raw = (key_hex or "").strip()
+    if not raw and key_file:
+        raw = Path(key_file).read_text(encoding="utf-8").strip()
+    if not raw:
+        return None
+    return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(raw))
+
+
+def sign_mandate(
+    client: KubonaClient,
+    binding: str,
+    *,
+    tenant_id: str,
+    admin_key: Any,
+    budget_usd: float,
+    ttl_seconds: int = 1800,
+) -> str:
+    """Sign the canonical hardware binding with the tenant admin envelope.
+
+    /api/mandates/sign binds tenant + action + exact params; a bare prepared
+    binding is not a signable request (the previous {"binding": ...} shape was
+    rejected with `unknown field "binding"`).
+    """
+    if admin_key is None or not tenant_id:
+        raise RuntimeError(
+            "hardware mandates require --tenant-id and --admin-key-file/--admin-key-hex"
+        )
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    assert isinstance(admin_key, Ed25519PrivateKey)
+    budget = int(budget_usd) if float(budget_usd).is_integer() else float(budget_usd)
+    params = {"job_hash": str(binding), "max_budget_usd": budget, "ttl_seconds": int(ttl_seconds)}
+    canonical = json.dumps(params, sort_keys=True, separators=(",", ":"))
+    params_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    expiry = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + ttl_seconds))
+    payload = f"{tenant_id}|mandate_sign|{params_hash}|{expiry}".encode("utf-8")
+    action = {
+        "tenant_id": tenant_id,
+        "action": "mandate_sign",
+        "params_hash": params_hash,
+        "expiry": expiry,
+        "pubkey_hex": admin_key.public_key().public_bytes_raw().hex(),
+        "signature_hex": admin_key.sign(payload).hex(),
+    }
+    code, resp = client.request(
+        "POST",
+        "/api/mandates/sign",
+        {
+            "tenant_id": tenant_id,
+            "job_hash": str(binding),
+            "max_budget_usd": budget,
+            "ttl_seconds": int(ttl_seconds),
+            "admin_action": action,
+        },
+    )
     if code != 200 or not isinstance(resp, dict):
         raise RuntimeError(f"mandate sign failed ({code}): {resp}")
-    ref = resp.get("mandate_ref") or resp.get("id") or (resp.get("mandate") or {}).get("id")
+    mandate = resp.get("mandate") or resp
+    vcode, verified = client.request("POST", "/api/mandates/verify", mandate)
+    if vcode != 200 or not isinstance(verified, dict):
+        raise RuntimeError(f"mandate verify failed ({vcode}): {verified}")
+    ref = verified.get("receipt") or verified.get("mandate_ref") or resp.get("mandate_ref")
     if not ref:
-        raise RuntimeError(f"mandate sign response missing mandate_ref: {resp}")
+        raise RuntimeError(f"mandate verify response missing receipt: {verified}")
     return str(ref)
 
 
@@ -141,6 +200,12 @@ def main() -> int:
     parser.add_argument("--backend", default="ibm_fez")
     parser.add_argument("--budget-usd", type=float, default=25.0)
     parser.add_argument("--shots", type=int, default=4096)
+    parser.add_argument("--tenant-id", default=os.environ.get("KUBONA_TENANT_ID", ""),
+                        help="Tenant that owns the session and signs hardware mandates")
+    parser.add_argument("--admin-key-file", default=os.environ.get("KUBONA_TENANT_ADMIN_KEY_FILE", ""),
+                        help="Raw-hex Ed25519 tenant admin key file")
+    parser.add_argument("--admin-key-hex", default=os.environ.get("KUBONA_TENANT_ADMIN_KEY_HEX", ""),
+                        help="Raw-hex Ed25519 tenant admin key (prefer the file)")
     parser.add_argument(
         "--hardware-pillars",
         default="vqe_raw,vqe_zne,pes,qaoa,tfim",
@@ -164,6 +229,10 @@ def main() -> int:
         print("Warning: no operator token found in env or .env; operator endpoints may return 401.", file=sys.stderr)
 
     client = KubonaClient(args.base_url, token)
+    admin_key = _load_admin_key(args.admin_key_hex, args.admin_key_file)
+    if args.mode == "hardware" and admin_key is None:
+        print("Hardware mode requires a tenant admin key (--admin-key-file or --admin-key-hex).", file=sys.stderr)
+        return 2
     checks: list[dict[str, Any]] = []
     artifacts_summary: dict[str, Any] = {
         "mode": args.mode,
@@ -192,7 +261,8 @@ def main() -> int:
     code, sess_resp = client.request(
         "POST",
         "/api/sessions",
-        {"name": sess_name, "budget_usd": args.budget_usd, "target_system": "H2"},
+        {"name": sess_name, "budget_usd": args.budget_usd, "target_system": "H2",
+         **({"tenant_id": args.tenant_id} if args.tenant_id else {})},
     )
     if code not in (200, 201) or not isinstance(sess_resp, dict):
         record(checks, "create_session", False, f"code={code} resp={sess_resp}")
@@ -311,7 +381,7 @@ def main() -> int:
     record(checks, "pillar1_vqe_hw_prepare", code == 200 and bool(vqe_prep.get("binding")), f"code={code}")
 
     if args.mode == "hardware" and "vqe_raw" in hw_pillars and code == 200:
-        mref = sign_mandate(client, vqe_prep["binding"])
+        mref = sign_mandate(client, vqe_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=5.0)
         c_raw, raw_resp = client.request(
             "POST",
             "/api/experiments/vqe/hardware",
@@ -321,7 +391,9 @@ def main() -> int:
                 "backend": args.backend,
                 "budget_usd": 5.0,
                 "shots": args.shots,
-                "mitigation": "none",
+                "caller_jurisdictions": ["US"],
+                "caller_export_class": "public",
+                "export_reviewed": True,
                 "mandate_ref": mref,
             },
         )
@@ -345,7 +417,7 @@ def main() -> int:
                     "mitigation_scales": [1, 3, 5],
                 },
             )
-            mref_zne = sign_mandate(client, zne_prep["binding"])
+            mref_zne = sign_mandate(client, zne_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=8.0)
             _, zne_resp = client.request(
                 "POST",
                 "/api/experiments/vqe/hardware",
@@ -357,6 +429,9 @@ def main() -> int:
                     "shots": args.shots,
                     "mitigation": "ZNE",
                     "mitigation_scales": [1, 3, 5],
+                    "caller_jurisdictions": ["US"],
+                    "caller_export_class": "public",
+                    "export_reviewed": True,
                     "mandate_ref": mref_zne,
                 },
             )
@@ -410,7 +485,7 @@ def main() -> int:
     record(checks, "pillar1_pes_hw_prepare", code == 200 and bool(pes_prep.get("binding")), f"code={code}")
 
     if args.mode == "hardware" and "pes" in hw_pillars and code == 200:
-        mref_pes = sign_mandate(client, pes_prep["binding"])
+        mref_pes = sign_mandate(client, pes_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=10.0)
         _, hpes_resp = client.request(
             "POST",
             "/api/experiments/pes/hardware",
@@ -420,6 +495,9 @@ def main() -> int:
                 "backend": args.backend,
                 "budget_usd": 10.0,
                 "shots": args.shots,
+                "caller_jurisdictions": ["US"],
+                "caller_export_class": "public",
+                "export_reviewed": True,
                 "mandate_ref": mref_pes,
             },
         )
@@ -464,7 +542,7 @@ def main() -> int:
     record(checks, "pillar2_qaoa_hw_prepare", code == 200 and bool(qaoa_prep.get("binding")), f"code={code}")
 
     if args.mode == "hardware" and "qaoa" in hw_pillars and code == 200:
-        mref_q = sign_mandate(client, qaoa_prep["binding"])
+        mref_q = sign_mandate(client, qaoa_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=3.0)
         _, hq_resp = client.request(
             "POST",
             "/api/experiments/qaoa/hardware",
@@ -474,6 +552,9 @@ def main() -> int:
                 "backend": args.backend,
                 "budget_usd": 3.0,
                 "shots": args.shots,
+                "caller_jurisdictions": ["US"],
+                "caller_export_class": "public",
+                "export_reviewed": True,
                 "mandate_ref": mref_q,
             },
         )
@@ -523,7 +604,7 @@ def main() -> int:
     record(checks, "pillar3_tfim_hw_prepare", code == 200 and bool(spin_prep.get("binding")), f"code={code}")
 
     if args.mode == "hardware" and "tfim" in hw_pillars and code == 200:
-        mref_s = sign_mandate(client, spin_prep["binding"])
+        mref_s = sign_mandate(client, spin_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=4.0)
         _, hs_resp = client.request(
             "POST",
             "/api/experiments/spin-chain/hardware",
@@ -533,6 +614,9 @@ def main() -> int:
                 "backend": args.backend,
                 "budget_usd": 4.0,
                 "shots": args.shots,
+                "caller_jurisdictions": ["US"],
+                "caller_export_class": "public",
+                "export_reviewed": True,
                 "mandate_ref": mref_s,
             },
         )

@@ -6218,7 +6218,7 @@ func runBridgePython(ctx context.Context, timeout time.Duration, script string, 
 		// (re-resolving a dir against CWD a second time is how a wrong
 		// dir once slipped through — K1 tests pin this).
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "PYTHONPATH="+dir)
+		cmd.Env = append(os.Environ(), "PYTHONPATH="+dir+string(os.PathListSeparator)+filepath.Dir(dir))
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr

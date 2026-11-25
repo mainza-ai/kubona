@@ -230,3 +230,18 @@ def test_c_e_snapshot_from_target_partial_calibration_fallback():
             return False
 
     assert _snapshot_from_target(EmptyTarget(), "ibm_empty") is None
+
+
+def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():
+    sys.path.insert(0, BRIDGE_DIR)
+    import experiments  # noqa: E402
+
+    counts = {"000": 10, "011": 20, "110": 30, "101": 40}
+    edges = [(0, 1), (1, 2)]
+    mean_cut = experiments._counts_cut(counts, edges)
+    ci, se = experiments._ratio_ci_from_counts(counts, edges, 2, mean_cut)
+    assert ci is not None and se is not None and se > 0
+    ratio = mean_cut / 2.0
+    assert ci[0] <= ratio <= ci[1]
+    # Symmetric distribution around the mean, clamped to [0,1].
+    assert abs(((ci[0] + ci[1]) / 2.0) - ratio) < 1e-6
