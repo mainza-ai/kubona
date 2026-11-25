@@ -113,3 +113,16 @@ def test_r_a_hardware_pes_retains_per_term_counts(monkeypatch):
     assert set(p["counts_by_term"]) == {"XX", "ZZ"}
     assert p["counts_scale"] == 1
     assert p["ci95_mha"] is not None
+
+
+def test_r_d_openqasm2_multi_register_offsets():
+    qasm = (
+        'OPENQASM 2.0;\ninclude "qelib1.inc";\n'
+        'qreg data[2];\nqreg anc[2];\n'
+        'h data[0];\ncx data[0], anc[1];\n'
+    )
+    n_q, gates, total, two_q = manuscript_figures._parse_qasm_for_schematic(qasm)
+    assert n_q == 4
+    cx_gate = next(g for g in gates if g[0] == "CX")
+    assert cx_gate[1] == [0, 3]
+    assert total == 2 and two_q == 1
