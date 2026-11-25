@@ -13,7 +13,7 @@ from typing import Any
 
 from .kickmix import TaskSpec
 
-NAMED_KINDS = ("and2", "cz-phase", "copy1", "xor2")
+NAMED_KINDS = ("and2", "cz-phase", "copy1", "xor2", "steane-cnot")
 
 
 def build_spec(kind: str) -> TaskSpec:
@@ -41,6 +41,18 @@ def build_spec(kind: str) -> TaskSpec:
             out[2] = bits.get(2, 0) ^ bits.get(0, 0) ^ bits.get(1, 0)
             return out
         return TaskSpec(num_qubits=3, inputs=(0, 1), outputs=(2,), target_perm=_xor)
+    if kind == "steane-cnot":
+        def _steane_cnot(bits):
+            out = dict(bits)
+            for i in range(7):
+                out[i + 7] = bits.get(i + 7, 0) ^ bits.get(i, 0)
+            return out
+        return TaskSpec(
+            num_qubits=14,
+            inputs=(0, 1, 2, 3, 4, 5, 6),
+            outputs=(7, 8, 9, 10, 11, 12, 13),
+            target_perm=_steane_cnot,
+        )
     raise ValueError(f"unknown spec_kind {kind!r} (known: {list(NAMED_KINDS)}): refusing")
 
 

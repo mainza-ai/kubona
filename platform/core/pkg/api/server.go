@@ -846,6 +846,10 @@ func (s *Server) registerRoutes() {
 	s.route("/api/codesign/verified", s.handleCodesignVerified)
 	// Pack registry (ux-plan slice 4): served live, never hand-typed.
 	s.route("/api/codesign/packs", s.handleCodesignPacks)
+	// Phase 5: bearer-gated pack promotion requiring anchor_ref + proof_ref.
+	s.route("/api/codesign/packs/", s.requireBearer(s.handleCodesignPackPromote))
+	// Phase 4: cross-domain QEC logical-gate & magic-state factory verifier.
+	s.route("/api/codesign/qec-joint", s.handleCodesignQecJoint)
 	// C5b: governed LLM circuit-proposal rerun. Session-scoped, rate-limited,
 	// idempotent, BYOK-bounded; the bridge stays a stateless evaluator.
 	s.route("/api/codesign/rerun", s.handleCodesignRerun)

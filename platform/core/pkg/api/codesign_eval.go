@@ -185,6 +185,62 @@ func (s *Server) handleCodesignPacks(w http.ResponseWriter, r *http.Request) {
 	s.proxyCodesign(w, r, "packs", true)
 }
 
+// handleCodesignPackPromote promotes a scaffold pack to active status:
+//
+//	POST /api/codesign/packs/{name}/promote
+//
+// Requires non-empty anchor_ref and proof_ref; fails closed (400) if either is absent.
+func (s *Server) handleCodesignPackPromote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required", nil)
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, "/api/codesign/packs/")
+	if !strings.HasSuffix(rest, "/promote") {
+		WriteAPIError(w, "not_found", "expected /api/codesign/packs/{name}/promote", nil)
+		return
+	}
+	packName := strings.TrimSpace(strings.TrimSuffix(rest, "/promote"))
+	if packName == "" || strings.Contains(packName, "/") {
+		WriteAPIError(w, "bad_request", "invalid pack name", nil)
+		return
+	}
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, codesignEvalMaxBody))
+	if err != nil {
+		WriteAPIError(w, "bad_request", "body too large or unreadable: refusing", nil)
+		return
+	}
+	var reqMap map[string]any
+	if json.Unmarshal(raw, &reqMap) != nil || reqMap == nil {
+		WriteAPIError(w, "bad_request", "invalid JSON body: refusing", nil)
+		return
+	}
+	anchorRef := strings.TrimSpace(asStringField(reqMap, "anchor_ref"))
+	proofRef := strings.TrimSpace(asStringField(reqMap, "proof_ref"))
+	if anchorRef == "" || proofRef == "" {
+		WriteAPIError(w, "bad_request", "promotion requires non-empty anchor_ref and proof_ref: refusing", nil)
+		return
+	}
+	reqMap["name"] = packName
+	reqMap["anchor_ref"] = anchorRef
+	reqMap["proof_ref"] = proofRef
+	fwd, err := json.Marshal(reqMap)
+	if err != nil {
+		WriteAPIError(w, "internal", "failed to encode promote request", nil)
+		return
+	}
+	out, err := s.runCodesignOp(r, "pack_promote", fwd)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("codesign evaluator unavailable: %v", err), http.StatusServiceUnavailable)
+		return
+	}
+	s.writeCodesignResultWithReceipt(w, "pack_promote", "", reqMap, out)
+}
+
+func (s *Server) handleCodesignQecJoint(w http.ResponseWriter, r *http.Request) {
+	s.proxyCodesign(w, r, "qec_joint")
+}
+
 // handleCodesignRuns serves durable session-scoped codesign receipts:
 //
 //	GET /api/codesign/runs?session_id=...

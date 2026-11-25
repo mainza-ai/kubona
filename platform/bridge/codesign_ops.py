@@ -218,15 +218,84 @@ def op_families(body):
             "shares": shares, "widen_nudge": fs.widen_nudge()}
 
 
+def _packs_state_path() -> Path:
+    base = Path(os.environ.get("KUBONA_STATE_DIR") or "/tmp/.kubona")
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "codesign_packs.json"
+
+
+def _load_pack_promotions() -> dict[str, dict[str, str]]:
+    p = _packs_state_path()
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
 def op_packs(body):
-    from kubona.codesign.packs import PACK_ORDER, default_registry
+    from kubona.codesign.packs import PACK_ORDER, default_registry, promote
     reg = default_registry()
-    return {"ok": True, "order": list(PACK_ORDER), "packs": [
-        {"name": name, "version": p.version,
-         "anchor_required": p.anchor_required,
-         "evidence_reqs": list(p.evidence_reqs), "status": p.status,
-         "anchor_ref": p.anchor_ref, "proof_ref": p.proof_ref}
-        for name, p in reg.items()]}
+    promoted = _load_pack_promotions()
+    packs_out = []
+    for name, p in reg.items():
+        refs = promoted.get(name)
+        if isinstance(refs, dict) and refs.get("anchor_ref") and refs.get("proof_ref"):
+            try:
+                p = promote(p, str(refs["anchor_ref"]), str(refs["proof_ref"]))
+            except ValueError:
+                pass
+        packs_out.append({
+            "name": name, "version": p.version,
+            "anchor_required": p.anchor_required,
+            "evidence_reqs": list(p.evidence_reqs), "status": p.status,
+            "anchor_ref": p.anchor_ref, "proof_ref": p.proof_ref,
+        })
+    return {"ok": True, "order": list(PACK_ORDER), "packs": packs_out}
+
+
+def op_pack_promote(body):
+    from kubona.codesign.packs import default_registry, promote
+    name = str(body.get("name") or "").strip()
+    anchor_ref = str(body.get("anchor_ref") or "").strip()
+    proof_ref = str(body.get("proof_ref") or "").strip()
+    reg = default_registry()
+    if name not in reg:
+        raise ValueError(f"unknown pack {name!r}: refusing")
+    promoted_pack = promote(reg[name], anchor_ref, proof_ref)
+    state = _load_pack_promotions()
+    state[name] = {"anchor_ref": promoted_pack.anchor_ref, "proof_ref": promoted_pack.proof_ref}
+    _packs_state_path().write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+    return {
+        "ok": True,
+        "pack": {
+            "name": promoted_pack.name,
+            "version": promoted_pack.version,
+            "anchor_required": promoted_pack.anchor_required,
+            "evidence_reqs": list(promoted_pack.evidence_reqs),
+            "status": promoted_pack.status,
+            "anchor_ref": promoted_pack.anchor_ref,
+            "proof_ref": promoted_pack.proof_ref,
+        },
+    }
+
+
+def op_qec_joint(body):
+    from kubona.codesign.qec_joint import (
+        verify_five_qubit_logical_gate,
+        verify_magic_state_factory,
+        verify_steane_logical_cnot,
+    )
+    mode = str(body.get("mode") or "steane_cnot").strip()
+    if mode == "steane_cnot":
+        return verify_steane_logical_cnot(body.get("ops"))
+    if mode == "five_qubit":
+        return verify_five_qubit_logical_gate(body.get("ops"), gate=str(body.get("gate") or "logical_sh"))
+    if mode == "magic_state_15_to_1":
+        return verify_magic_state_factory()
+    raise ValueError(f"unknown qec_joint mode {mode!r}: refusing")
 
 
 def op_budget(body):
@@ -256,6 +325,8 @@ _OPERATIONS = {
     "batch": (op_batch, "frontier refused"),
     "families": (op_families, "families refused"),
     "packs": (op_packs, "registry refused"),
+    "pack_promote": (op_pack_promote, "pack promotion refused"),
+    "qec_joint": (op_qec_joint, "qec joint verification refused"),
     "budget": (op_budget, "budget refused"),
 }
 
