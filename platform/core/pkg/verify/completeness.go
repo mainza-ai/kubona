@@ -125,6 +125,26 @@ func CheckPublicationCompleteness(
 		})
 	}
 
+	// 1b. At least one circuit figure when hardware results are claimed (R1).
+	circuitFigures := 0
+	for name := range artifactNames {
+		if strings.HasPrefix(name, "figures/fig_circuit_") {
+			circuitFigures++
+		}
+	}
+	if rep.HardwareJobs > 0 {
+		ok := circuitFigures > 0
+		detail := fmt.Sprintf("%d circuit schematic figure(s) embedded", circuitFigures)
+		if !ok {
+			detail = "hardware results are claimed but no figures/fig_circuit_*.png schematic is embedded"
+			rep.Blocking = append(rep.Blocking, "hardware_circuit_figures: "+detail)
+			rep.Complete = false
+		}
+		rep.Checks = append(rep.Checks, CompletenessCheck{
+			ID: "hardware_circuit_figures", Passed: ok, Severity: "blocking", Detail: detail,
+		})
+	}
+
 	// 2. Experiment Datasheet + Jobs CSV + Environment JSON (blocking when any settled job exists)
 	hasDatasheet := artifactNames["supplement/datasheet.json"] != ""
 	hasJobsCSV := artifactNames["supplement/jobs.csv"] != ""

@@ -43,14 +43,27 @@ func TestCheckPublicationCompletenessFailClosedAndPassing(t *testing.T) {
 
 	// Complete bundle passes
 	ok := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona","corresponding_author":"A <a@b.org>","competing_interests":"None","funding":"OSS","license":"CC-BY-4.0"}}`, 12, 12, map[string]string{
+		"main.pdf":                             "deadbeef",
+		"supplement/qasm/job_hw_1.qasm":        "abc123def456",
+		"figures/fig_circuit_vqe_hardware.png": "fff",
+		"supplement/datasheet.json":            "111",
+		"supplement/jobs.csv":                  "222",
+		"supplement/environment.json":          "333",
+	})
+	if !ok.Complete || ok.HardwareCircuitsBundled != 1 || ok.SupplementFiles != 4 {
+		t.Fatalf("expected complete report, got %+v", ok)
+	}
+
+	// R1: hardware results without an embedded circuit schematic fail closed.
+	noFig := CheckPublicationCompleteness(string(campBytes), `{"_scholarly":{"affiliation":"Kubona","corresponding_author":"A <a@b.org>","competing_interests":"None","funding":"OSS","license":"CC-BY-4.0"}}`, 12, 12, map[string]string{
 		"main.pdf":                      "deadbeef",
 		"supplement/qasm/job_hw_1.qasm": "abc123def456",
 		"supplement/datasheet.json":     "111",
 		"supplement/jobs.csv":           "222",
 		"supplement/environment.json":   "333",
 	})
-	if !ok.Complete || ok.HardwareCircuitsBundled != 1 || ok.SupplementFiles != 4 {
-		t.Fatalf("expected complete report, got %+v", ok)
+	if noFig.Complete || !strings.Contains(strings.Join(noFig.Blocking, " "), "hardware_circuit_figures") {
+		t.Fatalf("expected a missing circuit schematic to block, got %+v", noFig)
 	}
 	if len(ok.Warnings) != 0 {
 		t.Fatalf("expected 0 warnings with full scholarly metadata, got %+v", ok.Warnings)
@@ -105,8 +118,9 @@ func TestCompletenessSkipsFailedHardwareAndGatesEveryPESPoint(t *testing.T) {
 	}
 
 	full := map[string]string{
-		"supplement/qasm/job_pes_p0.qasm": "aaa",
-		"supplement/qasm/job_pes_p1.qasm": "bbb",
+		"supplement/qasm/job_pes_p0.qasm":      "aaa",
+		"supplement/qasm/job_pes_p1.qasm":      "bbb",
+		"figures/fig_circuit_hardware_pes.png": "fff",
 	}
 	for k, v := range base {
 		full[k] = v

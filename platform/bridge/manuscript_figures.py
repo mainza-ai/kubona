@@ -656,7 +656,7 @@ def _render_circuit_schematics(
             f"circuit SHA-256 prefix {q_sha}). Complete OpenQASM source archived in supplement/qasm/."
         )
         out.append((fname, _to_png_bytes(img), caption))
-        if len(out) >= 4:
+        if len(out) >= 6:
             break
     return out
 
