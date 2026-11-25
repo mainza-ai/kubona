@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "3f5e3be2143d93390377f20ff1d55677503b67871387f56b0219d6d015884186",
+  "digest": "093e4587370157651813c70e54516bcd2a9798ebee251c72b4e5a6d793a072ff",
   "tools": [
     {
       "name": "compile_circuit",
@@ -496,6 +496,145 @@
       ]
     },
     {
+      "name": "codesign_claim",
+      "description": "Create a server-derived circuit discovery claim (C0-C7) from persisted codesign runs.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "claim_id": {
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "code_name": {
+            "title": "Code Name",
+            "type": "string"
+          },
+          "eval_run_id": {
+            "title": "Eval Run Id",
+            "type": "string"
+          },
+          "baseline_run_id": {
+            "title": "Baseline Run Id",
+            "type": "string"
+          },
+          "repro_run_id": {
+            "title": "Repro Run Id",
+            "type": "string"
+          },
+          "held_out_run_id": {
+            "default": "",
+            "title": "Held Out Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "claim_id",
+          "code_name",
+          "eval_run_id",
+          "baseline_run_id",
+          "repro_run_id"
+        ],
+        "title": "codesign_claimArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Server-derived C0-C7 circuit claim from session-owned exhaustive (eps=0) codesign_runs; Ed25519 sign-off requires commissioned admin/reviewer key.",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "forbidden",
+        "not_found",
+        "internal"
+      ]
+    },
+    {
+      "name": "codesign_evaluate",
+      "description": "Evaluate a Kickmix circuit artifact and optionally persist a session-scoped receipt.",
+      "inputSchema": {
+        "properties": {
+          "spec_kind": {
+            "title": "Spec Kind",
+            "type": "string"
+          },
+          "artifact": {
+            "items": {},
+            "title": "Artifact",
+            "type": "array"
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "num_tests": {
+            "default": 64,
+            "title": "Num Tests",
+            "type": "integer"
+          },
+          "kappa": {
+            "default": 1,
+            "title": "Kappa",
+            "type": "integer"
+          },
+          "seed": {
+            "default": 7,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "spec_kind",
+          "artifact"
+        ],
+        "title": "codesign_evaluateArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Deterministic Kickmix evaluation via kubonad; session-scoped SQLite receipt when session_id is supplied.",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "bridge_unavailable",
+        "internal"
+      ]
+    },
+    {
+      "name": "codesign_frontier",
+      "description": "Project circuit candidates onto the MAP-Elites and Pareto frontiers.",
+      "inputSchema": {
+        "properties": {
+          "entries": {
+            "items": {},
+            "title": "Entries",
+            "type": "array"
+          },
+          "kappa": {
+            "default": 1,
+            "title": "Kappa",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "codesign_frontierArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Pure Go-native frontier projection; no spend.",
+      "error_codes": [
+        "bad_request",
+        "internal"
+      ]
+    },
+    {
       "name": "codesign_rerun",
       "description": "Run the governed circuit-proposal rerun via the Go API (BYOK estimate).",
       "inputSchema": {
@@ -603,88 +742,6 @@
       ]
     },
     {
-      "name": "codesign_evaluate",
-      "description": "Evaluate a Kickmix circuit artifact and optionally persist a session-scoped receipt.",
-      "inputSchema": {
-        "properties": {
-          "spec_kind": {
-            "title": "Spec Kind",
-            "type": "string"
-          },
-          "artifact": {
-            "items": {},
-            "title": "Artifact",
-            "type": "array"
-          },
-          "session_id": {
-            "default": "",
-            "title": "Session Id",
-            "type": "string"
-          },
-          "num_tests": {
-            "default": 64,
-            "title": "Num Tests",
-            "type": "integer"
-          },
-          "kappa": {
-            "default": 1,
-            "title": "Kappa",
-            "type": "integer"
-          },
-          "seed": {
-            "default": 7,
-            "title": "Seed",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "spec_kind",
-          "artifact"
-        ],
-        "title": "codesign_evaluateArguments",
-        "type": "object"
-      },
-      "server": "cost",
-      "verdict": "keep",
-      "trust_property": "Deterministic Kickmix evaluation via kubonad; session-scoped SQLite receipt when session_id is supplied.",
-      "error_codes": [
-        "bad_request",
-        "unauthorized",
-        "bridge_unavailable",
-        "internal"
-      ]
-    },
-    {
-      "name": "codesign_frontier",
-      "description": "Project circuit candidates onto the MAP-Elites and Pareto frontiers.",
-      "inputSchema": {
-        "properties": {
-          "entries": {
-            "items": {},
-            "title": "Entries",
-            "type": "array"
-          },
-          "kappa": {
-            "default": 1,
-            "title": "Kappa",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "entries"
-        ],
-        "title": "codesign_frontierArguments",
-        "type": "object"
-      },
-      "server": "cost",
-      "verdict": "keep",
-      "trust_property": "Pure Go-native frontier projection; no spend.",
-      "error_codes": [
-        "bad_request",
-        "internal"
-      ]
-    },
-    {
       "name": "codesign_verify",
       "description": "Retrieve a persisted session-scoped codesign run receipt by run_id.",
       "inputSchema": {
@@ -712,59 +769,6 @@
         "bad_request",
         "unauthorized",
         "not_found",
-        "internal"
-      ]
-    },
-    {
-      "name": "codesign_claim",
-      "description": "Create a server-derived circuit discovery claim (C0-C7) from persisted codesign runs.",
-      "inputSchema": {
-        "properties": {
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          },
-          "claim_id": {
-            "title": "Claim Id",
-            "type": "string"
-          },
-          "code_name": {
-            "title": "Code Name",
-            "type": "string"
-          },
-          "eval_run_id": {
-            "title": "Eval Run Id",
-            "type": "string"
-          },
-          "baseline_run_id": {
-            "title": "Baseline Run Id",
-            "type": "string"
-          },
-          "repro_run_id": {
-            "title": "Repro Run Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "session_id",
-          "claim_id",
-          "code_name",
-          "eval_run_id",
-          "baseline_run_id",
-          "repro_run_id"
-        ],
-        "title": "codesign_claimArguments",
-        "type": "object"
-      },
-      "server": "cost",
-      "verdict": "keep",
-      "trust_property": "Server-derived C0-C7 circuit claim from session-owned exhaustive (eps=0) codesign_runs; Ed25519 sign-off requires commissioned admin/reviewer key.",
-      "error_codes": [
-        "bad_request",
-        "unauthorized",
-        "forbidden",
-        "not_found",
-        "conflict",
         "internal"
       ]
     },

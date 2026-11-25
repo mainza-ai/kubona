@@ -111,14 +111,39 @@ from .factories import FACTORIES, factory_report
 from .tower12 import emit_f64_mul, emit_f64_sqr, emit_f8_mul, emit_f8_sqr, emit_mu1_scale, emit_tower_inv12, from_tower12, to_tower12, tower12_change_matrices, tower_inv12_classical
 from .qrom import build_pruned_qrom, distinct_subtrees, emit_pruned_qrom_into, gaussian_regimes, naive_nodes, pruned_qrom_spec, qrom_vs_direct
 from .rerun import IndependentRerun
+from .claims import (
+    CircuitClaim,
+    canonical_circuit_sha256,
+    canonical_normal_form_sha256,
+    canonicalize_circuit_ops,
+    evaluate_circuit_gates,
+    lookup_circuit_catalog,
+)
+from .qec_joint import (
+    build_joint_qec_codesign_claim,
+    verify_five_qubit_logical_gate,
+    verify_logical_gate_stim,
+    verify_magic_state_factory,
+    verify_steane_logical_cnot,
+)
 from .rs12 import build_rs_decoder, rs12_layout
 
 __all__ = [
     "Builder",
+    "CircuitClaim",
+    "canonical_circuit_sha256",
+    "canonical_normal_form_sha256",
+    "canonicalize_circuit_ops",
+    "evaluate_circuit_gates",
+    "lookup_circuit_catalog",
+    "build_joint_qec_codesign_claim",
+    "verify_five_qubit_logical_gate",
+    "verify_logical_gate_stim",
+    "verify_magic_state_factory",
+    "verify_steane_logical_cnot",
     "BudgetEntry",
     "FamilySearch",
     "KickmixEvaluator",
-    "MapElitesFrontier",
     "NAMED_KINDS",
     "NvidiaProposer",
     "TaskSpec",
