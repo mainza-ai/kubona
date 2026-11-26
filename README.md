@@ -113,23 +113,37 @@ It pairs a sovereign Go orchestrator and hash-chained SQLite WAL provenance ledg
 
 ## Governed Experiment Matrix
 
-All 19 `experiment-result-v1` kinds execute through the governed Go job rail; the matrix below shows the principal capability families (13 rows, not one row per kind). Each result validates against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), folds into campaign state, and renders in the Console's **Experiment & Discovery Lab** and **Results Studio**:
+All 19 `experiment-result-v1` kinds execute through the governed Go job rail; the matrix below shows the principal capability families (14 rows, not one row per kind). Each result validates against [`platform/contracts/experiment-result-v1.schema.json`](platform/contracts/experiment-result-v1.schema.json), folds into campaign state, and renders in the Console's **Experiment & Discovery Lab** and **Results Studio**:
 
 | Capability | Kind | Measurement | Classical Anchor |
 | --- | --- | --- | --- |
-| **Molecular VQE** | `vqe` (`vqe_run`) | Shot-sampled Pauli expectation energy | Live PySCF RHF / CASCI / FCI |
+| **Molecular VQE** | `vqe` (`vqe_run`) | Shot-sampled Pauli expectation energy (`hardware_efficient`, `givens` 1-CZ, `uccsd`, `ParityMapper`+`Z2` tapering) | Live PySCF RHF / CASCI / FCI |
+| **Hardware VQE & QEM** | `vqe_hardware` | Single-batch QPU execution with universal QWC & `ZNE` / `ISA-RZ CDR` / `Per-Group CDR` / `vnCDR` / `VD+M3` / `EV+M3` / `NoiseLearnerV3 PEA & PEC` / `QSE` / `SQD` / `AUTO` | Live PySCF FCI + pre-dispatch Statistical Power Gate |
 | **Geometry Optimization** | `geometry_optimization` | VQE at classically relaxed bond geometry | Curated scan or caller-geometry RHF/STO-3G BFGS + FCI |
 | **Repeated VQE** | `vqe_repeats` | Multi-seed mean energy, shot σ, and between-run SE | Full FCI at identical geometry |
 | **Potential-Energy Scan** | `pes` (`vqe_pes`) | Bond-distance energy curve across geometry grid | Per-point live RHF & FCI |
-| **Hardware PES** | `hardware_pes` | Single QPU batch across source PES geometries | Per-point FCI anchors (optional ZNE) |
+| **Hardware PES** | `hardware_pes` | Single QPU batch across source PES geometries (universal QWC) | Per-point FCI anchors (optional ZNE) |
 | **Excited State** | `excited_state` | Ground + overlap-deflated first excited state (`H2`, `LiH`, `BeH2`, `H2O`) | Exact active-space spectrum |
 | **Reaction Energy** | `reaction` | Reactant-to-product ΔE (`H2`, `LiH`, `BeH2`, `H2O`) | Active-space endpoint + exact atomic FCI |
-| **1D Spin Chain** | `spin_chain` | Variational energy, magnetization, and gap (`heisenberg`, `xxz`, `tfim`) | Exact diagonalization (`COBYLA` + multi-start `L-BFGS-B`) |
+| **1D Spin Chain** | `spin_chain` | Variational energy, magnetization, and gap (`heisenberg`, `xxz`, `tfim`; universal QWC on hardware) | Exact diagonalization (`COBYLA` + multi-start `L-BFGS-B`) |
 | **DMRG Scaling** | `thermodynamic_limit` | Finite-size MPS/DMRG energy per site & $1/N$ extrapolation | Bethe/Pfeuty analytic limit (`heisenberg`/`tfim`) |
 | **2D Quench Dynamics** | `lattice_dynamics` | Exact finite-size 2D TFIM $\langle Z \rangle(t)$ trajectory | Sparse Krylov `expm_multiply` time evolution |
-| **MaxCut QAOA** | `qaoa` (`qaoa_run`) | Shot-sampled cut value and approximation ratio | Exact brute-force MaxCut |
+| **MaxCut QAOA** | `qaoa` (`qaoa_run`) | Shot-sampled cut value, approximation ratio, scalable `M3` readout mitigation & `CVaR` tail aggregation | Exact brute-force MaxCut |
 | **Math Conjecture** | `conjecture` | Exact symbolic/rational search + holdout verification | Finite-scope holdout certificate + known-law registry |
 | **Discovery Protocol** | `/api/discovery/{plan,run}` | 1–5 sequential governed jobs (`then` / `->` / `;` pipelines) | Deterministic planner + ledger-linked job summaries |
+
+### Frontier Quantum Error Mitigation Suite (`platform/kubona/mitigation/`)
+
+| Method | Module | Regime & Mechanism |
+| --- | --- | --- |
+| **Givens 1-CZ, Z₂ Tapering & LUCJ** | [`ansatz.py`](platform/kubona/mitigation/ansatz.py) | 1-CZ / 4-SX / depth-7 symmetry-preserving H₂ ansatz, `ParityMapper` + `Z2Symmetries` qubit reduction, and particle-conserving LUCJ for heavy-hex SQD. |
+| **Compile-Once ISA Virtual-`RZ` CDR, Per-Group CDR & `vnCDR`** | [`cdr.py`](platform/kubona/mitigation/cdr.py) | Compiles once to native `{cz, sx, x, rz}` and varies only 0-ns virtual `RZ` angles (100% 4-way parity, zero depth bloat), CPTP contractive slope (`a ≤ 1.0`), per-QWC-group fits, and multi-scale `vnCDR`. |
+| **Transversal Virtual Distillation (`VD`) + `M3`** | [`virtual_distillation.py`](platform/kubona/mitigation/virtual_distillation.py) | General $N$-qubit ancilla-free $2n$-qubit $B^{(2)}$ with same-batch `M3` readout mitigation and fail-closed purity floor (`min_purity = 0.40`). |
+| **Echo Verification (`EV`) + `M3`** | [`echo_verification.py`](platform/kubona/mitigation/echo_verification.py) | $n+1$-qubit Loschmidt echo purification (`U → ctrl-P → U†`) with same-batch `M3` readout mitigation and fail-closed echo floor (`0.05`). |
+| **Matrix-Free `M3` Readout + `CVaR` QAOA** | [`readout_m3.py`](platform/kubona/mitigation/readout_m3.py) | $O(1)$ balanced 2-circuit (or $n+1$ independent) readout calibration for `n = 1..32` qubits wired into QAOA (`live_readout_cal`, `cvar_alpha`), `VD`, and `EV`. |
+| **IBM Runtime `NoiseLearnerV3` SPL `PEA` & `PEC`** | [`spl_noise.py`](platform/kubona/mitigation/spl_noise.py) | Open-Plan Job-Mode (`mode=backend`, never `Session`) Sparse Pauli-Lindblad noise learning + client-side `Estimator` `PEA`/`PEC` with fail-closed `PEC_OVERHEAD_EXCEEDED` guard before dispatch. |
+| **`SQD` (S-CORE), `QSE`, & `1-RDM`/`2-RDM` Purification** | [`sqd.py`](platform/kubona/mitigation/sqd.py), [`qse.py`](platform/kubona/mitigation/qse.py), [`rdm_purification.py`](platform/kubona/mitigation/rdm_purification.py) | Self-consistent configuration recovery (`S-CORE`) + Slater-Condon diagonalization, deduplicated QWC Quantum Subspace Expansion, McWeeny 1-RDM (`3D² − 2D³`), and alternating D/Q-condition N-representable 2-RDM projection. |
+| **Statistical Power Gate & Autonomous Advisor** | [`power_gate.py`](platform/kubona/mitigation/power_gate.py) | Pre-dispatch `SE`, residual bias, `P(2× consecutive pass)`, and RU cost estimator; `mitigation="AUTO"` routes each workload to its physics-optimal stack. |
 
 ---
 
@@ -140,7 +154,7 @@ All 19 `experiment-result-v1` kinds execute through the governed Go job rail; th
 | [`platform/core/`](platform/core/) | **Go Orchestrator (`:8080`)** | HTTP/SSE API, hash-chained provenance ledger, job admission & fidelity gates, campaign replanning, flight recorder, and Docker/`runsc` sandbox runner. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge (`UDS / gRPC`)** | PySCF, Qiskit Aer, PennyLane, and `quimb` compute service over `unix:///run/kubona/bridge.sock` for chemistry anchors, lattice solvers, and QPU dispatch. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | `qir-core` (OpenQASM 3.0 to LLVM IR lowering) and `ifc-core` (information-flow confidentiality lattice). |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime & MCP** | 7 MCP servers (54 tools; unified `stdio` + Streamable HTTP `/mcp` with profiles, Resources & Prompts: `execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime, QEM & MCP** | Frontier QEM engine (`mitigation/`: Givens/LUCJ/Z₂ tapering, ISA-RZ CDR/`vnCDR`, `VD`+`M3`, `EV`+`M3`, `M3`, `NoiseLearnerV3` `PEA`/`PEC`, `SQD`, `QSE`, 1/2-RDM purification, Power Gate), 7 MCP servers (54 tools; unified `stdio` + Streamable HTTP `/mcp` with profiles, Resources & Prompts: `execution`, `compiler`, `cost`, `provenance`, `control`, `science`, `world`), mixed-state autodiff, ansatz transfer priors, and register packing. |
 | [`platform/console/`](platform/console/) | **Sovereign Console (`:3000`)** | Next.js operator workbench with Spatial Canvas (3D Observatory), Results Studio, Experiment & Discovery Lab (`Cmd+E`), Epistemic Tribunal, Flight Recorder, and WebCrypto Ed25519 signing. |
 | [`platform/contracts/`](platform/contracts/) | **Shared Contracts** | JSON schemas (`experiment-result-v1`, OpenAPI, console contract inventory), error catalog, rate cards, and device calibration profiles. |
 | [`wiki/`](wiki/) | **Blueprint Wiki** | 169 cross-linked design, entity, and audit pages validated in CI by `scripts/wiki-lint.py --strict`. |
@@ -246,8 +260,11 @@ cd platform/core && go test ./...
 cargo test --manifest-path platform/crates/qir-core/Cargo.toml
 cargo test --manifest-path platform/crates/ifc-core/Cargo.toml
 
-# Python runtime, bridge, DMRG, and scientific solvers
+# Python runtime, bridge, frontier QEM Heron stress suite, DMRG, and scientific solvers
 (cd platform && uv sync --locked --extra dev --extra qiskit --extra chemistry && .venv/bin/python -m pytest bridge/ tests/)
+
+# Peer-reviewed end-to-end simulator pre-flight ($0.00 / zero QPU spend)
+python3 scripts/run_peer_reviewed_experiment.py --mode simulator --mitigation cdr --ansatz givens --report-out /tmp/sim_preflight.json
 
 # Console TypeScript, ESLint, Vitest, and OpenAPI/contract gates
 cd platform/console && pnpm exec tsc --noEmit && pnpm lint && pnpm test
@@ -272,7 +289,7 @@ python3 scripts/wiki-lint.py --strict
 - **Phase-6 Same-Batch CDR (`ibm_fez` `[142, 143]`, Open Plan `$0.00`; `0.384519 RU / 19 s` remain):** Four full same-batch **QWC + live 4×4 readout + `Z2` symmetry + ODR CDR** runs completed:
   - *Baseline (`44806e0f`, `83 s / 1.375 RU` each):* **`C1`** (`dc42qqanj2vs73dj9vv0`) passed **40/40** (`−0.195 ± 5.981 mHa`, `χ²_red = 1.147`, `p = 0.322`, `6.4σ` vs. raw); **`C2`** (`dc42sleq4uuc73a7vo1g`) passed 38/40 (`−5.554 ± 5.660 mHa`, `χ²_red = 0.426`, `p = 0.935`, `7.9σ` vs. raw).
   - *C-optimal + statevector QWC Neyman (`61a56d8e`, `92 s / 1.533 RU` each, halving `fit_se` to `1.23–1.41 mHa`):* **`C3`** (`dc43a05hdvas73bott6g`) passed **40/40** (`−1.182 ± 3.381 mHa`, `χ²_red = 1.232`, `p = 0.264`, `12.1σ` vs. raw); **`C4`** (`dc43bi6q4uuc73a80r50`) passed 38/40 (`−1.793 ± 3.086 mHa`, `χ²_red = 0.828`, `p = 0.602`, `12.8σ` vs. raw — `0.193 mHa` outside `1.6 mHa`).
-- **Verdict & transpilation-parity fix (`dd69ce8f`):** Model adequacy (`4/4`) and raw separation (`6.4–12.8σ`) are solved and reproduced with zero inter-run heterogeneity (`Cochran Q = 2.09`, `df = 3`, `p = 0.55`). `C3` and `C4` agree to `0.610 mHa` (`0.26σ`) with pooled `|Δ| = 1.515 ± 2.280 mHa` (4-run pooled `−1.869 ± 1.994 mHa`). Two independent runs (`C1`, `C3`) cleared all 40/40 gates, while strict consecutive single-job `≤ 1.6 mHa` reproduction (R2) remains `0.193 mHa` open. Post-run Heron `opt_level=3` analysis traced the `−1.87 mHa` pooled offset to `cz = 2 → 1` collapse on two training circuits and `sx = 11 → 4` simplification; `lock_cdr_native_slots` + fail-closed 2Q transpilation parity (`dd69ce8f`) eliminated this asymmetry in offline 20-seed Heron `opt_level=3` replay (mean `χ²_red` `1.46 → 0.47`, single-job pass rate `8/20 → 15/20`), ready for the next Open Plan quota cycle. Full evidence: [`docs/error-mitigation.md`](docs/error-mitigation.md) and [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md).
+- **Forensic R2 autopsy & Frontier QEM upgrade (`4313fc66`, `$0.00` QPU spend):** Model adequacy (`4/4`) and raw separation (`6.4–12.8σ`) are solved and reproduced with zero inter-run heterogeneity (`Cochran Q = 2.09`, `df = 3`, `p = 0.55`). `C3` and `C4` agree to `0.610 mHa` (`0.26σ`) with pooled `|Δ| = 1.515 ± 2.280 mHa` (4-run pooled `−1.869 ± 1.994 mHa`), while strict consecutive single-job `≤ 1.6 mHa` reproduction (R2) remains `0.193 mHa` open. Deeper forensic bitstring decomposition of `C1`–`C4` proved `99.6%` (`+2.699 / +2.710 mHa`) of post-`Z2` residual bias originated from the dead Layer 1 of `layers=2` HEA propagating excess `|11⟩` through Layer 2 `CX(0,1)`, compounded by `opt_level=2` idle-slot leakage on `train_00..08`, `+64%` depth bloat from `lock_cdr_native_slots`, and `46.6%` consecutive-pass power at `SE = 1.65 mHa`. Commit `4313fc66` landed the full Frontier QEM suite (1-CZ Givens ansatz, Compile-Once ISA Virtual-`RZ` CDR with CPTP contractive slope, Transversal `VD + M3`, `EV + M3`, Matrix-Free `M3` + `CVaR` QAOA, `NoiseLearnerV3` SPL `PEA`/`PEC`, `SQD` S-CORE, `QSE`, 1/2-RDM purification, universal QWC, and the Pre-Dispatch Power Gate & `AUTO` Advisor). In offline 20-seed realistic Heron non-unital stress testing (`T1/T2 + 2Q depol + 0.8%/1.5%` asymmetric readout), **Givens 1-CZ + ISA-RZ CDR** (`depth=7, 1 CZ, 4 SX`) cleared single-job chemical accuracy on **18/20 (90%)** seeds (`mean |Δ| = 0.818 mHa` vs `14.294 mHa` raw — **17.5×** reduction), and **Transversal `VD + M3`** suppressed deep 13-CX non-unital error **11.6×** (`+38.6 → +3.33 mHa`). Pre-registered next-cycle hardware command: `python3 scripts/run_peer_reviewed_experiment.py --mode hardware --mitigation cdr --ansatz givens --target-shots 131072,98304 --shots 8192`. Full evidence: [`docs/error-mitigation.md`](docs/error-mitigation.md) and [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md).
 
 ### Operations: memory, retention, and profiling
 
