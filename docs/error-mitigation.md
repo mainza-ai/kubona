@@ -79,7 +79,12 @@ mandate that covers the full folded batch.
 
 ## Hardware status
 
-The 2026-11-25 Phase-4B run consumed the prior 1.4 RU. A new IBM Quantum Open Plan
-account is configured (10/10 RU, 600 s remaining, verified 2026-11-25). The corrected
-all-gate axis has **not** been exercised on a QPU. R2 remains open; the prior 2.743 mHa
-result used a mixed axis and is historical evidence, not a chemical-accuracy claim.
+The corrected all-gate axis was exercised on hardware on 2026-11-26: three 5-scale,
+8192-shot jobs on `ibm_kingston` and `ibm_fez` consumed **3.799795 RU** and left
+**6.200205 RU / 369 s**. The axis was valid in every run, but R2 is **not achieved**:
+ZNE points were 7.365, 0.483, and 5.595 mHa; every run failed model adequacy or the
+paired difference CI, and two identical `ibm_fez` runs differed by 5.112 mHa. The
+fixed-asymptote model is the blocker (χ²_red 1.53–4.81; non-unital noise means the
+non-identity terms do not decay to zero), so more shots are not authorized. The prior
+2.743 mHa result remains historical, not a chemical-accuracy claim. The next spend is
+a calibrated non-unital noise-model/PEC or CDR pilot with the same gates.

@@ -193,6 +193,21 @@ def sign_mandate(
     return str(ref)
 
 
+def _parse_zne_scales(raw: str) -> list[float]:
+    """Parse and validate the measured all-gate ZNE scale request."""
+    try:
+        values = [float(part.strip()) for part in raw.split(",") if part.strip()]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid ZNE scale list {raw!r}: {exc}") from exc
+    if len(values) < 3 or len(values) > 6:
+        raise argparse.ArgumentTypeError("ZNE needs 3-6 scales (fixed-asymptote exponential needs >=3 for dof>=1)")
+    if any(value < 1.0 for value in values):
+        raise argparse.ArgumentTypeError("ZNE scales must be >= 1.0")
+    if any(b <= a for a, b in zip(values, values[1:])):
+        raise argparse.ArgumentTypeError("ZNE scales must be strictly increasing")
+    return values
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kubona full-stack peer-reviewed validation harness")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
@@ -202,6 +217,12 @@ def main() -> int:
     parser.add_argument("--shots", type=int, default=4096)
     parser.add_argument("--zne-shots", type=int, default=16384, help="Shots per circuit for H2 VQE ZNE")
     parser.add_argument("--extrapolator", default="exponential", choices=("linear", "exponential", "quadratic", "richardson"))
+    parser.add_argument(
+        "--zne-scales",
+        type=_parse_zne_scales,
+        default=[1.0, 2.0, 3.0, 4.0],
+        help="Comma-separated all-gate ZNE scales (>=3, strictly increasing; e.g. 1,1.5,2,3,4)",
+    )
     parser.add_argument("--tfim-zne", action="store_true", help="Enable ZNE [1.0, 2.0, 3.0] on hardware TFIM")
     parser.add_argument("--tenant-id", default=os.environ.get("KUBONA_TENANT_ID", ""),
                         help="Tenant that owns the session and signs hardware mandates")
@@ -407,8 +428,12 @@ def main() -> int:
         record(checks, "pillar1_h2_vqe_hw_raw", raw_res.get("success") is True, f"job={raw_jid} |Δ_raw|={raw_delta:.3f} mHa")
 
         if "vqe_zne" in hw_pillars:
-            # R2: 4 achievable scales [1, 2, 3, 4] on 2-CX H2 -> 2, 4, 6, 8 CX (dof = 2 for 2-param exp)
-            zne_scales = [1.0, 2.0, 3.0, 4.0]
+            # R2: all-gate local folding; the bridge records the measured
+            # total-gate ratio for each request. Default [1,2,3,4] gives four
+            # distinct points (dof=2 for the fixed-asymptote exponential);
+            # fractional scales such as 1.5 are allowed and are fitted on the
+            # measured ratio, not the nominal request.
+            zne_scales = args.zne_scales
             _, zne_prep = client.request(
                 "POST",
                 "/api/experiments/vqe/hardware/prepare",

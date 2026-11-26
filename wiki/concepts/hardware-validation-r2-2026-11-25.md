@@ -2,7 +2,7 @@
 type: concept
 name: Hardware Validation R2 — ZNE Axis Audit
 date: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [hardware, zne, validation, error-mitigation, reproducibility]
 sources: [source-architecture-paper]
 status: tracked
@@ -10,11 +10,13 @@ status: tracked
 
 # Hardware Validation R2 — ZNE Axis Audit
 
-**Prototype register.** This page records what the 2026-11-25 hardware validation and
-offline replay established about R2 (the H₂ ZNE chemical-accuracy claim). It is a
-prototype fact, not a design decision. The implementation cited here is at
+**Prototype register.** This page records what the 2026-11-25 audit and the
+2026-11-26 corrected-axis hardware runs established about R2 (the H₂ ZNE
+chemical-accuracy claim). It is a prototype fact, not a design decision. The
+implementation cited here is at
 [`mainza-ai/kubona`](https://github.com/mainza-ai/kubona) commit `a2640825`; the
-pre-audit result remains in the ledger as historical, not as a valid ZNE claim.
+old 2.743 mHa result remains in the ledger as historical, not as a valid ZNE
+claim.
 
 ## What R2 was meant to show
 
@@ -24,7 +26,62 @@ mitigated result from the raw one. The Phase-4B run reported a point estimate of
 **2.743 mHa** with a **±11.037 mHa** interval, against a raw **9.999 mHa (±6.803)**.
 R2 was therefore **not achieved**.
 
-## The primary cause: the scale axis mixed two folding mechanisms
+## 2026-11-26 corrected-axis hardware runs
+
+The corrected all-gate axis was run on three governed jobs under the new 10 RU
+Open Plan account: H₂ STO-3G at 0.735 Å, hardware-efficient `layers=2`, five
+all-gate-local scales `[1, 1.5, 2, 3, 4]`, 8192 shots per ZNE circuit, exponential
+fixed-asymptote fit, readout mitigation + XY4 dynamical decoupling + gate/measurement
+twirling, layout `[149, 150]`.
+
+| Run | Backend | ZNE Δ (mHa) | 95% CI | χ²_red | lack-of-fit p | model spread (mHa) | paired diff (mHa) | separated? |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| K1 | `ibm_kingston` | **7.365** | ±6.924 | 1.527 | 0.205 | 4.93 | −6.354 ±8.515 | no |
+| F1 | `ibm_fez` | **0.483** | ±9.111 | 3.675 | 0.0116 | 2.12 | −3.839 ±10.226 | no |
+| F2 | `ibm_fez` | **5.595** | ±10.028 | 4.805 | 0.0024 | 9.43 | +0.609 ±11.053 | no |
+
+Raw baselines were 14.893, 8.999, and 13.361 mHa respectively. The two `ibm_fez`
+raw jobs differ by **4.36 mHa** on the same calibration snapshot; the two
+identical ZNE runs differ by **5.112 mHa**.
+
+**The axis is now valid; R2 is still not achieved.** Every run fails at least two
+of the pre-registered gates. F1 passes chemical accuracy on the point alone
+(0.483 mHa) but fails model adequacy (χ² 3.68, p = 0.012) and difference
+significance. No run satisfies
+`axis_valid ∧ model_adequate ∧ difference_significant ∧ |Δ| ≤ 1.6 mHa`.
+
+## The remaining blocker: the estimator, not the axis
+
+**The fixed-asymptote model is statistically inadequate.** The per-scale
+residuals are 2.4–2.6 mHa at 8192 shots; χ²_red is 3.68/4.81 on `ibm_fez` and
+1.527 on `ibm_kingston` (just above the 1.5 gate). More shots would increase χ²,
+not reduce the model bias. Reaching a ±1.6 mHa interval from the observed
+±9–10 mHa would need roughly 30× more shots (~35 RU), and the model would be
+rejected even more strongly.
+
+**The point is model- and axis-dependent.** The same data give:
+
+| Run | total-gate fixed exp | total-gate linear | weighted fixed exp | weighted linear |
+|---|---:|---:|---:|---:|
+| K1 | 7.365 | 7.390 | 1.758 | 1.851 |
+| F1 | 0.483 | 0.614 | 11.968 | 11.457 |
+| F2 | 5.595 | 5.692 | 4.609 | 4.235 |
+
+The axis choice moves the point by up to **11 mHa**; the weighted-error axis helps
+K1 but hurts F1. There is no consistent coordinate that makes the three runs agree.
+
+**The fixed asymptote is physically wrong for this noise.** Non-identity Pauli
+expectations do not decay to zero: on K1 the `IZ` and `ZI` expectations sit at
+≈ −0.38 at every scale. The exact asymptote `E∞ = c_II` assumes a unital Pauli
+channel; the hardware noise is non-unital (amplitude damping, leakage, coherent
+errors). A free three-parameter exponential is unidentifiable over this narrow
+noise range (it diverges to unphysical asymptotes with ~1e8 mHa standard error).
+
+**Per-term ZNE is a diagnostic, not a rescue.** The per-term sums are 6.227,
+0.315, and 3.345 mHa, but the `IZ`/`ZI` fits have χ²_red 3.4–8.9 and the apparent
+cancellation between terms is a fitting artifact.
+
+## The Phase-4B cause: the scale axis mixed two folding mechanisms
 
 `_fold_circuit` previously dispatched odd integer scales to global all-gate folding
 (`_fold_unitary`) and all other scales to local two-qubit-only folding
@@ -46,7 +103,7 @@ This explains the `chi2_red ≈ 2.0`, the **±11 mHa** interval, and the estimat
 instability: linear `2.737 mHa`, fixed-asymptote exponential `2.743 mHa`, free
 three-parameter exponential `2.737 mHa`, quadratic `20.090 mHa`.
 
-## Why more shots alone cannot close R2
+## The shot-floor analysis from the Phase-4B audit
 
 The recorded per-scale residuals imply a lack-of-fit floor even at infinite shots:
 
@@ -94,28 +151,37 @@ and G6 gates in
   `difference_significant`, and `|Δ_ZNE| ≤ 1.6 mHa` to pass; a `chi2_red > 1.5`, a
   model spread beyond the interval, or an overlapping difference CI fails the check.
 
-Measured all-gate axis on the same H₂ ansatz (strictly increasing):
+Measured all-gate axis on the 2026-11-26 hardware runs (strictly increasing):
 
-| requested | 1Q | 2Q | total | actual total ratio | weighted error scale |
-|---|---:|---:|---:|---:|---:|
-| 1.0 | 8 | 2 | 10 | 1.00 | 1.00 |
-| 1.5 | 10 | 4 | 14 | 1.40 | 1.72 |
-| 2.0 | 16 | 4 | 20 | 2.00 | 2.00 |
-| 3.0 | 24 | 6 | 30 | 3.00 | 3.00 |
+| requested | total gates | actual total ratio | weighted error scale (kingston) | weighted error scale (fez) |
+|---:|---:|---:|---:|---:|
+| 1.0 | 10 | 1.00 | 1.000 | 1.000 |
+| 1.5 | 14 | 1.40 | 1.235 | 1.281 |
+| 2.0 | 20 | 2.00 | 1.351 | 1.384 |
+| 3.0 | 30 | 3.00 | 1.702 | 1.768 |
+| 4.0 | 40 | 4.00 | 2.053 | 2.152 |
 
 ## What is not established
 
-- The corrected axis has **not** run on a QPU. The 1.4 RU available at the start of the
-  Phase-4B window was consumed by that subset; a new IBM Quantum Open Plan account is now
-  configured (10/10 RU, 600 s remaining, verified 2026-11-25), so the corrected-axis run
-  is the next hardware step.
-- R2 is **not retroactively fixed**. The old 2.743 mHa result used an invalid axis and
-  must be replaced by a new, pre-registered run.
-- Per-term ZNE is a diagnostic, not yet the primary estimator; full Aer/Pauli-Lindblad
+- R2 is **not achieved**. The corrected axis has now run on hardware; the open item is
+  the estimator, not the folding scheme. The old 2.743 mHa result used an invalid axis
+  and remains historical.
+- The ZNE point is not reproducible at the target scale: two identical `ibm_fez` runs
+  differ by 5.112 mHa, and the paired difference CIs overlap in every run.
+- Per-term ZNE is a diagnostic, not the primary estimator; full Aer/Pauli-Lindblad
   replay and PEC/CDR remain unbuilt.
 - Chemical accuracy is a **difference claim**: a future pass needs a monotonic measured
   axis, `chi2_red ≤ 1.5`, a difference CI excluding zero, `|Δ| ≤ 1.6 mHa`, and a
   reproduced second job.
+
+## Next experiment
+
+**Do not spend more QPU on ZNE shots.** The pre-registered decision rule is triggered:
+the model residual, not shot noise, is the floor. **6.200205 RU / 369 s remain** on the
+current account for a different mitigation. The next hardware experiment should be a
+calibrated non-unital noise-model/PEC or CDR pilot on the same 2-qubit ansatz, compared
+against the paired scale-1 baseline, with the same `|Δ| ≤ 1.6 mHa`, difference-CI, and
+reproduction gates.
 
 ## Reading
 

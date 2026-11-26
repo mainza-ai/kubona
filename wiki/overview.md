@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -380,9 +380,22 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 > per-scale histograms, and fails closed on an invalid axis, inadequate model,
 > overlapping difference CI, or `|Δ| > 1.6 mHa`. Full record:
 > [[hardware-validation-r2-2026-11-25]]. The prior 1.4 RU window was consumed by
-> this subset; a new IBM Quantum Open Plan account is configured (10/10 RU,
-> 600 s remaining, verified 2026-11-25) for the corrected-axis run. That axis has
-> not run on hardware, so the old 2.743 mHa result is historical, not a valid claim.
+> this subset. That axis has since run on hardware; see the 2026-11-26 update.
+> The old 2.743 mHa result remains historical, not a valid claim.
+
+> ⚑ Snapshot update (2026-11-26, R2 corrected-axis hardware run; 3.799795 RU):
+> the all-gate axis is valid on `ibm_kingston` and `ibm_fez`, but **R2 is still
+> not achieved**. Three 5-scale, 8192-shot ZNE jobs gave 7.365 mHa (±6.924),
+> 0.483 mHa (±9.111), and 5.595 mHa (±10.028); every run failed model adequacy
+> or the paired difference CI, and two identical `ibm_fez` runs differed by
+> **5.112 mHa**. The 0.483 mHa point was not reproducible and is not a claim:
+> the fixed-asymptote model is statistically inadequate (χ²_red 3.68/4.81;
+> lack-of-fit p 0.012/0.0024), the non-identity expectations do not decay to
+> zero, and the point moves by up to 11 mHa between total-gate and
+> calibration-weighted axes. The model residual, not shot noise, is the floor.
+> **6.200205 RU / 369 s remain; no further ZNE shots.** Next: a calibrated
+> non-unital noise-model/PEC or CDR pilot with the same claim gates. Full
+> record: [[hardware-validation-r2-2026-11-25]].
 
 > ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):
 > `docs/repo-counts.md` records **156** HTTP route patterns, **48** Go packages

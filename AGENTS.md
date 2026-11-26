@@ -188,12 +188,23 @@ development — re-verify the gate on the exact commit before citing
 > per-scale/per-term histograms, and reports model spread, `chi2_red`,
 > lack-of-fit p, and the raw-minus-ZNE difference CI. G6 fails closed on an
 > invalid axis, `chi2_red > 1.5`, model spread beyond the interval, an
-> overlapping difference CI, or `|Δ| > 1.6 mHa`. The corrected axis has **not**
-> run on hardware; the old 2.743 mHa result is historical, not a valid claim.
-> Record: [[hardware-validation-r2-2026-11-25]]. A new IBM Quantum Open Plan
-> account is configured (10/10 RU, 600 s remaining, verified 2026-11-25); the
-> corrected-axis run is next, with PEC/CDR and full Aer/Pauli-Lindblad replay
-> behind it.
+> overlapping difference CI, or `|Δ| > 1.6 mHa`. The corrected axis has since
+> run on hardware (see the 2026-11-26 update); the old 2.743 mHa result is
+> historical, not a valid claim.
+> Record: [[hardware-validation-r2-2026-11-25]].
+
+> ⚑ State update (2026-11-26, R2 corrected-axis hardware run): the all-gate axis
+> ran on `ibm_kingston` and `ibm_fez` (three 5-scale, 8192-shot jobs; **3.799795
+> RU** consumed, **6.200205 RU / 369 s** remain). The axis was valid, but **R2 is
+> still not achieved**: ZNE points were **7.365 mHa (±6.924)**, **0.483 mHa
+> (±9.111)**, and **5.595 mHa (±10.028)**; every run failed model adequacy or the
+> paired difference CI, and two identical `ibm_fez` runs differed by **5.112
+> mHa**. The 0.483 mHa point is not a claim: χ²_red was 3.68/4.81, the
+> non-identity expectations do not decay to zero (non-unital noise), and the
+> point moves by up to 11 mHa between total-gate and calibration-weighted axes.
+> The model residual, not shot noise, is the floor. **No further ZNE shots**;
+> the next spend is a calibrated non-unital noise-model/PEC or CDR pilot with
+> the same `|Δ| ≤ 1.6 mHa`, difference-CI, and reproduction gates.
 
 ## Three layers
 

@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Error Mitigation
 date: 2026-08-16
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [error-mitigation, noise]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -90,10 +90,17 @@ mechanism, records the measured total-gate and calibration-weighted error scale 
 circuit, refuses a non-increasing/duplicate axis before dispatch, retains per-scale
 histograms, and reports model spread, lack-of-fit, and the raw-minus-ZNE difference CI.
 G6 fails closed on an invalid axis, inadequate model, overlapping difference CI, or
-`|Δ| > 1.6 mHa`. The corrected axis has **not** been exercised on hardware; the 1.4 RU
-window was consumed by the Phase-4B subset, and a new IBM Quantum Open Plan account is
-configured (10/10 RU, 600 s remaining, verified 2026-11-25) for the next run.
-More shots alone cannot reach 1.6 mHa under the old model: the lack-of-fit floor is
-±6.96 mHa at 95% confidence.
+`|Δ| > 1.6 mHa`.
+
+The corrected axis was exercised on hardware on 2026-11-26 (three 5-scale, 8192-shot
+jobs on `ibm_kingston` and `ibm_fez`). The axis was valid in every run, but R2 is still
+not achieved: ZNE points were 7.365, 0.483, and 5.595 mHa; every run failed model
+adequacy (χ²_red 1.53–4.81) and the paired difference CI. Two identical `ibm_fez` runs
+on the same calibration differed by **5.112 mHa**. The fixed-asymptote model is the
+blocker: the non-identity expectations do not decay to zero (non-unital noise), and a
+free asymptote is unidentifiable over this noise range. More shots cannot fix it; the
+residual floor is ~2.5 mHa per scale. **6.200205 RU / 369 s remain**; no further ZNE
+shots are authorized. The next spend is a calibrated non-unital noise-model/PEC or CDR
+pilot with the same claim gates.
 
 Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]] · [[hardware-validation-r2-2026-11-25]]

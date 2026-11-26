@@ -263,9 +263,9 @@ bash scripts/perf-gate.sh
 python3 scripts/wiki-lint.py --strict
 ```
 
-### Hardware evidence status (2026-11-25)
+### Hardware evidence status (2026-11-26)
 
-The Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0` settled). **R2 is not achieved**: the H₂ ZNE point is **2.743 mHa (±11.037)** and the raw/ZNE difference CI (±12.965 mHa) overlaps, so the improvement is not separated. The offline audit found the scale axis mixed global all-gate folding with local 2Q-only folding; the corrected axis has **not** run on hardware, and the prior result is historical rather than a chemical-accuracy claim. Full evidence and the fail-closed gate inventory: [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md). A new IBM Quantum Open Plan account is configured (**10/10 RU**, 600 s remaining, verified 2026-11-25) for the next pre-registered run.
+The corrected all-gate ZNE axis ran on `ibm_kingston` and `ibm_fez` (three 5-scale, 8192-shot jobs, **3.799795 RU** consumed). **R2 is still not achieved.** ZNE points were **7.365 mHa (±6.924)**, **0.483 mHa (±9.111)**, and **5.595 mHa (±10.028)**; every run failed model adequacy or the paired difference CI, and two identical `ibm_fez` runs differed by **5.112 mHa**. The 0.483 mHa point is not a claim: the fixed-asymptote model is statistically inadequate (χ²_red 3.68/4.81), the non-identity expectations do not decay to zero, and the point moves by up to 11 mHa between total-gate and calibration-weighted axes. The model residual, not shot noise, is the floor. **6.200205 RU / 369 s remain; no further ZNE shots** — the next spend is a non-unital noise-model/PEC or CDR pilot with the same gates. Full evidence: [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md).
 
 ### Operations: memory, retention, and profiling
 

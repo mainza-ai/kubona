@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-11-25
+updated: 2026-11-26
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -26,11 +26,14 @@ status: tracked
 > axis, `chi2_red > 1.5`, model spread beyond the interval, an overlapping
 > difference CI, or `|Δ| > 1.6 mHa` ([[hardware-validation-r2-2026-11-25]]).
 > The prior 1.4 RU window was fully consumed by the Phase-4B subset. A new IBM
-> Quantum Open Plan account is configured (**10/10 RU**, 600 s remaining,
-> verified 2026-11-25). Residuals: corrected-axis hardware run (ready), full
-> Aer/Pauli-Lindblad offline replay (unblocked), PEC/CDR fallback (not built),
-> per-term ZNE promoted only if it agrees with the global fit on hardware, and
-> manuscript/Console rendering of the new fields.
+> Quantum Open Plan account was configured and the corrected-axis hardware run
+> is now complete (2026-11-26, **3.799795 RU** consumed): the axis was valid,
+> but ZNE points were 7.365 / 0.483 / 5.595 mHa, the model was inadequate
+> (χ²_red 1.53–4.81), the paired difference CIs overlapped, and two identical
+> `ibm_fez` runs differed by **5.112 mHa**. **6.200205 RU / 369 s remain; no
+> more ZNE shots.** Residuals: calibrated non-unital noise-model/PEC or CDR
+> pilot (next), full Aer/Pauli-Lindblad offline replay, per-term ZNE only as a
+> diagnostic, and manuscript/Console rendering of the new fields.
 
 > ⚑ **State update (2026-11-20, `0fdba803` / `853a476e`):** The 6-phase
 > deep-dive production audit is closed (`docs/production-audit-2026-11-20.md`):
