@@ -976,11 +976,19 @@ class QiskitProvider(Provider):
                             if len(inst.qubits) >= 2
                             and str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
                         )
+
+                    def _oneq_pulses(circuit):
+                        return sum(
+                            1 for inst in circuit.data
+                            if len(inst.qubits) == 1
+                            and str(getattr(inst.operation, "name", "")) in ("sx", "x", "rx", "ry", "u", "u2", "u3")
+                        )
                     transpile_samples.append({
                         "logical_depth": int(original.depth()),
                         "logical_two_qubit_gates": int(_twoq(original)),
                         "transpiled_depth": int(qc.depth()),
                         "transpiled_two_qubit_gates": int(_twoq(qc)),
+                        "transpiled_one_qubit_pulses": int(_oneq_pulses(qc)),
                     })
                 except Exception:
                     pass
@@ -989,14 +997,16 @@ class QiskitProvider(Provider):
             circuits.append(qc)
         if transpile_samples:
             # A batch spans many measurement bases/folds; report the batch
-            # envelope (including min/max 2Q gates so ZNE fold preservation is
-            # auditable) and the first sample.
+            # envelope (including min/max 2Q gates so ZNE fold preservation and
+            # CDR target-vs-training native parity are auditable) and the first sample.
             transpile_meta = {
                 "circuits": len(transpile_samples),
                 "min_transpiled_depth": min(s["transpiled_depth"] for s in transpile_samples),
                 "max_transpiled_depth": max(s["transpiled_depth"] for s in transpile_samples),
                 "min_transpiled_two_qubit_gates": min(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
+                "per_circuit_two_qubit_gates": [s["transpiled_two_qubit_gates"] for s in transpile_samples],
+                "per_circuit_one_qubit_pulses": [s["transpiled_one_qubit_pulses"] for s in transpile_samples],
                 "first": transpile_samples[0],
             }
         expanded_reps: list[int] | None = None

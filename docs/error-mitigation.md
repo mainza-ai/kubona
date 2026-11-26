@@ -116,3 +116,8 @@ Plan; **`0.384519 RU / 19 s` remain**):
   passed all 40/40 checks, and `C3+C4` agree to `0.610 mHa` (`0.26σ`) with pooled
   `|Δ| = 1.515 ± 2.280 mHa`, while strict consecutive single-job `≤ 1.6 mHa` reproduction
   remains open by `0.193 mHa` (4-run pooled offset `−1.869 ± 1.994 mHa` below FCI).
+  Post-run `opt_level=3` inspection localized that offset to `cz=2 → 1` collapse on
+  two upper-span training circuits and `sx=11 → 4` simplification; `lock_cdr_native_slots`
+  plus a fail-closed 2Q transpilation parity guard now enforce identical native `(cz, sx)`
+  slots across target and training circuits (verified offline: `χ²_red` `1.46 → 0.47`,
+  20-seed pass rate `8/20 → 15/20`, ready for the next billing cycle).

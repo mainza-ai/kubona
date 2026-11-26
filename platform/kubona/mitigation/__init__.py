@@ -7,6 +7,7 @@ from .cdr import (
     evaluate_cdr_batch,
     fit_cdr_odr,
     generate_cdr_training_circuits,
+    lock_cdr_native_slots,
 )
 from .qwc import (
     allocate_neyman_shots,
@@ -34,6 +35,7 @@ __all__ = [
     "fit_cdr_odr",
     "generate_cdr_training_circuits",
     "group_pauli_terms",
+    "lock_cdr_native_slots",
     "measurement_circuit_for_basis",
     "postselect_z_counts",
     "run_zne",

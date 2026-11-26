@@ -1217,6 +1217,7 @@ def _run_vqe_hardware_cdr(
         build_readout_cal_circuits,
         evaluate_cdr_batch,
         generate_cdr_training_circuits,
+        lock_cdr_native_slots,
     )
     from kubona.mitigation.qwc import (
         allocate_neyman_shots,
@@ -1299,14 +1300,20 @@ def _run_vqe_hardware_cdr(
     # by the affine fit; 4096 shots/state keeps cond(M) well-conditioned at low RU cost.
     cal_shots_each = int(shots)
 
+    # Lock identical native-equivalent 1Q Euler slots and 2Q barriers on BOTH
+    # the target circuit and every CDR training circuit so opt_level=3 cannot
+    # cancel 2Q pairs (cz=2->1) or drop 1Q pulses (sx=11->4) on Clifford states.
+    locked_target_qc = lock_cdr_native_slots(qc)
+    locked_train_qcs = [lock_cdr_native_slots(tqc) for tqc in train_pkg["circuits"]]
+
     qasms: list[str] = []
     pub_shots: list[int] = []
 
     for grp, s_cnt in zip(groups, resolved_target_shots):
-        qasms.append(qasm2.dumps(measurement_circuit_for_basis(qc, grp["basis"])))
+        qasms.append(qasm2.dumps(measurement_circuit_for_basis(locked_target_qc, grp["basis"])))
         pub_shots.append(int(s_cnt))
 
-    for tqc, t_shots_row in zip(train_pkg["circuits"], train_shots_matrix):
+    for tqc, t_shots_row in zip(locked_train_qcs, train_shots_matrix):
         for grp, s_cnt in zip(groups, t_shots_row):
             qasms.append(qasm2.dumps(measurement_circuit_for_basis(tqc, grp["basis"])))
             pub_shots.append(int(s_cnt))
@@ -1326,6 +1333,48 @@ def _run_vqe_hardware_cdr(
     counts_list = batch.get("counts")
     if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
         return {"success": False, "error": "hardware batch returned mismatched CDR circuit counts"}
+
+    # Fail-closed CDR native transpilation parity check: refuse if opt_level=3
+    # collapsed any training circuit's 2Q gate count relative to the target circuit.
+    transpile_parity: dict[str, Any] = {"template_locked": True, "parity_checked": False}
+    t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
+    n_non_cal = g_count + m_train * g_count
+    if (
+        t_env is not None
+        and isinstance(t_env.get("per_circuit_two_qubit_gates"), list)
+        and len(t_env["per_circuit_two_qubit_gates"]) >= n_non_cal
+    ):
+        per_2q = [int(v) for v in t_env["per_circuit_two_qubit_gates"][:n_non_cal]]
+        tgt_2q = per_2q[:g_count]
+        tr_2q = per_2q[g_count:n_non_cal]
+        parity_ok = bool(set(tgt_2q) == set(tr_2q))
+        transpile_parity.update({
+            "parity_checked": True,
+            "parity_ok": parity_ok,
+            "target_2q_min": min(tgt_2q),
+            "target_2q_max": max(tgt_2q),
+            "train_2q_min": min(tr_2q),
+            "train_2q_max": max(tr_2q),
+        })
+        if (
+            isinstance(t_env.get("per_circuit_one_qubit_pulses"), list)
+            and len(t_env["per_circuit_one_qubit_pulses"]) >= n_non_cal
+        ):
+            per_1q = [int(v) for v in t_env["per_circuit_one_qubit_pulses"][:n_non_cal]]
+            transpile_parity.update({
+                "target_1q_pulses_min": min(per_1q[:g_count]),
+                "target_1q_pulses_max": max(per_1q[:g_count]),
+                "train_1q_pulses_min": min(per_1q[g_count:n_non_cal]),
+                "train_1q_pulses_max": max(per_1q[g_count:n_non_cal]),
+            })
+        if not parity_ok:
+            return {
+                "success": False,
+                "error": (
+                    "CDR transpilation 2Q parity violated: "
+                    f"target_2q={sorted(set(tgt_2q))} vs train_2q={sorted(set(tr_2q))}"
+                ),
+            }
 
     cursor = 0
     target_group_counts = [
@@ -1407,6 +1456,8 @@ def _run_vqe_hardware_cdr(
         "target_strictly_bracketed": bool(train_pkg["target_strictly_bracketed"]),
         "extrapolation_distance_ha": float(train_pkg["extrapolation_distance_ha"]),
         "sector_aligned": bool(train_pkg["sector_aligned"]),
+        "template_locked": True,
+        "transpile_parity": transpile_parity,
         "cdr_input_layer": ev["cdr_input_layer"],
         "readout_calibration": ev["readout_calibration"],
         "symmetry": ev["symmetry_verified"],

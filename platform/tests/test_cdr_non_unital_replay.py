@@ -22,6 +22,7 @@ from kubona.mitigation.cdr import (  # noqa: E402
     evaluate_cdr_batch,
     fit_cdr_odr,
     generate_cdr_training_circuits,
+    lock_cdr_native_slots,
 )
 from kubona.mitigation.qwc import (  # noqa: E402
     allocate_neyman_shots,
@@ -538,9 +539,10 @@ def test_phase6_c_optimal_cdr_training_shots_cut_fit_se_below_1_3_mha(monkeypatc
 
     noise = NoiseModel()
     t1, t2 = 170e-6, 110e-6
+    # IBM Heron physics: rz is a zero-duration virtual frame update; physical 1Q noise acts on rx/ry/sx/x/h/sdg/u3.
     noise.add_all_qubit_quantum_error(
         thermal_relaxation_error(t1, t2, 40e-9).compose(depolarizing_error(0.0005, 1)),
-        ["rx", "ry", "rz", "h", "sdg", "x", "u3"],
+        ["rx", "ry", "h", "sdg", "sx", "x", "u3"],
     )
     noise.add_all_qubit_quantum_error(
         thermal_relaxation_error(t1, t2, 80e-9)
@@ -597,6 +599,76 @@ def test_phase6_c_optimal_cdr_training_shots_cut_fit_se_below_1_3_mha(monkeypatc
 
     assert float(np.mean(fit_ses)) <= 1.30, fit_ses
     assert float(np.median(deltas)) <= 1.20, deltas
+
+
+def test_phase6_native_slot_locking_preserves_heron_opt3_parity_and_refuses_collapse(monkeypatch):
+    """Verify lock_cdr_native_slots prevents cz=2->1 and sx=11->4 collapse at opt_level=3,
+    and run_vqe_hardware refuses CDR if backend transpilation violates 2Q parity."""
+    pytest.importorskip("qiskit")
+    from qiskit import QuantumCircuit, qasm2, transpile
+    from qiskit.quantum_info import Statevector
+    import experiments
+
+    # Arbitrary non-Clifford COBYLA-like H2 ansatz (8 arbitrary rotations + 2 CX)
+    qc = QuantumCircuit(2)
+    qc.ry(0.37, 0)
+    qc.ry(-0.52, 1)
+    qc.rz(0.91, 0)
+    qc.rz(-0.44, 1)
+    qc.cx(0, 1)
+    qc.ry(-0.61, 0)
+    qc.ry(0.52, 1)
+    qc.rz(-0.23, 0)
+    qc.rz(0.77, 1)
+    qc.cx(0, 1)
+
+    tp = generate_cdr_training_circuits(qc, H2_COEFFS, n_circuits=12, seed=7)
+    heron_basis = ["rz", "sx", "x", "cz"]
+
+    locked_target = lock_cdr_native_slots(qc)
+    target_qasm = qasm2.dumps(locked_target)
+    assert "sx" not in target_qasm  # standard qelib1.inc rx(pi/2) only
+    t_loaded = qasm2.loads(target_qasm)
+    assert float(abs(np.vdot(Statevector.from_instruction(qc).data, Statevector.from_instruction(t_loaded).data)) ** 2) > 1.0 - 1e-12
+    t_ops = dict(transpile(t_loaded, basis_gates=heron_basis, optimization_level=3).count_ops())
+    assert t_ops.get("cz", 0) == 2 and t_ops.get("x", 0) == 0
+
+    for idx, tqc in enumerate(tp["circuits"]):
+        locked = lock_cdr_native_slots(tqc)
+        qasm_str = qasm2.dumps(locked)
+        assert "sx" not in qasm_str
+        loaded = qasm2.loads(qasm_str)
+        fid = float(abs(np.vdot(Statevector.from_instruction(tqc).data, Statevector.from_instruction(loaded).data)) ** 2)
+        assert fid > 1.0 - 1e-12, (idx, fid)
+        ops = dict(transpile(loaded, basis_gates=heron_basis, optimization_level=3).count_ops())
+        assert ops.get("cz", 0) == t_ops.get("cz", 0), (idx, ops, t_ops)
+        assert ops.get("sx", 0) == t_ops.get("sx", 0), (idx, ops, t_ops)
+        assert ops.get("x", 0) == 0, (idx, ops)
+
+    # Fail-closed guard: if backend transpilation reports a collapsed 2Q training circuit, refuse.
+    def fake_collapsed_cdr_batch(qasm_list, shots, seed, backend=None, shots_per_circuit=None):
+        per_2q = [2] * len(qasm_list)
+        per_2q[10] = 1  # Simulated opt_level=3 collapse on a training circuit!
+        return {
+            "success": True,
+            "counts": [{"00": 512, "11": 512} for _ in qasm_list],
+            "backend": "ibm_fez",
+            "hardware_job_id": "hw-collapsed-cdr",
+            "transpile": {"circuits": len(qasm_list), "per_circuit_two_qubit_gates": per_2q},
+            "calibration": {"calibration_fresh": True},
+        }
+
+    monkeypatch.setattr(experiments, "_hardware_batch", fake_collapsed_cdr_batch)
+    refused = experiments.run_vqe_hardware(
+        theta=[0.0, 0.0, 0.15, -0.15, -0.223456, 0.0, 0.0, 0.0],
+        pauli_coefficients=H2_COEFFS,
+        layers=2, shots=1024, seed=7, bond_distance=0.735, fci_exact_energy=H2_FCI_EXACT,
+        backend="ibm_fez", mitigation="CDR", cdr_training_circuits=8,
+        live_readout_cal=True, symmetry_verification=True,
+    )
+    assert refused["success"] is False
+    assert "2Q parity violated" in refused["error"]
+
 
 
 

@@ -47,6 +47,62 @@ def _count_two_qubit_gates(qc: Any) -> int:
     )
 
 
+def lock_cdr_native_slots(qc: Any) -> Any:
+    """Canonicalize 1Q runs and 2Q gates into barrier-locked native-equivalent slots.
+
+    Prevents Qiskit ``optimization_level=3`` from collapsing Clifford-snapped 2Q
+    pairs (e.g. ``cz=2 -> cz=1``) or simplifying 1Q angles away (``sx=11 -> sx=4``)
+    on CDR training circuits relative to the target ansatz. Every contiguous 1Q
+    block between 2Q gates is rewritten as the universal 2-pulse ZSX Euler
+    sequence ``rz(la); rx(pi/2); barrier(q); rz(th+pi); rx(pi/2); rz(ph+pi)``
+    using standard ``qelib1.inc`` OpenQASM 2.0 gates (no custom ``sx`` macro),
+    and every 2Q gate is bracketed by barriers.
+    """
+    from qiskit import QuantumCircuit
+    from qiskit.quantum_info import Operator
+    from qiskit.synthesis import OneQubitEulerDecomposer
+
+    n = int(qc.num_qubits)
+    qmap = {q: i for i, q in enumerate(qc.qubits)}
+    out = QuantumCircuit(n)
+    u3_decomp = OneQubitEulerDecomposer(basis="U3")
+    pending = [np.eye(2, dtype=complex) for _ in range(n)]
+    has_1q = [False] * n
+
+    def _flush_qubit(qi: int) -> None:
+        if not has_1q[qi]:
+            return
+        th, ph, la = u3_decomp.angles(pending[qi])
+        out.rz(float(la), qi)
+        out.rx(0.5 * math.pi, qi)
+        out.barrier(qi)
+        out.rz(float(th + math.pi), qi)
+        out.rx(0.5 * math.pi, qi)
+        out.rz(float(ph + math.pi), qi)
+        pending[qi] = np.eye(2, dtype=complex)
+        has_1q[qi] = False
+
+    for inst in qc.data:
+        name = str(getattr(inst.operation, "name", ""))
+        if name in ("barrier", "measure", "reset"):
+            continue
+        if len(inst.qubits) == 1:
+            qi = qmap[inst.qubits[0]]
+            pending[qi] = Operator(inst.operation).data @ pending[qi]
+            has_1q[qi] = True
+        else:
+            q_indices = [qmap[q] for q in inst.qubits]
+            for qi in q_indices:
+                _flush_qubit(qi)
+            out.barrier(*q_indices)
+            out.append(inst.operation, q_indices)
+            out.barrier(*q_indices)
+
+    for qi in range(n):
+        _flush_qubit(qi)
+    return out
+
+
 def _exact_energy_from_state(state: np.ndarray, coeffs: dict[str, float]) -> float:
     from qiskit.quantum_info import SparsePauliOp
 
@@ -1053,4 +1109,5 @@ __all__ = [
     "evaluate_cdr_batch",
     "fit_cdr_odr",
     "generate_cdr_training_circuits",
+    "lock_cdr_native_slots",
 ]

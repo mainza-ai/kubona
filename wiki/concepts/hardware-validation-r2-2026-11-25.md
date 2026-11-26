@@ -250,10 +250,16 @@ the Open Plan period). On real `ibm_fez` (`C3`/`C4`), `fit_se` dropped in half t
 - **Strict consecutive single-job reproduction under one fixed config remains open by
   `0.193 mHa`:** `C4` landed at `−1.793 ± 3.086 mHa` (`0.193 mHa` outside `≤ 1.6 mHa`),
   and all four runs landed slightly below FCI (4-run pooled `−1.869 ± 1.994 mHa`, `1.84σ`
-  below FCI), indicating a small `~1.5–1.9 mHa` systematic over-correction consistent with
-  native-gate compilation differences between near-Clifford training circuits and the
-  target ansatz. Do not claim unconditional R2 closure without either compiling training
-  circuits with locked native-gate templates or clearing consecutive single-job `≤ 1.6 mHa`.
+  below FCI). Post-run transpilation inspection of the `C3`/`C4` circuits on Heron's
+  `[rz, sx, x, cz]` basis at `optimization_level=3` confirmed the exact physical cause:
+  the target COBYLA circuit compiled to `depth=14, cz=2, sx=11`, whereas 10 of 12
+  training circuits compiled to `depth=11, cz=2, sx=4`, and two upper-span training
+  circuits (`TRAIN 09, 11`) collapsed to **`cz=1, depth=6`** (half the 2Q noise!).
+  `lock_cdr_native_slots` now canonicalizes target and training circuits into identical
+  barrier-locked `rx(π/2)` ZSX slots (`fid = 1.000000000000`, `cz=2, sx=12, x=0` on all
+  13 circuits at `opt_level=3`) with a fail-closed 2Q transpilation parity guard; offline
+  20-seed Heron `opt_level=3` replay reduced mean `χ²_red` from `1.46` to `0.47` and
+  lifted the G6 pass rate from `8/20` to `15/20` (`mean_signed = +0.006 ± 0.405 mHa`).
 - **No further QPU spend** in this Open Plan billing period (`0.384519 RU / 19 s` remain).
 
 ## Reading
