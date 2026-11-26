@@ -6,6 +6,7 @@ Qiskit/Aer are NOT hard dependencies — import only when this plugin is used.
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from pathlib import Path
@@ -998,9 +999,24 @@ class QiskitProvider(Provider):
                 "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "first": transpile_samples[0],
             }
+        expanded_reps: list[int] | None = None
+        pub_base_shots: int | None = None
         if resolved_shots is not None and len(set(resolved_shots)) > 1:
-            pubs = [(qc, None, int(s)) for qc, s in zip(circuits, resolved_shots)]
-            job = sampler.run(pubs)
+            # IBM qiskit_ibm_runtime executor_sampler requires every PUB in one
+            # job to share the same shot count (extract_shots_from_pubs refuses
+            # mixed shots). Realize heterogeneous per-circuit shot budgets inside
+            # ONE governed job via GCD uniform-shot replication and count merging.
+            base = math.gcd(*resolved_shots)
+            if base < 1 or sum(s // base for s in resolved_shots) > 400:
+                base = max(1, int(math.ceil(sum(resolved_shots) / 256.0)))
+                expanded_reps = [max(1, int(round(s / base))) for s in resolved_shots]
+            else:
+                expanded_reps = [s // base for s in resolved_shots]
+            pub_base_shots = int(base)
+            expanded_circuits: list[Any] = []
+            for qc_item, reps in zip(circuits, expanded_reps):
+                expanded_circuits.extend([qc_item] * reps)
+            job = sampler.run(expanded_circuits, shots=pub_base_shots)
         else:
             uniform_shots = resolved_shots[0] if resolved_shots is not None else shots
             job = sampler.run(circuits, shots=uniform_shots)
@@ -1010,12 +1026,24 @@ class QiskitProvider(Provider):
         try:
             result = job.result()
             counts_out = []
-            for i in range(len(circuits)):
-                pub = result[i].data.meas
-                counts_out.append({
-                    "".join(str(b) for b in k): int(v)
-                    for k, v in pub.get_counts().items()
-                })
+            if expanded_reps is not None:
+                cursor = 0
+                for reps in expanded_reps:
+                    merged: dict[str, int] = {}
+                    for _ in range(reps):
+                        pub = result[cursor].data.meas
+                        cursor += 1
+                        for k, v in pub.get_counts().items():
+                            bs = "".join(str(b) for b in k)
+                            merged[bs] = merged.get(bs, 0) + int(v)
+                    counts_out.append(merged)
+            else:
+                for i in range(len(circuits)):
+                    pub = result[i].data.meas
+                    counts_out.append({
+                        "".join(str(b) for b in k): int(v)
+                        for k, v in pub.get_counts().items()
+                    })
         except Exception as e:  # noqa: BLE001 — vendor result is data
             raise ProviderError(f"hardware batch result read failed for job {job_id!r}: {e}")
         out: dict[str, Any] = {
@@ -1035,7 +1063,14 @@ class QiskitProvider(Provider):
             "plan": self._plan,
         }
         if resolved_shots is not None:
-            out["shots_per_circuit"] = resolved_shots
+            out["shots_per_circuit"] = (
+                [int(r * pub_base_shots) for r in expanded_reps]
+                if (expanded_reps is not None and pub_base_shots is not None)
+                else resolved_shots
+            )
+            if expanded_reps is not None and pub_base_shots is not None:
+                out["pub_base_shots"] = pub_base_shots
+                out["expanded_pubs"] = int(sum(expanded_reps))
         try:
             bname = str(getattr(backend, "name", self.backend_name or ""))
             props = backend.properties() if hasattr(backend, "properties") else None

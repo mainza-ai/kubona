@@ -1275,8 +1275,12 @@ def _run_vqe_hardware_cdr(
         resolved_target_shots = [int(shots)] * g_count
 
     # Neyman allocation across QWC groups for training circuits at the same total shot budget.
+    # Quantize to 1024-shot chunks (giving [10240, 1024, 1024] for H2 at shots=4096)
+    # so IBM's uniform-shot executor_sampler keeps high Z-basis precision in <=300 PUBs.
+    shot_quantum = 1024 if (int(shots) >= 4096 and int(shots) % 1024 == 0) else 1
     train_shots_per_group = allocate_neyman_shots(
         groups, int(shots) * g_count, min_shots=min(1024, int(shots)),
+        quantum=shot_quantum,
     )
     cal_shots_each = max(int(shots), 8192) if int(shots) >= 4096 else int(shots)
 

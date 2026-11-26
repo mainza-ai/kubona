@@ -439,7 +439,7 @@ def test_phase4_datasheet_renders_cdr_mode_ablation_and_citations():
 
 
 def test_phase1_qiskit_provider_per_pub_shots_dispatches_sampler_v2_tuples(monkeypatch):
-    """Verify QiskitProvider.submit_batch passes SamplerV2 (qc, None, s) PUB tuples for heterogeneous shots."""
+    """Verify QiskitProvider.submit_batch realizes heterogeneous shots via GCD uniform PUB replication."""
     pytest.importorskip("qiskit")
     import types
     from kubona.providers.qiskit_provider import QiskitProvider
@@ -475,9 +475,8 @@ def test_phase1_qiskit_provider_per_pub_shots_dispatches_sampler_v2_tuples(monke
         def run(self, pubs, shots=None):
             captured["pubs"] = pubs
             captured["shots_kwarg"] = shots
-            if shots is not None:
-                return FakeJob([shots] * len(pubs))
-            return FakeJob([int(p[2]) for p in pubs])
+            assert shots is not None, "IBM executor_sampler requires uniform shots across all PUBs"
+            return FakeJob([int(shots)] * len(pubs))
 
     class FakeBackend:
         name = "ibm_fake_heron"
@@ -505,8 +504,10 @@ def test_phase1_qiskit_provider_per_pub_shots_dispatches_sampler_v2_tuples(monke
     )
     assert out["success"] is True
     assert out["shots_per_circuit"] == [65536, 16384, 4096]
-    assert captured["shots_kwarg"] is None
-    assert [p[2] for p in captured["pubs"]] == [65536, 16384, 4096]
+    assert out["pub_base_shots"] == 4096
+    assert out["expanded_pubs"] == 21
+    assert captured["shots_kwarg"] == 4096
+    assert len(captured["pubs"]) == 21
     assert [sum(c.values()) for c in out["counts"]] == [65536, 16384, 4096]
 
 

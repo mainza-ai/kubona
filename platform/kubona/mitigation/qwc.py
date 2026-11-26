@@ -354,17 +354,32 @@ def allocate_neyman_shots(
     *,
     group_variances: list[float] | None = None,
     min_shots: int = 1024,
+    quantum: int = 1,
 ) -> list[int]:
     """Allocate ``total_shots`` across QWC groups by Neyman optimal weighting.
 
     Uses ``sqrt(group_variances[i])`` when supplied, otherwise falls back to the
     group L2 coefficient norm ``l2_weight``. Every group receives at least
-    ``min_shots`` (capped so the sum stays feasible).
+    ``min_shots`` (capped so the sum stays feasible). When ``quantum > 1`` and
+    ``total_shots`` is a multiple of ``quantum``, all returned counts are exact
+    multiples of ``quantum`` so uniform-shot Qiskit Runtime batches keep a large
+    GCD and small PUB count.
     """
     m = len(groups)
     if m == 0:
         return []
     total = int(total_shots)
+    q = max(1, int(quantum))
+    if q > 1 and total % q == 0 and total >= q * m:
+        min_units = max(1, min(int(math.ceil(int(min_shots) / q)), (total // q) // m))
+        units = allocate_neyman_shots(
+            groups,
+            total // q,
+            group_variances=group_variances,
+            min_shots=min_units,
+            quantum=1,
+        )
+        return [u * q for u in units]
     if total < m:
         raise ValueError(f"total_shots {total} must be >= number of groups {m}")
     floor = min(int(min_shots), total // m)
