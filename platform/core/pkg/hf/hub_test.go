@@ -60,14 +60,41 @@ func TestHubClientModelDetails(t *testing.T) {
 }
 
 func TestHubClientDownloads(t *testing.T) {
-	client := NewHubClient(t.TempDir())
+	// Keep the worker blocked in a local handler until CancelDownload fires.
+	// The old test raced a real HuggingFace request: a fast network failure
+	// could settle "failed" before the cancel, making the assertion flaky.
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
 
-	task, err := client.StartDownload("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF", "model.gguf")
+	oldBase := HFResolveBase
+	HFResolveBase = srv.URL
+	defer func() { HFResolveBase = oldBase }()
+
+	client := NewHubClient(t.TempDir())
+	task, err := client.StartDownload("Qwen/test-tiny", "model.gguf")
 	if err != nil {
 		t.Fatalf("failed to start download: %v", err)
 	}
 	if task.TaskID == "" || task.Status != "downloading" {
 		t.Fatalf("unexpected task state: %+v", task)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("download worker did not start")
 	}
 
 	downloads := client.ListDownloads()
