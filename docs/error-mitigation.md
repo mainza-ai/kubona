@@ -98,3 +98,17 @@ model adequacy or the paired difference CI.
 > TREX-mitigated baselines, and the next hardware spend is a same-batch ODR CDR +
 > live 4×4 readout calibration + `Z2` symmetry verification pilot with QWC grouping
 > and per-PUB shot allocation under the same G6 gates.
+
+### Phase-6 CDR pilot & reproduction (2026-11-26, `ibm_fez`)
+
+Two governed same-batch CDR jobs (`44806e0f`, layout `[142, 143]`, `83 s / 1.375 RU`
+each; **`3.450861 RU / 203 s` remain**) ran on `ibm_fez`:
+
+- **Pilot 1 (`dc42qqanj2vs73dj9vv0`) — 40/40 PASS (6/6 G6 CDR gates):**
+  `raw +17.789 ± 2.472` → `live 4×4 RO +7.422 ± 3.023` (`cond=1.035`) → `Z2 sym +3.960 ± 2.504` → **`CDR −0.195 ± 5.981 mHa`**, `χ²_red = 1.147` (`p = 0.322`), `R² = 0.9996`, paired diff vs raw **`−17.983 ± 5.487 mHa` (6.4σ)**.
+- **Pilot 2 (`dc42sleq4uuc73a7vo1g`) — 38/40 (5/6 G6 CDR gates; chem fail):**
+  `raw +15.073 ± 2.443` → `live 4×4 RO +4.224 ± 3.032` (`cond=1.032`) → `Z2 sym +1.315 ± 2.494` → **`CDR −5.554 ± 5.660 mHa`**, `χ²_red = 0.426` (`p = 0.935`), `R² = 0.9999`, paired diff vs raw **`−20.627 ± 5.144 mHa` (7.9σ)**.
+- **Verdict:** model adequacy and raw-difference separation are solved and reproduced,
+  and C1/C2 agree within `1.28σ`, but **R2 reproduction is not yet achieved** because
+  CDR regression variance (`fit_se = 2.60–2.78 mHa`, `±5.7 mHa` 95% CI) exceeds the
+  `1.6 mHa` point gate. No further QPU spend without operator authorization.

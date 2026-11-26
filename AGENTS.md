@@ -206,9 +206,18 @@ development — re-verify the gate on the exact commit before citing
 > (`0.20σ`); and `baseline_energy` already included diagonal TREX (`~11 mHa` below
 > unmitigated raw). `_fold_local_all` now uses stratified proportional 1Q/2Q folding
 > with a duplicate-2Q/divergence guard and dual raw/TREX baselines. **No further ZNE
-> shots**; the next spend is a same-batch ODR CDR + live 4×4 readout calibration +
-> `Z2` symmetry verification pilot (QWC-grouped, per-PUB Neyman shots) with the
-> same `|Δ| ≤ 1.6 mHa`, difference-CI, and reproduction gates.
+> shots**; the Phase-6 same-batch **QWC + live 4×4 readout + `Z2` symmetry + ODR CDR**
+> pipeline (`44806e0f`) subsequently ran twice on `ibm_fez` (`[142, 143]`, `83 s /
+> 1.375 RU` each; **`3.450861 RU / 203 s` remain**): Pilot 1 (`dc42qqanj2vs73dj9vv0`)
+> passed **40/40** checks and all 6/6 G6 CDR gates (`|Δ_CDR| = 0.195 ± 5.981 mHa`,
+> `χ²_red = 1.147`, `p = 0.322`, `R² = 0.9996`, paired diff vs raw `−17.983 ± 5.487 mHa`,
+> `6.4σ`); Pilot 2 (`dc42sleq4uuc73a7vo1g`) passed 38/40 checks and 5/6 G6 gates
+> (`χ²_red = 0.426`, `p = 0.935`, `R² = 0.9999`, diff vs raw `−20.627 ± 5.144 mHa`,
+> `7.9σ`, consistent with Pilot 1 at `1.28σ`) but failed `≤ 1.6 mHa` at
+> `−5.554 ± 5.660 mHa` due to training regression variance (`fit_se = 2.60–2.78 mHa`
+> vs `target_se = 1.26 mHa`). Model adequacy and separation are reproduced, while
+> **R2 chemical-accuracy reproduction remains open** (see
+> [[hardware-validation-r2-2026-11-25]]).
 
 ## Three layers
 

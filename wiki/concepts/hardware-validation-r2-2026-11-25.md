@@ -211,6 +211,43 @@ calibrated non-unital noise-model/PEC or CDR pilot on the same 2-qubit ansatz, c
 against the paired scale-1 baseline, with the same `|Δ| ≤ 1.6 mHa`, difference-CI, and
 reproduction gates.
 
+## 2026-11-26 Phase-6 CDR pilot and reproduction (`ibm_fez`)
+
+Following the post-run audit, the same-batch **QWC + live 4×4 asymmetric readout matrix +
+Bonet-Monroig `Z2` symmetry verification + errors-in-variables ODR CDR** pipeline
+(commit `44806e0f`, 43 unique circuits expanded via GCD uniform-shot replication to 272
+1024-shot PUBs = `278,528` total shots per governed job: target `[65536, 16384, 16384]`,
+12 energy-stratified near-Clifford training circuits at Neyman `[10240, 1024, 1024]`, and
+4 computational-basis readout calibration circuits at `8192` shots each) ran twice on
+real **`ibm_fez`** hardware (layout `[142, 143]`, `83 s / 1.375 RU` per job, `$0.00`
+Open Plan; **`3.450861 RU / 203 s` remain**):
+
+| Run | Hardware job | Raw unmit. (mHa) | Live 4×4 RO (mHa) | `Z2` Sym (mHa) | ODR CDR signed Δ (mHa) | CDR 95% CI | `χ²_red` (`p`) | `R²` | Diff vs raw (mHa) | G6 gates |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| C1 | `dc42qqanj2vs73dj9vv0` | +17.789 ±2.472 | +7.422 ±3.023 | +3.960 ±2.504 | **−0.195** | ±5.981 | **1.147** (0.322) | 0.9996 | **−17.983 ±5.487** (6.4σ) | **6/6 PASS** (40/40) |
+| C2 | `dc42sleq4uuc73a7vo1g` | +15.073 ±2.443 | +4.224 ±3.032 | **+1.315** ±2.494 | **−5.554** | ±5.660 | **0.426** (0.935) | 0.9999 | **−20.627 ±5.144** (7.9σ) | **5/6 PASS** (38/40; chem fail) |
+
+**Honest verdict:**
+- **Estimator adequacy and statistical separation are solved and reproduced.** Unlike ZNE
+  (`χ²_red = 3.68–4.81`, overlapping difference CIs), both CDR runs passed readout
+  conditioning (`cond(M) = 1.032–1.035`), model adequacy (`χ²_red = 0.426–1.147`,
+  `p = 0.322–0.935`, `R² ≥ 0.9996`), clean layout (`suspicious = false`), and strong
+  paired separation from unmitigated raw (**6.4σ** and **7.9σ**). The two runs are
+  statistically consistent across all four layers (`C2 − C1 = −5.359 ± 8.235 mHa`, `1.28σ`).
+- **R2 chemical-accuracy reproduction is NOT yet achieved.** Pilot 1 (`C1`) cleared all
+  40/40 checks (`|Δ_CDR| = 0.195 mHa`), but independent reproduction (`C2`) landed at
+  `−5.554 mHa` (`1.92σ` below FCI, inside its own `±5.660 mHa` 95% CI). Pooled CDR is
+  `−1.140328 Ha` (`−3.022 ± 4.111 mHa`, consistent with FCI at `1.44σ`).
+- **Exact root cause localized:** CDR SE decomposition shows `target_se = 1.26 mHa`
+  (`±2.46 mHa` 95% CI) while **`fit_se = 2.60–2.78 mHa`** (`±5.1–5.4 mHa` 95% CI)
+  dominates the total interval (`±5.66–5.98 mHa`) because 9 of the 12 training circuits
+  sat at high-energy superposition states (`se = 6–9.4 mHa` at `12,288` shots). Meanwhile,
+  parameter-free **live readout + Bonet-Monroig `Z2` symmetry** alone reduced the raw
+  error from `+16.42 ± 1.74 mHa` (pooled) to **`+2.63 ± 1.77 mHa`** (`+3.960` / `+1.315 mHa`).
+- **No further QPU spend** without operator authorization; shrinking `fit_se` below `0.8 mHa`
+  requires concentrating CDR training shots and states in the low-variance ground-state
+  neighborhood (or pooling a lower-variance anchor) rather than repeating uniform-shot high-energy training circuits.
+
 ## Reading
 
 - [[error-mitigation]] — technique family and the standing no-silent-claimability rule.
