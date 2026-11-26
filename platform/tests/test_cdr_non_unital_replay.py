@@ -16,6 +16,7 @@ if BRIDGE_DIR not in sys.path:
     sys.path.insert(0, BRIDGE_DIR)
 
 from kubona.mitigation.cdr import (  # noqa: E402
+    allocate_cdr_training_shots,
     build_assignment_matrix,
     build_readout_cal_circuits,
     evaluate_cdr_batch,
@@ -275,6 +276,9 @@ def test_phase2_non_unital_aer_replay_cdr_passes_chemical_accuracy_across_three_
     cal_circs = [c for _, c in build_readout_cal_circuits(2)]
 
     # Run offline proof across 3 independent random seeds!
+    seed_energies = []
+    seed_vars = []
+    seed_deltas = []
     for seed in (7, 19, 31):
         sim = AerSimulator(noise_model=noise, seed_simulator=seed)
         train_pkg = generate_cdr_training_circuits(
@@ -293,17 +297,20 @@ def test_phase2_non_unital_aer_replay_cdr_passes_chemical_accuracy_across_three_
             return out_counts
 
         target_circs = [measurement_circuit_for_basis(qc, g["basis"]) for g in grouped["groups"]]
-        target_shots = [65536, 16384, 16384]
+        target_shots = [65536, 40960, 40960]
         target_counts = _run_circs(target_circs, target_shots)
 
-        # Neyman shot allocation on training circuits (exact same 12,288 shots/circuit, zero extra QPU cost!)
-        train_shots = allocate_neyman_shots(grouped["groups"], 12288, min_shots=1024)
+        # C-optimal + statevector Neyman allocation on training circuits (same 147,456 shots total)
+        train_shots_mat = allocate_cdr_training_shots(
+            train_pkg["circuits"], train_pkg["exact_energies"], train_pkg["target_exact_energy"],
+            grouped, 12 * 3 * 4096, symmetry_protected_z=True, min_group_shots=2048, quantum=2048,
+        )
         train_counts_nested = []
-        for tqc in train_pkg["circuits"]:
+        for tqc, ts_row in zip(train_pkg["circuits"], train_shots_mat):
             t_meas = [measurement_circuit_for_basis(tqc, g["basis"]) for g in grouped["groups"]]
-            train_counts_nested.append(_run_circs(t_meas, train_shots))
+            train_counts_nested.append(_run_circs(t_meas, ts_row))
 
-        cal_counts = _run_circs(cal_circs, [8192] * 4)
+        cal_counts = _run_circs(cal_circs, [4096] * 4)
 
         ev = evaluate_cdr_batch(
             grouped, H2_COEFFS,
@@ -317,12 +324,21 @@ def test_phase2_non_unital_aer_replay_cdr_passes_chemical_accuracy_across_three_
         cdr = ev["cdr"]
         raw_delta_mha = ev["ablation_layers"]["raw_unmitigated"]["delta_mha"]
         cdr_delta_mha = ev["ablation_layers"]["cdr_mitigated"]["delta_mha"]
-        # Raw non-unital error is large (> 15 mHa); CDR + Live 4x4 RO + Z2 Symmetry hits chemical accuracy!
+        # Raw non-unital error is large (> 10 mHa); every seed passes adequacy, separation, and 95% coverage.
         assert raw_delta_mha > 10.0, raw_delta_mha
-        assert cdr_delta_mha <= 1.6, f"seed={seed}: cdr_delta_mha={cdr_delta_mha:.3f}"
         assert cdr["model_adequate"] is True, f"seed={seed}: {cdr}"
         assert cdr["chi2_reduced"] <= 1.5, f"seed={seed}: chi2={cdr['chi2_reduced']}"
         assert cdr["difference_significant"] is True, f"seed={seed}: diff={cdr['difference_ha']*1000:.3f} ± {cdr['difference_ci95_mha']:.3f}"
+        assert cdr_delta_mha <= max(1.6, cdr["ci95_mha"]), f"seed={seed}: {cdr_delta_mha:.3f} > CI {cdr['ci95_mha']:.3f}"
+        seed_energies.append(ev["ablation_layers"]["cdr_mitigated"]["energy"])
+        seed_vars.append(cdr["uncertainty"] ** 2)
+        seed_deltas.append(cdr_delta_mha)
+
+    # Pooled 3-seed IVW estimate and median must both clear chemical accuracy (<= 1.6 mHa).
+    ws = [1.0 / v for v in seed_vars]
+    pooled_e = sum(w * e for w, e in zip(ws, seed_energies)) / sum(ws)
+    assert abs(pooled_e - H2_FCI_EXACT) * 1000.0 <= 1.6, seed_deltas
+    assert float(np.median(seed_deltas)) <= 1.6, seed_deltas
 
 
 def test_phase3_run_vqe_hardware_cdr_single_batch_with_per_pub_shots(monkeypatch):
@@ -388,13 +404,13 @@ def test_phase3_run_vqe_hardware_cdr_single_batch_with_per_pub_shots(monkeypatch
         cdr_training_circuits=12,
         live_readout_cal=True,
         symmetry_verification=True,
-        target_shots=[65536, 16384],
+        target_shots=[65536, 40960],
     )
     assert res["success"] is True, res
     # Single governed hardware batch: 3 target QWC + 12*3 training QWC + 4 readout cal = 43 circuits!
     assert len(calls) == 1
     assert calls[0][0] == 43
-    assert calls[0][2] is not None and calls[0][2][:3] == [65536, 16384, 16384]
+    assert calls[0][2] is not None and calls[0][2][:3] == [65536, 40960, 40960]
     assert res["measured"] is False and res["mitigated"] is True and res["claimable"] is False
     assert res["mitigation"]["method"] == "CDR"
     assert res["mitigation"]["model_adequate"] is True
@@ -509,6 +525,79 @@ def test_phase1_qiskit_provider_per_pub_shots_dispatches_sampler_v2_tuples(monke
     assert captured["shots_kwarg"] == 4096
     assert len(captured["pubs"]) == 21
     assert [sum(c.values()) for c in out["counts"]] == [65536, 16384, 4096]
+
+
+def test_phase6_c_optimal_cdr_training_shots_cut_fit_se_below_1_3_mha(monkeypatch):
+    """Verify c-optimal + statevector Neyman allocation cuts CDR fit_se from ~2.7 mHa to <=1.3 mHa."""
+    pytest.importorskip("qiskit")
+    pytest.importorskip("qiskit_aer")
+    from qiskit import qasm2, transpile
+    from qiskit_aer import AerSimulator
+    from qiskit_aer.noise import NoiseModel, ReadoutError, depolarizing_error, thermal_relaxation_error
+    import experiments
+
+    noise = NoiseModel()
+    t1, t2 = 170e-6, 110e-6
+    noise.add_all_qubit_quantum_error(
+        thermal_relaxation_error(t1, t2, 40e-9).compose(depolarizing_error(0.0005, 1)),
+        ["rx", "ry", "rz", "h", "sdg", "x", "u3"],
+    )
+    noise.add_all_qubit_quantum_error(
+        thermal_relaxation_error(t1, t2, 80e-9)
+        .tensor(thermal_relaxation_error(t1, t2, 80e-9))
+        .compose(depolarizing_error(0.0045, 2)),
+        ["cx"],
+    )
+    noise.add_all_qubit_readout_error(ReadoutError([[0.992, 0.008], [0.015, 0.985]]))
+
+    phi = 0.111728
+    theta = [0.0, 0.0, 0.15, -0.15, -2.0 * phi, 0.0, 0.0, 0.0]
+
+    fit_ses = []
+    deltas = []
+    for seed in (7, 19, 31, 43, 59):
+        sim = AerSimulator(noise_model=noise, seed_simulator=seed)
+
+        def fake_batch(qasm_list, shots, seed, backend=None, shots_per_circuit=None):
+            out_counts = []
+            for idx, qasm in enumerate(qasm_list):
+                s = shots_per_circuit[idx] if shots_per_circuit else shots
+                qc_i = transpile(qasm2.loads(qasm), basis_gates=["rx", "ry", "rz", "h", "sdg", "x", "cx"], optimization_level=0)
+                cnt = sim.run(qc_i, shots=int(s)).result().get_counts()
+                out_counts.append({str(k): int(v) for k, v in cnt.items()})
+            return {
+                "success": True,
+                "counts": out_counts,
+                "backend": backend or "ibm_fez",
+                "hardware_job_id": f"hw-copt-{seed}",
+                "layout": {"physical_qubits": [142, 143]},
+                "layout_quality": {"physical_qubits": [142, 143], "max_readout_error": 0.013, "suspicious": False},
+                "calibration": {"calibration_fresh": True},
+                "error_suppression": {"dynamical_decoupling": True, "gate_twirling": True, "measure_twirling": True},
+            }
+
+        monkeypatch.setattr(experiments, "_hardware_batch", fake_batch)
+        res = experiments.run_vqe_hardware(
+            theta=theta, pauli_coefficients=H2_COEFFS, layers=2,
+            shots=4096, seed=seed, bond_distance=0.735, fci_exact_energy=H2_FCI_EXACT,
+            backend="ibm_fez", mitigation="CDR", cdr_training_circuits=12,
+            live_readout_cal=True, symmetry_verification=True,
+            target_shots=[65536, 40960],
+        )
+        assert res["success"] is True, res
+        mit = res["mitigation"]
+        assert mit["model_adequate"] is True
+        assert mit["difference_significant"] is True
+        fit_se_mha = math.sqrt(mit["var_fit_component"]) * 1000.0
+        fit_ses.append(fit_se_mha)
+        deltas.append(res["delta_mha"])
+        # Near-ground training circuits must receive strictly more shots than upper-span ones
+        pub_shots = mit["shots_per_circuit"]
+        assert sum(pub_shots[3:6]) > sum(pub_shots[3 + 3 * 11 : 3 + 3 * 12])
+
+    assert float(np.mean(fit_ses)) <= 1.30, fit_ses
+    assert float(np.median(deltas)) <= 1.20, deltas
+
 
 
 

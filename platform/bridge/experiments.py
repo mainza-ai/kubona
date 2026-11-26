@@ -1213,12 +1213,14 @@ def _run_vqe_hardware_cdr(
     from qiskit import qasm2
 
     from kubona.mitigation.cdr import (
+        allocate_cdr_training_shots,
         build_readout_cal_circuits,
         evaluate_cdr_batch,
         generate_cdr_training_circuits,
     )
     from kubona.mitigation.qwc import (
         allocate_neyman_shots,
+        estimate_circuit_qwc_variances,
         group_pauli_terms,
         measurement_circuit_for_basis,
     )
@@ -1256,6 +1258,8 @@ def _run_vqe_hardware_cdr(
 
     # Resolve per-PUB shots: [G target] + [M * G training] + [2^n readout cal]
     g_count = len(groups)
+    sym_active = bool(syms)
+    shot_quantum = 2048 if (int(shots) >= 4096 and int(shots) % 2048 == 0) else 1
     if target_shots:
         ts = [int(s) for s in target_shots]
         if len(ts) == g_count:
@@ -1263,8 +1267,11 @@ def _run_vqe_hardware_cdr(
         elif len(ts) == 2 and g_count >= 2:
             resolved_target_shots = [ts[0] if g.get("is_z_basis") else ts[1] for g in groups]
         elif len(ts) == 1:
+            tgt_vars = estimate_circuit_qwc_variances(qc, grouped, symmetry_protected_z=sym_active)
             resolved_target_shots = allocate_neyman_shots(
-                groups, ts[0] * g_count, min_shots=min(1024, ts[0]),
+                groups, ts[0] * g_count, group_variances=tgt_vars,
+                min_shots=min(2048 if shot_quantum == 2048 else 1024, ts[0]),
+                quantum=shot_quantum,
             )
         else:
             return {
@@ -1274,15 +1281,23 @@ def _run_vqe_hardware_cdr(
     else:
         resolved_target_shots = [int(shots)] * g_count
 
-    # Neyman allocation across QWC groups for training circuits at the same total shot budget.
-    # Quantize to 1024-shot chunks (giving [10240, 1024, 1024] for H2 at shots=4096)
-    # so IBM's uniform-shot executor_sampler keeps high Z-basis precision in <=300 PUBs.
-    shot_quantum = 1024 if (int(shots) >= 4096 and int(shots) % 1024 == 0) else 1
-    train_shots_per_group = allocate_neyman_shots(
-        groups, int(shots) * g_count, min_shots=min(1024, int(shots)),
+    # C-optimal inverse-variance + exact statevector Neyman shot allocation across
+    # the M training circuits at the same total training shot budget (M * G * shots).
+    # Concentrates shots on low-variance near-ground anchors to minimize fit_se.
+    m_train = len(train_pkg["circuits"])
+    train_shots_matrix = allocate_cdr_training_shots(
+        train_pkg["circuits"],
+        train_pkg["exact_energies"],
+        train_pkg["target_exact_energy"],
+        grouped,
+        int(shots) * g_count * m_train,
+        symmetry_protected_z=sym_active,
+        min_group_shots=min(2048 if shot_quantum == 2048 else 1024, int(shots)),
         quantum=shot_quantum,
     )
-    cal_shots_each = max(int(shots), 8192) if int(shots) >= 4096 else int(shots)
+    # In same-batch CDR, shared readout-calibration noise is common-mode and absorbed
+    # by the affine fit; 4096 shots/state keeps cond(M) well-conditioned at low RU cost.
+    cal_shots_each = int(shots)
 
     qasms: list[str] = []
     pub_shots: list[int] = []
@@ -1291,8 +1306,8 @@ def _run_vqe_hardware_cdr(
         qasms.append(qasm2.dumps(measurement_circuit_for_basis(qc, grp["basis"])))
         pub_shots.append(int(s_cnt))
 
-    for tqc in train_pkg["circuits"]:
-        for grp, s_cnt in zip(groups, train_shots_per_group):
+    for tqc, t_shots_row in zip(train_pkg["circuits"], train_shots_matrix):
+        for grp, s_cnt in zip(groups, t_shots_row):
             qasms.append(qasm2.dumps(measurement_circuit_for_basis(tqc, grp["basis"])))
             pub_shots.append(int(s_cnt))
 

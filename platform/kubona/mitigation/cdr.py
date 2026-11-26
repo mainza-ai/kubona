@@ -270,9 +270,12 @@ def generate_cdr_training_circuits(
         }
         _consider(cmap, "clifford_random", 0)
 
-    # 2. Near-Clifford (1 non-Clifford rotation retained or swept on a coarse grid,
+    # 2. Near-Clifford (1 non-Clifford rotation retained or swept on a symmetric grid,
     #    all other rotations Clifford): reaches ground-state neighborhood cleanly.
-    sweep_angles = [0.15, 0.35, 0.65, 1.0, 1.35, 2.0, 2.5, 2.9, -0.25, -0.7, -1.2]
+    sweep_angles = [
+        0.08, -0.08, 0.16, -0.16, 0.25, -0.25, 0.40, -0.40,
+        0.65, -0.65, 1.0, -1.0, 1.35, -1.35, 2.0, 2.5, 2.9,
+    ]
     for keep_idx in rot_indices:
         # Keep original target angle at keep_idx, nearest Clifford elsewhere
         pmap = {
@@ -338,17 +341,18 @@ def generate_cdr_training_circuits(
     if len(local_band) >= m:
         pool = local_band
 
-    # Energy-stratified selection across [E_min, E_max]: choose one circuit nearest
-    # each quantile target (with extra density near E_target).
+    # Energy-stratified c-optimal selection across [E_min, E_max]: place half
+    # of training circuits densely in the low-variance near-target neighborhood
+    # (minimizing intercept variance at E_target) and half across the upper span
+    # (preserving linear lever arm and chi2_reduced lack-of-fit power).
     e_min = pool[0]["exact_energy"]
     e_max = pool[-1]["exact_energy"]
     if len(pool) <= m:
         selected = list(pool)
     else:
-        # Half of targets densely cover the lower 40% near E_target, half span the upper 60%.
-        n_low = max(2, m // 2)
+        n_low = max(3, m // 2)
         n_high = m - n_low
-        e_mid = e_min + 0.40 * (e_max - e_min)
+        e_mid = e_min + 0.16 * (e_max - e_min)
         targets = list(np.linspace(e_min, e_mid, n_low)) + list(
             np.linspace(e_mid, e_max, n_high + 1)[1:]
         )
@@ -968,7 +972,82 @@ def evaluate_cdr_batch(
     }
 
 
+def allocate_cdr_training_shots(
+    circuits: list[Any],
+    exact_energies: list[float],
+    target_exact_energy: float,
+    grouped: dict[str, Any],
+    total_train_shots: int,
+    *,
+    symmetry_protected_z: bool = True,
+    min_group_shots: int = 2048,
+    quantum: int = 2048,
+) -> list[list[int]]:
+    """Allocate ``total_train_shots`` across CDR training circuits & QWC groups.
+
+    Uses c-optimal inverse-variance weighting concentrated near
+    ``target_exact_energy`` (minimizing ``fit_se`` at the target while keeping
+    upper-span linearity points well-measured for ``chi2_reduced``), followed by
+    exact statevector Neyman allocation across each circuit's QWC groups.
+    """
+    from .qwc import allocate_neyman_shots, estimate_circuit_qwc_variances
+
+    m = len(circuits)
+    g_count = len(grouped["groups"])
+    if m == 0 or g_count == 0:
+        return []
+    q = max(1, int(quantum))
+    min_g = max(q if q > 1 else 1, int(min_group_shots))
+    min_circ = min_g * g_count
+    budget = max(int(total_train_shots), min_circ * m)
+
+    group_vars_list: list[list[float]] = []
+    weights: list[float] = []
+    for circ, e_exact in zip(circuits, exact_energies):
+        gvars = estimate_circuit_qwc_variances(
+            circ, grouped, symmetry_protected_z=symmetry_protected_z,
+        )
+        group_vars_list.append(gvars)
+        # Optimal per-shot SE scales with sum(sqrt(v_g)); weight inversely to
+        # both energy distance from target and per-shot SE.
+        opt_se = max(1e-4, sum(math.sqrt(v) for v in gvars))
+        w = 1.0 / ((0.03 + abs(float(e_exact) - float(target_exact_energy))) * opt_se)
+        weights.append(w)
+
+    max_w = max(weights) if weights else 1.0
+    # Every circuit already receives min_circ = min_group_shots * g_count for chi2
+    # lack-of-fit power; keep only a light 2% floor so extra budget concentrates
+    # on low-variance near-target anchors and minimizes fit_se.
+    weights = [max(w, 0.02 * max_w) for w in weights]
+    w_sum = sum(weights)
+
+    # Distribute total training budget in multiples of q * 1 while honoring min_circ.
+    remaining = max(0, budget - min_circ * m)
+    rem_units = remaining // q
+    extra_units = [int(math.floor(rem_units * w / w_sum)) for w in weights]
+    leftover = rem_units - sum(extra_units)
+    fracs = sorted(
+        range(m),
+        key=lambda i: (-(rem_units * weights[i] / w_sum - math.floor(rem_units * weights[i] / w_sum)), i),
+    )
+    for idx in fracs[:leftover]:
+        extra_units[idx] += 1
+    per_circ_totals = [min_circ + u * q for u in extra_units]
+
+    return [
+        allocate_neyman_shots(
+            grouped["groups"],
+            tot,
+            group_variances=gvars,
+            min_shots=min_g,
+            quantum=q,
+        )
+        for tot, gvars in zip(per_circ_totals, group_vars_list)
+    ]
+
+
 __all__ = [
+    "allocate_cdr_training_shots",
     "build_assignment_matrix",
     "build_readout_cal_circuits",
     "evaluate_cdr_batch",

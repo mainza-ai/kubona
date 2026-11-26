@@ -407,3 +407,46 @@ def allocate_neyman_shots(
     for idx in fracs[:leftover]:
         alloc[idx] += 1
     return alloc
+
+
+def estimate_circuit_qwc_variances(
+    qc: Any,
+    grouped: dict[str, Any],
+    *,
+    symmetry_protected_z: bool = False,
+    z_noise_floor: float = 0.005,
+    xy_noise_floor: float = 0.02,
+) -> list[float]:
+    """Estimate per-QWC-group single-shot observable variance from the exact statevector.
+
+    Adds a small depolarizing floor (smaller on Z when ``Z2`` symmetry
+    verification projects out single-bit-flip leakage) so low-variance
+    computational-basis anchors still receive realistic shot budgets on noisy
+    hardware. Falls back to group L2 coefficient variance for ``n_qubits > 10``.
+    """
+    groups = grouped["groups"]
+    n_qubits = int(grouped["n_qubits"])
+    if n_qubits > 10:
+        return [max(1e-6, float(g.get("l2_weight") or 1.0) ** 2) for g in groups]
+
+    from qiskit.quantum_info import Statevector
+
+    variances: list[float] = []
+    for grp in groups:
+        basis = str(grp["basis"])
+        mc = qc.copy()
+        for q, ch in enumerate(basis[::-1]):
+            if ch == "X":
+                mc.h(q)
+            elif ch == "Y":
+                mc.sdg(q)
+                mc.h(q)
+        probs = np.abs(Statevector.from_instruction(mc).data) ** 2
+        nf = float(z_noise_floor) if (symmetry_protected_z and grp.get("is_z_basis")) else float(xy_noise_floor)
+        p_eff = (1.0 - nf) * probs + nf * (np.ones_like(probs) / float(len(probs)))
+        x_vec = group_observable_vector(grp["terms"], n_qubits)
+        mu = float(np.dot(x_vec, p_eff))
+        var = max(1e-6, float(np.dot(x_vec * x_vec, p_eff) - mu * mu))
+        variances.append(var)
+    return variances
+
