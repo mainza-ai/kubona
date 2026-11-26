@@ -226,27 +226,35 @@ Open Plan; **`3.450861 RU / 203 s` remain**):
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | C1 | `dc42qqanj2vs73dj9vv0` | +17.789 ±2.472 | +7.422 ±3.023 | +3.960 ±2.504 | **−0.195** | ±5.981 | **1.147** (0.322) | 0.9996 | **−17.983 ±5.487** (6.4σ) | **6/6 PASS** (40/40) |
 | C2 | `dc42sleq4uuc73a7vo1g` | +15.073 ±2.443 | +4.224 ±3.032 | **+1.315** ±2.494 | **−5.554** | ±5.660 | **0.426** (0.935) | 0.9999 | **−20.627 ±5.144** (7.9σ) | **5/6 PASS** (38/40; chem fail) |
+| C3 (c-opt) | `dc43a05hdvas73bott6g` | +16.305 ±1.985 | +6.999 ±2.988 | +3.843 ±2.012 | **−1.182** | ±3.381 | **1.232** (0.264) | 0.9986 | **−17.487 ±2.836** (12.1σ) | **6/6 PASS** (40/40) |
+| C4 (c-opt) | `dc43bi6q4uuc73a80r50` | +14.475 ±1.978 | +5.655 ±2.936 | +1.722 ±1.995 | **−1.793** | ±3.086 | **0.828** (0.602) | 0.9984 | **−16.267 ±2.498** (12.8σ) | **5/6 PASS** (38/40; 0.193 mHa over 1.6) |
+| Pooled (C3+C4) | IVW | +15.387 ±1.401 | +6.315 ±2.094 | +2.773 ±1.416 | **−1.515** | ±2.280 | — | — | `C4−C3 = −0.610 ±4.578` (`0.26σ`) | `|Δ| ≤ 1.6` pooled |
+| Pooled (C1–C4) | IVW (`Q=2.09, df=3`) | +15.792 ±1.091 | +6.077 ±1.497 | +2.718 ±1.105 | **−1.869** | ±1.994 | — | — | All 4 separated (`6.4–12.8σ`) | Zero inter-run heterogeneity |
 
-**Honest verdict:**
-- **Estimator adequacy and statistical separation are solved and reproduced.** Unlike ZNE
-  (`χ²_red = 3.68–4.81`, overlapping difference CIs), both CDR runs passed readout
-  conditioning (`cond(M) = 1.032–1.035`), model adequacy (`χ²_red = 0.426–1.147`,
-  `p = 0.322–0.935`, `R² ≥ 0.9996`), clean layout (`suspicious = false`), and strong
-  paired separation from unmitigated raw (**6.4σ** and **7.9σ**). The two runs are
-  statistically consistent across all four layers (`C2 − C1 = −5.359 ± 8.235 mHa`, `1.28σ`).
-- **R2 chemical-accuracy reproduction is NOT yet achieved.** Pilot 1 (`C1`) cleared all
-  40/40 checks (`|Δ_CDR| = 0.195 mHa`), but independent reproduction (`C2`) landed at
-  `−5.554 mHa` (`1.92σ` below FCI, inside its own `±5.660 mHa` 95% CI). Pooled CDR is
-  `−1.140328 Ha` (`−3.022 ± 4.111 mHa`, consistent with FCI at `1.44σ`).
-- **Exact root cause localized:** CDR SE decomposition shows `target_se = 1.26 mHa`
-  (`±2.46 mHa` 95% CI) while **`fit_se = 2.60–2.78 mHa`** (`±5.1–5.4 mHa` 95% CI)
-  dominates the total interval (`±5.66–5.98 mHa`) because 9 of the 12 training circuits
-  sat at high-energy superposition states (`se = 6–9.4 mHa` at `12,288` shots). Meanwhile,
-  parameter-free **live readout + Bonet-Monroig `Z2` symmetry** alone reduced the raw
-  error from `+16.42 ± 1.74 mHa` (pooled) to **`+2.63 ± 1.77 mHa`** (`+3.960` / `+1.315 mHa`).
-- **No further QPU spend** without operator authorization; shrinking `fit_se` below `0.8 mHa`
-  requires concentrating CDR training shots and states in the low-variance ground-state
-  neighborhood (or pooling a lower-variance anchor) rather than repeating uniform-shot high-energy training circuits.
+After `C1`/`C2` localized the `±5.7 mHa` CI to training regression variance
+(`fit_se = 2.60–2.78 mHa`), commit `61a56d8e` added c-optimal near-ground training shot
+allocation plus exact statevector QWC Neyman weights (`target=[65536, 40960, 40960]`,
+`311,296` total shots = `92 s / 1.533 RU` per job; **`0.384519 RU / 19 s` remain** on
+the Open Plan period). On real `ibm_fez` (`C3`/`C4`), `fit_se` dropped in half to
+**`1.23–1.41 mHa`**, `target_se` dropped to **`0.99–1.00 mHa`**, `CI95` tightened to
+**`±3.09–3.38 mHa`**, and `C3` vs `C4` agreed to **`0.610 mHa` (`0.26σ`)**.
+
+**Honest verdict across all 4 independent `ibm_fez` CDR jobs (`C1–C4`):**
+- **Estimator adequacy, separation, and run-to-run consistency are solved and reproduced
+  4/4 times.** Every job passed readout conditioning (`cond(M) = 1.027–1.035`), model
+  adequacy (`χ²_red = 0.426–1.232`, `p = 0.264–0.935`, `R² ≥ 0.9984`), clean layout, and
+  paired separation from unmitigated raw (`6.4σ, 7.9σ, 12.1σ, 12.8σ`), with Cochran
+  `Q = 2.09` (`df = 3`, `p = 0.55`, zero inter-run heterogeneity).
+- **Two independent jobs (`C1: −0.195 mHa`, `C3: −1.182 mHa`) passed all 40/40 checks and
+  all 6/6 G6 gates**, and the c-optimal pair (`C3+C4`) pools to **`|Δ| = 1.515 ± 2.280 mHa`**.
+- **Strict consecutive single-job reproduction under one fixed config remains open by
+  `0.193 mHa`:** `C4` landed at `−1.793 ± 3.086 mHa` (`0.193 mHa` outside `≤ 1.6 mHa`),
+  and all four runs landed slightly below FCI (4-run pooled `−1.869 ± 1.994 mHa`, `1.84σ`
+  below FCI), indicating a small `~1.5–1.9 mHa` systematic over-correction consistent with
+  native-gate compilation differences between near-Clifford training circuits and the
+  target ansatz. Do not claim unconditional R2 closure without either compiling training
+  circuits with locked native-gate templates or clearing consecutive single-job `≤ 1.6 mHa`.
+- **No further QPU spend** in this Open Plan billing period (`0.384519 RU / 19 s` remain).
 
 ## Reading
 

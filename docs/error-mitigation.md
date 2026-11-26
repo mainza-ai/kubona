@@ -99,16 +99,20 @@ model adequacy or the paired difference CI.
 > live 4×4 readout calibration + `Z2` symmetry verification pilot with QWC grouping
 > and per-PUB shot allocation under the same G6 gates.
 
-### Phase-6 CDR pilot & reproduction (2026-11-26, `ibm_fez`)
+### Phase-6 CDR pilot & c-optimal reproduction (2026-11-26, `ibm_fez`)
 
-Two governed same-batch CDR jobs (`44806e0f`, layout `[142, 143]`, `83 s / 1.375 RU`
-each; **`3.450861 RU / 203 s` remain**) ran on `ibm_fez`:
+Four governed same-batch CDR jobs ran on `ibm_fez` (layout `[142, 143]`, `$0.00` Open
+Plan; **`0.384519 RU / 19 s` remain**):
 
-- **Pilot 1 (`dc42qqanj2vs73dj9vv0`) — 40/40 PASS (6/6 G6 CDR gates):**
-  `raw +17.789 ± 2.472` → `live 4×4 RO +7.422 ± 3.023` (`cond=1.035`) → `Z2 sym +3.960 ± 2.504` → **`CDR −0.195 ± 5.981 mHa`**, `χ²_red = 1.147` (`p = 0.322`), `R² = 0.9996`, paired diff vs raw **`−17.983 ± 5.487 mHa` (6.4σ)**.
-- **Pilot 2 (`dc42sleq4uuc73a7vo1g`) — 38/40 (5/6 G6 CDR gates; chem fail):**
-  `raw +15.073 ± 2.443` → `live 4×4 RO +4.224 ± 3.032` (`cond=1.032`) → `Z2 sym +1.315 ± 2.494` → **`CDR −5.554 ± 5.660 mHa`**, `χ²_red = 0.426` (`p = 0.935`), `R² = 0.9999`, paired diff vs raw **`−20.627 ± 5.144 mHa` (7.9σ)**.
-- **Verdict:** model adequacy and raw-difference separation are solved and reproduced,
-  and C1/C2 agree within `1.28σ`, but **R2 reproduction is not yet achieved** because
-  CDR regression variance (`fit_se = 2.60–2.78 mHa`, `±5.7 mHa` 95% CI) exceeds the
-  `1.6 mHa` point gate. No further QPU spend without operator authorization.
+- **Baseline CDR (`44806e0f`, `83 s / 1.375 RU` each):**
+  - **C1 (`dc42qqanj2vs73dj9vv0`) — 40/40 PASS (6/6 G6):** `raw +17.789` → `RO +7.422` → `Z2 sym +3.960` → **`CDR −0.195 ± 5.981 mHa`** (`χ²_red = 1.147`, `p = 0.322`, diff vs raw `−17.983 ± 5.487 mHa`, `6.4σ`).
+  - **C2 (`dc42sleq4uuc73a7vo1g`) — 38/40 (5/6 G6):** `raw +15.073` → `RO +4.224` → `Z2 sym +1.315` → **`CDR −5.554 ± 5.660 mHa`** (`χ²_red = 0.426`, `p = 0.935`, diff vs raw `−20.627 ± 5.144 mHa`, `7.9σ`).
+- **C-optimal + statevector Neyman CDR (`61a56d8e`, `92 s / 1.533 RU` each, `fit_se` halved to `1.23–1.41 mHa`):**
+  - **C3 (`dc43a05hdvas73bott6g`) — 40/40 PASS (6/6 G6):** `raw +16.305` → `RO +6.999` → `Z2 sym +3.843` → **`CDR −1.182 ± 3.381 mHa`** (`χ²_red = 1.232`, `p = 0.264`, diff vs raw `−17.487 ± 2.836 mHa`, `12.1σ`).
+  - **C4 (`dc43bi6q4uuc73a80r50`) — 38/40 (5/6 G6; `0.193 mHa` over `1.6`):** `raw +14.475` → `RO +5.655` → `Z2 sym +1.722` → **`CDR −1.793 ± 3.086 mHa`** (`χ²_red = 0.828`, `p = 0.602`, diff vs raw `−16.267 ± 2.498 mHa`, `12.8σ`).
+- **Verdict:** All 4 runs passed model adequacy (`χ²_red = 0.43–1.23`), readout
+  conditioning (`cond = 1.027–1.035`), and strong paired raw separation (`6.4–12.8σ`)
+  with zero inter-run heterogeneity (`Cochran Q = 2.09`, `df = 3`). `C1` and `C3`
+  passed all 40/40 checks, and `C3+C4` agree to `0.610 mHa` (`0.26σ`) with pooled
+  `|Δ| = 1.515 ± 2.280 mHa`, while strict consecutive single-job `≤ 1.6 mHa` reproduction
+  remains open by `0.193 mHa` (4-run pooled offset `−1.869 ± 1.994 mHa` below FCI).
