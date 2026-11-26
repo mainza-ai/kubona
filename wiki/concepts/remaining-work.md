@@ -25,11 +25,12 @@ status: tracked
 > local mechanism, retains per-scale histograms, and fails closed on an invalid
 > axis, `chi2_red > 1.5`, model spread beyond the interval, an overlapping
 > difference CI, or `|Δ| > 1.6 mHa` ([[hardware-validation-r2-2026-11-25]]).
-> The 1.4 RU window was fully consumed by the Phase-4B subset; **no QPU time is
-> available** until a new spend approval. Residuals: corrected-axis hardware
-> run (blocked), full Aer/Pauli-Lindblad offline replay (unblocked), PEC/CDR
-> fallback (not built), per-term ZNE promoted only if it agrees with the global
-> fit on hardware, and manuscript/Console rendering of the new fields.
+> The prior 1.4 RU window was fully consumed by the Phase-4B subset. A new IBM
+> Quantum Open Plan account is configured (**10/10 RU**, 600 s remaining,
+> verified 2026-11-25). Residuals: corrected-axis hardware run (ready), full
+> Aer/Pauli-Lindblad offline replay (unblocked), PEC/CDR fallback (not built),
+> per-term ZNE promoted only if it agrees with the global fit on hardware, and
+> manuscript/Console rendering of the new fields.
 
 > ⚑ **State update (2026-11-20, `0fdba803` / `853a476e`):** The 6-phase
 > deep-dive production audit is closed (`docs/production-audit-2026-11-20.md`):

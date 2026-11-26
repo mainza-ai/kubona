@@ -79,6 +79,7 @@ mandate that covers the full folded batch.
 
 ## Hardware status
 
-The 2026-11-25 Phase-4B run consumed the remaining 1.4 RU. The corrected all-gate axis has
-**not** been exercised on a QPU. R2 remains open; the prior 2.743 mHa result used a mixed
-axis and is historical evidence, not a chemical-accuracy claim.
+The 2026-11-25 Phase-4B run consumed the prior 1.4 RU. A new IBM Quantum Open Plan
+account is configured (10/10 RU, 600 s remaining, verified 2026-11-25). The corrected
+all-gate axis has **not** been exercised on a QPU. R2 remains open; the prior 2.743 mHa
+result used a mixed axis and is historical evidence, not a chemical-accuracy claim.

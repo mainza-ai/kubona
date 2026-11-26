@@ -174,7 +174,7 @@ development — re-verify the gate on the exact commit before citing
 > exact pushed commit before citing "green".
 
 > ⚑ State update (2026-11-25, R2 ZNE audit; `96a3ca2f` / `a2640825`): the
-> Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0`
+> Phase-4B hardware subset consumed the prior **1.4 RU** (Open Plan, `$0`
 > settled) and **R2 is not achieved**. H₂ ZNE came in at **2.743 mHa** with a
 > **±11.037 mHa** interval against raw **9.999 mHa (±6.803)**; the independent
 > difference CI is **±12.965 mHa**, so the improvement is not separated. The
@@ -190,8 +190,10 @@ development — re-verify the gate on the exact commit before citing
 > invalid axis, `chi2_red > 1.5`, model spread beyond the interval, an
 > overlapping difference CI, or `|Δ| > 1.6 mHa`. The corrected axis has **not**
 > run on hardware; the old 2.743 mHa result is historical, not a valid claim.
-> Record: [[hardware-validation-r2-2026-11-25]]; residual plan: PEC/CDR and a
-> full Aer/Pauli-Lindblad replay await a new spend approval.
+> Record: [[hardware-validation-r2-2026-11-25]]. A new IBM Quantum Open Plan
+> account is configured (10/10 RU, 600 s remaining, verified 2026-11-25); the
+> corrected-axis run is next, with PEC/CDR and full Aer/Pauli-Lindblad replay
+> behind it.
 
 ## Three layers
 

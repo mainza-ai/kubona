@@ -379,8 +379,9 @@ with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform
 > prototype now uses one all-gate local mechanism, records the measured axis, keeps
 > per-scale histograms, and fails closed on an invalid axis, inadequate model,
 > overlapping difference CI, or `|Δ| > 1.6 mHa`. Full record:
-> [[hardware-validation-r2-2026-11-25]]. The 1.4 RU window was consumed by this
-> subset; any further QPU work needs a new spend approval. The corrected axis has
+> [[hardware-validation-r2-2026-11-25]]. The prior 1.4 RU window was consumed by
+> this subset; a new IBM Quantum Open Plan account is configured (10/10 RU,
+> 600 s remaining, verified 2026-11-25) for the corrected-axis run. That axis has
 > not run on hardware, so the old 2.743 mHa result is historical, not a valid claim.
 
 > ⚑ Snapshot update (2026-11-18, `fe31d1af` + live Lean proof):

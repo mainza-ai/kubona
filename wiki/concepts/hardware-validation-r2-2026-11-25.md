@@ -106,8 +106,9 @@ Measured all-gate axis on the same H₂ ansatz (strictly increasing):
 ## What is not established
 
 - The corrected axis has **not** run on a QPU. The 1.4 RU available at the start of the
-  Phase-4B window was consumed by that subset; further hardware work needs a new spend
-  approval.
+  Phase-4B window was consumed by that subset; a new IBM Quantum Open Plan account is now
+  configured (10/10 RU, 600 s remaining, verified 2026-11-25), so the corrected-axis run
+  is the next hardware step.
 - R2 is **not retroactively fixed**. The old 2.743 mHa result used an invalid axis and
   must be replaced by a new, pre-registered run.
 - Per-term ZNE is a diagnostic, not yet the primary estimator; full Aer/Pauli-Lindblad

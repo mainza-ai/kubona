@@ -265,7 +265,7 @@ python3 scripts/wiki-lint.py --strict
 
 ### Hardware evidence status (2026-11-25)
 
-The Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0` settled). **R2 is not achieved**: the H₂ ZNE point is **2.743 mHa (±11.037)** and the raw/ZNE difference CI (±12.965 mHa) overlaps, so the improvement is not separated. The offline audit found the scale axis mixed global all-gate folding with local 2Q-only folding; the corrected axis has **not** run on hardware, and the prior result is historical rather than a chemical-accuracy claim. Full evidence and the fail-closed gate inventory: [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md). Further QPU work requires a new spend approval.
+The Phase-4B hardware subset consumed the remaining **1.4 RU** (Open Plan, `$0` settled). **R2 is not achieved**: the H₂ ZNE point is **2.743 mHa (±11.037)** and the raw/ZNE difference CI (±12.965 mHa) overlaps, so the improvement is not separated. The offline audit found the scale axis mixed global all-gate folding with local 2Q-only folding; the corrected axis has **not** run on hardware, and the prior result is historical rather than a chemical-accuracy claim. Full evidence and the fail-closed gate inventory: [`wiki/concepts/hardware-validation-r2-2026-11-25.md`](wiki/concepts/hardware-validation-r2-2026-11-25.md). A new IBM Quantum Open Plan account is configured (**10/10 RU**, 600 s remaining, verified 2026-11-25) for the next pre-registered run.
 
 ### Operations: memory, retention, and profiling
 

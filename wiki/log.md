@@ -7589,3 +7589,9 @@ skipped is the exact failure this incident is about:
 - Every folded circuit now records `requested`, `actual_total_ratio`, `logical_1q`, `logical_2q`, `total_gates`, and `weighted_error_scale`; a non-increasing or duplicate total-gate ratio is **refused before dispatch**. Measured H₂ axis: `[10,14,20,30]` total gates with weighted scales `[1.00,1.72,2.00,3.00]`.
 - Retained `counts_by_scale` (per scale, per term) and staged it as `<job>_by_scale.json(.gz)` with a SHA-256 manifest entry; added per-term ZNE diagnostics, model spread, `chi2`, `lack_of_fit_p`, `model_adequate`, and the raw-minus-ZNE difference CI.
 - G6 now gates `axis_valid`, `model_adequate`, `difference_significant`, and `|Δ_ZNE| ≤ 1.6 mHa`; a non-monotonic axis, inadequate model, overlapping difference CI, or a >1.6 mHa point fails closed. Landed in `96a3ca2f` / `a2640825`; corrected axis not yet exercised on hardware.
+
+## [2026-11-25] verification | IBM Quantum account rotation (10 RU Open Plan)
+
+- Rotated the local IBM Quantum credential in `.env` (gitignored, mode `0600`) to a new Open Plan account; the instance CRN was updated with the token because the new key belongs to a different IBM Cloud account.
+- Verified read-only from the running bridge container (no QPU dispatch): `usage_consumed_ru=0`, `usage_limit_ru=10`, `usage_remaining_ru=10`, `usage_consumed_seconds=0`, `usage_limit_seconds=600`, `usage_limit_reached=false`; operational hardware backends `ibm_fez`, `ibm_kingston`, `ibm_marrakesh`.
+- Recreated `bridge` and `kubonad` so the new environment is live; `/api/quantum/backends` reports `credential_state: ready`. No secrets were printed or committed. The R2 corrected-axis run is now unblocked.

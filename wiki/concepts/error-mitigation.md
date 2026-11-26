@@ -91,7 +91,8 @@ circuit, refuses a non-increasing/duplicate axis before dispatch, retains per-sc
 histograms, and reports model spread, lack-of-fit, and the raw-minus-ZNE difference CI.
 G6 fails closed on an invalid axis, inadequate model, overlapping difference CI, or
 `|Δ| > 1.6 mHa`. The corrected axis has **not** been exercised on hardware; the 1.4 RU
-window was consumed by the Phase-4B subset and further QPU work awaits approval.
+window was consumed by the Phase-4B subset, and a new IBM Quantum Open Plan account is
+configured (10/10 RU, 600 s remaining, verified 2026-11-25) for the next run.
 More shots alone cannot reach 1.6 mHa under the old model: the lack-of-fit floor is
 ±6.96 mHa at 95% confidence.
 
