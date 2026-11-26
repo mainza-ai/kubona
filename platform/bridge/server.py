@@ -1303,6 +1303,11 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         mitigation=spec.get("mitigation"),
                         mitigation_scales=spec.get("mitigation_scales"),
                         extrapolator=str(spec.get("extrapolator") or "linear"),
+                        cdr_training_circuits=int(spec.get("cdr_training_circuits") or 12),
+                        live_readout_cal=spec.get("live_readout_cal"),
+                        symmetry_verification=spec.get("symmetry_verification"),
+                        target_shots=spec.get("target_shots"),
+                        qwc_grouping=spec.get("qwc_grouping"),
                     )
             elif kind == "qaoa_hardware":
                 from experiments import run_qaoa_hardware, run_qaoa_hardware_loop

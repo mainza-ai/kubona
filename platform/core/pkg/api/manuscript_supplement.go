@@ -97,6 +97,14 @@ func enrichJobFromParams(row map[string]any, paramsJSON, resultJSON []byte) {
 					row["ci95_mha"] = v * 1000.0
 				}
 			}
+			if mit, ok := res["mitigation"].(map[string]any); ok && mit != nil {
+				if mm, ok := mit["method"].(string); ok && strings.TrimSpace(mm) != "" {
+					row["mitigation_method"] = strings.ToUpper(strings.TrimSpace(mm))
+				}
+			}
+			if ab, ok := res["ablation_layers"].(map[string]any); ok && len(ab) > 0 {
+				row["ablation_layers"] = ab
+			}
 			countsMap, _ := res["counts"].(map[string]any)
 			if len(countsMap) == 0 {
 				countsMap, _ = res["bitstring_counts"].(map[string]any)
@@ -438,6 +446,12 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		qasmPath := ""
 		qasmPaths := []string{}
 		countsByScalePath := ""
+		cdrTrainingCountsPath := ""
+		readoutCalCountsPath := ""
+		var cdrDiagnostics map[string]any
+		var ablationLayers any
+		var symmetryMeta any
+		mitigationMethod := ""
 		var pointsSummary []map[string]any
 		countsPath := ""
 		if j != nil && len(j.ParamsJSON) > 0 {
@@ -498,6 +512,49 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 						countsPaths = append(countsPaths, staged)
 					}
 				}
+				if cdrTrain, ok := res["cdr_training_counts"].(map[string]any); ok && len(cdrTrain) > 0 {
+					if staged, ok := stageCountsArtifact("supplement/counts/"+jid+"_cdr_train", cdrTrain, maxCountsFileBytes, artifacts); ok {
+						cdrTrainingCountsPath = staged
+						countsPaths = append(countsPaths, staged)
+					}
+				}
+				if roCal, ok := res["readout_cal_counts"].(map[string]any); ok && len(roCal) > 0 {
+					if staged, ok := stageCountsArtifact("supplement/counts/"+jid+"_readout_cal", roCal, maxCountsFileBytes, artifacts); ok {
+						readoutCalCountsPath = staged
+						countsPaths = append(countsPaths, staged)
+					}
+				}
+				if mit, ok := res["mitigation"].(map[string]any); ok && len(mit) > 0 {
+					if mm, ok := mit["method"].(string); ok {
+						mitigationMethod = mm
+					}
+					if strings.EqualFold(mitigationMethod, "CDR") {
+						cdrDiagnostics = map[string]any{
+							"fit_method":                mit["fit_method"],
+							"slope":                     mit["slope"],
+							"intercept":                 mit["intercept"],
+							"r_squared":                 mit["r_squared"],
+							"chi2_reduced":              mit["chi2_reduced"],
+							"dof":                       mit["dof"],
+							"lack_of_fit_p":             mit["lack_of_fit_p"],
+							"loo_cv_mha":                mit["loo_cv_mha"],
+							"training_count":            mit["training_count"],
+							"distinct_energies":         mit["distinct_energies"],
+							"target_in_training_domain": mit["target_in_training_domain"],
+							"model_adequate":            mit["model_adequate"],
+							"difference_ha":             mit["difference_ha"],
+							"difference_ci95_mha":       mit["difference_ci95_mha"],
+							"difference_significant":    mit["difference_significant"],
+							"cdr_input_layer":           mit["cdr_input_layer"],
+						}
+					}
+				}
+				if ab, ok := res["ablation_layers"]; ok && ab != nil {
+					ablationLayers = ab
+				}
+				if sym, ok := res["symmetry"]; ok && sym != nil {
+					symmetryMeta = sym
+				}
 				if pts, ok := res["points"].([]any); ok && len(pts) > 0 {
 					for i, p := range pts {
 						if pm, ok := p.(map[string]any); ok {
@@ -539,50 +596,56 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 		usedQubitCal := extractUsedQubitCalibration(r["calibration"], usedQubits)
 
 		dsEntry := map[string]any{
-			"job_id":                 jid,
-			"kind":                   r["kind"],
-			"backend":                r["backend"],
-			"hardware":               r["hardware"],
-			"mitigated":              r["mitigated"],
-			"shots":                  r["shots"],
-			"seed":                   r["seed"],
-			"layout":                 r["layout"],
-			"layout_quality":         r["layout_quality"],
-			"used_qubits":            usedQubits,
-			"used_qubit_calibration": usedQubitCal,
-			"transpile":              r["transpile"],
-			"readout_mitigation":     r["readout_mitigation"],
-			"error_suppression":      r["error_suppression"],
-			"circuit_sha256":         r["circuit_sha256"],
-			"qasm_path":              qasmPath,
-			"qasm_paths":             qasmPaths,
-			"qasm_points":            r["qasm_points"],
-			"ratio_ci95":             r["ratio_ci95"],
-			"ratio_ci_method":        r["ratio_ci_method"],
-			"points":                 pointsSummary,
-			"status":                 r["status"],
-			"counts_status":          countsStatus,
-			"counts_sha256":          r["counts_sha256"],
-			"counts_encoding":        countsEncoding,
-			"counts_file_sha256":     countsFileSHA,
-			"counts_terms":           r["counts_terms"],
-			"counts_path":            countsPath,
-			"counts_paths":           countsPaths,
-			"counts_by_scale_path":   countsByScalePath,
-			"counts_artifacts":       countsArtifacts,
-			"calibration":            r["calibration"],
-			"energy":                 r["energy"],
-			"anchor_energy":          firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
-			"delta_mha":              firstNonNil(r, "delta_mha", "delta"),
-			"ci95_mha":               r["ci95_mha"],
-			"usage_seconds":          r["usage_seconds"],
-			"actual_usd":             r["actual_usd"],
-			"vendor_ref":             r["vendor_ref"],
-			"qasm_gate_lines":        r["qasm_gate_lines"],
-			"two_qubit_gates":        r["two_qubit_gate_count"],
-			"basis":                  r["basis"],
-			"active_space":           r["active_space"],
-			"geometry":               r["geometry"],
+			"job_id":                   jid,
+			"kind":                     r["kind"],
+			"backend":                  r["backend"],
+			"hardware":                 r["hardware"],
+			"mitigated":                r["mitigated"],
+			"shots":                    r["shots"],
+			"seed":                     r["seed"],
+			"layout":                   r["layout"],
+			"layout_quality":           r["layout_quality"],
+			"used_qubits":              usedQubits,
+			"used_qubit_calibration":   usedQubitCal,
+			"transpile":                r["transpile"],
+			"readout_mitigation":       r["readout_mitigation"],
+			"error_suppression":        r["error_suppression"],
+			"circuit_sha256":           r["circuit_sha256"],
+			"qasm_path":                qasmPath,
+			"qasm_paths":               qasmPaths,
+			"qasm_points":              r["qasm_points"],
+			"ratio_ci95":               r["ratio_ci95"],
+			"ratio_ci_method":          r["ratio_ci_method"],
+			"points":                   pointsSummary,
+			"status":                   r["status"],
+			"counts_status":            countsStatus,
+			"counts_sha256":            r["counts_sha256"],
+			"counts_encoding":          countsEncoding,
+			"counts_file_sha256":       countsFileSHA,
+			"counts_terms":             r["counts_terms"],
+			"counts_path":              countsPath,
+			"counts_paths":             countsPaths,
+			"counts_by_scale_path":     countsByScalePath,
+			"cdr_training_counts_path": cdrTrainingCountsPath,
+			"readout_cal_counts_path":  readoutCalCountsPath,
+			"mitigation_method":        mitigationMethod,
+			"cdr_diagnostics":          cdrDiagnostics,
+			"ablation_layers":          ablationLayers,
+			"symmetry":                 symmetryMeta,
+			"counts_artifacts":         countsArtifacts,
+			"calibration":              r["calibration"],
+			"energy":                   r["energy"],
+			"anchor_energy":            firstNonNil(r, "fci_exact_energy", "active_space_fci_energy", "exact_energy", "energy_exact"),
+			"delta_mha":                firstNonNil(r, "delta_mha", "delta"),
+			"ci95_mha":                 r["ci95_mha"],
+			"usage_seconds":            r["usage_seconds"],
+			"actual_usd":               r["actual_usd"],
+			"vendor_ref":               r["vendor_ref"],
+			"qasm_gate_lines":          r["qasm_gate_lines"],
+			"two_qubit_gates":          r["two_qubit_gate_count"],
+			"basis":                    r["basis"],
+			"active_space":             r["active_space"],
+			"geometry":                 r["geometry"],
 		}
 		datasheetRows = append(datasheetRows, dsEntry)
 		_ = cw.Write([]string{

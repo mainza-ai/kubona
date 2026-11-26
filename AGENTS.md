@@ -194,17 +194,21 @@ development — re-verify the gate on the exact commit before citing
 > Record: [[hardware-validation-r2-2026-11-25]].
 
 > ⚑ State update (2026-11-26, R2 corrected-axis hardware run): the all-gate axis
-> ran on `ibm_kingston` and `ibm_fez` (three 5-scale, 8192-shot jobs; **3.799795
-> RU** consumed, **6.200205 RU / 369 s** remain). The axis was valid, but **R2 is
+> ran on `ibm_kingston` (`[149, 150]`) and `ibm_fez` (`[142, 143]`) (three 5-scale,
+> 8192-shot jobs; **3.799795 RU** consumed, **6.200205 RU / 369 s** remain). **R2 is
 > still not achieved**: ZNE points were **7.365 mHa (±6.924)**, **0.483 mHa
 > (±9.111)**, and **5.595 mHa (±10.028)**; every run failed model adequacy or the
-> paired difference CI, and two identical `ibm_fez` runs differed by **5.112
-> mHa**. The 0.483 mHa point is not a claim: χ²_red was 3.68/4.81, the
-> non-identity expectations do not decay to zero (non-unital noise), and the
-> point moves by up to 11 mHa between total-gate and calibration-weighted axes.
-> The model residual, not shot noise, is the floor. **No further ZNE shots**;
-> the next spend is a calibrated non-unital noise-model/PEC or CDR pilot with
-> the same `|Δ| ≤ 1.6 mHa`, difference-CI, and reproduction gates.
+> paired difference CI. **Correction (post-run raw-count audit):** `_fold_local_all`
+> tail-slicing jumped `logical_2q` `2 → 4` at `s=1.5` and stayed `4` at `s=2.0`,
+> causing a `+5.8–7.0 mHa` kink; raw `⟨IZ⟩`/`⟨ZI⟩` were `+0.93..+0.96` (`−0.38 Ha`
+> was weighted `c_IZ⟨IZ⟩`); the `F1`/`F2` `5.112 mHa` ZNE spread (`0.74σ`) was
+> shot-noise-consistent and 8192-shot scale-1 baselines agreed to `0.665 mHa`
+> (`0.20σ`); and `baseline_energy` already included diagonal TREX (`~11 mHa` below
+> unmitigated raw). `_fold_local_all` now uses stratified proportional 1Q/2Q folding
+> with a duplicate-2Q/divergence guard and dual raw/TREX baselines. **No further ZNE
+> shots**; the next spend is a same-batch ODR CDR + live 4×4 readout calibration +
+> `Z2` symmetry verification pilot (QWC-grouped, per-PUB Neyman shots) with the
+> same `|Δ| ≤ 1.6 mHa`, difference-CI, and reproduction gates.
 
 ## Three layers
 

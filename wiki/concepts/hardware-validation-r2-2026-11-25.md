@@ -44,6 +44,34 @@ Raw baselines were 14.893, 8.999, and 13.361 mHa respectively. The two `ibm_fez`
 raw jobs differ by **4.36 mHa** on the same calibration snapshot; the two
 identical ZNE runs differ by **5.112 mHa**.
 
+> ⚑ Correction (2026-11-26 post-run raw-count audit): five statements in the
+> initial 2026-11-26 summary above were refined after inspecting the raw per-scale
+> counts and fold receipts directly (the verdict — R2 not achieved, do not spend
+> more QPU on ZNE — stands unchanged):
+> 1. **Layouts (A5):** `K1` (`ibm_kingston`) ran on physical qubits `[149, 150]`;
+>    `F1` and `F2` (`ibm_fez`) ran on `[142, 143]`, not `[149, 150]`.
+> 2. **2Q-folding kink at `s = 1.5` (A1):** `_fold_local_all` previously sliced
+>    fractional folds from the tail of the circuit, where `cx(0,1)` sits. At
+>    `s = 1.5` (`1.40×` total gates), `logical_2q` jumped `2 → 4` (`2.0×` 2Q gates)
+>    and stayed at `4` at `s = 2.0` (`2.0×` total gates), producing a deterministic
+>    `+5.8–7.0 mHa` kink at `s = 1.4` on both `F1` and `F2` that inflated `χ²_red`.
+>    `_fold_local_all` now folds 1Q and 2Q gates proportionally and the ZNE guard
+>    refuses duplicate `logical_2q` counts or `>20%` 2Q-vs-total scale divergence.
+> 3. **Weighted term energy vs. Pauli expectation (A2):** the `≈ −0.38` figure on
+>    `K1` was the Hamiltonian-weighted term energy `c_IZ ⟨IZ⟩ = (−0.39794)(+0.95)`,
+>    not a raw expectation. Raw `⟨IZ⟩`/`⟨ZI⟩` were `+0.93..+0.96` (decaying
+>    monotonically `0.961 → 0.919` on `ibm_fez`, and held flat on `K1` by coherent
+>    `cx` interference where `01` counts dropped `136 → 67` under folding).
+> 4. **Shot noise vs. device drift (A3):** the `4.362 ± 9.598 mHa` (`0.89σ`, `p = 0.37`)
+>    raw spread and `5.112 ± 13.549 mHa` (`0.74σ`) ZNE spread on `ibm_fez` are
+>    consistent with shot noise, not proof of device instability; the 8192-shot
+>    scale-1 baselines in `F1` (`−1.132984 Ha`) and `F2` (`−1.132319 Ha`) agreed to
+>    **`0.665 mHa` (`0.20σ`)**.
+> 5. **TREX baseline conflation (A4):** `baseline_energy` (`+4.32 / +4.99 mHa` on
+>    `F1`/`F2`) already included diagonal TREX readout mitigation, which had removed
+>    `~11 mHa` from true unmitigated raw (`+15.66 / +11.46 mHa`). ZNE receipts now
+>    report `raw_unmitigated_energy` and `readout_mitigated_baseline_energy` separately.
+
 **The axis is now valid; R2 is still not achieved.** Every run fails at least two
 of the pre-registered gates. F1 passes chemical accuracy on the point alone
 (0.483 mHa) but fails model adequacy (χ² 3.68, p = 0.012) and difference

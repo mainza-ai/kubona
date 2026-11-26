@@ -869,18 +869,36 @@ class QiskitProvider(Provider):
         return out
 
     def submit_batch(self, qasm_list: list[str], shots: int = 4096,
-                     seed: int = 7, service_factory=None) -> dict[str, Any]:
+                     seed: int = 7, service_factory=None,
+                     shots_per_circuit: list[int] | None = None) -> dict[str, Any]:
         """Submit multiple measurement circuits as one Runtime job.
 
         This is the provider primitive behind one governed hardware experiment:
         one vendor job id, one usage reading, one settlement. It is explicitly
         job/batch mode (Open Plan compatible), never a session.
+
+        When ``shots_per_circuit`` is provided with heterogeneous shot counts,
+        each circuit is submitted as a SamplerV2 PUB tuple ``(circuit, None, s)``
+        so Neyman-allocated target circuits and calibration/training circuits can
+        share a single hardware batch.
         """
         self._ensure_ready()
         if not isinstance(qasm_list, list) or not qasm_list:
             raise ProviderError("hardware batch needs at least one circuit")
         if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
             raise ProviderError(f"shots must be an integer >= 1, got {shots!r}")
+        resolved_shots: list[int] | None = None
+        if shots_per_circuit is not None:
+            if not isinstance(shots_per_circuit, list) or len(shots_per_circuit) != len(qasm_list):
+                raise ProviderError(
+                    f"shots_per_circuit length ({len(shots_per_circuit) if isinstance(shots_per_circuit, list) else 'invalid'}) "
+                    f"must match qasm_list length ({len(qasm_list)})"
+                )
+            resolved_shots = []
+            for s in shots_per_circuit:
+                if not isinstance(s, int) or isinstance(s, bool) or s < 1:
+                    raise ProviderError(f"shots_per_circuit entries must be ints >= 1, got {s!r}")
+                resolved_shots.append(int(s))
         token = self._credential()
         if not token:
             raise ProviderError("cannot submit hardware batch without credentials: KUBONA_IBM_QISKIT_TOKEN unset")
@@ -939,7 +957,7 @@ class QiskitProvider(Provider):
         layout_quality = None
         transpile_meta = None
         transpile_samples: list[dict[str, int]] = []
-        for qasm in qasm_list:
+        for idx_c, qasm in enumerate(qasm_list):
             qc = qasm2.loads(str(qasm))
             original = qc
             if hasattr(backend, "target"):
@@ -965,7 +983,8 @@ class QiskitProvider(Provider):
                     })
                 except Exception:
                     pass
-            self._validate_job_limits(qc, shots, backend)
+            circuit_shots = resolved_shots[idx_c] if resolved_shots is not None else shots
+            self._validate_job_limits(qc, circuit_shots, backend)
             circuits.append(qc)
         if transpile_samples:
             # A batch spans many measurement bases/folds; report the batch
@@ -979,7 +998,12 @@ class QiskitProvider(Provider):
                 "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "first": transpile_samples[0],
             }
-        job = sampler.run(circuits, shots=shots)
+        if resolved_shots is not None and len(set(resolved_shots)) > 1:
+            pubs = [(qc, None, int(s)) for qc, s in zip(circuits, resolved_shots)]
+            job = sampler.run(pubs)
+        else:
+            uniform_shots = resolved_shots[0] if resolved_shots is not None else shots
+            job = sampler.run(circuits, shots=uniform_shots)
         job_id = str(job.job_id())
         from kubona.hardware_pin import persist_vendor_job
         persist_vendor_job(job_id)
@@ -1010,6 +1034,8 @@ class QiskitProvider(Provider):
             "error_suppression": error_suppression,
             "plan": self._plan,
         }
+        if resolved_shots is not None:
+            out["shots_per_circuit"] = resolved_shots
         try:
             bname = str(getattr(backend, "name", self.backend_name or ""))
             props = backend.properties() if hasattr(backend, "properties") else None

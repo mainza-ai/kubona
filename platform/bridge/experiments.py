@@ -251,11 +251,17 @@ def _ansatz_qasm(theta: np.ndarray, layers: int) -> str:
 
 
 def _hardware_batch(qasm_list: list[str], shots: int, seed: int,
-                    backend: str | None = None) -> dict[str, Any]:
+                    backend: str | None = None,
+                    shots_per_circuit: list[int] | None = None) -> dict[str, Any]:
     """Run one provider batch. Overridable in tests; no live call in CI."""
     from kubona.providers.qiskit_provider import QiskitProvider
     from kubona.schema import load_provider
     provider = QiskitProvider(load_provider("ibm-qiskit"), backend_name=backend)
+    if shots_per_circuit is not None:
+        return provider.submit_batch(
+            qasm_list, shots=int(shots), seed=int(seed),
+            shots_per_circuit=[int(s) for s in shots_per_circuit],
+        )
     return provider.submit_batch(qasm_list, shots=int(shots), seed=int(seed))
 
 
@@ -428,42 +434,68 @@ def _fold_local_2q(qc: Any, scale: float) -> Any:
 
 
 def _fold_local_all(qc: Any, scale: float) -> Any:
-    """Local barrier-protected folding of ALL gates (1Q and 2Q).
+    """Stratified barrier-protected local folding of ALL gates (1Q and 2Q).
 
-    This is the canonical ZNE axis after the R2 audit: every gate participates,
-    so the total gate count scales with the requested factor and the axis does
-    not jump between global all-gate folding and 2Q-only folding. Barriers keep
-    the compiler from cancelling ``G G^dag``.
+    Folds single-qubit and two-qubit gates independently in proportion to
+    ``(scale - 1) / 2`` so fractional scales cannot preferentially fold 2Q
+    gates sitting at the tail of the circuit (the A1 defect found in the
+    2026-11-26 R2 raw-count audit). Barriers prevent ``G G^dag`` cancellation.
     """
     if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(float(scale)) or float(scale) < 1.0:
         raise ValueError(f"local folding scale must be a finite number >= 1.0, got {scale!r}")
     s = float(scale)
     if abs(s - 1.0) < 1e-9:
         return qc.copy()
-    gate_indices = [
+    one_q_indices = [
         i for i, inst in enumerate(qc.data)
         if str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
+        and len(inst.qubits) < 2
     ]
-    if not gate_indices:
+    two_q_indices = [
+        i for i, inst in enumerate(qc.data)
+        if str(getattr(inst.operation, "name", "")) not in ("barrier", "measure", "reset")
+        and len(inst.qubits) >= 2
+    ]
+    if not one_q_indices and not two_q_indices:
         return qc.copy()
-    n_gates = len(gate_indices)
-    total_folds = max(1, int(round((s - 1.0) * n_gates / 2.0)))
-    base_folds = total_folds // n_gates
-    rem = total_folds % n_gates
-    extra_set = set(gate_indices[n_gates - rem:]) if rem > 0 else set()
+
+    def _allocate_folds(indices: list[int], total_folds: int) -> dict[int, int]:
+        if not indices or total_folds <= 0:
+            return {}
+        n = len(indices)
+        base = total_folds // n
+        rem = total_folds % n
+        # Spread remainder evenly across the class instead of slicing the tail.
+        extra: set[int] = set()
+        if rem > 0:
+            for k in range(rem):
+                pos = int((k * n) // rem)
+                extra.add(indices[pos])
+        return {idx: base + (1 if idx in extra else 0) for idx in indices}
+
+    folds_1q = int(round((s - 1.0) * len(one_q_indices) / 2.0)) if one_q_indices else 0
+    folds_2q = int(round((s - 1.0) * len(two_q_indices) / 2.0)) if two_q_indices else 0
+    if folds_1q == 0 and folds_2q == 0:
+        if two_q_indices:
+            folds_2q = 1
+        else:
+            folds_1q = 1
+    fold_plan: dict[int, int] = {}
+    fold_plan.update(_allocate_folds(one_q_indices, folds_1q))
+    fold_plan.update(_allocate_folds(two_q_indices, folds_2q))
+
     folded = qc.copy_empty_like()
     for i, inst in enumerate(qc.data):
         op, qargs, cargs = inst.operation, inst.qubits, inst.clbits
         folded.append(op, qargs, cargs)
-        if i in gate_indices:
-            k_folds = base_folds + (1 if i in extra_set else 0)
-            if k_folds > 0:
-                inv_op = op.inverse()
-                for _ in range(k_folds):
-                    folded.barrier(*qargs)
-                    folded.append(inv_op, qargs, cargs)
-                    folded.barrier(*qargs)
-                    folded.append(op, qargs, cargs)
+        k_folds = fold_plan.get(i, 0)
+        if k_folds > 0:
+            inv_op = op.inverse()
+            for _ in range(k_folds):
+                folded.barrier(*qargs)
+                folded.append(inv_op, qargs, cargs)
+                folded.barrier(*qargs)
+                folded.append(op, qargs, cargs)
     return folded
 
 
@@ -689,6 +721,11 @@ def run_vqe_hardware(
     mitigation_scales: list[int] | None = None,
     extrapolator: str = "linear",
     readout_mitigation: bool = True,
+    cdr_training_circuits: int = 12,
+    live_readout_cal: bool | None = None,
+    symmetry_verification: bool | None = None,
+    target_shots: list[int] | None = None,
+    qwc_grouping: bool | None = None,
 ) -> dict[str, Any]:
     """Execute a locally optimized H2 ansatz on a real QPU as one batch.
 
@@ -728,9 +765,31 @@ def run_vqe_hardware(
     if fci_exact_energy is None:
         _, fci_exact_energy, _ = h2_hamiltonian(float(bond_distance))
     method = (mitigation or "").strip().upper()
-    if method and method != "ZNE":
-        return {"success": False, "error": f"hardware energy mitigation {method!r} is unsupported; use ZNE"}
-    if method:
+    if method and method not in ("ZNE", "CDR"):
+        return {"success": False, "error": f"hardware energy mitigation {method!r} is unsupported; use ZNE or CDR"}
+
+    if method == "CDR":
+        return _run_vqe_hardware_cdr(
+            qc=qc,
+            theta_arr=theta_arr,
+            coeffs=coeffs,
+            layers=int(layers),
+            shots=int(shots),
+            seed=int(seed),
+            bond_distance=float(bond_distance),
+            fci_exact_energy=float(fci_exact_energy),
+            backend=backend,
+            molecule=str(molecule or "H2"),
+            ansatz_qasm=ansatz_qasm,
+            constant_energy=float(constant_energy),
+            readout_mitigation=bool(readout_mitigation),
+            cdr_training_circuits=int(cdr_training_circuits or 12),
+            live_readout_cal=(True if live_readout_cal is None else bool(live_readout_cal)),
+            symmetry_verification=(True if symmetry_verification is None else bool(symmetry_verification)),
+            target_shots=target_shots,
+        )
+
+    if method == "ZNE":
         if mitigation_scales is None:
             mitigation_scales = [1, 3, 5]
         try:
@@ -766,11 +825,13 @@ def run_vqe_hardware(
                     n1 += 1
             return n1, n2, n1 + n2
         base_counts = _gate_counts(qc)
+        base_n2 = base_counts[1]
         base_total = base_counts[2]
         if base_total <= 0:
             return {"success": False, "error": "ZNE requires a circuit with at least one gate"}
         seen_scales: set[float] = set()
         previous_actual = 0.0
+        previous_2q = -1
         for requested in mitigation_scales:
             folded_qc = _fold_circuit(qc, float(requested))
             counts = _gate_counts(folded_qc)
@@ -783,9 +844,31 @@ def run_vqe_hardware(
                         f"{requested!r} -> {actual:.3f}x (previous {previous_actual:.3f}x)"
                     ),
                 }
+            if base_n2 > 0:
+                if counts[1] <= previous_2q:
+                    return {
+                        "success": False,
+                        "error": (
+                            "ZNE scale axis is not strictly increasing in 2Q gates: "
+                            f"{requested!r} -> {counts[1]} 2Q gates (previous {previous_2q}); "
+                            "choose scales representable on this circuit's 2Q gate count"
+                        ),
+                    }
+                previous_2q = counts[1]
             seen_scales.add(actual)
             previous_actual = actual
             scale_map.append((float(requested), actual, folded_qc, counts))
+        if base_n2 > 0:
+            for requested, actual, _fqc, counts in scale_map:
+                actual_2q_ratio = float(counts[1]) / float(base_n2)
+                if actual > 0 and abs(actual_2q_ratio - actual) / actual > 0.20:
+                    return {
+                        "success": False,
+                        "error": (
+                            "ZNE scale axis diverges between 2Q and total gate ratios "
+                            f"at {requested!r}: 2Q={actual_2q_ratio:.3f}x vs total={actual:.3f}x (>20%)"
+                        ),
+                    }
         for term in sorted(coeffs):
             for _, actual, folded_qc, _ in scale_map:
                 qasms.append(_measurement_qasm(folded_qc, term))
@@ -935,8 +1018,17 @@ def run_vqe_hardware(
             })
         baseline_energy = float(scale_energies[0])
         baseline_unc = float(scale_uncertainties[0])
+        ordered_scale0 = [dict(counts) for _term, counts in by_scale[xs[0]]]
+        raw_unmitigated_m = _hardware_counts_to_energy(
+            ordered_scale0, coeffs,
+            calibration=cal_data, used_qubits=used_q, readout_mitigation=False,
+        )
+        raw_unmitigated_energy = float(raw_unmitigated_m["energy"])
+        raw_unmitigated_unc = float(raw_unmitigated_m["uncertainty"])
         difference = mitigated - baseline_energy
         difference_ci = 1.959963984540054 * math.sqrt(uncertainty ** 2 + baseline_unc ** 2)
+        difference_vs_raw = mitigated - raw_unmitigated_energy
+        difference_vs_raw_ci = 1.959963984540054 * math.sqrt(uncertainty ** 2 + raw_unmitigated_unc ** 2)
         model_points = {}
         for alt in ("linear", "quadratic"):
             try:
@@ -987,10 +1079,21 @@ def run_vqe_hardware(
             "per_term_uncertainty": per_term_unc,
             "baseline_energy": baseline_energy,
             "baseline_uncertainty": baseline_unc,
+            "raw_unmitigated_energy": raw_unmitigated_energy,
+            "raw_unmitigated_uncertainty": raw_unmitigated_unc,
+            "readout_mitigated_baseline_energy": baseline_energy,
+            "readout_mitigated_baseline_uncertainty": baseline_unc,
             "difference_ha": difference,
             "difference_ci95_ha": difference_ci,
             "difference_ci95_mha": difference_ci * 1000.0,
             "difference_significant": abs(difference) > difference_ci,
+            "difference_vs_baseline_ha": difference,
+            "difference_vs_baseline_ci95_ha": difference_ci,
+            "difference_vs_baseline_significant": abs(difference) > difference_ci,
+            "difference_vs_raw_ha": difference_vs_raw,
+            "difference_vs_raw_ci95_ha": difference_vs_raw_ci,
+            "difference_vs_raw_ci95_mha": difference_vs_raw_ci * 1000.0,
+            "difference_vs_raw_significant": abs(difference_vs_raw) > difference_vs_raw_ci,
             "uncertainty_method": ext["uncertainty_method"],
             "intercept_weights": ext["intercept_weights"],
             "unmitigated_energy": unmitigated,
@@ -1063,6 +1166,301 @@ def run_vqe_hardware(
         "chemical_accuracy_limit_mha": 1.6,
         "claimable": claimable,
         "below_fci": below_fci,
+        "simulated_optimizer": True,
+        "hardware": True,
+        "backend": str(batch.get("backend") or "ibm-qiskit"),
+        "provider": "ibm-qiskit",
+        "hardware_job_id": str(batch.get("hardware_job_id") or batch.get("job_id") or ""),
+        "layout": batch.get("layout"),
+        "layout_quality": batch.get("layout_quality"),
+        "transpile": batch.get("transpile"),
+        "calibration": batch.get("calibration"),
+        **calibration_quality,
+        "usage_seconds": batch.get("usage_seconds"),
+        "actual_usd": batch.get("actual_usd"),
+        "execution_time_ms": 0.0,
+        "error_message": "",
+    }
+
+
+def _run_vqe_hardware_cdr(
+    *,
+    qc: Any,
+    theta_arr: np.ndarray,
+    coeffs: dict[str, float],
+    layers: int,
+    shots: int,
+    seed: int,
+    bond_distance: float,
+    fci_exact_energy: float,
+    backend: str | None,
+    molecule: str,
+    ansatz_qasm: str | None,
+    constant_energy: float,
+    readout_mitigation: bool,
+    cdr_training_circuits: int,
+    live_readout_cal: bool,
+    symmetry_verification: bool,
+    target_shots: list[int] | None,
+) -> dict[str, Any]:
+    """Execute same-batch QWC + Live 4x4 Readout + Z2 Symmetry + ODR CDR on hardware.
+
+    All target QWC circuits, near-Clifford training circuits, and computational-basis
+    readout calibration circuits are submitted in ONE governed ``_hardware_batch``
+    call with per-PUB Neyman shot allocation so every mitigation layer shares the
+    same calibration epoch and device drift snapshot.
+    """
+    from qiskit import qasm2
+
+    from kubona.mitigation.cdr import (
+        build_readout_cal_circuits,
+        evaluate_cdr_batch,
+        generate_cdr_training_circuits,
+    )
+    from kubona.mitigation.qwc import (
+        allocate_neyman_shots,
+        group_pauli_terms,
+        measurement_circuit_for_basis,
+    )
+    from kubona.mitigation.symmetry import detect_z_symmetries
+
+    if cdr_training_circuits < 6 or cdr_training_circuits > 32:
+        return {"success": False, "error": f"cdr_training_circuits {cdr_training_circuits} must be in [6, 32]"}
+    if int(qc.num_clbits) > 0 or any(
+        getattr(inst.operation, "name", "") == "measure" for inst in qc.data
+    ):
+        return {"success": False, "error": "CDR requires a unitary ansatz without measurement"}
+
+    try:
+        grouped = group_pauli_terms(coeffs)
+    except ValueError as exc:
+        return {"success": False, "error": f"QWC grouping failed: {exc}"}
+    groups = grouped["groups"]
+    if not groups:
+        return {"success": False, "error": "CDR requires at least one non-identity Pauli term"}
+
+    syms = detect_z_symmetries(coeffs, exact_circuit=qc) if symmetry_verification else []
+    try:
+        train_pkg = generate_cdr_training_circuits(
+            qc, coeffs,
+            n_circuits=int(cdr_training_circuits),
+            seed=int(seed),
+            symmetries=(syms if syms else None),
+            min_distinct_energies=min(8, int(cdr_training_circuits)),
+        )
+    except ValueError as exc:
+        return {"success": False, "error": f"CDR training generation failed: {exc}"}
+
+    use_live_ro = bool(live_readout_cal and int(qc.num_qubits) <= 4)
+    cal_pairs = build_readout_cal_circuits(int(qc.num_qubits)) if use_live_ro else []
+
+    # Resolve per-PUB shots: [G target] + [M * G training] + [2^n readout cal]
+    g_count = len(groups)
+    if target_shots:
+        ts = [int(s) for s in target_shots]
+        if len(ts) == g_count:
+            resolved_target_shots = ts
+        elif len(ts) == 2 and g_count >= 2:
+            resolved_target_shots = [ts[0] if g.get("is_z_basis") else ts[1] for g in groups]
+        elif len(ts) == 1:
+            resolved_target_shots = allocate_neyman_shots(
+                groups, ts[0] * g_count, min_shots=min(1024, ts[0]),
+            )
+        else:
+            return {
+                "success": False,
+                "error": f"target_shots length {len(ts)} incompatible with {g_count} QWC groups",
+            }
+    else:
+        resolved_target_shots = [int(shots)] * g_count
+
+    # Neyman allocation across QWC groups for training circuits at the same total shot budget.
+    train_shots_per_group = allocate_neyman_shots(
+        groups, int(shots) * g_count, min_shots=min(1024, int(shots)),
+    )
+    cal_shots_each = max(int(shots), 8192) if int(shots) >= 4096 else int(shots)
+
+    qasms: list[str] = []
+    pub_shots: list[int] = []
+
+    for grp, s_cnt in zip(groups, resolved_target_shots):
+        qasms.append(qasm2.dumps(measurement_circuit_for_basis(qc, grp["basis"])))
+        pub_shots.append(int(s_cnt))
+
+    for tqc in train_pkg["circuits"]:
+        for grp, s_cnt in zip(groups, train_shots_per_group):
+            qasms.append(qasm2.dumps(measurement_circuit_for_basis(tqc, grp["basis"])))
+            pub_shots.append(int(s_cnt))
+
+    for _bs, cal_qc in cal_pairs:
+        qasms.append(qasm2.dumps(cal_qc))
+        pub_shots.append(int(cal_shots_each))
+
+    try:
+        if len(set(pub_shots)) > 1:
+            batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend, shots_per_circuit=pub_shots)
+        else:
+            batch = _hardware_batch(qasms, int(pub_shots[0]), int(seed), backend=backend)
+    except Exception as e:  # noqa: BLE001 — provider refusal is data
+        return {"success": False, "error": f"hardware batch refused: {e}"}
+
+    counts_list = batch.get("counts")
+    if not isinstance(counts_list, list) or len(counts_list) != len(qasms):
+        return {"success": False, "error": "hardware batch returned mismatched CDR circuit counts"}
+
+    cursor = 0
+    target_group_counts = [
+        {str(k): int(v) for k, v in c.items()}
+        for c in counts_list[cursor : cursor + g_count]
+    ]
+    cursor += g_count
+
+    m_train = len(train_pkg["circuits"])
+    train_group_counts: list[list[dict[str, int]]] = []
+    cdr_training_counts_archive: dict[str, dict[str, dict[str, int]]] = {}
+    for ti in range(m_train):
+        row_counts = [
+            {str(k): int(v) for k, v in c.items()}
+            for c in counts_list[cursor : cursor + g_count]
+        ]
+        cursor += g_count
+        train_group_counts.append(row_counts)
+        cdr_training_counts_archive[f"train_{ti:02d}"] = {
+            grp["basis"]: cnts for grp, cnts in zip(groups, row_counts)
+        }
+
+    readout_cal_counts_list: list[dict[str, int]] | None = None
+    readout_cal_counts_archive: dict[str, dict[str, int]] | None = None
+    if cal_pairs:
+        readout_cal_counts_list = [
+            {str(k): int(v) for k, v in c.items()}
+            for c in counts_list[cursor : cursor + len(cal_pairs)]
+        ]
+        readout_cal_counts_archive = {
+            bs: cnts for (bs, _), cnts in zip(cal_pairs, readout_cal_counts_list)
+        }
+
+    cal_data = batch.get("calibration") if isinstance(batch.get("calibration"), dict) else None
+    used_q = _layout_physical_qubits(batch.get("layout"))
+    diag_factors: dict[str, float] | None = None
+    if not use_live_ro and readout_mitigation and cal_data is not None:
+        diag_factors = {}
+        for term in coeffs:
+            if set(term) <= {"I"}:
+                continue
+            f_val = _readout_mitigation_factor(term, cal_data, used_q)
+            if f_val is not None:
+                diag_factors[term] = float(f_val)
+
+    ev = evaluate_cdr_batch(
+        grouped,
+        coeffs,
+        target_group_counts,
+        train_group_counts,
+        train_pkg["exact_energies"],
+        constant_energy=float(constant_energy),
+        fci_exact_energy=float(fci_exact_energy),
+        readout_cal_counts=readout_cal_counts_list,
+        diagonal_readout_factors=diag_factors,
+        symmetries=(syms if syms else None),
+        train_sector_aligned=bool(train_pkg["sector_aligned"]),
+    )
+    if not ev.get("ok"):
+        return {"success": False, "error": str(ev.get("error") or "CDR evaluation failed")}
+
+    cdr_fit = ev["cdr"]
+    ablation = ev["ablation_layers"]
+    energy = float(cdr_fit["mitigated"]) + float(constant_energy)
+    uncertainty = float(cdr_fit["uncertainty"])
+    delta = abs(energy - float(fci_exact_energy))
+
+    # Map QWC target counts back to per-term counts_by_term for supplement compatibility.
+    counts_by_term: dict[str, dict[str, int]] = {}
+    counts_by_qwc_group: dict[str, dict[str, int]] = {}
+    for grp, cnts in zip(groups, target_group_counts):
+        counts_by_qwc_group[grp["basis"]] = cnts
+        for term in grp["terms"]:
+            counts_by_term[str(term)] = cnts
+
+    mitigation_receipt = {
+        **cdr_fit,
+        "distinct_energies": int(train_pkg["distinct_energies"]),
+        "target_strictly_bracketed": bool(train_pkg["target_strictly_bracketed"]),
+        "extrapolation_distance_ha": float(train_pkg["extrapolation_distance_ha"]),
+        "sector_aligned": bool(train_pkg["sector_aligned"]),
+        "cdr_input_layer": ev["cdr_input_layer"],
+        "readout_calibration": ev["readout_calibration"],
+        "symmetry": ev["symmetry_verified"],
+        "ablation_layers": ablation,
+        "qwc_groups": [
+            {"basis": g["basis"], "terms": sorted(g["terms"].keys()), "target_shots": s}
+            for g, s in zip(groups, resolved_target_shots)
+        ],
+        "shots_per_circuit": pub_shots,
+        "total_shots": int(sum(pub_shots)),
+        "training_metadata": train_pkg["metadata"],
+        "train_noisy_energies": ev["train_noisy_energies"],
+        "train_noisy_uncertainties": ev["train_noisy_uncertainties"],
+        "train_exact_energies": ev["train_exact_energies"],
+        "raw_unmitigated_energy": float(ev["raw"]["energy"]),
+        "raw_unmitigated_uncertainty": float(ev["raw"]["uncertainty"]),
+        "unmitigated_energy": float(ev["raw"]["energy"]),
+        "mitigated_energy": float(cdr_fit["mitigated"]),
+        "mitigated_measured": False,
+        "measured": False,
+    }
+    calibration_quality = _calibration_quality(batch.get("calibration"))
+    # CDR is a statistical regression estimator, not a direct raw measurement:
+    # keep measured=False, claimable=False, chemical_accuracy=False (G6 gates audit it).
+    return {
+        "success": True,
+        "kind": "vqe_hardware",
+        "result_version": "experiment-result-v1",
+        "molecule": str(molecule or "H2"),
+        "bond_distance": float(bond_distance),
+        "basis": "sto-3g",
+        "method": (f"VQE {molecule} active-space UCCSD, local COBYLA optimizer, hardware final state"
+                   if ansatz_qasm and str(molecule or "H2").upper() != "H2" else "VQE H2 hardware-efficient, local COBYLA optimizer, hardware final state"),
+        "ansatz": (f"active-space UCCSD ({qc.num_qubits} qubits)"
+                   if ansatz_qasm and str(molecule or "H2").upper() != "H2" else f"hardware-efficient layers={int(layers)}"),
+        "layers": int(layers),
+        "shots": int(shots),
+        "target_shots": resolved_target_shots,
+        "total_shots": int(sum(pub_shots)),
+        "seed": int(seed),
+        "theta": [float(v) for v in theta_arr],
+        "constant_energy": float(constant_energy),
+        "energy": float(energy),
+        "energy_measured": float(energy),
+        "energy_measured_source": "CDR same-batch regression from QWC QPU measurements",
+        "measured": False,
+        "mitigated": True,
+        "mitigation": mitigation_receipt,
+        "ablation_layers": ablation,
+        "symmetry": ev["symmetry_verified"],
+        "qwc_groups": mitigation_receipt["qwc_groups"],
+        "readout_mitigation": ev["readout_calibration"],
+        "error_suppression": batch.get("error_suppression"),
+        "uncertainty": float(uncertainty),
+        "ci95_mha": _ci95_mha(uncertainty),
+        "measurements": ev["readout_mitigated"]["terms"],
+        "counts_by_term": counts_by_term,
+        "counts_by_qwc_group": counts_by_qwc_group,
+        "cdr_training_counts": cdr_training_counts_archive,
+        "readout_cal_counts": readout_cal_counts_archive,
+        "counts_by_scale": None,
+        "counts_scale": 1,
+        "fold_axis": None,
+        "axis_valid": True,
+        "model_adequate": bool(cdr_fit["model_adequate"]),
+        "per_term_energy": None,
+        "per_term_uncertainty": None,
+        "fci_exact_energy": float(fci_exact_energy),
+        "delta_mha": float(delta * 1000.0),
+        "chemical_accuracy": False,
+        "chemical_accuracy_limit_mha": 1.6,
+        "claimable": False,
+        "below_fci": bool(energy < float(fci_exact_energy) - 3.0 * uncertainty),
         "simulated_optimizer": True,
         "hardware": True,
         "backend": str(batch.get("backend") or "ibm-qiskit"),

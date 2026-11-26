@@ -23,42 +23,47 @@ type HardwarePesPoint struct {
 }
 
 type HardwareExperimentParams struct {
-	Kind                string             `json:"kind"`
-	Points              []HardwarePesPoint `json:"points,omitempty"`
-	Molecule            string             `json:"molecule"`
-	Model               string             `json:"model"`
-	NSites              int                `json:"n_sites"`
-	TargetError         float64            `json:"target_error"`
-	StateMode           string             `json:"state_mode"`
-	SourceJobID         string             `json:"source_job_id"`
-	BondDistance        float64            `json:"bond_distance"`
-	Layers              int                `json:"layers"`
-	Shots               int                `json:"shots"`
-	Seed                int                `json:"seed"`
-	Theta               []float64          `json:"theta"`
-	PauliCoefficients   map[string]float64 `json:"pauli_coefficients"`
-	FCIExactEnergy      float64            `json:"fci_exact_energy"`
-	ConstantEnergy      float64            `json:"constant_energy"`
-	Provider            string             `json:"provider"`
-	RequestedBackend    string             `json:"requested_backend"`
-	FidelityQASM        string             `json:"fidelity_qasm"`
-	QASM                string             `json:"qasm"`
-	Mitigation          string             `json:"mitigation,omitempty"`
-	MitigationScales    []float64          `json:"mitigation_scales,omitempty"`
-	Extrapolator        string             `json:"extrapolator,omitempty"`
-	Loop                bool               `json:"loop,omitempty"`
-	MaxIterations       int                `json:"max_iterations,omitempty"`
-	AnsatzQPY           string             `json:"ansatz_qpy,omitempty"`
-	OptimalCut          int                `json:"optimal_cut"`
-	EnergyExact         float64            `json:"energy_exact"`
-	Nodes               int                `json:"nodes"`
-	Edges               [][2]int           `json:"edges"`
-	MaxCostUSD          float64            `json:"max_cost_usd"`
-	MandateRef          string             `json:"mandate_ref"`
-	RunAllowanceID      string             `json:"run_allowance_id,omitempty"`
-	CallerJurisdictions []string           `json:"caller_jurisdictions"`
-	CallerExportClass   string             `json:"caller_export_class"`
-	ExportReviewed      bool               `json:"export_reviewed"`
+	Kind                 string             `json:"kind"`
+	Points               []HardwarePesPoint `json:"points,omitempty"`
+	Molecule             string             `json:"molecule"`
+	Model                string             `json:"model"`
+	NSites               int                `json:"n_sites"`
+	TargetError          float64            `json:"target_error"`
+	StateMode            string             `json:"state_mode"`
+	SourceJobID          string             `json:"source_job_id"`
+	BondDistance         float64            `json:"bond_distance"`
+	Layers               int                `json:"layers"`
+	Shots                int                `json:"shots"`
+	Seed                 int                `json:"seed"`
+	Theta                []float64          `json:"theta"`
+	PauliCoefficients    map[string]float64 `json:"pauli_coefficients"`
+	FCIExactEnergy       float64            `json:"fci_exact_energy"`
+	ConstantEnergy       float64            `json:"constant_energy"`
+	Provider             string             `json:"provider"`
+	RequestedBackend     string             `json:"requested_backend"`
+	FidelityQASM         string             `json:"fidelity_qasm"`
+	QASM                 string             `json:"qasm"`
+	Mitigation           string             `json:"mitigation,omitempty"`
+	MitigationScales     []float64          `json:"mitigation_scales,omitempty"`
+	Extrapolator         string             `json:"extrapolator,omitempty"`
+	CDRTrainingCircuits  int                `json:"cdr_training_circuits,omitempty"`
+	LiveReadoutCal       bool               `json:"live_readout_cal,omitempty"`
+	SymmetryVerification bool               `json:"symmetry_verification,omitempty"`
+	TargetShots          []int              `json:"target_shots,omitempty"`
+	QWCGrouping          *bool              `json:"qwc_grouping,omitempty"`
+	Loop                 bool               `json:"loop,omitempty"`
+	MaxIterations        int                `json:"max_iterations,omitempty"`
+	AnsatzQPY            string             `json:"ansatz_qpy,omitempty"`
+	OptimalCut           int                `json:"optimal_cut"`
+	EnergyExact          float64            `json:"energy_exact"`
+	Nodes                int                `json:"nodes"`
+	Edges                [][2]int           `json:"edges"`
+	MaxCostUSD           float64            `json:"max_cost_usd"`
+	MandateRef           string             `json:"mandate_ref"`
+	RunAllowanceID       string             `json:"run_allowance_id,omitempty"`
+	CallerJurisdictions  []string           `json:"caller_jurisdictions"`
+	CallerExportClass    string             `json:"caller_export_class"`
+	ExportReviewed       bool               `json:"export_reviewed"`
 }
 
 // CanonicalHardwareExperimentBinding is the byte-stable parent mandate binding.
@@ -71,34 +76,39 @@ func CanonicalHardwareExperimentBinding(sessionID string, p HardwareExperimentPa
 // CanonicalHardwareJobBinding binds either parent experiment type.
 func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperimentParams) string {
 	spec := struct {
-		Molecule          string             `json:"molecule"`
-		Points            []HardwarePesPoint `json:"points,omitempty"`
-		Model             string             `json:"model"`
-		NSites            int                `json:"n_sites"`
-		TargetError       float64            `json:"target_error"`
-		StateMode         string             `json:"state_mode"`
-		SourceJobID       string             `json:"source_job_id"`
-		BondDistance      float64            `json:"bond_distance"`
-		Layers            int                `json:"layers"`
-		Shots             int                `json:"shots"`
-		Seed              int                `json:"seed"`
-		Theta             []float64          `json:"theta"`
-		PauliCoefficients map[string]float64 `json:"pauli_coefficients"`
-		FCIExactEnergy    float64            `json:"fci_exact_energy"`
-		ConstantEnergy    float64            `json:"constant_energy"`
-		Provider          string             `json:"provider"`
-		RequestedBackend  string             `json:"requested_backend"`
-		QASM              string             `json:"qasm"`
-		Mitigation        string             `json:"mitigation,omitempty"`
-		MitigationScales  []float64          `json:"mitigation_scales,omitempty"`
-		Extrapolator      string             `json:"extrapolator,omitempty"`
-		Loop              bool               `json:"loop,omitempty"`
-		MaxIterations     int                `json:"max_iterations,omitempty"`
-		AnsatzQPY         string             `json:"ansatz_qpy,omitempty"`
-		OptimalCut        int                `json:"optimal_cut"`
-		EnergyExact       float64            `json:"energy_exact"`
-		Nodes             int                `json:"nodes"`
-		Edges             [][2]int           `json:"edges"`
+		Molecule             string             `json:"molecule"`
+		Points               []HardwarePesPoint `json:"points,omitempty"`
+		Model                string             `json:"model"`
+		NSites               int                `json:"n_sites"`
+		TargetError          float64            `json:"target_error"`
+		StateMode            string             `json:"state_mode"`
+		SourceJobID          string             `json:"source_job_id"`
+		BondDistance         float64            `json:"bond_distance"`
+		Layers               int                `json:"layers"`
+		Shots                int                `json:"shots"`
+		Seed                 int                `json:"seed"`
+		Theta                []float64          `json:"theta"`
+		PauliCoefficients    map[string]float64 `json:"pauli_coefficients"`
+		FCIExactEnergy       float64            `json:"fci_exact_energy"`
+		ConstantEnergy       float64            `json:"constant_energy"`
+		Provider             string             `json:"provider"`
+		RequestedBackend     string             `json:"requested_backend"`
+		QASM                 string             `json:"qasm"`
+		Mitigation           string             `json:"mitigation,omitempty"`
+		MitigationScales     []float64          `json:"mitigation_scales,omitempty"`
+		Extrapolator         string             `json:"extrapolator,omitempty"`
+		CDRTrainingCircuits  int                `json:"cdr_training_circuits,omitempty"`
+		LiveReadoutCal       bool               `json:"live_readout_cal,omitempty"`
+		SymmetryVerification bool               `json:"symmetry_verification,omitempty"`
+		TargetShots          []int              `json:"target_shots,omitempty"`
+		QWCGrouping          *bool              `json:"qwc_grouping,omitempty"`
+		Loop                 bool               `json:"loop,omitempty"`
+		MaxIterations        int                `json:"max_iterations,omitempty"`
+		AnsatzQPY            string             `json:"ansatz_qpy,omitempty"`
+		OptimalCut           int                `json:"optimal_cut"`
+		EnergyExact          float64            `json:"energy_exact"`
+		Nodes                int                `json:"nodes"`
+		Edges                [][2]int           `json:"edges"`
 	}{
 		Molecule: p.Molecule, Points: p.Points, Model: p.Model, NSites: p.NSites,
 		TargetError: p.TargetError, StateMode: p.StateMode, SourceJobID: p.SourceJobID,
@@ -108,8 +118,13 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		FCIExactEnergy: p.FCIExactEnergy, ConstantEnergy: p.ConstantEnergy, Provider: p.Provider,
 		RequestedBackend: p.RequestedBackend, QASM: p.QASM,
 		Mitigation: p.Mitigation, MitigationScales: p.MitigationScales,
-		Extrapolator: p.Extrapolator,
-		Loop:         p.Loop, MaxIterations: p.MaxIterations, AnsatzQPY: p.AnsatzQPY,
+		Extrapolator:         p.Extrapolator,
+		CDRTrainingCircuits:  p.CDRTrainingCircuits,
+		LiveReadoutCal:       p.LiveReadoutCal,
+		SymmetryVerification: p.SymmetryVerification,
+		TargetShots:          p.TargetShots,
+		QWCGrouping:          p.QWCGrouping,
+		Loop:                 p.Loop, MaxIterations: p.MaxIterations, AnsatzQPY: p.AnsatzQPY,
 		OptimalCut: p.OptimalCut, EnergyExact: p.EnergyExact,
 		Nodes: p.Nodes, Edges: p.Edges,
 	}
@@ -228,19 +243,39 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 		return "", 0, fmt.Errorf("hardware_experiment requires local theta and pauli_coefficients")
 	}
 	if p.Mitigation != "" {
-		if strings.ToUpper(strings.TrimSpace(p.Mitigation)) != "ZNE" {
-			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (only ZNE)", p.Mitigation)
-		}
-		if len(p.MitigationScales) > 0 {
-			seen := map[float64]bool{}
-			for _, scale := range p.MitigationScales {
-				if scale < 1.0 || scale > 15.0 {
-					return "", 0, fmt.Errorf("mitigation scale %g must be in [1.0, 15.0]", scale)
+		mitUpper := strings.ToUpper(strings.TrimSpace(p.Mitigation))
+		switch mitUpper {
+		case "ZNE":
+			if len(p.MitigationScales) > 0 {
+				seen := map[float64]bool{}
+				for _, scale := range p.MitigationScales {
+					if scale < 1.0 || scale > 15.0 {
+						return "", 0, fmt.Errorf("mitigation scale %g must be in [1.0, 15.0]", scale)
+					}
+					seen[scale] = true
 				}
-				seen[scale] = true
+				if len(seen) < 2 {
+					return "", 0, fmt.Errorf("mitigation requires at least two distinct scales")
+				}
 			}
-			if len(seen) < 2 {
-				return "", 0, fmt.Errorf("mitigation requires at least two distinct scales")
+		case "CDR":
+			if jobType != "hardware_experiment" {
+				return "", 0, fmt.Errorf("CDR mitigation is supported for hardware_experiment VQE only, not %q", jobType)
+			}
+			if p.CDRTrainingCircuits != 0 && (p.CDRTrainingCircuits < 6 || p.CDRTrainingCircuits > 32) {
+				return "", 0, fmt.Errorf("cdr_training_circuits %d must be in [6, 32]", p.CDRTrainingCircuits)
+			}
+		default:
+			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (use ZNE or CDR)", p.Mitigation)
+		}
+	}
+	if len(p.TargetShots) > 0 {
+		if len(p.TargetShots) > 16 {
+			return "", 0, fmt.Errorf("target_shots length %d exceeds limit 16", len(p.TargetShots))
+		}
+		for _, s := range p.TargetShots {
+			if s < 1024 || s > 131072 {
+				return "", 0, fmt.Errorf("target_shots entry %d must be in [1024, 131072]", s)
 			}
 		}
 	}

@@ -183,6 +183,24 @@ CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
         "  doi = {10.1103/PhysRevA.71.022316}\n"
         "}"
     ),
+    "Czarnik2021CDR": (
+        "@article{Czarnik2021CDR,\n"
+        "  author = {Czarnik, Piotr and Arrasmith, Andrew and Coles, Patrick J. and Cincio, Lukasz},\n"
+        "  title = {Error mitigation with Clifford quantum-circuit data},\n"
+        "  journal = {Quantum},\n"
+        "  year = {2021},\n"
+        "  doi = {10.22331/q-2021-11-26-592}\n"
+        "}"
+    ),
+    "BonetMonroig2018": (
+        "@article{BonetMonroig2018,\n"
+        "  author = {Bonet-Monroig, Xavier and Sagastizabal, Ramiro and Singh, M. and O'Brien, Thomas E.},\n"
+        "  title = {Low-cost error mitigation by symmetry verification},\n"
+        "  journal = {Physical Review A},\n"
+        "  year = {2018},\n"
+        "  doi = {10.1103/PhysRevA.98.062339}\n"
+        "}"
+    ),
 }
 
 # Structured metadata for canonical campaign-matched citation auto-seeding (G5)
@@ -198,6 +216,8 @@ CANONICAL_CITATION_METADATA: Dict[str, Dict[str, str]] = {
     "Kim2023": {"key": "Kim2023", "title": "Evidence for the utility of quantum computing before fault tolerance", "authors": "Kim et al.", "year": "2023", "doi": "10.1038/s41586-023-06096-3"},
     "Steane1996": {"key": "Steane1996", "title": "Error Correcting Codes in Quantum Theory", "authors": "Steane", "year": "1996", "doi": "10.1103/PhysRevLett.77.793"},
     "BravyiKitaev2005": {"key": "BravyiKitaev2005", "title": "Universal quantum computation with ideal Clifford gates and noisy ancillas", "authors": "Bravyi, Kitaev", "year": "2005", "doi": "10.1103/PhysRevA.71.022316"},
+    "Czarnik2021CDR": {"key": "Czarnik2021CDR", "title": "Error mitigation with Clifford quantum-circuit data", "authors": "Czarnik et al.", "year": "2021", "doi": "10.22331/q-2021-11-26-592"},
+    "BonetMonroig2018": {"key": "BonetMonroig2018", "title": "Low-cost error mitigation by symmetry verification", "authors": "Bonet-Monroig et al.", "year": "2018", "doi": "10.1103/PhysRevA.98.062339"},
 }
 
 
@@ -207,6 +227,15 @@ def canonical_citations_for_campaign(rows: List[Dict[str, Any]]) -> List[Dict[st
     kinds = {str(r.get("kind") or "").lower() for r in rows if isinstance(r, dict)}
     if any(k in kind for kind in kinds for k in ("vqe", "pes", "excited", "geometry", "reaction")):
         keys.extend(["Peruzzo2014", "OMalley2016", "Kandala2017", "Kandala2019", "Sun2018PySCF"])
+    if any(
+        isinstance(r, dict)
+        and (
+            str(r.get("mitigation_method") or "").upper() == "CDR"
+            or (isinstance(r.get("mitigation"), dict) and str(r["mitigation"].get("method") or "").upper() == "CDR")
+        )
+        for r in rows
+    ):
+        keys.extend(["Czarnik2021CDR", "BonetMonroig2018"])
     if any("qaoa" in kind for kind in kinds):
         keys.extend(["Zhou2020QAOA", "Harrigan2021"])
     if any(k in kind for kind in kinds for k in ("spin_chain", "tfim", "lattice", "thermodynamic")):
@@ -425,7 +454,12 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
     for r in shown:
         jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
         kind = latex_escape(str(r.get("kind") or "--")[:16])
-        mode = "ZNE mitigated" if bool(r.get("mitigated")) else ("hardware" if bool(r.get("hardware")) else "simulator")
+        mit_obj = r.get("mitigation") if isinstance(r.get("mitigation"), dict) else {}
+        mit_name = str(r.get("mitigation_method") or mit_obj.get("method") or "").upper()
+        if bool(r.get("mitigated")):
+            mode = f"{mit_name} mitigated" if mit_name else "ZNE mitigated"
+        else:
+            mode = "hardware" if bool(r.get("hardware")) else "simulator"
         cstatus = str(r.get("counts_status") or "")
         if r.get("approximation_ratio") is not None:
             ratio = float(r["approximation_ratio"])
@@ -466,9 +500,48 @@ def build_zne_and_uncertainty_section(rows: List[Dict[str, Any]]) -> str:
         r"\bottomrule",
         r"\end{tabular}%",
         r"}",
-        r"\caption{Uncertainty, QAOA count-derived 95\% ratio CI, and Zero-Noise Extrapolation (ZNE) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
+        r"\caption{Uncertainty, QAOA count-derived 95\% ratio CI, and error-mitigation (ZNE/CDR) audit table. Mitigated points remain explicitly separated from raw hardware measurements.}",
         r"\end{table}",
     ])
+    ablation_rows = [
+        r for r in relevant
+        if isinstance(r.get("ablation_layers"), dict) and r["ablation_layers"]
+    ]
+    if ablation_rows:
+        lines.extend([
+            "",
+            r"\subsection*{Same-Batch Error-Mitigation Ablation (Raw $\to$ Readout $\to$ Z2 Symmetry $\to$ CDR)}",
+            r"\begin{table}[H]",
+            r"\centering\scriptsize",
+            r"\resizebox{\textwidth}{!}{%",
+            r"\begin{tabular}{@{}llrrr@{}}",
+            r"\toprule",
+            r"Job & Layer & Energy (Ha) & $|\Delta|$ (mHa) & 95\% CI (mHa) \\",
+            r"\midrule",
+        ])
+        for r in ablation_rows[:8]:
+            jid = latex_escape(short_job_id(str(r.get("job_id") or "--")))
+            ab = r["ablation_layers"]
+            for key, label in (
+                ("raw_unmitigated", "Raw unmitigated"),
+                ("live_readout_mitigated", "Live readout matrix"),
+                ("symmetry_verified", "Z2 symmetry verified"),
+                ("cdr_mitigated", "ODR CDR mitigated"),
+            ):
+                entry = ab.get(key)
+                if not isinstance(entry, dict):
+                    continue
+                lines.append(
+                    f"{jid} & {label} & {fmt_num(entry.get('energy'), 6)} & "
+                    f"{fmt_num(entry.get('delta_mha'), 3)} & $\\pm${fmt_num(entry.get('ci95_mha'), 3)} \\\\"
+                )
+        lines.extend([
+            r"\bottomrule",
+            r"\end{tabular}%",
+            r"}",
+            r"\caption{Same-batch four-layer ablation computed from one hardware batch (zero extra QPU jobs for baseline comparisons).}",
+            r"\end{table}",
+        ])
     return "\n".join(lines)
 
 

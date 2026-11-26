@@ -80,11 +80,21 @@ mandate that covers the full folded batch.
 ## Hardware status
 
 The corrected all-gate axis was exercised on hardware on 2026-11-26: three 5-scale,
-8192-shot jobs on `ibm_kingston` and `ibm_fez` consumed **3.799795 RU** and left
-**6.200205 RU / 369 s**. The axis was valid in every run, but R2 is **not achieved**:
-ZNE points were 7.365, 0.483, and 5.595 mHa; every run failed model adequacy or the
-paired difference CI, and two identical `ibm_fez` runs differed by 5.112 mHa. The
-fixed-asymptote model is the blocker (χ²_red 1.53–4.81; non-unital noise means the
-non-identity terms do not decay to zero), so more shots are not authorized. The prior
-2.743 mHa result remains historical, not a chemical-accuracy claim. The next spend is
-a calibrated non-unital noise-model/PEC or CDR pilot with the same gates.
+8192-shot jobs on `ibm_kingston` (layout `[149, 150]`) and `ibm_fez` (layout
+`[142, 143]`) consumed **3.799795 RU** and left **6.200205 RU / 369 s**. R2 is
+**not achieved**: ZNE points were 7.365, 0.483, and 5.595 mHa; every run failed
+model adequacy or the paired difference CI.
+
+> ⚑ Correction (2026-11-26 raw-count audit): the post-run audit confirmed that
+> (1) `_fold_local_all` tail-slicing caused `logical_2q` to jump `2 → 4` at `s = 1.5`
+> (`1.40×` total) and stay `4` at `s = 2.0`, creating a `+5.8–7.0 mHa` kink that
+> inflated `χ²_red`; (2) raw `⟨IZ⟩`/`⟨ZI⟩` expectations were `+0.93..+0.96`
+> (weighted term energy `c_IZ ⟨IZ⟩ ≈ −0.38 Ha`); (3) the `F1`/`F2` `5.112 mHa` ZNE
+> spread (`0.74σ`) and `4.362 mHa` raw spread (`0.89σ`) were shot-noise-consistent,
+> while the 8192-shot scale-1 baselines agreed to `0.665 mHa` (`0.20σ`); and
+> (4) `baseline_energy` already included diagonal TREX readout mitigation (`~11 mHa`
+> below true unmitigated raw). `_fold_local_all` now folds 1Q/2Q proportionally with
+> a duplicate-2Q/divergence guard, ZNE receipts separate unmitigated raw vs.
+> TREX-mitigated baselines, and the next hardware spend is a same-batch ODR CDR +
+> live 4×4 readout calibration + `Z2` symmetry verification pilot with QWC grouping
+> and per-PUB shot allocation under the same G6 gates.

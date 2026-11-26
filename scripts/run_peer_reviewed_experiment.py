@@ -208,6 +208,80 @@ def _parse_zne_scales(raw: str) -> list[float]:
     return values
 
 
+def _parse_cdr_training_circuits(raw: str) -> int:
+    try:
+        val = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid --cdr-training-circuits {raw!r}: {exc}") from exc
+    if val < 6 or val > 32:
+        raise argparse.ArgumentTypeError("--cdr-training-circuits must be in [6, 32]")
+    return val
+
+
+def _parse_target_shots(raw: str) -> int:
+    try:
+        val = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"invalid target shots {raw!r}: {exc}") from exc
+    if val < 1024 or val > 131072:
+        raise argparse.ArgumentTypeError("target shots must be in [1024, 131072]")
+    return val
+
+
+def evaluate_cdr_g6_gates(cdr_res: dict[str, Any], e_fci_ref: float, *, live_readout_cal: bool = True) -> dict[str, dict[str, Any]]:
+    """Evaluate fail-closed G6 peer-review gates for a governed CDR hardware job."""
+    mit = cdr_res.get("mitigation") if isinstance(cdr_res.get("mitigation"), dict) else {}
+    lq = cdr_res.get("layout_quality") if isinstance(cdr_res.get("layout_quality"), dict) else {}
+    ro_cal = (
+        mit.get("readout_calibration")
+        if isinstance(mit.get("readout_calibration"), dict)
+        else (cdr_res.get("readout_mitigation") if isinstance(cdr_res.get("readout_mitigation"), dict) else {})
+    )
+    energy = cdr_res.get("energy")
+    cdr_delta = abs((float(energy) - float(e_fci_ref)) * 1000.0) if energy is not None else 9999.0
+    cond = ro_cal.get("condition_number")
+    ro_ok = (
+        (ro_cal.get("applied") is True and cond is not None and float(cond) < 50.0)
+        if live_readout_cal
+        else True
+    )
+    model_ok = (
+        mit.get("model_adequate") is True
+        and mit.get("chi2_reduced") is not None
+        and float(mit["chi2_reduced"]) <= 1.5
+    )
+    diff_ok = mit.get("difference_significant") is True
+    chem_ok = cdr_delta <= CHEMICAL_ACCURACY_MHA
+    layout_ok = not bool(lq.get("suspicious"))
+    all_ok = bool(cdr_res.get("success") is True and ro_ok and model_ok and diff_ok and chem_ok and layout_ok)
+    return {
+        "readout_cal": {
+            "passed": ro_ok,
+            "detail": f"method={ro_cal.get('method')} cond={cond} applied={ro_cal.get('applied')}",
+        },
+        "model_adequate": {
+            "passed": model_ok,
+            "detail": f"model_adequate={mit.get('model_adequate')} chi2={mit.get('chi2_reduced')} r2={mit.get('r_squared')} loo_mha={mit.get('loo_cv_mha')}",
+        },
+        "difference_ci": {
+            "passed": diff_ok,
+            "detail": f"diff_ha={mit.get('difference_ha')} ci95_mha={mit.get('difference_ci95_mha')} significant={mit.get('difference_significant')}",
+        },
+        "chemical_accuracy": {
+            "passed": chem_ok,
+            "detail": f"|Δ_CDR|={cdr_delta:.3f} mHa <= {CHEMICAL_ACCURACY_MHA}",
+        },
+        "layout_clean": {
+            "passed": layout_ok,
+            "detail": f"suspicious={lq.get('suspicious')} max_ro={lq.get('max_readout_error')}",
+        },
+        "all_gates": {
+            "passed": all_ok,
+            "detail": f"|Δ_CDR|={cdr_delta:.3f} mHa ro={ro_ok} model={model_ok} diff={diff_ok} chem={chem_ok} layout={layout_ok}",
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kubona full-stack peer-reviewed validation harness")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
@@ -215,14 +289,26 @@ def main() -> int:
     parser.add_argument("--backend", default="ibm_fez")
     parser.add_argument("--budget-usd", type=float, default=25.0)
     parser.add_argument("--shots", type=int, default=4096)
+    parser.add_argument("--mitigation", choices=("zne", "cdr"), default="zne",
+                        help="Primary VQE hardware error-mitigation method (zne or cdr)")
     parser.add_argument("--zne-shots", type=int, default=16384, help="Shots per circuit for H2 VQE ZNE")
     parser.add_argument("--extrapolator", default="exponential", choices=("linear", "exponential", "quadratic", "richardson"))
     parser.add_argument(
         "--zne-scales",
         type=_parse_zne_scales,
         default=[1.0, 2.0, 3.0, 4.0],
-        help="Comma-separated all-gate ZNE scales (>=3, strictly increasing; e.g. 1,1.5,2,3,4)",
+        help="Comma-separated all-gate ZNE scales (>=3, strictly increasing; e.g. 1,2,3,4)",
     )
+    parser.add_argument("--cdr-training-circuits", type=_parse_cdr_training_circuits, default=12,
+                        help="Number of energy-stratified near-Clifford CDR training circuits in [6, 32]")
+    parser.add_argument("--target-z-shots", type=_parse_target_shots, default=65536,
+                        help="Per-PUB shots for the target Z-basis QWC group in CDR mode")
+    parser.add_argument("--target-xy-shots", type=_parse_target_shots, default=16384,
+                        help="Per-PUB shots for each non-Z target QWC group in CDR mode")
+    parser.add_argument("--live-readout-cal", action=argparse.BooleanOptionalAction, default=True,
+                        help="Run live same-batch 2^n x 2^n asymmetric readout calibration in CDR mode")
+    parser.add_argument("--symmetry-verify", action=argparse.BooleanOptionalAction, default=True,
+                        help="Apply exact Bonet-Monroig Z2 symmetry verification in CDR mode")
     parser.add_argument("--tfim-zne", action="store_true", help="Enable ZNE [1.0, 2.0, 3.0] on hardware TFIM")
     parser.add_argument("--tenant-id", default=os.environ.get("KUBONA_TENANT_ID", ""),
                         help="Tenant that owns the session and signs hardware mandates")
@@ -404,6 +490,33 @@ def main() -> int:
     )
     record(checks, "pillar1_vqe_hw_prepare", code == 200 and bool(vqe_prep.get("binding")), f"code={code}")
 
+    cdr_prep_payload = {
+        "session_id": sid,
+        "source_job_id": vqe_job_id,
+        "backend": args.backend,
+        "budget_usd": 8.0,
+        "shots": args.shots,
+        "mitigation": "CDR",
+        "cdr_training_circuits": args.cdr_training_circuits,
+        "live_readout_cal": bool(args.live_readout_cal),
+        "symmetry_verification": bool(args.symmetry_verify),
+        "target_shots": [args.target_z_shots, args.target_xy_shots],
+    }
+    if args.mitigation == "cdr" or "vqe_cdr" in hw_pillars:
+        cdr_prep_code, cdr_prep = client.request(
+            "POST",
+            "/api/experiments/vqe/hardware/prepare",
+            cdr_prep_payload,
+        )
+        record(
+            checks,
+            "pillar1_vqe_hw_cdr_prepare",
+            cdr_prep_code == 200 and bool(cdr_prep.get("binding")),
+            f"code={cdr_prep_code} train={args.cdr_training_circuits} target_shots={[args.target_z_shots, args.target_xy_shots]}",
+        )
+    else:
+        cdr_prep_code, cdr_prep = 0, {}
+
     if args.mode == "hardware" and "vqe_raw" in hw_pillars and code == 200:
         mref = sign_mandate(client, vqe_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=5.0)
         c_raw, raw_resp = client.request(
@@ -511,6 +624,26 @@ def main() -> int:
                 zne_delta <= 1.6,
                 f"|Δ_ZNE|={zne_delta:.3f} mHa <= 1.6",
             )
+
+    if args.mode == "hardware" and (args.mitigation == "cdr" or "vqe_cdr" in hw_pillars) and cdr_prep_code == 200:
+        mref_cdr = sign_mandate(client, cdr_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=8.0)
+        _, cdr_resp = client.request(
+            "POST",
+            "/api/experiments/vqe/hardware",
+            {
+                **cdr_prep_payload,
+                "caller_jurisdictions": ["US"],
+                "caller_export_class": "public",
+                "export_reviewed": True,
+                "mandate_ref": mref_cdr,
+            },
+        )
+        cdr_jid = (cdr_resp.get("job") or cdr_resp).get("id") if isinstance(cdr_resp, dict) else None
+        cdr_job = client.poll_job(sid, cdr_jid, timeout_s=900) if cdr_jid else {}
+        cdr_res = json.loads(cdr_job.get("result_json") or "{}") if isinstance(cdr_job.get("result_json"), str) else (cdr_job.get("result_json") or cdr_job.get("result") or {})
+        gates = evaluate_cdr_g6_gates(cdr_res, e_fci_ref, live_readout_cal=bool(args.live_readout_cal))
+        for gname, gval in gates.items():
+            record(checks, f"pillar1_h2_vqe_hw_cdr_{gname}", bool(gval["passed"]), f"job={cdr_jid} {gval['detail']}")
 
     code, pes_launch = client.request(
         "POST",
