@@ -513,7 +513,8 @@ def test_r3_qaoa_hardware_emits_error_suppression_and_layout_quality(monkeypatch
     assert out["success"] is True
     assert out["error_suppression"]["dynamical_decoupling"] is True
     assert out["layout_quality"]["suspicious"] is False
-    assert out["readout_mitigation"]["method"] == "not_applicable_bitstring_cut"
+    assert out["readout_mitigation"]["method"] == "none"
+    assert out["readout_mitigation"]["applied"] is False
 
 
 def test_c_a_qaoa_ratio_interval_matches_sampled_cut_convention():

@@ -260,7 +260,31 @@ the Open Plan period). On real `ibm_fez` (`C3`/`C4`), `fit_se` dropped in half t
   13 circuits at `opt_level=3`) with a fail-closed 2Q transpilation parity guard; offline
   20-seed Heron `opt_level=3` replay reduced mean `χ²_red` from `1.46` to `0.47` and
   lifted the G6 pass rate from `8/20` to `15/20` (`mean_signed = +0.006 ± 0.405 mHa`).
+- **2026-11-26 forensic autopsy & frontier QEM upgrade (`$0.00` QPU spend):** Deeper
+  decomposition of the raw `C1`–`C4` `ibm_fez` bitstrings proved that **99.6%** (`+2.699`
+  of `+2.710 mHa`) of the post-`Z2` residual bias originated from `+0.00167` excess `|11⟩`
+  population injected by the dead Layer 1 of `layers=2` HEA propagating through Layer 2
+  `CX(0,1)`, while `opt_level=2` left qubit 1 idle (~64 ns, too short for 4-pulse XY4 DD)
+  on `train_00..08` (`+4.6 mHa` shift vs `+2.72 mHa` target) and `lock_cdr_native_slots`
+  still bloated depth `+64%` (`14 → 23`). In addition, `C3`/`C4`'s `SE = 1.58–1.72 mHa`
+  capped consecutive 2-job pass power at `46.6%`. The platform now ships:
+  1. **1-CZ Givens H₂ ansatz** (`depth=7, 1 CZ, 4 SX`), `ParityMapper`/`Z2Symmetries`
+     tapering, and particle-conserving `LUCJ` (`kubona/mitigation/ansatz.py`);
+  2. **Compile-Once ISA Virtual-`RZ` CDR** (100% 4-way parity, zero gate bloat), CPTP
+     contractive slope clamping (`a ≤ 1.0`), per-QWC-group CDR, and `vnCDR` (`cdr.py`);
+  3. **General `N`-qubit Transversal Virtual Distillation (`VD`) + `M3`** and **Echo
+     Verification (`EV`) + `M3`**, **Matrix-Free `M3` + `CVaR` QAOA**, **IBM Runtime
+     `NoiseLearnerV3` Sparse Pauli-Lindblad `PEA`/`PEC`** (Job Mode), **`SQD` (S-CORE)**,
+     **`QSE`**, **McWeeny `1-RDM` & `2-RDM` N-representability purification**, universal
+     QWC grouping across all hardware paths, and a **Pre-Dispatch Statistical Power Gate
+     & Autonomous Mitigation Advisor** (`mitigation="AUTO"`).
+  4. **Offline 20-seed realistic Heron non-unital stress verification:** Givens 1-CZ +
+     live 4×4 readout + `Z2` + Compile-Once ISA-RZ CDR achieved **18/20 (90%)** single-job
+     chemical accuracy (`mean |Δ| = 0.818 mHa` vs `14.294 mHa` raw); on a deep 13-CX noisy
+     Heron circuit, Transversal `VD + M3` suppressed error **11.6×** (`+38.6 → +3.33 mHa`).
 - **No further QPU spend** in this Open Plan billing period (`0.384519 RU / 19 s` remain).
+  Pre-registered next-cycle hardware command:
+  `scripts/run_peer_reviewed_experiment.py --mode hardware --mitigation cdr --ansatz givens --target-shots 131072,98304 --shots 8192`.
 
 ## Reading
 

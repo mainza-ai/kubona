@@ -47,6 +47,8 @@ type HardwareExperimentParams struct {
 	MitigationScales     []float64          `json:"mitigation_scales,omitempty"`
 	Extrapolator         string             `json:"extrapolator,omitempty"`
 	CDRTrainingCircuits  int                `json:"cdr_training_circuits,omitempty"`
+	CDRMode              string             `json:"cdr_mode,omitempty"`
+	AnsatzFamily         string             `json:"ansatz_family,omitempty"`
 	LiveReadoutCal       bool               `json:"live_readout_cal,omitempty"`
 	SymmetryVerification bool               `json:"symmetry_verification,omitempty"`
 	TargetShots          []int              `json:"target_shots,omitempty"`
@@ -98,6 +100,8 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		MitigationScales     []float64          `json:"mitigation_scales,omitempty"`
 		Extrapolator         string             `json:"extrapolator,omitempty"`
 		CDRTrainingCircuits  int                `json:"cdr_training_circuits,omitempty"`
+		CDRMode              string             `json:"cdr_mode,omitempty"`
+		AnsatzFamily         string             `json:"ansatz_family,omitempty"`
 		LiveReadoutCal       bool               `json:"live_readout_cal,omitempty"`
 		SymmetryVerification bool               `json:"symmetry_verification,omitempty"`
 		TargetShots          []int              `json:"target_shots,omitempty"`
@@ -120,6 +124,8 @@ func CanonicalHardwareJobBinding(jobType, sessionID string, p HardwareExperiment
 		Mitigation: p.Mitigation, MitigationScales: p.MitigationScales,
 		Extrapolator:         p.Extrapolator,
 		CDRTrainingCircuits:  p.CDRTrainingCircuits,
+		CDRMode:              p.CDRMode,
+		AnsatzFamily:         p.AnsatzFamily,
 		LiveReadoutCal:       p.LiveReadoutCal,
 		SymmetryVerification: p.SymmetryVerification,
 		TargetShots:          p.TargetShots,
@@ -258,15 +264,22 @@ func (r *Runner) planHardwareExperiment(tenantID, sessionID, jobType string, par
 					return "", 0, fmt.Errorf("mitigation requires at least two distinct scales")
 				}
 			}
-		case "CDR":
+		case "CDR", "VNCDR":
 			if jobType != "hardware_experiment" {
-				return "", 0, fmt.Errorf("CDR mitigation is supported for hardware_experiment VQE only, not %q", jobType)
+				return "", 0, fmt.Errorf("%s mitigation is supported for hardware_experiment VQE only, not %q", mitUpper, jobType)
 			}
 			if p.CDRTrainingCircuits != 0 && (p.CDRTrainingCircuits < 6 || p.CDRTrainingCircuits > 32) {
 				return "", 0, fmt.Errorf("cdr_training_circuits %d must be in [6, 32]", p.CDRTrainingCircuits)
 			}
+			if p.CDRMode != "" && p.CDRMode != "global" && p.CDRMode != "per_group" {
+				return "", 0, fmt.Errorf("cdr_mode %q must be global or per_group", p.CDRMode)
+			}
+		case "VD", "EV", "PEA", "PEC", "QSE", "SQD", "AUTO":
+			if jobType != "hardware_experiment" && jobType != "spin_chain_hardware" {
+				return "", 0, fmt.Errorf("%s mitigation is not supported for %q", mitUpper, jobType)
+			}
 		default:
-			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (use ZNE or CDR)", p.Mitigation)
+			return "", 0, fmt.Errorf("hardware_experiment mitigation %q is unsupported (use ZNE, CDR, VNCDR, VD, EV, PEA, PEC, QSE, SQD, or AUTO)", p.Mitigation)
 		}
 	}
 	if len(p.TargetShots) > 0 {

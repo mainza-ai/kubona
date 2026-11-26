@@ -524,6 +524,11 @@ func (s *Server) attachSupplementArtifacts(sessionID string, ms *ledger.Manuscri
 						countsPaths = append(countsPaths, staged)
 					}
 				}
+				if vdCnts, ok := res["vd_counts"].(map[string]any); ok && len(vdCnts) > 0 {
+					if staged, ok := stageCountsArtifact("supplement/counts/"+jid+"_vd", vdCnts, maxCountsFileBytes, artifacts); ok {
+						countsPaths = append(countsPaths, staged)
+					}
+				}
 				if mit, ok := res["mitigation"].(map[string]any); ok && len(mit) > 0 {
 					if mm, ok := mit["method"].(string); ok {
 						mitigationMethod = mm

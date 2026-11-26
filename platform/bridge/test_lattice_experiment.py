@@ -137,8 +137,9 @@ def test_spin_chain_hardware_uses_one_governed_batch(monkeypatch):
     assert res["hardware"] is True
     assert res["measured"] is True
     assert res["hardware_job_id"] == "vendor-spin-1"
-    assert res["transpile"]["circuits"] == 4
-    assert calls and calls[0]["n"] == 4
+    # Universal QWC groups {ZZI, IZZ} + magnetization into ONE ZZZ circuit + 1 XXX circuit = 2 circuits!
+    assert res["transpile"]["circuits"] == 2
+    assert calls and calls[0]["n"] == 2
     assert res["energy"] == pytest.approx(2.5)
     assert res["claimable"] is True
 

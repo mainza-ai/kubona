@@ -1055,6 +1055,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     spin=int(spec.get("spin", 0)),
                     ncas=spec.get("ncas"),
                     nelecas=spec.get("nelecas"),
+                    ansatz_family=str(spec.get("ansatz_family") or "hardware_efficient"),
+                    mapper_mode=str(spec.get("mapper_mode") or "jordan_wigner"),
                 )
             elif kind == "geometry_optimization":
                 from experiments import run_geometry_optimization
@@ -1072,6 +1074,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     spin=int(spec.get("spin", 0)),
                     ncas=spec.get("ncas"),
                     nelecas=spec.get("nelecas"),
+                    ansatz_family=str(spec.get("ansatz_family") or "hardware_efficient"),
+                    mapper_mode=str(spec.get("mapper_mode") or "jordan_wigner"),
                 )
             elif kind == "vqe_repeats":
                 from experiments import run_repeated_vqe
@@ -1304,6 +1308,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         mitigation_scales=spec.get("mitigation_scales"),
                         extrapolator=str(spec.get("extrapolator") or "linear"),
                         cdr_training_circuits=int(spec.get("cdr_training_circuits") or 12),
+                        cdr_mode=str(spec.get("cdr_mode") or "global"),
                         live_readout_cal=spec.get("live_readout_cal"),
                         symmetry_verification=spec.get("symmetry_verification"),
                         target_shots=spec.get("target_shots"),

@@ -73,3 +73,57 @@ func TestHardwareExperimentCDRBindingAndValidation(t *testing.T) {
 		t.Fatalf("expected spin_chain_hardware CDR refusal, got %v", err)
 	}
 }
+
+func TestHardwareExperimentFrontierMitigationBindingAndValidation(t *testing.T) {
+	base := HardwareExperimentParams{
+		Kind:                "vqe_hardware",
+		Molecule:            "H2",
+		BondDistance:        0.735,
+		Layers:              1,
+		Shots:               4096,
+		Seed:                7,
+		Theta:               []float64{-0.2235},
+		PauliCoefficients:   map[string]float64{"II": -0.42, "IZ": -0.40, "ZI": -0.40, "ZZ": 0.10, "XX": 0.09, "YY": -0.09},
+		FCIExactEnergy:      -1.137306,
+		Provider:            "ibm-qiskit",
+		RequestedBackend:    "ibm_fez",
+		QASM:                "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncx q[0],q[1];\n",
+		FidelityQASM:        "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncx q[0],q[1];\n",
+		MaxCostUSD:          8.0,
+		CallerJurisdictions: []string{"US"},
+	}
+
+	bBase := CanonicalHardwareExperimentBinding("sess-1", base)
+	for _, method := range []string{"VD", "EV", "PEA", "PEC", "QSE", "VNCDR", "AUTO"} {
+		p := base
+		p.Mitigation = method
+		p.AnsatzFamily = "givens"
+		bM := CanonicalHardwareExperimentBinding("sess-1", p)
+		if bM == bBase {
+			t.Fatalf("expected mitigation=%s to alter canonical binding", method)
+		}
+	}
+
+	pPerGroup := base
+	pPerGroup.Mitigation = "CDR"
+	pPerGroup.CDRMode = "per_group"
+	if CanonicalHardwareExperimentBinding("sess-1", pPerGroup) == bBase {
+		t.Fatalf("expected cdr_mode=per_group to alter canonical binding")
+	}
+
+	// Invalid cdr_mode and invalid mitigation must fail closed.
+	r := &Runner{}
+	badMode := pPerGroup
+	badMode.CDRMode = "invalid_mode"
+	raw, _ := json.Marshal(badMode)
+	if _, _, err := r.planHardwareExperiment("t1", "s1", "hardware_experiment", raw); err == nil || !strings.Contains(err.Error(), "cdr_mode") {
+		t.Fatalf("expected invalid cdr_mode refusal, got %v", err)
+	}
+
+	badMit := base
+	badMit.Mitigation = "MAGIC_FAKE"
+	raw, _ = json.Marshal(badMit)
+	if _, _, err := r.planHardwareExperiment("t1", "s1", "hardware_experiment", raw); err == nil || !strings.Contains(err.Error(), "is unsupported") {
+		t.Fatalf("expected unsupported mitigation refusal, got %v", err)
+	}
+}

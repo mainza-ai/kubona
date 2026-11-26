@@ -289,8 +289,12 @@ def main() -> int:
     parser.add_argument("--backend", default="ibm_fez")
     parser.add_argument("--budget-usd", type=float, default=25.0)
     parser.add_argument("--shots", type=int, default=4096)
-    parser.add_argument("--mitigation", choices=("zne", "cdr"), default="zne",
-                        help="Primary VQE hardware error-mitigation method (zne or cdr)")
+    parser.add_argument("--mitigation", choices=("zne", "cdr", "vd", "ev", "vncdr", "pea", "pec", "qse", "auto"), default="zne",
+                        help="Primary VQE hardware error-mitigation method")
+    parser.add_argument("--ansatz", choices=("hardware_efficient", "givens"), default="hardware_efficient",
+                        help="H2 ansatz family (givens=1-CX particle-conserving; hardware_efficient=layers-based)")
+    parser.add_argument("--cdr-mode", choices=("global", "per_group"), default="global",
+                        help="CDR regression mode (global or per_group)")
     parser.add_argument("--zne-shots", type=int, default=16384, help="Shots per circuit for H2 VQE ZNE")
     parser.add_argument("--extrapolator", default="exponential", choices=("linear", "exponential", "quadratic", "richardson"))
     parser.add_argument(
@@ -454,7 +458,8 @@ def main() -> int:
                 "molecule": "H2",
                 "bond_distance": 0.735,
                 "basis": "sto-3g",
-                "layers": 2,
+                "layers": 1 if args.ansatz == "givens" else 2,
+                "ansatz_family": args.ansatz,
                 "shots": 4096,
                 "seed": 7,
             },
@@ -490,19 +495,21 @@ def main() -> int:
     )
     record(checks, "pillar1_vqe_hw_prepare", code == 200 and bool(vqe_prep.get("binding")), f"code={code}")
 
+    mit_upper = str(args.mitigation or "zne").strip().upper()
     cdr_prep_payload = {
         "session_id": sid,
         "source_job_id": vqe_job_id,
         "backend": args.backend,
         "budget_usd": 8.0,
         "shots": args.shots,
-        "mitigation": "CDR",
+        "mitigation": mit_upper if mit_upper != "ZNE" else "CDR",
         "cdr_training_circuits": args.cdr_training_circuits,
+        "cdr_mode": args.cdr_mode,
         "live_readout_cal": bool(args.live_readout_cal),
         "symmetry_verification": bool(args.symmetry_verify),
         "target_shots": [args.target_z_shots, args.target_xy_shots],
     }
-    if args.mitigation == "cdr" or "vqe_cdr" in hw_pillars:
+    if mit_upper != "ZNE" or "vqe_cdr" in hw_pillars:
         cdr_prep_code, cdr_prep = client.request(
             "POST",
             "/api/experiments/vqe/hardware/prepare",
@@ -512,7 +519,7 @@ def main() -> int:
             checks,
             "pillar1_vqe_hw_cdr_prepare",
             cdr_prep_code == 200 and bool(cdr_prep.get("binding")),
-            f"code={cdr_prep_code} train={args.cdr_training_circuits} target_shots={[args.target_z_shots, args.target_xy_shots]}",
+            f"code={cdr_prep_code} method={cdr_prep_payload['mitigation']} train={args.cdr_training_circuits} target_shots={[args.target_z_shots, args.target_xy_shots]}",
         )
     else:
         cdr_prep_code, cdr_prep = 0, {}
@@ -625,7 +632,7 @@ def main() -> int:
                 f"|Δ_ZNE|={zne_delta:.3f} mHa <= 1.6",
             )
 
-    if args.mode == "hardware" and (args.mitigation == "cdr" or "vqe_cdr" in hw_pillars) and cdr_prep_code == 200:
+    if args.mode == "hardware" and (mit_upper != "ZNE" or "vqe_cdr" in hw_pillars) and cdr_prep_code == 200:
         mref_cdr = sign_mandate(client, cdr_prep["binding"], tenant_id=args.tenant_id, admin_key=admin_key, budget_usd=8.0)
         _, cdr_resp = client.request(
             "POST",

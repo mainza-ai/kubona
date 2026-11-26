@@ -201,6 +201,78 @@ CANONICAL_METHOD_REFERENCES: Dict[str, str] = {
         "  doi = {10.1103/PhysRevA.98.062339}\n"
         "}"
     ),
+    "Huggins2021VD": (
+        "@article{Huggins2021VD,\n"
+        "  author = {Huggins, William J. and McArdle, Sam and O'Brien, Thomas E. and Lee, Joonho and Rubin, Nicholas C. and Boixo, Sergio and Whaley, K. Birgitta and Babbush, Ryan and McClean, Jarrod R.},\n"
+        "  title = {Virtual Distillation for Quantum Error Mitigation},\n"
+        "  journal = {Physical Review X},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1103/PhysRevX.11.041036}\n"
+        "}"
+    ),
+    "Koczor2021VD": (
+        "@article{Koczor2021VD,\n"
+        "  author = {Koczor, B\\'alint},\n"
+        "  title = {Exponential Error Suppression for Near-Term Quantum Devices},\n"
+        "  journal = {Physical Review X},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1103/PhysRevX.11.031057}\n"
+        "}"
+    ),
+    "OBrien2021EV": (
+        "@article{OBrien2021EV,\n"
+        "  author = {O'Brien, Thomas E. and Polla, Stefano and Rubin, Nicholas C. and Huggins, William J. and McArdle, Sam and Boixo, Sergio and McClean, Jarrod R. and Babbush, Ryan},\n"
+        "  title = {Error Mitigation via Verified Phase Estimation},\n"
+        "  journal = {PRX Quantum},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1103/PRXQuantum.2.020317}\n"
+        "}"
+    ),
+    "vandenBerg2023PEC": (
+        "@article{vandenBerg2023PEC,\n"
+        "  author = {van den Berg, Ewout and Minev, Zlatko K. and Kandala, Abhinav and Temme, Kristan},\n"
+        "  title = {Probabilistic error cancellation with sparse Pauli-Lindblad models on noisy quantum processors},\n"
+        "  journal = {Nature Physics},\n"
+        "  year = {2023},\n"
+        "  doi = {10.1038/s41567-023-02042-2}\n"
+        "}"
+    ),
+    "RobledoMoreno2024SQD": (
+        "@article{RobledoMoreno2024SQD,\n"
+        "  author = {Robledo-Moreno, Javier and Motta, Mario and Haas, Holger and Javadi-Abhari, Ali and Jurcevic, Petar and Kirby, William and Martiel, Simon and Sharma, Kunal and Sharma, Sandeep and Shirakawa, Tomonori and others},\n"
+        "  title = {Chemistry Beyond Exact Solutions on a Quantum-Centric Supercomputer},\n"
+        "  journal = {Science Advances},\n"
+        "  year = {2025},\n"
+        "  doi = {10.1126/sciadv.adu9991}\n"
+        "}"
+    ),
+    "Nation2021M3": (
+        "@article{Nation2021M3,\n"
+        "  author = {Nation, Paul D. and Kang, Hwajung and Sundaresan, Neereja and Gambetta, Jay M.},\n"
+        "  title = {Scalable Mitigation of Measurement Errors on Quantum Computers},\n"
+        "  journal = {PRX Quantum},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1103/PRXQuantum.2.040326}\n"
+        "}"
+    ),
+    "Lowe2021vnCDR": (
+        "@article{Lowe2021vnCDR,\n"
+        "  author = {Lowe, Angus and Gordon, Max Hunter and Czarnik, Piotr and Arrasmith, Andrew and Coles, Patrick J. and Cincio, Lukasz},\n"
+        "  title = {Unified approach to data-driven quantum error mitigation},\n"
+        "  journal = {Physical Review Research},\n"
+        "  year = {2021},\n"
+        "  doi = {10.1103/PhysRevResearch.3.033098}\n"
+        "}"
+    ),
+    "McClean2017QSE": (
+        "@article{McClean2017QSE,\n"
+        "  author = {McClean, Jarrod R. and Kimchi-Schwartz, Mollie E. and Carter, Jonathan and de Jong, Wibe A.},\n"
+        "  title = {Hybrid quantum-classical hierarchy for mitigation of decoherence and determination of excited states},\n"
+        "  journal = {Physical Review A},\n"
+        "  year = {2017},\n"
+        "  doi = {10.1103/PhysRevA.95.042308}\n"
+        "}"
+    ),
 }
 
 # Structured metadata for canonical campaign-matched citation auto-seeding (G5)
@@ -218,6 +290,14 @@ CANONICAL_CITATION_METADATA: Dict[str, Dict[str, str]] = {
     "BravyiKitaev2005": {"key": "BravyiKitaev2005", "title": "Universal quantum computation with ideal Clifford gates and noisy ancillas", "authors": "Bravyi, Kitaev", "year": "2005", "doi": "10.1103/PhysRevA.71.022316"},
     "Czarnik2021CDR": {"key": "Czarnik2021CDR", "title": "Error mitigation with Clifford quantum-circuit data", "authors": "Czarnik et al.", "year": "2021", "doi": "10.22331/q-2021-11-26-592"},
     "BonetMonroig2018": {"key": "BonetMonroig2018", "title": "Low-cost error mitigation by symmetry verification", "authors": "Bonet-Monroig et al.", "year": "2018", "doi": "10.1103/PhysRevA.98.062339"},
+    "Huggins2021VD": {"key": "Huggins2021VD", "title": "Virtual Distillation for Quantum Error Mitigation", "authors": "Huggins et al.", "year": "2021", "doi": "10.1103/PhysRevX.11.041036"},
+    "Koczor2021VD": {"key": "Koczor2021VD", "title": "Exponential Error Suppression for Near-Term Quantum Devices", "authors": "Koczor", "year": "2021", "doi": "10.1103/PhysRevX.11.031057"},
+    "OBrien2021EV": {"key": "OBrien2021EV", "title": "Error Mitigation via Verified Phase Estimation", "authors": "O'Brien et al.", "year": "2021", "doi": "10.1103/PRXQuantum.2.020317"},
+    "vandenBerg2023PEC": {"key": "vandenBerg2023PEC", "title": "Probabilistic error cancellation with sparse Pauli-Lindblad models on noisy quantum processors", "authors": "van den Berg et al.", "year": "2023", "doi": "10.1038/s41567-023-02042-2"},
+    "RobledoMoreno2024SQD": {"key": "RobledoMoreno2024SQD", "title": "Chemistry Beyond Exact Solutions on a Quantum-Centric Supercomputer", "authors": "Robledo-Moreno et al.", "year": "2025", "doi": "10.1126/sciadv.adu9991"},
+    "Nation2021M3": {"key": "Nation2021M3", "title": "Scalable Mitigation of Measurement Errors on Quantum Computers", "authors": "Nation et al.", "year": "2021", "doi": "10.1103/PRXQuantum.2.040326"},
+    "Lowe2021vnCDR": {"key": "Lowe2021vnCDR", "title": "Unified approach to data-driven quantum error mitigation", "authors": "Lowe et al.", "year": "2021", "doi": "10.1103/PhysRevResearch.3.033098"},
+    "McClean2017QSE": {"key": "McClean2017QSE", "title": "Hybrid quantum-classical hierarchy for mitigation of decoherence and determination of excited states", "authors": "McClean et al.", "year": "2017", "doi": "10.1103/PhysRevA.95.042308"},
 }
 
 
@@ -225,17 +305,32 @@ def canonical_citations_for_campaign(rows: List[Dict[str, Any]]) -> List[Dict[st
     """Select DOI-backed canonical peer-reviewed citations matching the campaign kinds (G5)."""
     keys: list[str] = []
     kinds = {str(r.get("kind") or "").lower() for r in rows if isinstance(r, dict)}
+    mit_methods = {
+        str(r.get("mitigation_method") or (r.get("mitigation", {}).get("method") if isinstance(r.get("mitigation"), dict) else "") or "").upper()
+        for r in rows if isinstance(r, dict)
+    }
     if any(k in kind for kind in kinds for k in ("vqe", "pes", "excited", "geometry", "reaction")):
         keys.extend(["Peruzzo2014", "OMalley2016", "Kandala2017", "Kandala2019", "Sun2018PySCF"])
+    if "CDR" in mit_methods:
+        keys.extend(["Czarnik2021CDR", "BonetMonroig2018"])
+    if "VNCDR" in mit_methods:
+        keys.extend(["Lowe2021vnCDR", "Czarnik2021CDR", "BonetMonroig2018"])
+    if "VD" in mit_methods:
+        keys.extend(["Huggins2021VD", "Koczor2021VD", "Nation2021M3"])
+    if "EV" in mit_methods:
+        keys.extend(["OBrien2021EV", "Nation2021M3"])
+    if "PEA" in mit_methods or "PEC" in mit_methods:
+        keys.extend(["vandenBerg2023PEC", "Kim2023"])
+    if "SQD" in mit_methods:
+        keys.extend(["RobledoMoreno2024SQD", "Nation2021M3"])
+    if "QSE" in mit_methods:
+        keys.extend(["McClean2017QSE"])
     if any(
-        isinstance(r, dict)
-        and (
-            str(r.get("mitigation_method") or "").upper() == "CDR"
-            or (isinstance(r.get("mitigation"), dict) and str(r["mitigation"].get("method") or "").upper() == "CDR")
-        )
+        isinstance(r, dict) and isinstance(r.get("readout_mitigation"), dict)
+        and str(r["readout_mitigation"].get("method") or "").lower() == "m3_matrix_free"
         for r in rows
     ):
-        keys.extend(["Czarnik2021CDR", "BonetMonroig2018"])
+        keys.append("Nation2021M3")
     if any("qaoa" in kind for kind in kinds):
         keys.extend(["Zhou2020QAOA", "Harrigan2021"])
     if any(k in kind for kind in kinds for k in ("spin_chain", "tfim", "lattice", "thermodynamic")):

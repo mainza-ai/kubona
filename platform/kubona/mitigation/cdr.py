@@ -252,6 +252,7 @@ def generate_cdr_training_circuits(
     seed: int = 7,
     symmetries: list[dict[str, Any]] | None = None,
     min_distinct_energies: int = 8,
+    extra_sweep_angles: list[float] | None = None,
 ) -> dict[str, Any]:
     """Generate structure-preserving, energy-stratified near-Clifford CDR circuits.
 
@@ -332,6 +333,8 @@ def generate_cdr_training_circuits(
         0.08, -0.08, 0.16, -0.16, 0.25, -0.25, 0.40, -0.40,
         0.65, -0.65, 1.0, -1.0, 1.35, -1.35, 2.0, 2.5, 2.9,
     ]
+    if extra_sweep_angles:
+        sweep_angles = sweep_angles + [float(a) for a in extra_sweep_angles]
     for keep_idx in rot_indices:
         # Keep original target angle at keep_idx, nearest Clifford elsewhere
         pmap = {
@@ -391,9 +394,9 @@ def generate_cdr_training_circuits(
 
     # Prefer the physical energy band anchored near target_energy so non-unital
     # T1 bias is calibrated locally without sacrificing linear lever arm:
-    # keep candidates within [min_e, target_energy + 1.2 Ha] if enough exist,
+    # keep candidates within [min_e, target_energy + 1.65 Ha] if enough exist,
     # otherwise use the full pool.
-    local_band = [c for c in pool if c["exact_energy"] <= target_energy + 1.25]
+    local_band = [c for c in pool if c["exact_energy"] <= target_energy + 1.65]
     if len(local_band) >= m:
         pool = local_band
 
@@ -461,14 +464,214 @@ def generate_cdr_training_circuits(
     }
 
 
+def compile_isa_rz_template(
+    qc: Any,
+    *,
+    basis_gates: tuple[str, ...] = ("cz", "sx", "x", "rz"),
+    backend: Any = None,
+    initial_layout: list[int] | None = None,
+    optimization_level: int = 3,
+    seed_transpiler: int = 7,
+) -> dict[str, Any]:
+    """Compile target ansatz ONCE to native ISA so CDR varies ONLY virtual RZ angles.
+
+    Unlike pre-transpilation ``lock_cdr_native_slots`` (which bloated depth
+    ``14 -> 23`` and still leaked ``23 vs 21`` depth mismatches at ``opt_level=2``),
+    compiling the target circuit once into ``{cz, sx, x, rz}`` produces a minimal
+    physical schedule. Substituting virtual ``RZ(theta)`` angles directly inside
+    this frozen ISA template guarantees **100% identical** ``depth``, ``2Q`` gates,
+    ``1Q`` pulses, and pulse timing across target and every training circuit with
+    **zero** gate bloat.
+    """
+    from qiskit import QuantumCircuit, transpile
+
+    clean = QuantumCircuit(int(qc.num_qubits))
+    qmap = {q: i for i, q in enumerate(qc.qubits)}
+    for inst in qc.data:
+        name = str(getattr(inst.operation, "name", ""))
+        if name in ("measure", "reset"):
+            continue
+        clean.append(inst.operation, [qmap[q] for q in inst.qubits])
+
+    if backend is not None:
+        isa_full = transpile(
+            clean,
+            backend=backend,
+            initial_layout=initial_layout,
+            optimization_level=int(optimization_level),
+            seed_transpiler=int(seed_transpiler),
+        )
+        # Extract active logical-width circuit on [0..n-1] while recording layout.
+        n_log = int(clean.num_qubits)
+        layout_phys: list[int] = []
+        if getattr(isa_full, "layout", None) is not None and getattr(isa_full.layout, "initial_layout", None) is not None:
+            for q in clean.qubits:
+                layout_phys.append(int(isa_full.layout.initial_layout[q]))
+        elif initial_layout is not None:
+            layout_phys = [int(p) for p in initial_layout]
+        else:
+            layout_phys = list(range(n_log))
+        phys_to_log = {p: i for i, p in enumerate(layout_phys)}
+        isa = QuantumCircuit(n_log)
+        for inst in isa_full.data:
+            name = str(getattr(inst.operation, "name", ""))
+            if name in ("barrier", "measure", "reset"):
+                continue
+            qs = [isa_full.find_bit(q).index for q in inst.qubits]
+            if all(p in phys_to_log for p in qs):
+                isa.append(inst.operation, [phys_to_log[p] for p in qs])
+    else:
+        isa = transpile(
+            clean,
+            basis_gates=list(basis_gates),
+            optimization_level=int(optimization_level),
+            seed_transpiler=int(seed_transpiler),
+        )
+        layout_phys = list(initial_layout) if initial_layout is not None else list(range(int(clean.num_qubits)))
+
+    # Ensure every physical 1Q pulse has an adjacent 0-ns virtual RZ parameter so
+    # even ultra-compact ansätze (e.g. 1-CZ Givens) have rich virtual-RZ CDR freedom
+    # without adding any physical SX/X/CZ pulses.
+    rz_indices = [
+        i for i, inst in enumerate(isa.data)
+        if str(getattr(inst.operation, "name", "")).lower() in ("rz", "p")
+        and len(inst.qubits) == 1
+        and len(getattr(inst.operation, "params", []) or []) == 1
+    ]
+    if len(rz_indices) < 4:
+        padded = QuantumCircuit(int(isa.num_qubits))
+        qmap_p = {q: i for i, q in enumerate(isa.qubits)}
+        for inst in isa.data:
+            qs = [qmap_p[q] for q in inst.qubits]
+            name = str(getattr(inst.operation, "name", "")).lower()
+            if name in ("sx", "x"):
+                padded.rz(0.0, qs[0])
+            padded.append(inst.operation, qs)
+            if name in ("sx", "x"):
+                padded.rz(0.0, qs[0])
+        isa = padded
+        rz_indices = [
+            i for i, inst in enumerate(isa.data)
+            if str(getattr(inst.operation, "name", "")).lower() in ("rz", "p")
+            and len(inst.qubits) == 1
+            and len(getattr(inst.operation, "params", []) or []) == 1
+        ]
+    ops = dict(isa.count_ops())
+    ops.pop("barrier", None)
+    return {
+        "isa_circuit": isa,
+        "rz_indices": rz_indices,
+        "depth": int(isa.depth()),
+        "two_qubit_gates": _count_two_qubit_gates(isa),
+        "one_qubit_pulses": int(ops.get("sx", 0) + ops.get("x", 0)),
+        "rz_count": len(rz_indices),
+        "layout_physical_qubits": layout_phys,
+        "ops": {str(k): int(v) for k, v in ops.items()},
+    }
+
+
+def isa_circuit_to_qasm2(qc: Any) -> str:
+    """Serialize an ISA circuit to strict OpenQASM 2.0 (``qelib1.inc`` compatible).
+
+    Replaces native ``sx`` instructions with ``rx(pi/2)`` (identical single-qubit
+    X(pi/2) pulse up to global phase, natively defined in ``qelib1.inc``, and
+    re-mapped 1-to-1 back to ``sx`` on Heron with zero extra gates or depth).
+    """
+    from qiskit import QuantumCircuit, qasm2
+
+    safe = QuantumCircuit(*qc.qregs, *qc.cregs)
+    for inst in qc.data:
+        name = str(getattr(inst.operation, "name", "")).lower()
+        if name == "sx" and len(inst.qubits) == 1:
+            safe.rx(0.5 * math.pi, inst.qubits[0])
+        elif name == "sxdg" and len(inst.qubits) == 1:
+            safe.rx(-0.5 * math.pi, inst.qubits[0])
+        else:
+            safe.append(inst.operation, inst.qubits, inst.clbits)
+    return qasm2.dumps(safe)
+
+
+def generate_isa_rz_cdr_training_circuits(
+    qc: Any,
+    coeffs: dict[str, float],
+    *,
+    n_circuits: int = 12,
+    seed: int = 7,
+    symmetries: list[dict[str, Any]] | None = None,
+    min_distinct_energies: int = 8,
+    basis_gates: tuple[str, ...] = ("cz", "sx", "x", "rz"),
+    backend: Any = None,
+    initial_layout: list[int] | None = None,
+    optimization_level: int = 3,
+) -> dict[str, Any]:
+    """Generate CDR training circuits by varying ONLY virtual ``RZ`` angles in the compiled ISA template.
+
+    Guarantees 100.000% identical ``depth``, ``2Q`` gates, ``SX/X`` pulse count,
+    and schedule timing between target and every training circuit — zero gate bloat
+    and zero transpiler collapse.
+    """
+    tmpl = compile_isa_rz_template(
+        qc,
+        basis_gates=basis_gates,
+        backend=backend,
+        initial_layout=initial_layout,
+        optimization_level=optimization_level,
+        seed_transpiler=seed,
+    )
+    isa_qc = tmpl["isa_circuit"]
+    # On Heron ISA, small Ry(theta) compiles to Rz(pi - theta) between SX pulses,
+    # so include symmetric angles near +-pi and +-pi/2 for rich near-ground coverage.
+    isa_extra = [
+        ang
+        for d in (0.08, 0.16, 0.25, 0.35)
+        for ang in (math.pi - d, math.pi + d, -math.pi + d, 0.5 * math.pi - d, 0.5 * math.pi + d)
+    ]
+    pkg = generate_cdr_training_circuits(
+        isa_qc,
+        coeffs,
+        n_circuits=n_circuits,
+        seed=seed,
+        symmetries=symmetries,
+        min_distinct_energies=min_distinct_energies,
+        extra_sweep_angles=isa_extra,
+    )
+    # Verify exact 4-way ISA structural parity on every generated training circuit.
+    tgt_d, tgt_2q, tgt_1q = tmpl["depth"], tmpl["two_qubit_gates"], tmpl["one_qubit_pulses"]
+    for idx, tqc in enumerate(pkg["circuits"]):
+        tops = dict(tqc.count_ops())
+        t1q = int(tops.get("sx", 0) + tops.get("x", 0))
+        t2q = _count_two_qubit_gates(tqc)
+        if int(tqc.depth()) != tgt_d or t2q != tgt_2q or t1q != tgt_1q:
+            raise ValueError(
+                f"ISA-RZ parity violated on train_{idx:02d}: "
+                f"(d={tqc.depth()}, 2q={t2q}, 1q={t1q}) != target (d={tgt_d}, 2q={tgt_2q}, 1q={tgt_1q})"
+            )
+    pkg["target_isa_circuit"] = isa_qc
+    pkg["isa_template"] = {
+        "depth": tgt_d,
+        "two_qubit_gates": tgt_2q,
+        "one_qubit_pulses": tgt_1q,
+        "rz_count": tmpl["rz_count"],
+        "layout_physical_qubits": tmpl["layout_physical_qubits"],
+        "isa_rz_locked": True,
+    }
+    return pkg
+
+
 def _fit_inverse_wls(
     x_noisy: np.ndarray,
     y_exact: np.ndarray,
     sx: np.ndarray,
-) -> tuple[float, float, np.ndarray, float, float]:
+    *,
+    enforce_cptp: bool = True,
+) -> tuple[float, float, np.ndarray, float, float, dict[str, Any]]:
     """Exact MLE for ``x_i = a * y_i + b + eps_i, eps_i ~ N(0, sx_i^2)``.
 
-    Returns ``(a, b, cov_ab_unscaled, chi2, chi2_red)``.
+    When ``enforce_cptp=True`` (default), enforces physical CPTP contractivity
+    ``a <= 1.0``: if unconstrained WLS yields ``a > 1.0`` (noise cannot amplify
+    expectation values), falls back to the exact constrained MLE on the boundary
+    ``a = 1.0`` (``b = sum(w * (x - y)) / sum(w)``) and records the unconstrained
+    estimate for auditability.
     """
     w = 1.0 / np.maximum(sx, 1e-9) ** 2
     s_w = float(np.sum(w))
@@ -479,14 +682,29 @@ def _fit_inverse_wls(
     det = s_w * s_yy - s_y * s_y
     if not math.isfinite(det) or abs(det) <= 1e-18:
         raise ValueError("CDR training energies are degenerate (singular regression matrix)")
-    a = (s_w * s_xy - s_y * s_x) / det
-    b = (s_yy * s_x - s_y * s_xy) / det
+    a_unc = float((s_w * s_xy - s_y * s_x) / det)
+    b_unc = float((s_yy * s_x - s_y * s_xy) / det)
     cov_ab = np.array([[s_w, -s_y], [-s_y, s_yy]], dtype=float) / det
+    cptp_clamped = False
+    if enforce_cptp and a_unc > 1.0:
+        a = 1.0
+        b = float(np.sum(w * (x_noisy - y_exact)) / s_w)
+        # Keep conservative covariance at boundary (variance of b = 1/s_w; include
+        # slope uncertainty from unconstrained Fisher info so CI never shrinks artificially).
+        cov_ab = np.array([[cov_ab[0, 0], cov_ab[0, 1]], [cov_ab[1, 0], max(cov_ab[1, 1], 1.0 / s_w)]], dtype=float)
+        cptp_clamped = True
+    else:
+        a, b = a_unc, b_unc
     resid = x_noisy - (a * y_exact + b)
     chi2 = float(np.sum(w * resid * resid))
-    dof = max(1, len(x_noisy) - 2)
+    dof = max(1, len(x_noisy) - (1 if cptp_clamped else 2))
     chi2_red = chi2 / float(dof)
-    return float(a), float(b), cov_ab, chi2, chi2_red
+    meta = {
+        "unconstrained_forward_slope": a_unc,
+        "unconstrained_forward_intercept": b_unc,
+        "cptp_clamped": cptp_clamped,
+    }
+    return float(a), float(b), cov_ab, chi2, chi2_red, meta
 
 
 def fit_cdr_odr(
@@ -502,18 +720,9 @@ def fit_cdr_odr(
     input_vs_raw_diff_var: float | None = None,
     chi2_limit: float = 1.5,
     r2_min: float = 0.90,
+    enforce_cptp: bool = True,
 ) -> dict[str, Any]:
-    """Fit linear CDR model with Deming/errors-in-variables uncertainty propagation.
-
-    When training exact energies have zero uncertainty (standard CDR), solves the
-    exact errors-in-variables MLE ``x_i = a y_i + b + eps_i`` (zero attenuation
-    bias, closed-form Gauss-Markov covariance) and inverts to
-    ``E_CDR = (E_target - b) / a = alpha * E_target + beta``. When non-zero
-    ``train_exact_uncertainties`` are provided, uses ``scipy.odr``.
-
-    Reports exact coupled paired-difference CIs against both the immediate CDR
-    input baseline (``target_noisy``) and an optional unmitigated raw baseline.
-    """
+    """Fit linear CDR model with Deming/errors-in-variables uncertainty propagation."""
     x = np.asarray(train_noisy, dtype=float)
     y = np.asarray(train_exact, dtype=float)
     sx = np.asarray(train_uncertainties, dtype=float)
@@ -523,7 +732,6 @@ def fit_cdr_odr(
     if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)) or np.any(~np.isfinite(sx)):
         raise ValueError("CDR training arrays contain non-finite values")
     if np.any(sx <= 0.0):
-        # Floor zero shot-SE (e.g. deterministic noise-free simulator test) so WLS stays defined.
         sx = np.maximum(sx, 1e-6)
 
     use_scipy_odr = (
@@ -531,28 +739,32 @@ def fit_cdr_odr(
         and any(float(v) > 0.0 for v in train_exact_uncertainties)
     )
     dof = m - 2
+    wls_meta: dict[str, Any] = {"cptp_clamped": False}
 
     if use_scipy_odr:
         from scipy import odr as scipy_odr
 
         sy = np.maximum(np.asarray(train_exact_uncertainties, dtype=float), 1e-9)
-        a0, b0, _, _, _ = _fit_inverse_wls(x, y, sx)
+        a0, b0, _, _, _, wls_meta = _fit_inverse_wls(x, y, sx, enforce_cptp=enforce_cptp)
         model = scipy_odr.Model(lambda beta, x_in: beta[0] * x_in + beta[1])
         data = scipy_odr.RealData(y, x, sx=sy, sy=sx)
         out = scipy_odr.ODR(data, model, beta0=[a0, b0]).run()
         a, b = float(out.beta[0]), float(out.beta[1])
-        chi2_red = float(out.res_var)
-        chi2 = chi2_red * float(dof)
-        cov_ab_unscaled = np.asarray(out.cov_beta, dtype=float)
-        fit_method = "cdr_scipy_odr"
+        if enforce_cptp and a > 1.0:
+            a, b, cov_ab_unscaled, chi2, chi2_red, wls_meta = _fit_inverse_wls(x, y, sx, enforce_cptp=True)
+            fit_method = "cdr_eiv_cptp_boundary"
+        else:
+            chi2_red = float(out.res_var)
+            chi2 = chi2_red * float(dof)
+            cov_ab_unscaled = np.asarray(out.cov_beta, dtype=float)
+            fit_method = "cdr_scipy_odr"
     else:
-        a, b, cov_ab_unscaled, chi2, chi2_red = _fit_inverse_wls(x, y, sx)
-        fit_method = "cdr_eiv_deming_exact"
+        a, b, cov_ab_unscaled, chi2, chi2_red, wls_meta = _fit_inverse_wls(x, y, sx, enforce_cptp=enforce_cptp)
+        fit_method = "cdr_eiv_cptp_boundary" if wls_meta["cptp_clamped"] else "cdr_eiv_deming_exact"
 
     if not math.isfinite(a) or abs(a) < 1e-6:
         raise ValueError(f"CDR regression slope collapsed (a={a!r}); noise channel unidentifiable")
 
-    # Birge-scale parameter covariance when chi2_red > 1 so lack-of-fit inflates CI honestly.
     birge = max(1.0, chi2_red)
     cov_ab = cov_ab_unscaled * birge
 
@@ -562,24 +774,20 @@ def fit_cdr_odr(
     s0 = max(0.0, float(target_uncertainty))
     e_cdr = float((x0 - b) / a)
 
-    # Jacobian of E_CDR = (x0 - b) / a w.r.t. (a, b): [-E_CDR / a, -1 / a]
     g_ab = np.array([-e_cdr / a, -1.0 / a], dtype=float)
     var_fit = float(max(0.0, g_ab @ cov_ab @ g_ab))
     var_target = (alpha * s0) ** 2
     var_cdr = var_target + var_fit
     se_cdr = math.sqrt(max(0.0, var_cdr))
 
-    # Propagated covariance of (alpha, beta) for diagnostics
     j_ab = np.array([[-1.0 / (a * a), 0.0], [b / (a * a), -1.0 / a]], dtype=float)
     cov_alpha_beta = j_ab @ cov_ab @ j_ab.T
 
-    # R^2 on exact vs noisy linear relation
     x_pred = a * y + b
     ss_res = float(np.sum((x - x_pred) ** 2))
     ss_tot = float(np.sum((x - np.mean(x)) ** 2))
     r_squared = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-18 else 0.0
 
-    # Lack-of-fit p-value from chi2 distribution
     lack_of_fit_p: float | None = None
     try:
         from scipy.stats import chi2 as chi2_dist
@@ -587,12 +795,11 @@ def fit_cdr_odr(
     except Exception:
         lack_of_fit_p = None
 
-    # Leave-One-Out Cross-Validation RMSE (in mHa) on exact energy predictions
     loo_errors: list[float] = []
     for i in range(m):
         mask = np.arange(m) != i
         try:
-            ai, bi, _, _, _ = _fit_inverse_wls(x[mask], y[mask], sx[mask])
+            ai, bi, _, _, _, _ = _fit_inverse_wls(x[mask], y[mask], sx[mask], enforce_cptp=enforce_cptp)
             if abs(ai) > 1e-6:
                 y_hat_i = (x[i] - bi) / ai
                 loo_errors.append(float(y_hat_i - y[i]))
@@ -604,23 +811,18 @@ def fit_cdr_odr(
         else float("inf")
     )
 
-    # Exact coupled paired-difference CI against CDR input baseline x0:
-    # D = E_CDR - x0 = (alpha - 1) * x0 + beta  =>  Var(D) = (alpha - 1)^2 * s0^2 + var_fit
     diff_vs_input = e_cdr - x0
     var_diff_input = ((alpha - 1.0) * s0) ** 2 + var_fit
     diff_vs_input_se = math.sqrt(max(0.0, var_diff_input))
     diff_vs_input_ci95 = Z95 * diff_vs_input_se
 
-    # Difference vs raw unmitigated baseline (if supplied separately from x0)
     if raw_baseline_energy is not None:
         raw_e = float(raw_baseline_energy)
         raw_se = max(0.0, float(raw_baseline_uncertainty or 0.0))
         diff_vs_raw = e_cdr - raw_e
         if input_vs_raw_diff_var is not None and input_vs_raw_diff_var >= 0.0:
-            # Exact same-batch target covariance of (alpha * x0 - raw_e) + var_fit
             var_diff_raw = float(input_vs_raw_diff_var) + var_fit
         else:
-            # Conservative independent fallback
             var_diff_raw = var_cdr + raw_se * raw_se
         diff_vs_raw_se = math.sqrt(max(0.0, var_diff_raw))
         diff_vs_raw_ci95 = Z95 * diff_vs_raw_se
@@ -655,6 +857,8 @@ def fit_cdr_odr(
         "intercept": float(beta),
         "forward_slope": float(a),
         "forward_intercept": float(b),
+        "unconstrained_forward_slope": float(wls_meta.get("unconstrained_forward_slope", a)),
+        "cptp_clamped": bool(wls_meta.get("cptp_clamped", False)),
         "slope_std_error": float(math.sqrt(max(0.0, cov_alpha_beta[0, 0]))),
         "intercept_std_error": float(math.sqrt(max(0.0, cov_alpha_beta[1, 1]))),
         "cov_alpha_beta": cov_alpha_beta.tolist(),
@@ -683,11 +887,250 @@ def fit_cdr_odr(
         "difference_vs_raw_ci95_ha": float(diff_vs_raw_ci95),
         "difference_vs_raw_ci95_mha": float(diff_vs_raw_ci95 * 1000.0),
         "difference_vs_raw_significant": bool(abs(diff_vs_raw) > diff_vs_raw_ci95),
-        # Canonical G6 difference keys compare full mitigated stack vs unmitigated raw
         "difference_ha": float(diff_vs_raw),
         "difference_ci95_ha": float(diff_vs_raw_ci95),
         "difference_ci95_mha": float(diff_vs_raw_ci95 * 1000.0),
         "difference_significant": bool(abs(diff_vs_raw) > diff_vs_raw_ci95),
+    }
+
+
+def fit_per_group_cdr(
+    grouped: dict[str, Any],
+    train_group_noisy: list[list[float]],
+    train_group_exact: list[list[float]],
+    train_group_ses: list[list[float]],
+    target_group_noisy: list[float],
+    target_group_ses: list[float],
+    *,
+    raw_baseline_energy: float | None = None,
+    raw_baseline_uncertainty: float | None = None,
+    enforce_cptp: bool = True,
+) -> dict[str, Any]:
+    """Per-QWC-group / observable-dependent CDR (separates Z-diagonal vs XY noise channels).
+
+    Fits an independent CPTP-constrained affine map ``(a_g, b_g)`` for each QWC
+    measurement basis ``g`` whenever that group has non-degenerate exact variance
+    across training circuits; groups with constant exact energy fall back to
+    shift-only calibration ``b_g = weighted_mean(x_g - y_g)``.
+    """
+    groups = grouped["groups"]
+    g_count = len(groups)
+    total_e = float(grouped.get("identity_offset", 0.0))
+    total_var = 0.0
+    per_group: list[dict[str, Any]] = []
+    chi2_sum = 0.0
+    dof_sum = 0
+    all_adequate = True
+
+    for g_idx, grp in enumerate(groups):
+        gx = np.asarray([row[g_idx] for row in train_group_noisy], dtype=float)
+        gy = np.asarray([row[g_idx] for row in train_group_exact], dtype=float)
+        gsx = np.maximum(np.asarray([row[g_idx] for row in train_group_ses], dtype=float), 1e-6)
+        tx = float(target_group_noisy[g_idx])
+        ts = float(target_group_ses[g_idx])
+
+        span = float(np.max(gy) - np.min(gy))
+        if span < 1e-4 or len(gx) < 4:
+            # Constant-observable group: exact shift-only unbiased estimator
+            w = 1.0 / (gsx * gsx)
+            b_shift = float(np.sum(w * (gx - gy)) / np.sum(w))
+            var_b = float(1.0 / np.sum(w))
+            resid = (gx - gy) - b_shift
+            c2 = float(np.sum(w * resid * resid))
+            dof_g = max(1, len(gx) - 1)
+            birge = max(1.0, c2 / dof_g)
+            e_g = tx - b_shift
+            v_g = ts * ts + var_b * birge
+            per_group.append({
+                "basis": grp["basis"],
+                "mode": "shift_only",
+                "mitigated": float(e_g),
+                "uncertainty": float(math.sqrt(max(0.0, v_g))),
+                "forward_slope": 1.0,
+                "forward_intercept": b_shift,
+                "chi2_reduced": float(c2 / dof_g),
+                "model_adequate": bool(c2 / dof_g <= 2.0),
+            })
+            chi2_sum += c2
+            dof_sum += dof_g
+            all_adequate = all_adequate and bool(c2 / dof_g <= 2.0)
+        else:
+            gf = fit_cdr_odr(
+                gx.tolist(), gy.tolist(), gsx.tolist(),
+                target_noisy=tx, target_uncertainty=ts,
+                enforce_cptp=enforce_cptp, r2_min=0.85, chi2_limit=2.0,
+            )
+            e_g = float(gf["mitigated"])
+            v_g = float(gf["uncertainty"]) ** 2
+            per_group.append({
+                "basis": grp["basis"],
+                "mode": gf["fit_method"],
+                "mitigated": e_g,
+                "uncertainty": float(gf["uncertainty"]),
+                "forward_slope": float(gf["forward_slope"]),
+                "forward_intercept": float(gf["forward_intercept"]),
+                "cptp_clamped": bool(gf["cptp_clamped"]),
+                "chi2_reduced": float(gf["chi2_reduced"]),
+                "r_squared": float(gf["r_squared"]),
+                "model_adequate": bool(gf["model_adequate"]),
+            })
+            chi2_sum += float(gf["chi2"])
+            dof_sum += int(gf["dof"])
+            all_adequate = all_adequate and bool(gf["model_adequate"])
+        total_e += e_g
+        total_var += v_g
+
+    se_tot = math.sqrt(max(0.0, total_var))
+    chi2_red_tot = float(chi2_sum / max(1, dof_sum))
+    diff_raw = (total_e - float(raw_baseline_energy)) if raw_baseline_energy is not None else 0.0
+    diff_raw_se = math.sqrt(total_var + float(raw_baseline_uncertainty or 0.0) ** 2)
+    diff_raw_ci = Z95 * diff_raw_se
+    return {
+        "method": "CDR_PER_GROUP",
+        "mitigated": float(total_e),
+        "uncertainty": float(se_tot),
+        "ci95_mha": float(Z95 * se_tot * 1000.0),
+        "chi2": float(chi2_sum),
+        "chi2_reduced": chi2_red_tot,
+        "dof": int(dof_sum),
+        "model_adequate": bool(all_adequate and chi2_red_tot <= 1.5),
+        "per_group": per_group,
+        "difference_ha": float(diff_raw),
+        "difference_ci95_ha": float(diff_raw_ci),
+        "difference_ci95_mha": float(diff_raw_ci * 1000.0),
+        "difference_significant": bool(abs(diff_raw) > diff_raw_ci),
+    }
+
+
+def fit_vncdr(
+    train_noisy_by_scale: list[list[float]],
+    train_exact: list[float],
+    train_ses_by_scale: list[list[float]],
+    target_noisy_by_scale: list[float],
+    target_ses_by_scale: list[float],
+    scales: list[float],
+    *,
+    raw_baseline_energy: float | None = None,
+    raw_baseline_uncertainty: float | None = None,
+    ridge_alpha: float = 1e-6,
+    chi2_limit: float = 1.5,
+) -> dict[str, Any]:
+    """Variable-Noise Clifford Data Regression (vnCDR; Lowe et al., PRR 3, 033098, 2021).
+
+    Unifies ZNE and CDR by fitting the multivariate linear predictor across
+    ``K >= 2`` noise scales ``[lambda_1, ..., lambda_K]``:
+      ``E_exact = c_0 + sum_{k=1}^K c_k * E_noisy(lambda_k)``
+    using weighted ridge least squares, Birge-scaled covariance propagation,
+    and leave-one-out cross-validation.
+    """
+    X = np.asarray(train_noisy_by_scale, dtype=float)  # shape (M, K)
+    y = np.asarray(train_exact, dtype=float)           # shape (M,)
+    S = np.maximum(np.asarray(train_ses_by_scale, dtype=float), 1e-6)  # shape (M, K)
+    x0 = np.asarray(target_noisy_by_scale, dtype=float)  # shape (K,)
+    s0 = np.maximum(np.asarray(target_ses_by_scale, dtype=float), 1e-6)  # shape (K,)
+
+    if X.ndim != 2:
+        raise ValueError("train_noisy_by_scale must be a 2D array of shape (M, K)")
+    m, k = X.shape
+    if k < 2:
+        raise ValueError(f"vnCDR requires >= 2 noise scales, got {k}")
+    if m < k + 3 or len(y) != m or S.shape != (m, k) or len(x0) != k or len(s0) != k:
+        raise ValueError(f"vnCDR shape mismatch: M={m}, K={k} (need M >= K+3)")
+
+    # Design matrix [1, E(lambda_1), ..., E(lambda_K)]
+    A = np.column_stack([np.ones(m, dtype=float), X])
+    # Per-circuit effective variance weight (mean variance across scales)
+    row_var = np.mean(S * S, axis=1)
+    w = 1.0 / np.maximum(row_var, 1e-12)
+    W = np.diag(w)
+    reg = float(ridge_alpha) * np.eye(k + 1, dtype=float)
+    reg[0, 0] = 0.0  # do not shrink intercept
+
+    ata = A.T @ W @ A + reg
+    cond = float(np.linalg.cond(ata))
+    if not math.isfinite(cond) or cond > 1e12:
+        raise ValueError(f"vnCDR design matrix ill-conditioned (cond={cond:.3g})")
+    ata_inv = np.linalg.inv(ata)
+    beta = ata_inv @ (A.T @ W @ y)
+
+    y_pred = A @ beta
+    resid = y - y_pred
+    # Effective per-point noise variance including linear propagation of X-errors:
+    # Var(y_i - c^T x_i) = sum_k (c_k * S_{i,k})^2
+    c_slopes = beta[1:]
+    eff_var = np.maximum(np.sum((S * c_slopes[None, :]) ** 2, axis=1), 1e-12)
+    chi2 = float(np.sum((resid * resid) / eff_var))
+    dof = max(1, m - (k + 1))
+    chi2_red = float(chi2 / dof)
+    birge = max(1.0, chi2_red)
+
+    # Sandwich covariance for beta under heteroscedastic eff_var
+    cov_beta = (ata_inv @ (A.T @ np.diag(w * w * eff_var) @ A) @ ata_inv) * birge
+
+    a0 = np.concatenate(([1.0], x0))
+    e_vncdr = float(a0 @ beta)
+    var_fit = float(max(0.0, a0 @ cov_beta @ a0))
+    var_target = float(np.sum((c_slopes * s0) ** 2))
+    se_tot = math.sqrt(max(0.0, var_fit + var_target))
+
+    ss_res = float(np.sum(resid * resid))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+    r_squared = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-18 else 0.0
+
+    # LOO-CV RMSE in mHa
+    loo_errs: list[float] = []
+    for i in range(m):
+        mask = np.arange(m) != i
+        Ai = A[mask]
+        Wi = np.diag(w[mask])
+        try:
+            bi = np.linalg.solve(Ai.T @ Wi @ Ai + reg, Ai.T @ Wi @ y[mask])
+            loo_errs.append(float(A[i] @ bi - y[i]))
+        except Exception:
+            continue
+    loo_cv_mha = (
+        float(math.sqrt(float(np.mean(np.square(loo_errs)))) * 1000.0)
+        if len(loo_errs) == m
+        else float("inf")
+    )
+
+    raw_e = float(raw_baseline_energy) if raw_baseline_energy is not None else float(x0[0])
+    raw_se = float(raw_baseline_uncertainty) if raw_baseline_uncertainty is not None else float(s0[0])
+    diff_raw = e_vncdr - raw_e
+    diff_raw_se = math.sqrt(max(0.0, var_fit + var_target + raw_se * raw_se))
+    diff_raw_ci = Z95 * diff_raw_se
+    mean_se_mha = float(np.mean(np.sqrt(eff_var)) * 1000.0)
+    loo_limit_mha = max(5.0, 2.5 * mean_se_mha)
+
+    return {
+        "method": "VNCDR",
+        "scales": [float(s) for s in scales],
+        "mitigated": e_vncdr,
+        "uncertainty": float(se_tot),
+        "ci95_mha": float(Z95 * se_tot * 1000.0),
+        "intercept": float(beta[0]),
+        "scale_coefficients": [float(c) for c in c_slopes],
+        "var_target_component": var_target,
+        "var_fit_component": var_fit,
+        "birge_scale": float(birge),
+        "condition_number": cond,
+        "r_squared": r_squared,
+        "chi2": chi2,
+        "chi2_reduced": chi2_red,
+        "dof": int(dof),
+        "loo_cv_mha": loo_cv_mha,
+        "loo_cv_limit_mha": loo_limit_mha,
+        "model_adequate": bool(
+            math.isfinite(r_squared)
+            and r_squared >= 0.90
+            and chi2_red <= float(chi2_limit)
+            and math.isfinite(loo_cv_mha)
+            and loo_cv_mha <= loo_limit_mha
+        ),
+        "difference_ha": float(diff_raw),
+        "difference_ci95_ha": float(diff_raw_ci),
+        "difference_ci95_mha": float(diff_raw_ci * 1000.0),
+        "difference_significant": bool(abs(diff_raw) > diff_raw_ci),
     }
 
 
@@ -1064,17 +1507,16 @@ def allocate_cdr_training_shots(
             circ, grouped, symmetry_protected_z=symmetry_protected_z,
         )
         group_vars_list.append(gvars)
-        # Optimal per-shot SE scales with sum(sqrt(v_g)); weight inversely to
-        # both energy distance from target and per-shot SE.
+        # C-optimal inverse-variance weighting: concentrate extra shots on the
+        # lowest-variance, nearest-target anchors while keeping min_circ on all
+        # upper-span circuits for chi2_reduced lack-of-fit power.
         opt_se = max(1e-4, sum(math.sqrt(v) for v in gvars))
-        w = 1.0 / ((0.03 + abs(float(e_exact) - float(target_exact_energy))) * opt_se)
+        dist = 0.03 + abs(float(e_exact) - float(target_exact_energy))
+        w = 1.0 / ((dist ** 1.5) * opt_se)
         weights.append(w)
 
     max_w = max(weights) if weights else 1.0
-    # Every circuit already receives min_circ = min_group_shots * g_count for chi2
-    # lack-of-fit power; keep only a light 2% floor so extra budget concentrates
-    # on low-variance near-target anchors and minimizes fit_se.
-    weights = [max(w, 0.02 * max_w) for w in weights]
+    weights = [max(w, 0.01 * max_w) for w in weights]
     w_sum = sum(weights)
 
     # Distribute total training budget in multiples of q * 1 while honoring min_circ.
@@ -1106,8 +1548,13 @@ __all__ = [
     "allocate_cdr_training_shots",
     "build_assignment_matrix",
     "build_readout_cal_circuits",
+    "compile_isa_rz_template",
     "evaluate_cdr_batch",
     "fit_cdr_odr",
+    "fit_per_group_cdr",
+    "fit_vncdr",
     "generate_cdr_training_circuits",
+    "generate_isa_rz_cdr_training_circuits",
+    "isa_circuit_to_qasm2",
     "lock_cdr_native_slots",
 ]

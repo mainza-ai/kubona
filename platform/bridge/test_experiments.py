@@ -122,7 +122,8 @@ def test_hardware_vqe_uses_one_batch_and_measures_every_term(monkeypatch):
     assert res["usage_seconds"] == 2.0
     assert res["actual_usd"] == 0.0
     assert len(calls) == 1
-    assert len(calls[0][0]) == 3
+    # Universal QWC drops constant II and groups {IZ, ZI} into 1 shared ZZ measurement circuit!
+    assert len(calls[0][0]) == 1
     assert calls[0][1] == 512
     assert calls[0][3] == "ibm-test"
     # All measured counts are |00>, so every non-II expectation is +1.
@@ -154,7 +155,8 @@ def test_hardware_vqe_loop_makes_every_objective_a_batch(monkeypatch):
     assert len(calls) >= 1
     assert res["iteration_batches"] == len(calls)
     assert len(res["hardware_job_ids"]) == len(calls)
-    assert all(len(call[0]) == 2 for call in calls)
+    # Universal QWC drops constant II -> 1 circuit per evaluation instead of 2.
+    assert all(len(call[0]) == 1 for call in calls)
 
 
 def test_hardware_vqe_loop_uses_qpy_for_active_space(monkeypatch):
@@ -215,7 +217,8 @@ def test_hardware_vqe_zne_extrapolates_energy_from_measured_terms(monkeypatch):
     assert res["chemical_accuracy"] is False
     assert res["energy"] == pytest.approx(-0.75)
     assert len(calls) == 1
-    assert len(calls[0][0]) == 6
+    # Universal QWC drops constant II -> 1 ZZ circuit * 3 scales = 3 circuits (previously 6).
+    assert len(calls[0][0]) == 3
     assert res["hardware_job_id"] == "hw-zne"
 
 
@@ -507,7 +510,8 @@ def test_hardware_pes_batches_all_points_once(monkeypatch):
     assert res["point_count"] == 2
     assert len(res["points"]) == 2
     assert len(calls) == 1
-    assert len(calls[0][0]) == 4
+    # Universal QWC drops constant II -> 1 ZZ circuit * 2 PES points = 2 circuits (previously 4).
+    assert len(calls[0][0]) == 2
     assert res["hardware_job_id"] == "hw-pes-1"
 
 

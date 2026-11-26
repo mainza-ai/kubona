@@ -637,6 +637,12 @@ def run_spin_chain_hardware(
         _layout_physical_qubits,
         _fold_circuit,
         _extrapolate_zne,
+        _readout_mitigation_factor,
+    )
+    from kubona.mitigation.qwc import (
+        estimate_energy_from_qwc_counts,
+        group_pauli_terms,
+        measurement_circuit_for_basis,
     )
     method = (mitigation or "").strip().upper()
     if method and method != "ZNE":
@@ -652,21 +658,27 @@ def run_spin_chain_hardware(
             return {"success": False, "error": "ZNE mitigation requires at least two distinct scales in [1.0, 15.0]"}
 
     qiskit_coeffs = {_qiskit_pauli_label(label): float(coeff) for label, coeff in coeffs.items()}
-    sorted_qiskit_labels = sorted(qiskit_coeffs)
+    grouped = group_pauli_terms(qiskit_coeffs)
+    groups = grouped["groups"]
+    z_group_idx = next((i for i, g in enumerate(groups) if g.get("is_z_basis")), None)
     qasms: list[str] = []
     fold_keys: list[tuple[str, float]] = []
     if method:
-        for label in sorted_qiskit_labels:
+        for grp in groups:
             for s in scales:
-                qasms.append(_measurement_qasm(_fold_circuit(qc, s), label))
-                fold_keys.append((label, s))
+                qasms.append(qasm2.dumps(measurement_circuit_for_basis(_fold_circuit(qc, s), grp["basis"])))
+                fold_keys.append((grp["basis"], s))
     else:
-        for label in sorted_qiskit_labels:
-            qasms.append(_measurement_qasm(qc, label))
-    # One extra Z-basis circuit for the measured magnetization vector.
-    z_circuit = qc.copy()
-    z_circuit.measure_all()
-    qasms.append(qasm2.dumps(z_circuit))
+        for grp in groups:
+            qasms.append(qasm2.dumps(measurement_circuit_for_basis(qc, grp["basis"])))
+    # Reuse the scale-1 Z-basis QWC group for magnetization when present; only
+    # append an extra Z circuit if the Hamiltonian had no Z-only group.
+    extra_z_appended = False
+    if z_group_idx is None:
+        z_circuit = qc.copy()
+        z_circuit.measure_all()
+        qasms.append(qasm2.dumps(z_circuit))
+        extra_z_appended = True
     try:
         batch = _hardware_batch(qasms, int(shots), int(seed), backend=backend)
     except Exception as exc:  # noqa: BLE001
@@ -681,6 +693,31 @@ def run_spin_chain_hardware(
     counts_by_term: dict[str, dict[str, int]] = {}
     counts_by_scale: dict[str, Any] | None = None
     counts_scale: float | int = 1
+    diag_factors = (
+        {t: float(_readout_mitigation_factor(t, cal_data, used_q)) for t in qiskit_coeffs if not (set(t) <= {"I"})}
+        if cal_data is not None
+        else None
+    )
+
+    def _eval_spin_qwc(ordered_cnts: list[dict[str, int]]) -> dict[str, Any]:
+        res_q = estimate_energy_from_qwc_counts(grouped, ordered_cnts, diagonal_readout_factors=diag_factors)
+        res_q["readout_mitigation"] = {
+            "enabled": True,
+            "applied": bool(diag_factors and any(abs(f - 1.0) > 1e-9 for f in diag_factors.values())),
+            "method": "diagonal_trex_from_calibration",
+            "factors": diag_factors or {},
+        }
+        return res_q
+
+    def _map_spin_terms(ordered_cnts: list[dict[str, int]]) -> dict[str, dict[str, int]]:
+        out_m: dict[str, dict[str, int]] = {}
+        for grp, cdict in zip(groups, ordered_cnts):
+            clean = {str(k): int(v) for k, v in cdict.items()}
+            for t in grp["terms"]:
+                out_m[str(t)] = clean
+        return out_m
+
+    energy_counts = counts_list[:-1] if extra_z_appended else counts_list
     if method:
         t_env = batch.get("transpile") if isinstance(batch.get("transpile"), dict) else None
         if (
@@ -698,18 +735,14 @@ def run_spin_chain_hardware(
                     f"min_2Q={t_env['min_transpiled_two_qubit_gates']} == max_2Q={t_env['max_transpiled_two_qubit_gates']}"
                 ),
             }
-        by_scale: dict[float, list[tuple[str, dict[str, int]]]] = {s: [] for s in scales}
-        for (label, s), cdict in zip(fold_keys, counts_list[:-1]):
-            by_scale[s].append((label, cdict))
+        by_scale: dict[float, list[dict[str, int]]] = {s: [] for s in scales}
+        for (_, s), cdict in zip(fold_keys, energy_counts):
+            by_scale[s].append(dict(cdict))
         scale_energies: list[float] = []
         scale_uncertainties: list[float] = []
         base_terms: dict[str, Any] = {}
         for s in scales:
-            ordered = [dict(cdict) for _, cdict in by_scale[s]]
-            m = _hardware_counts_to_energy(
-                ordered, qiskit_coeffs,
-                calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
-            )
+            m = _eval_spin_qwc(by_scale[s])
             if readout_meta is None and "readout_mitigation" in m:
                 readout_meta = m["readout_mitigation"]
             if s == scales[0]:
@@ -729,17 +762,9 @@ def run_spin_chain_hardware(
             if _qiskit_pauli_label(label) in base_terms
         }
         counts_scale = int(scales[0]) if abs(scales[0] - round(scales[0])) < 1e-9 else scales[0]
-        counts_by_term = {
-            str(label): {str(k): int(v) for k, v in cdict.items()}
-            for label, cdict in by_scale[scales[0]]
-        }
-        counts_by_scale = {
-            str(s): {
-                str(label): {str(k): int(v) for k, v in cdict.items()}
-                for label, cdict in by_scale[s]
-            }
-            for s in scales
-        }
+        counts_by_term = _map_spin_terms(by_scale[scales[0]])
+        counts_by_scale = {str(s): _map_spin_terms(by_scale[s]) for s in scales}
+        z_counts = counts_list[-1] if extra_z_appended else by_scale[scales[0]][z_group_idx]
         mitigation_receipt = {
             "method": "ZNE",
             "extrapolator": ext["extrapolator"],
@@ -761,23 +786,17 @@ def run_spin_chain_hardware(
         if "exp_params" in ext:
             mitigation_receipt["exp_params"] = ext["exp_params"]
     else:
-        measured = _hardware_counts_to_energy(
-            counts_list[:-1], qiskit_coeffs,
-            calibration=cal_data, used_qubits=used_q, readout_mitigation=True,
-        )
+        measured = _eval_spin_qwc(energy_counts)
         readout_meta = measured.get("readout_mitigation")
         measured_terms = {
             label: measured["terms"][_qiskit_pauli_label(label)]
             for label in coeffs
             if _qiskit_pauli_label(label) in measured["terms"]
         }
-        counts_by_term = {
-            str(label): {str(k): int(v) for k, v in cdict.items()}
-            for label, cdict in zip(sorted_qiskit_labels, counts_list[:-1])
-        }
+        counts_by_term = _map_spin_terms(energy_counts)
         energy = float(measured["energy"])
         uncertainty = float(measured["uncertainty"])
-    z_counts = counts_list[-1]
+        z_counts = counts_list[-1] if extra_z_appended else energy_counts[z_group_idx]
     counts_by_term["Z_mag"] = {str(k): int(v) for k, v in z_counts.items()}
     z_total = sum(int(v) for v in z_counts.values())
     if z_total <= 0:

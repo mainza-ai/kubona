@@ -118,6 +118,38 @@ Plan; **`0.384519 RU / 19 s` remain**):
   remains open by `0.193 mHa` (4-run pooled offset `−1.869 ± 1.994 mHa` below FCI).
   Post-run `opt_level=3` inspection localized that offset to `cz=2 → 1` collapse on
   two upper-span training circuits and `sx=11 → 4` simplification; `lock_cdr_native_slots`
-  plus a fail-closed 2Q transpilation parity guard now enforce identical native `(cz, sx)`
-  slots across target and training circuits (verified offline: `χ²_red` `1.46 → 0.47`,
-  20-seed pass rate `8/20 → 15/20`, ready for the next billing cycle).
+  plus a fail-closed 2Q transpilation parity guard enforced identical native `(cz, sx)`
+  slots across target and training circuits, and was superseded on 2026-11-26 by
+  **Compile-Once ISA Virtual-`RZ` CDR** below (zero gate bloat, exact 4-way parity).
+
+## Frontier Quantum Error Mitigation Suite (2026-11-26 upgrade)
+
+Following the forensic autopsy of the `C1`–`C4` raw hardware bitstrings (which proved
+`99.6%` of post-`Z2` residual bias came from the dead Layer 1 of `layers=2` HEA
+injecting excess `|11⟩` through Layer 2 `CX(0,1)`, compounded by `opt_level=2`
+idle-slot leakage and `±1.65 mHa` shot-power ceilings), Kubona's mitigation package
+(`platform/kubona/mitigation/`) was upgraded across every problem regime:
+
+| Method | Module | Regime & Mechanism |
+|---|---|---|
+| **Givens 1-CZ + Parity/`Z2` Tapering + LUCJ** | `ansatz.py` | 1-CZ / 4-SX / depth-7 symmetry-preserving H₂ ansatz, `ParityMapper` + `Z2Symmetries` qubit reduction, and particle-conserving LUCJ for heavy-hex SQD. |
+| **Compile-Once ISA Virtual-`RZ` CDR, Per-Group CDR & `vnCDR`** | `cdr.py` | Compiles the target circuit once to Heron `{cz, sx, x, rz}` and varies only 0-ns virtual `RZ` angles (100% 4-way parity, zero depth bloat), enforces CPTP contractive slope (`a ≤ 1.0`), supports orthogonal per-QWC-group fits (`cdr_mode="per_group"`), and multi-scale `vnCDR`. |
+| **Transversal Virtual Distillation (`VD`) + `M3`** | `virtual_distillation.py` | General `N`-qubit ancilla-free `2n`-qubit `B^(2) = CH(b,a)CX(a,b)` (1-CX `qelib1.inc` decomposition) with same-batch `M3` readout mitigation and fail-closed purity floor (`min_purity = 0.40`). Suppresses deep-circuit non-unital error by `> 8×`. |
+| **Echo Verification (`EV`) + `M3`** | `echo_verification.py` | `n+1`-qubit Loschmidt echo purification (`U -> ctrl-P -> U†`) with same-batch `M3` readout mitigation and fail-closed echo fidelity floor (`0.05`). |
+| **Matrix-Free `M3` Readout + `CVaR` QAOA** | `readout_m3.py` | `O(1)` balanced 2-circuit (or `n+1` independent) scalable readout mitigation for `n = 1..32` qubits wired into QAOA (`live_readout_cal=True`, `cvar_alpha`), `VD`, and `EV`. |
+| **IBM Runtime `NoiseLearnerV3` SPL `PEA` & `PEC`** | `spl_noise.py` | Open-Plan Job-Mode (`mode=backend`, never `Session`) Sparse Pauli-Lindblad noise learning + client-side `Estimator` `PEA`/`PEC` with fail-closed `PEC_OVERHEAD_EXCEEDED` guard before Estimator dispatch. |
+| **`SQD` (S-CORE), `QSE`, & `1-RDM`/`2-RDM` Purification** | `sqd.py`, `qse.py`, `rdm_purification.py` | Self-consistent configuration recovery (`S-CORE`) + exact Slater-Condon diagonalization, deduplicated QWC Quantum Subspace Expansion, McWeeny `3D² − 2D³` 1-RDM purification, and alternating D/Q-condition N-representable 2-RDM projection. |
+| **Pre-Dispatch Statistical Power Gate & Advisor** | `power_gate.py` | Predicts `SE`, bias ceiling, `P(2× consecutive pass)`, and RU cost before dispatch; `mitigation="AUTO"` routes shallow 1-CZ H₂ to `Givens + ISA-RZ CDR`, deep low-`n` circuits to `VD + M3`, large chemistry (`n ≥ 8`) to `LUCJ + SQD`, and QAOA to `M3 + CVaR`. |
+
+**Offline Heron non-unital stress benchmark (2026-11-26, `$0.00` QPU spend):**
+- **Givens 1-CZ + live 4×4 readout + `Z2` + Compile-Once ISA-RZ CDR** (`depth=7, 1 CZ, 4 SX`):
+  cleared chemical accuracy (`≤ 1.6 mHa`) with `model_adequate` and `difference_significant`
+  on **18/20 (90%)** independent realistic Heron non-unital (`T1/T2 + 2Q depol + 0.8%/1.5%`
+  asymmetric readout) seeds (`mean |Δ| = 0.818 mHa` vs `14.294 mHa` raw — **17.5×** reduction).
+- **Deep 13-CX noisy Heron circuit + Transversal `VD + M3`**: crushed `+38.6 mHa` raw
+  non-unital error down to **`+3.33 mHa`** (**11.6×** reduction).
+- Universal QWC Pauli grouping (dropping `II...I`) is now enabled across raw VQE, VQE-loop,
+  ZNE, hardware PES, and spin-chain hardware paths.
+- Hardware dispatch for the next Open Plan cycle (`0.384519 RU / 19 s` remain on the current
+  period) is pre-registered as:
+  `scripts/run_peer_reviewed_experiment.py --mode hardware --mitigation cdr --ansatz givens --target-shots 131072,98304 --shots 8192`.

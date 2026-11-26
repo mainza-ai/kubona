@@ -393,6 +393,8 @@ type hardwareVQEIntent struct {
 	MitigationScales     []float64 `json:"mitigation_scales"`
 	Extrapolator         string    `json:"extrapolator,omitempty"`
 	CDRTrainingCircuits  int       `json:"cdr_training_circuits,omitempty"`
+	CDRMode              string    `json:"cdr_mode,omitempty"`
+	AnsatzFamily         string    `json:"ansatz_family,omitempty"`
 	LiveReadoutCal       bool      `json:"live_readout_cal,omitempty"`
 	SymmetryVerification bool      `json:"symmetry_verification,omitempty"`
 	TargetShots          []int     `json:"target_shots,omitempty"`
@@ -469,6 +471,8 @@ func (s *Server) hardwareVQEParamsFromSource(req hardwareVQEIntent) (jobs.Hardwa
 		Mitigation: req.Mitigation, MitigationScales: req.MitigationScales,
 		Extrapolator:         req.Extrapolator,
 		CDRTrainingCircuits:  req.CDRTrainingCircuits,
+		CDRMode:              req.CDRMode,
+		AnsatzFamily:         req.AnsatzFamily,
 		LiveReadoutCal:       req.LiveReadoutCal,
 		SymmetryVerification: req.SymmetryVerification,
 		TargetShots:          req.TargetShots,

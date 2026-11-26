@@ -218,7 +218,19 @@ development — re-verify the gate on the exact commit before citing
 > `|Δ| = 1.515 ± 2.280 mHa`, 4-run pooled `−1.869 ± 1.994 mHa`, `Cochran Q = 2.09`).
 > Model adequacy (`4/4`) and raw separation (`6.4–12.8σ`) are solved and reproduced,
 > while strict consecutive single-job `≤ 1.6 mHa` reproduction remains `0.193 mHa` open
-> (see [[hardware-validation-r2-2026-11-25]]).
+> (see [[hardware-validation-r2-2026-11-25]]). Following the 2026-11-26 forensic
+> bitstring autopsy (`99.6%` of post-`Z2` bias traced to the dead Layer 1 of `layers=2`
+> HEA + `opt_level=2` idle-slot leakage + `+64%` depth bloat from `lock_cdr_native_slots`),
+> Kubona landed the full Frontier QEM upgrade (`$0.00` QPU spend): 1-CZ Givens H₂ +
+> `ParityMapper`/`Z2Symmetries` tapering + LUCJ, Compile-Once ISA Virtual-`RZ` CDR
+> (100% 4-way parity, zero bloat, CPTP contractive slope, per-group CDR, `vnCDR`),
+> general `N`-qubit Transversal Virtual Distillation (`VD`) + `M3`, Echo Verification
+> (`EV`) + `M3`, Matrix-Free `M3` + `CVaR` QAOA, IBM Runtime `NoiseLearnerV3` SPL
+> `PEA`/`PEC` (Job Mode), `SQD` (S-CORE), `QSE`, McWeeny 1-RDM & 2-RDM purification,
+> universal QWC across all hardware paths, and the Pre-Dispatch Statistical Power Gate
+> & Autonomous Advisor (`mitigation="AUTO"`). Offline 20-seed realistic Heron non-unital
+> stress passed 18/20 (90%) with Givens 1-CZ + ISA-RZ CDR (`mean |Δ| = 0.818 mHa` vs
+> `14.294 mHa` raw) and `VD + M3` suppressed deep 13-CX error 11.6× (`+38.6 → +3.33 mHa`).
 
 ## Three layers
 

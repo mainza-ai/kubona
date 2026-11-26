@@ -538,16 +538,19 @@ class QiskitProvider(Provider):
             return None
 
         readout: list[float] = []
+        t1_us: list[float] = []
         t2_us: list[float] = []
         if props is not None:
             try:
                 for q in range(nphys):
                     ro = props.readout_error(q)
                     readout.append(float(ro) if ro is not None else 0.05)
+                    t1 = props.t1(q) if hasattr(props, "t1") else None
+                    t1_us.append(float(t1) * 1e6 if t1 is not None else 150.0)
                     t2 = props.t2(q) if hasattr(props, "t2") else None
                     t2_us.append(float(t2) * 1e6 if t2 is not None else 100.0)
             except Exception:
-                readout, t2_us = [], []
+                readout, t1_us, t2_us = [], [], []
         if not readout and target is not None:
             qprops = getattr(target, "qubit_properties", None) or []
             meas_map = {}
@@ -560,6 +563,8 @@ class QiskitProvider(Provider):
                 ro = getattr(mp, "error", None) if mp is not None else None
                 readout.append(float(ro) if ro is not None else 0.05)
                 qp = qprops[q] if q < len(qprops) else None
+                t1 = getattr(qp, "t1", None) if qp is not None else None
+                t1_us.append(float(t1) * 1e6 if t1 is not None else 150.0)
                 t2 = getattr(qp, "t2", None) if qp is not None else None
                 t2_us.append(float(t2) * 1e6 if t2 is not None else 100.0)
         if len(readout) != nphys:
@@ -572,6 +577,7 @@ class QiskitProvider(Provider):
             except Exception:
                 coupling = None
         edges: dict[frozenset[int], float] = {}
+        edge_dur_ns: dict[frozenset[int], float] = {}
         adj: dict[int, set[int]] = {q: set() for q in range(nphys)}
         if coupling is not None:
             for a, b in coupling:
@@ -582,57 +588,85 @@ class QiskitProvider(Provider):
                 adj[ib].add(ia)
                 key = frozenset((ia, ib))
                 best = edges.get(key, float("inf"))
+                best_dur = edge_dur_ns.get(key, float("inf"))
                 for gate in ("cx", "ecr", "cz"):
                     err = None
+                    dur = None
                     if props is not None:
                         try:
                             err = float(props.gate_error(gate, [ia, ib]))
                         except Exception:
                             err = None
+                        try:
+                            d_sec = props.gate_length(gate, [ia, ib])
+                            if d_sec is not None:
+                                dur = float(d_sec) * 1e9
+                        except Exception:
+                            dur = None
                     if err is None and target is not None:
                         try:
                             gmap = target[gate] if gate in target else {}
                             gp = gmap.get((ia, ib)) if isinstance(gmap, dict) else None
-                            if gp is not None and getattr(gp, "error", None) is not None:
-                                err = float(gp.error)
+                            if gp is not None:
+                                if getattr(gp, "error", None) is not None:
+                                    err = float(gp.error)
+                                if dur is None and getattr(gp, "duration", None) is not None:
+                                    dur = float(gp.duration) * 1e9
                         except Exception:
                             err = None
                     if err is not None:
                         best = min(best, err)
+                    if dur is not None and dur > 0:
+                        best_dur = min(best_dur, dur)
                 edges[key] = best if best < float("inf") else 0.01
+                if best_dur < float("inf"):
+                    edge_dur_ns[key] = best_dur
 
         def node_cost(q: int) -> float:
             ro = readout[q]
             outlier_pen = 10.0 * max(0.0, ro - 0.03)
-            coherence_pen = 10.0 / max(t2_us[q], 5.0)
-            return 2.0 * ro + outlier_pen + coherence_pen
+            # Penalize short T1 and T2 (T1 asymmetry drives non-unital chemistry bias).
+            coherence_pen = 6.0 / max(t1_us[q], 5.0) + 10.0 / max(t2_us[q], 5.0)
+            # Spectator crosstalk proxy: average 2Q error on incident couplers.
+            inc = [edges[frozenset((q, nb))] for nb in adj[q] if frozenset((q, nb)) in edges]
+            xtalk_pen = 0.25 * (sum(inc) / len(inc)) if inc else 0.0
+            return 2.0 * ro + outlier_pen + coherence_pen + xtalk_pen
+
+        def edge_cost(u: int, v: int) -> float:
+            key = frozenset((u, v))
+            e_err = edges.get(key, 0.5)
+            dur = edge_dur_ns.get(key, 100.0)
+            # Add decoherence-during-gate penalty: dur_us / min(T1, T2)
+            t_eff = max(min(t1_us[u], t2_us[u], t1_us[v], t2_us[v]), 5.0)
+            dur_pen = (dur * 1e-3) / t_eff
+            return 1.5 * e_err + 0.5 * dur_pen
 
         if n == 1:
             return [min(range(nphys), key=node_cost)]
 
         def subgraph_cost(nodes: list[int]) -> float:
-            # Node cost + MST 2Q edge error over the induced subgraph (Prim's).
+            # Node cost + MST 2Q edge cost (error + gate-duration decoherence) via Prim's.
             total = sum(node_cost(q) for q in nodes)
             in_tree = {nodes[0]}
             remaining = set(nodes[1:])
-            mst_err = 0.0
+            mst_cost = 0.0
             while remaining:
                 best_e = float("inf")
                 best_v = None
                 for u in in_tree:
                     for v in remaining:
-                        e = edges.get(frozenset((u, v)))
-                        if e is not None and e < best_e:
-                            best_e = e
-                            best_v = v
+                        if frozenset((u, v)) in edges:
+                            e = edge_cost(u, v)
+                            if e < best_e:
+                                best_e = e
+                                best_v = v
                 if best_v is None:
-                    # Disconnected penalty
                     best_v = min(remaining, key=node_cost)
-                    best_e = 0.5
+                    best_e = 0.75
                 in_tree.add(best_v)
                 remaining.remove(best_v)
-                mst_err += best_e
-            return total + 1.5 * mst_err
+                mst_cost += best_e
+            return total + mst_cost
 
         best_layout: list[int] | None = None
         best_score = float("inf")
@@ -649,9 +683,9 @@ class QiskitProvider(Provider):
                     frontier = set(range(nphys)) - sel_set
                 nxt = min(
                     frontier,
-                    key=lambda q: node_cost(q) + 1.5 * min(
-                        (edges.get(frozenset((q, s)), 0.5) for s in selected if frozenset((q, s)) in edges),
-                        default=0.5,
+                    key=lambda q: node_cost(q) + min(
+                        (edge_cost(q, s) for s in selected if frozenset((q, s)) in edges),
+                        default=0.75,
                     ),
                 )
                 selected.append(nxt)
@@ -661,6 +695,56 @@ class QiskitProvider(Provider):
                 best_score = sc
                 best_layout = selected
         return best_layout
+
+    def _calibrated_paired_layout(self, n_logical: int, backend) -> list[int] | None:
+        """Select a ``2 * n_logical`` physical layout for 2-copy Transversal Virtual Distillation.
+
+        Returns ``[a_0, ..., a_{n-1}, b_0, ..., b_{n-1}]`` maximizing direct
+        physical coupling between copies (``a_i - b_i``) and within each copy
+        while minimizing readout, 2Q gate, and coherence costs. On heavy-hex
+        topologies where a full ladder does not exist, falls back gracefully to
+        the best connected ``2*n`` subgraph ordered so cross-copy pairs stay
+        graph-adjacent (shortest SWAP distance).
+        """
+        from qiskit import QuantumCircuit
+        n = int(n_logical)
+        if n <= 0:
+            return None
+        base = self._calibrated_initial_layout(QuantumCircuit(2 * n), backend)
+        if not base or len(base) != 2 * n:
+            return base
+        # On 2-qubit systems (4 physical qubits in a path p0-p1-p2-p3), map
+        # copy A = [p0, p1] and copy B = [p3, p2] or [p2, p3] so (a1, b1) share
+        # a direct physical coupler and intra-copy (a0,a1) & (b0,b1) are direct!
+        if n == 2:
+            target = getattr(backend, "target", None)
+            coupling = getattr(backend, "coupling_map", None)
+            if coupling is None and target is not None:
+                try:
+                    coupling = target.build_coupling_map()
+                except Exception:
+                    coupling = None
+            if coupling is not None:
+                edge_set = {frozenset((int(u), int(v))) for u, v in coupling}
+                sub = list(base)
+                # Try all 24 permutations of the 4 physical qubits to maximize
+                # direct couplers for (a0,a1), (b0,b1), (a0,b0), (a1,b1).
+                import itertools
+                best_perm = sub
+                best_hits = -1
+                for perm in itertools.permutations(sub):
+                    a0, a1, b0, b1 = perm
+                    hits = (
+                        (2 if frozenset((a0, a1)) in edge_set else 0)
+                        + (2 if frozenset((b0, b1)) in edge_set else 0)
+                        + (1 if frozenset((a0, b0)) in edge_set else 0)
+                        + (1 if frozenset((a1, b1)) in edge_set else 0)
+                    )
+                    if hits > best_hits:
+                        best_hits = hits
+                        best_perm = list(perm)
+                return best_perm
+        return base
 
     def _layout_quality(self, layout: list[int] | None, backend) -> dict[str, Any] | None:
         """Calibration summary for the chosen physical qubits (post-hoc trust)."""
@@ -871,7 +955,9 @@ class QiskitProvider(Provider):
 
     def submit_batch(self, qasm_list: list[str], shots: int = 4096,
                      seed: int = 7, service_factory=None,
-                     shots_per_circuit: list[int] | None = None) -> dict[str, Any]:
+                     shots_per_circuit: list[int] | None = None,
+                     already_transpiled: bool = False,
+                     initial_layout: list[int] | None = None) -> dict[str, Any]:
         """Submit multiple measurement circuits as one Runtime job.
 
         This is the provider primitive behind one governed hardware experiment:
@@ -879,9 +965,10 @@ class QiskitProvider(Provider):
         job/batch mode (Open Plan compatible), never a session.
 
         When ``shots_per_circuit`` is provided with heterogeneous shot counts,
-        each circuit is submitted as a SamplerV2 PUB tuple ``(circuit, None, s)``
-        so Neyman-allocated target circuits and calibration/training circuits can
-        share a single hardware batch.
+        realizes per-circuit budgets via bounded GCD uniform-shot replication
+        (``<= 64`` expanded PUBs to minimize Runtime compilation overhead) and
+        count merging. When ``already_transpiled=True``, submits pre-compiled
+        ISA circuits verbatim (preserving 100% identical virtual-RZ schedules).
         """
         self._ensure_ready()
         if not isinstance(qasm_list, list) or not qasm_list:
@@ -921,14 +1008,18 @@ class QiskitProvider(Provider):
                     sampler = Sampler(backend=backend)
             except (ImportError, ModuleNotFoundError) as e:
                 raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
-        # G2: enable native IBM Runtime error suppression (XY4 dynamical
-        # decoupling + gate & measurement Pauli twirling) when supported by the
-        # SamplerV2 options object; record exact applied settings in provenance.
+        # G2 + Phase 0: explicitly configure XY4 ALAP dynamical decoupling and
+        # active-accum gate + measurement Pauli twirling with deterministic
+        # randomization counts so Runtime never falls back to unconfigured defaults.
         error_suppression: dict[str, Any] = {
             "dynamical_decoupling": False,
             "dynamical_decoupling_sequence": None,
+            "dynamical_decoupling_scheduling": None,
+            "dynamical_decoupling_slack": None,
             "gate_twirling": False,
             "measure_twirling": False,
+            "twirling_strategy": None,
+            "twirling_num_randomizations": None,
         }
         opts = getattr(sampler, "options", None)
         if opts is not None:
@@ -938,6 +1029,12 @@ class QiskitProvider(Provider):
                     dd.enable = True
                     if hasattr(dd, "sequence_type"):
                         dd.sequence_type = "XY4"
+                    if hasattr(dd, "scheduling_method"):
+                        dd.scheduling_method = "alap"
+                        error_suppression["dynamical_decoupling_scheduling"] = "alap"
+                    if hasattr(dd, "extra_slack_distribution"):
+                        dd.extra_slack_distribution = "middle"
+                        error_suppression["dynamical_decoupling_slack"] = "middle"
                     error_suppression["dynamical_decoupling"] = True
                     error_suppression["dynamical_decoupling_sequence"] = "XY4"
                 except Exception:
@@ -951,6 +1048,15 @@ class QiskitProvider(Provider):
                     if hasattr(tw, "enable_measure"):
                         tw.enable_measure = True
                         error_suppression["measure_twirling"] = True
+                    if hasattr(tw, "strategy"):
+                        tw.strategy = "active-accum"
+                        error_suppression["twirling_strategy"] = "active-accum"
+                    # Explicitly pin randomization count (32 twirls per PUB keeps
+                    # coherent-to-Pauli averaging tight without inflating QPU time).
+                    if hasattr(tw, "num_randomizations"):
+                        n_rand = 32 if int(shots) >= 1024 else 16
+                        tw.num_randomizations = n_rand
+                        error_suppression["twirling_num_randomizations"] = n_rand
                 except Exception:
                     pass
         circuits = []
@@ -958,14 +1064,30 @@ class QiskitProvider(Provider):
         layout_quality = None
         transpile_meta = None
         transpile_samples: list[dict[str, int]] = []
+        cached_layouts: dict[int, list[int] | None] = {}
         for idx_c, qasm in enumerate(qasm_list):
             qc = qasm2.loads(str(qasm))
             original = qc
             if hasattr(backend, "target"):
-                chosen = self._calibrated_initial_layout(original, backend)
-                qc = self._transpile_for_backend(original, backend, chosen)
+                if already_transpiled:
+                    chosen = list(initial_layout) if initial_layout is not None else None
+                else:
+                    n_q = int(original.num_qubits)
+                    if initial_layout is not None and len(initial_layout) == n_q:
+                        chosen = list(initial_layout)
+                    else:
+                        if n_q not in cached_layouts:
+                            cached_layouts[n_q] = self._calibrated_initial_layout(original, backend)
+                        chosen = cached_layouts[n_q]
+                    qc = self._transpile_for_backend(original, backend, chosen)
                 if layout is None:
                     layout = self._layout_summary(original, qc)
+                    if layout is None and chosen is not None:
+                        layout = {
+                            "initial": {str(i): int(p) for i, p in enumerate(chosen)},
+                            "final": {},
+                            "physical_qubits": [int(p) for p in chosen],
+                        }
                     if layout_quality is None:
                         phys = layout.get("physical_qubits") if isinstance(layout, dict) else chosen
                         layout_quality = self._layout_quality(phys, backend)
@@ -996,15 +1118,14 @@ class QiskitProvider(Provider):
             self._validate_job_limits(qc, circuit_shots, backend)
             circuits.append(qc)
         if transpile_samples:
-            # A batch spans many measurement bases/folds; report the batch
-            # envelope (including min/max 2Q gates so ZNE fold preservation and
-            # CDR target-vs-training native parity are auditable) and the first sample.
             transpile_meta = {
                 "circuits": len(transpile_samples),
+                "already_transpiled": bool(already_transpiled),
                 "min_transpiled_depth": min(s["transpiled_depth"] for s in transpile_samples),
                 "max_transpiled_depth": max(s["transpiled_depth"] for s in transpile_samples),
                 "min_transpiled_two_qubit_gates": min(s["transpiled_two_qubit_gates"] for s in transpile_samples),
                 "max_transpiled_two_qubit_gates": max(s["transpiled_two_qubit_gates"] for s in transpile_samples),
+                "per_circuit_depth": [s["transpiled_depth"] for s in transpile_samples],
                 "per_circuit_two_qubit_gates": [s["transpiled_two_qubit_gates"] for s in transpile_samples],
                 "per_circuit_one_qubit_pulses": [s["transpiled_one_qubit_pulses"] for s in transpile_samples],
                 "first": transpile_samples[0],
@@ -1012,14 +1133,17 @@ class QiskitProvider(Provider):
         expanded_reps: list[int] | None = None
         pub_base_shots: int | None = None
         if resolved_shots is not None and len(set(resolved_shots)) > 1:
-            # IBM qiskit_ibm_runtime executor_sampler requires every PUB in one
-            # job to share the same shot count (extract_shots_from_pubs refuses
-            # mixed shots). Realize heterogeneous per-circuit shot budgets inside
-            # ONE governed job via GCD uniform-shot replication and count merging.
+            # IBM qiskit_ibm_runtime executor_sampler enforces uniform shots across
+            # PUBs in one job. Cap expanded PUBs at <= 64 (previously 400 -> 152 PUBs
+            # wasting ~3.5x Runtime wall-clock framing overhead on Heron).
+            max_pubs = max(64, len(circuits))
             base = math.gcd(*resolved_shots)
-            if base < 1 or sum(s // base for s in resolved_shots) > 400:
-                base = max(1, int(math.ceil(sum(resolved_shots) / 256.0)))
-                expanded_reps = [max(1, int(round(s / base))) for s in resolved_shots]
+            if base < 1 or sum(s // base for s in resolved_shots) > max_pubs:
+                # Choose clean base shots so sum(reps) <= max_pubs while honoring ratios
+                raw_base = max(1, int(math.ceil(sum(resolved_shots) / float(max_pubs))))
+                # Round up to nearest multiple of 512 when feasible for clean twirl binning
+                base = int(math.ceil(raw_base / 512.0)) * 512 if raw_base >= 512 else raw_base
+                expanded_reps = [max(1, int(round(s / float(base)))) for s in resolved_shots]
             else:
                 expanded_reps = [s // base for s in resolved_shots]
             pub_base_shots = int(base)

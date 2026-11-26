@@ -548,7 +548,7 @@ def test_phase6_c_optimal_cdr_training_shots_cut_fit_se_below_1_3_mha(monkeypatc
         thermal_relaxation_error(t1, t2, 80e-9)
         .tensor(thermal_relaxation_error(t1, t2, 80e-9))
         .compose(depolarizing_error(0.0045, 2)),
-        ["cx"],
+        ["cx", "cz"],
     )
     noise.add_all_qubit_readout_error(ReadoutError([[0.992, 0.008], [0.015, 0.985]]))
 
@@ -564,7 +564,7 @@ def test_phase6_c_optimal_cdr_training_shots_cut_fit_se_below_1_3_mha(monkeypatc
             out_counts = []
             for idx, qasm in enumerate(qasm_list):
                 s = shots_per_circuit[idx] if shots_per_circuit else shots
-                qc_i = transpile(qasm2.loads(qasm), basis_gates=["rx", "ry", "rz", "h", "sdg", "x", "cx"], optimization_level=0)
+                qc_i = transpile(qasm2.loads(qasm), basis_gates=["rx", "ry", "rz", "h", "sdg", "x", "cx", "cz"], optimization_level=0)
                 cnt = sim.run(qc_i, shots=int(s)).result().get_counts()
                 out_counts.append({str(k): int(v) for k, v in cnt.items()})
             return {
