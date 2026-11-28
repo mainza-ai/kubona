@@ -195,8 +195,23 @@ class DiscoveryCampaign:
                 "health_check_only": analyze_is_health_check}).record_id}
 
         # 5b EPISTEMIC GATING (Ring 1 & 2) — over the precomputed anchor.
-        variational_energy = -best.metric  # harness metric is -energy (higher is better)
-        anchor_eval = mol_engine.evaluate_advantage_claim(variational_energy, anchor)
+        # M0 (B3): guard best is None across both variational_energy and ledger_ref
+        # so an unsuccessful search never crashes with AttributeError.
+        if best is None:
+            variational_energy = None
+            anchor_eval = {
+                "chemical_accuracy_achieved": False,
+                "error_hartree": None,
+                "reason": "no_valid_candidate",
+                "honest_verdict": "No valid variational candidate was produced; no energy or advantage claim is made.",
+            }
+            vqe_supports = False
+            vqe_ledger_ref = anchor_ref
+        else:
+            variational_energy = -best.metric  # harness metric is -energy (higher is better)
+            anchor_eval = mol_engine.evaluate_advantage_claim(variational_energy, anchor)
+            vqe_supports = True
+            vqe_ledger_ref = best.ledger_ref
 
         # Measured confidences (no hardcoded 0.95/1.0/0.85):
         # - vqe: fraction of valid trials within chemical accuracy of the FCI
@@ -222,10 +237,10 @@ class DiscoveryCampaign:
             EvidenceSignal(
                 source_id="vqe_ansatz_search",
                 source_type="experiment",
-                supports=True,
+                supports=vqe_supports,
                 confidence=vqe_conf,
                 engagement=1.0,
-                ledger_ref=best.ledger_ref,
+                ledger_ref=vqe_ledger_ref,
             ),
             EvidenceSignal(
                 source_id="classical_anchor_fci",
@@ -244,10 +259,18 @@ class DiscoveryCampaign:
             ),
         ]
         wf_state = wavefunction.evaluate(signals)
-        claim_text = (
-            f"VQE variational energy {variational_energy:.4f} reproduces ground-state energetics of {self.hamiltonian} "
-            f"against classical FCI anchor ({anchor.fci_energy_hartree:.4f} Ha)."
-        )
+        if variational_energy is None:
+            claim_text = (
+                f"No valid VQE variational candidate converged for {self.hamiltonian} "
+                f"against classical FCI anchor ({anchor.fci_energy_hartree:.4f} Ha)."
+            )
+            results_text = "No valid search candidate converged within the budget."
+        else:
+            claim_text = (
+                f"VQE variational energy {variational_energy:.4f} reproduces ground-state energetics of {self.hamiltonian} "
+                f"against classical FCI anchor ({anchor.fci_energy_hartree:.4f} Ha)."
+            )
+            results_text = f"Best energy metric {best.metric:.4f} at theta {best.artifact:.4f}."
         # Fail-closed assertion: a split verdict does NOT get asserted — the
         # gate's designed behavior is to hold it as a qualified hypothesis.
         # (Previously the unrelated-physics ZNE always voted contest and
@@ -270,7 +293,7 @@ class DiscoveryCampaign:
             objectives=f"Locate the ground state of {self.hamiltonian} (known {self.ground_state}).",
             methods="Simulator-backed VQE ansatz search with golden-section refinement.",
             protocol=f"Budget {self.budget_steps} search steps; backend local-simulator.",
-            results=f"Best energy metric {best.metric:.4f} at theta {best.artifact:.4f}.",
+            results=results_text,
             analysis=(f"Mitigation health-check <Z> to {zne.mitigated_value:.4f} from raw {zne.raw_value:.4f}."
                       if analyze_is_health_check else
                       f"ZNE recovered <Z> to {zne.mitigated_value:.4f} from raw {zne.raw_value:.4f}."),
@@ -301,7 +324,7 @@ class DiscoveryCampaign:
         # proof path (simulator search scored against the FCI anchor above).
         entry = None
         if library is not None:
-            if not best.ledger_ref:
+            if best is None or not best.ledger_ref:
                 stages["archive"] = {"library_entry_id": None,
                                      "refused": "best trial carries no ledger ref — refusing phantom archive"}
             else:

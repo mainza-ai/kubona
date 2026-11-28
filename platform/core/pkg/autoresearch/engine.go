@@ -844,7 +844,8 @@ func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion str
 			}
 			code := extractCodeBlock(content)
 			if code != "" {
-				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement", meta, true
+				rationale := extractMutationRationale(content, meta)
+				return code, rationale, meta, true
 			}
 		}
 	}
@@ -852,6 +853,26 @@ func (e *LoopEngine) proposeMutation(ctx context.Context, iter int, champion str
 	// Algorithmic mutation operator fallback (resilient and deterministic)
 	code, rationale := algorithmicMutate(e.harness.ID(), iter, champion)
 	return code, rationale, nil, false
+}
+
+// extractMutationRationale captures the model's actual explanation outside the
+// fenced code block (M0 / Doc 2 Gap #5 — never fabricate a hardcoded model name
+// or rationale).
+func extractMutationRationale(content string, meta *llm.InvocationMeta) string {
+	re := regexp.MustCompile("(?s)```(?:python)?.*?```")
+	prose := strings.TrimSpace(re.ReplaceAllString(content, ""))
+	prose = strings.Join(strings.Fields(prose), " ")
+	if len(prose) > 320 {
+		prose = prose[:320] + "…"
+	}
+	modelLabel := "LLM"
+	if meta != nil && strings.TrimSpace(meta.Model) != "" {
+		modelLabel = strings.TrimSpace(meta.Model)
+	}
+	if prose == "" {
+		return fmt.Sprintf("%s proposed code mutation (no rationale text returned)", modelLabel)
+	}
+	return fmt.Sprintf("%s: %s", modelLabel, prose)
 }
 
 func extractCodeBlock(text string) string {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/autonomy"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -118,6 +119,38 @@ func TestDiscoveryHandlersPlanAndFailurePath(t *testing.T) {
 		}},
 		"step_timeout_s": 5,
 	})
+	// M0 (Doc 2 #4 / B11): DefaultPolicy has StageExecute=approve, so an unapproved
+	// /api/discovery/run MUST be refused with 409 plan_not_approved.
+	refusedRec := newResponseRecorder()
+	srv.handleDiscoveryRun(refusedRec, httptestRequest(http.MethodPost, "/api/discovery/run", body))
+	if refusedRec.Code != http.StatusConflict || !strings.Contains(refusedRec.Body.String(), "plan_not_approved") {
+		t.Fatalf("expected 409 plan_not_approved in default approve mode, got %d: %s", refusedRec.Code, refusedRec.Body.String())
+	}
+
+	// Switch session to ModeAct to exercise execution + registered ledger event trail.
+	actPol := autonomy.DefaultPolicy()
+	actPol.Stages[autonomy.StageExecute] = autonomy.ModeAct
+	polRaw, _ := json.Marshal(actPol)
+	if err := srv.ledger.SetAutonomyPolicy(sess.ID, string(polRaw)); err != nil {
+		t.Fatal(err)
+	}
+	// High-risk / over-budget step in ModeAct MUST still require explicit approval.
+	overBudgetBody, _ := json.Marshal(map[string]any{
+		"session_id": sess.ID,
+		"goal":       "run expensive hardware experiment",
+		"steps": []map[string]any{{
+			"kind":       "conjecture",
+			"budget_usd": 50.0,
+			"spec":       map[string]any{"values": []int{1, 1, 2, 3, 5}, "holdout": 1},
+		}},
+		"step_timeout_s": 5,
+	})
+	highRiskRec := newResponseRecorder()
+	srv.handleDiscoveryRun(highRiskRec, httptestRequest(http.MethodPost, "/api/discovery/run", overBudgetBody))
+	if highRiskRec.Code != http.StatusConflict || !strings.Contains(highRiskRec.Body.String(), "risk_approval_required") {
+		t.Fatalf("expected 409 risk_approval_required for over-budget step in act mode, got %d: %s", highRiskRec.Code, highRiskRec.Body.String())
+	}
+
 	rec := newResponseRecorder()
 	srv.handleDiscoveryRun(rec, httptestRequest(http.MethodPost, "/api/discovery/run", body))
 	if rec.Code != http.StatusOK {
@@ -129,6 +162,20 @@ func TestDiscoveryHandlersPlanAndFailurePath(t *testing.T) {
 	}
 	if run["ok"] != true || run["steps_failed"] != float64(1) {
 		t.Fatalf("bridge-less step must be recorded as failed, got %v", run)
+	}
+	// M0 (Doc 2 #8): verify discovery_protocol_* and discovery_step events persisted.
+	events, err := srv.ledger.GetRecentEvents(sess.ID, 50)
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	seenTypes := map[string]bool{}
+	for _, ev := range events {
+		seenTypes[ev.EventType] = true
+	}
+	for _, want := range []string{"discovery_protocol_started", "discovery_step", "discovery_protocol_completed"} {
+		if !seenTypes[want] {
+			t.Fatalf("M0 regression: expected ledger event %q to be recorded, saw %v", want, seenTypes)
+		}
 	}
 }
 

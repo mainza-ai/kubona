@@ -6,10 +6,16 @@ plus full lifecycle candidate -> verified -> claimed -> retracted on re-verifica
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 
 pytest.importorskip("rustworkx")
+_REQUIRES_HIGHSPY = pytest.mark.skipif(
+    importlib.util.find_spec("highspy") is None,
+    reason="highspy not installed (install optional extra: --extra qec)",
+)
 
 from kubona.qec import (
     CatalogEntry,
@@ -126,6 +132,7 @@ def test_redteam_fake4_upper_bound_distance_rejected_gate1():
     assert rep["failure_code"] == "upper_bound_not_claimable"
 
 
+@_REQUIRES_HIGHSPY
 def test_redteam_fake5_held_out_failure_rejected_gate5():
     """Fake 5: wins training noise but loses held-out Heron-r2 noise -> Gate 5 (held_out_failed)."""
     H = _steane_H()
@@ -147,6 +154,7 @@ def test_redteam_fake6_malformed_non_commuting_matrices_rejected_gate0():
     assert rep["failure_code"] == "invalid_matrices"
 
 
+@_REQUIRES_HIGHSPY
 def test_redteam_forged_distance_rejected_gate1():
     """P0-3: caller-forged d=999 with d_kind='proved' is caught by independent MILP re-derivation."""
     H = _steane_H()
@@ -157,6 +165,7 @@ def test_redteam_forged_distance_rejected_gate1():
     assert rep["failure_code"] == "distance_mismatch"
 
 
+@_REQUIRES_HIGHSPY
 def test_redteam_n10_steane_and_surface_are_known_in_builtin_catalog():
     """N10: Steane [[7,1,3]] must be recognized as known in build_builtin_catalog(), never novel."""
     from kubona.qec import evaluate_css_code, lookup_catalog
@@ -172,6 +181,7 @@ def test_redteam_n10_steane_and_surface_are_known_in_builtin_catalog():
     assert ev["claimable"] is False
 
 
+@_REQUIRES_HIGHSPY
 def test_redteam_gate6_refuses_bare_reproduced_flag_without_measured_ci():
     """N2: reproduced=True without measured second-seed LER/CI is refused at Gate 6."""
     H = _steane_H()
@@ -182,6 +192,7 @@ def test_redteam_gate6_refuses_bare_reproduced_flag_without_measured_ci():
     assert rep["failure_code"] == "not_reproduced"
 
 
+@_REQUIRES_HIGHSPY
 def test_valid_claim_lifecycle_and_automatic_retraction_on_reverify():
     """Valid novel candidate -> verified -> Ed25519-signed claimed -> retracted when added to catalog."""
     H = _steane_H()

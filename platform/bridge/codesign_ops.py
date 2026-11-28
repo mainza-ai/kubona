@@ -152,11 +152,64 @@ def op_batch(body):
             "frontier": f.to_dict(), "pareto": pareto.to_dict(), "details": details}
 
 
+def _durable_state_root() -> Path:
+    """Resolve persistent Kubona state dir outside /tmp (M0 / Doc 2 Gap #3)."""
+    env_dir = (os.environ.get("KUBONA_STATE_DIR") or "").strip()
+    if env_dir:
+        return Path(env_dir)
+    return Path.home() / ".kubona" / "state"
+
+
+def _locked_read_json(path: Path):
+    if not path.is_file():
+        return None
+    import fcntl
+    lock_path = path.parent / (path.name + ".lock")
+    with open(lock_path, "a+b") as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_SH)
+        try:
+            if not path.is_file():
+                return None
+            return json.loads(path.read_text(encoding="utf-8"))
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_write_json(path: Path, data) -> None:
+    """Flock-locked, fsynced temp-file + os.replace JSON persistence (M0 / Gap #3)."""
+    import fcntl
+    import tempfile
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.parent / (path.name + ".lock")
+    payload = json.dumps(data, sort_keys=True).encode("utf-8")
+    with open(lock_path, "a+b") as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        try:
+            fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+            try:
+                os.write(fd, payload)
+                os.fsync(fd)
+                os.close(fd)
+                os.replace(tmp_name, path)
+            except BaseException:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+
+
 def _island_state_path(campaign_id: str) -> Path:
     safe = re.sub(r"[^a-zA-Z0-9_.-]+", "_", campaign_id.strip())[:64]
     if not safe:
         raise ValueError("campaign_id must be non-empty alphanumeric")
-    base = Path(os.environ.get("KUBONA_STATE_DIR") or "/tmp/.kubona") / "codesign_islands"
+    base = _durable_state_root() / "codesign_islands"
     base.mkdir(parents=True, exist_ok=True)
     return base / f"{safe}.json"
 
@@ -174,18 +227,17 @@ def op_families(body):
     max_stagnant = strict_int(body.get("max_stagnant_steps", 8), "max_stagnant_steps", 1, 100)
     campaign_id = str(body.get("campaign_id") or "").strip()
 
-    # Phase 2: restore persistent islands/lineage when campaign_id is provided
+    # Phase 2 + M0: restore persistent locked islands/lineage when campaign_id is provided
     fs = None
     state_path = None
     if campaign_id:
         state_path = _island_state_path(campaign_id)
-        if state_path.is_file():
-            try:
-                loaded = json.loads(state_path.read_text(encoding="utf-8"))
-                if set(loaded.get("families") or []) == set(families):
-                    fs = FamilySearch.from_snapshot(loaded)
-            except Exception:
-                fs = None
+        try:
+            loaded = _locked_read_json(state_path)
+            if isinstance(loaded, dict) and set(loaded.get("families") or []) == set(families):
+                fs = FamilySearch.from_snapshot(loaded)
+        except Exception:
+            fs = None
     if fs is None:
         fs = FamilySearch(families, kappa=kappa)
 
@@ -210,7 +262,7 @@ def op_families(body):
     for _ in range(share_rounds):
         shares.append(fs.share_elites())
     if state_path is not None:
-        state_path.write_text(json.dumps(fs.snapshot(), sort_keys=True), encoding="utf-8")
+        _atomic_write_json(state_path, fs.snapshot())
     return {"ok": True, "spec_kind": label, "kappa": kappa,
             "campaign_id": campaign_id or None,
             "persisted": state_path is not None,
@@ -223,17 +275,15 @@ def op_families(body):
 
 
 def _packs_state_path() -> Path:
-    base = Path(os.environ.get("KUBONA_STATE_DIR") or "/tmp/.kubona")
+    base = _durable_state_root()
     base.mkdir(parents=True, exist_ok=True)
     return base / "codesign_packs.json"
 
 
 def _load_pack_promotions() -> dict[str, dict[str, str]]:
     p = _packs_state_path()
-    if not p.is_file():
-        return {}
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = _locked_read_json(p)
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
@@ -271,7 +321,7 @@ def op_pack_promote(body):
     promoted_pack = promote(reg[name], anchor_ref, proof_ref)
     state = _load_pack_promotions()
     state[name] = {"anchor_ref": promoted_pack.anchor_ref, "proof_ref": promoted_pack.proof_ref}
-    _packs_state_path().write_text(json.dumps(state, sort_keys=True), encoding="utf-8")
+    _atomic_write_json(_packs_state_path(), state)
     return {
         "ok": True,
         "pack": {

@@ -188,8 +188,12 @@ def prove_distance_milp(
             "certificate": {"k": 0, "proof_scope": "none"},
         }
 
-    # Fast verified witness seed from BP-OSD (including random combinations of basis rows)
-    seed_ub = estimate_distance_bposd(Hx, Hz, num_trials=max(16, 2 * k), seed=7, return_witnesses=True)
+    # Fast verified witness seed from optional BP-OSD (warm-start cutoff only;
+    # HiGHS MILP proves exact distance independently even when ldpc is absent).
+    try:
+        seed_ub = estimate_distance_bposd(Hx, Hz, num_trials=max(16, 2 * k), seed=7, return_witnesses=True)
+    except ImportError:
+        seed_ub = {}
     dx_seed = seed_ub.get("dx")
     dz_seed = seed_ub.get("dz")
     wx_seed = seed_ub.get("witness_x")

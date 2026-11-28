@@ -62,26 +62,39 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 		},
 	})
 	simCand, _ := json.Marshal(map[string]any{
-		"code_name": "novel_bb_96", "total_qubits": 192,
+		"code_name": "novel_bb_96", "total_qubits": 192, "rounds": 6, "basis": "z", "metric_kind": "ler_per_round",
+		"noise": map[string]any{"model": "si1000", "p_2q": 0.001},
 		"ler": 0.0020, "ci_low": 0.0014, "ci_high": 0.0028, "d_circ": 6, "seed": 7,
 	})
 	simBase, _ := json.Marshal(map[string]any{
-		"code_name": "surface_d5", "total_qubits": 200,
+		"code_name": "surface_d5", "total_qubits": 200, "rounds": 6, "basis": "z", "metric_kind": "ler_per_round",
+		"noise": map[string]any{"model": "si1000", "p_2q": 0.001},
 		"ler": 0.0080, "ci_low": 0.0065, "ci_high": 0.0098, "d_circ": 5, "seed": 7,
 	})
+	simBaseWrongP, _ := json.Marshal(map[string]any{
+		"code_name": "surface_d5", "total_qubits": 200, "rounds": 6, "basis": "z", "metric_kind": "ler_per_round",
+		"noise": map[string]any{"model": "si1000", "p_2q": 0.005},
+		"ler": 0.0800, "ci_low": 0.0650, "ci_high": 0.0980, "d_circ": 5, "seed": 7,
+	})
 	simRepro, _ := json.Marshal(map[string]any{
-		"code_name": "novel_bb_96", "total_qubits": 192,
+		"code_name": "novel_bb_96", "total_qubits": 192, "rounds": 6, "basis": "z", "metric_kind": "ler_per_round",
+		"noise": map[string]any{"model": "si1000", "p_2q": 0.001},
 		"ler": 0.0022, "ci_low": 0.0015, "ci_high": 0.0030, "d_circ": 6, "seed": 11,
 	})
+	simReproNoSeed, _ := json.Marshal(map[string]any{
+		"code_name": "novel_bb_96", "total_qubits": 192, "rounds": 6, "basis": "z", "metric_kind": "ler_per_round",
+		"noise": map[string]any{"model": "si1000", "p_2q": 0.001},
+		"ler": 0.0022, "ci_low": 0.0015, "ci_high": 0.0030, "d_circ": 6,
+	})
 	hoCand, _ := json.Marshal(map[string]any{
-		"code_name": "novel_bb_96", "total_qubits": 192,
+		"code_name": "novel_bb_96", "total_qubits": 192, "rounds": 6,
 		"ler": 0.0040, "ci_low": 0.0030, "ci_high": 0.0052, "d_circ": 6,
-		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49"},
+		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49", "model": "heron", "p_2q": 0.002},
 	})
 	hoBase, _ := json.Marshal(map[string]any{
-		"code_name": "surface_d5", "total_qubits": 200,
+		"code_name": "surface_d5", "total_qubits": 200, "rounds": 6,
 		"ler": 0.0135, "ci_low": 0.0110, "ci_high": 0.0165, "d_circ": 5,
-		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49"},
+		"noise": map[string]any{"is_held_out": true, "calibration_snapshot_id": "cal_8f65e57d6f49", "model": "heron", "p_2q": 0.002},
 	})
 	for _, row := range []struct {
 		id, jtype string
@@ -91,7 +104,9 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 		{"job_eval_unchecked", "qec_code_eval", evalUnchecked},
 		{"job_sim_cand", "qec_memory_sim", simCand},
 		{"job_sim_base", "qec_memory_sim", simBase},
+		{"job_sim_base_wrong_p", "qec_memory_sim", simBaseWrongP},
 		{"job_sim_repro", "qec_memory_sim", simRepro},
+		{"job_sim_repro_noseed", "qec_memory_sim", simReproNoSeed},
 		{"job_ho_cand", "qec_memory_sim", hoCand},
 		{"job_ho_base", "qec_memory_sim", hoBase},
 	} {
@@ -139,6 +154,44 @@ func TestDiscoveryClaimsHTTPFlowAndEd25519Signoff(t *testing.T) {
 	_ = json.Unmarshal(wMismatch.Body.Bytes(), &mismatchResp)
 	if mismatchResp.Claim.Gates0To6Passed {
 		t.Fatalf("N9 violated: mismatched code_name sim passed gates 0-6: %+v", mismatchResp.Claim)
+	}
+
+	// M0 (Q-A1): Mismatched p_physical between candidate and baseline MUST fail Gate 4
+	wWrongP := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
+		"claim_id":                     "dc_wrong_p",
+		"code_name":                    "novel_bb_96",
+		"eval_job_id":                  "job_eval_a",
+		"sim_job_id":                   "job_sim_cand",
+		"baseline_sim_job_id":          "job_sim_base_wrong_p",
+		"held_out_sim_job_id":          "job_ho_cand",
+		"held_out_baseline_sim_job_id": "job_ho_base",
+		"repro_sim_job_id":             "job_sim_repro",
+	})
+	var wrongPResp struct {
+		Claim qec.DiscoveryClaimRecord `json:"claim"`
+	}
+	_ = json.Unmarshal(wWrongP.Body.Bytes(), &wrongPResp)
+	if wrongPResp.Claim.Gates0To6Passed {
+		t.Fatalf("M0 Q-A1 violated: mismatched p_physical baseline passed Gate 4: %+v", wrongPResp.Claim)
+	}
+
+	// M0 (Q-A2): Missing seed on reproduction sim MUST fail Gate 6 (fail-closed)
+	wNoSeed := doJSON(t, srv, http.MethodPost, "/api/sessions/"+sidA+"/discovery-claims", "", map[string]any{
+		"claim_id":                     "dc_noseed",
+		"code_name":                    "novel_bb_96",
+		"eval_job_id":                  "job_eval_a",
+		"sim_job_id":                   "job_sim_cand",
+		"baseline_sim_job_id":          "job_sim_base",
+		"held_out_sim_job_id":          "job_ho_cand",
+		"held_out_baseline_sim_job_id": "job_ho_base",
+		"repro_sim_job_id":             "job_sim_repro_noseed",
+	})
+	var noSeedResp struct {
+		Claim qec.DiscoveryClaimRecord `json:"claim"`
+	}
+	_ = json.Unmarshal(wNoSeed.Body.Bytes(), &noSeedResp)
+	if noSeedResp.Claim.Gates0To6Passed {
+		t.Fatalf("M0 Q-A2 violated: missing seed repro passed Gate 6: %+v", noSeedResp.Claim)
 	}
 
 	// 1. Valid server-derived candidate claim with bound jobs, baselines, and distinct-seed repro

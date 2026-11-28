@@ -1423,6 +1423,78 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "PES table folded")
 
+	case "qec_code_eval", "qec_distance":
+		var codeName, dKind, canonHash, catalogRel string
+		var n, k, d int
+		var decomposable, catalogKnown bool
+		for key, dst := range map[string]*string{
+			"code_name": &codeName, "d_kind": &dKind,
+			"canonical_hash": &canonHash, "catalog_relation": &catalogRel,
+		} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*int{"n": &n, "k": &k, "d": &d} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if raw, ok := present("decomposable"); ok {
+			_ = json.Unmarshal(raw, &decomposable)
+		}
+		if raw, ok := present("catalog_known"); ok {
+			_ = json.Unmarshal(raw, &catalogKnown)
+		}
+		if n <= 0 || k <= 0 {
+			return nil, false, "QEC code evaluation missing valid n/k"
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (%s): %s [[%d,%d,%d]] (%s), decomposable=%v, catalog=%s (known=%v, hash=%s).%s",
+			shortID, jobType, codeName, n, k, d, dKind, decomposable, catalogRel, catalogKnown, shortJobID(canonHash), citeSuffix(cite)))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: codeName, NSites: n,
+			Measured: true, Claimable: dKind == "proved" && !decomposable && !catalogKnown,
+			Status: dKind,
+		}, jobID)
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "QEC code evaluation folded")
+
+	case "qec_memory_sim":
+		var codeName, decoder string
+		var ler, ciLow, ciHigh float64
+		var totalQubits, dCirc int
+		for key, dst := range map[string]*string{"code_name": &codeName, "decoder": &decoder} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*float64{"ler": &ler, "ci_low": &ciLow, "ci_high": &ciHigh} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		for key, dst := range map[string]*int{"total_qubits": &totalQubits, "d_circ": &dCirc} {
+			if raw, ok := present(key); ok {
+				_ = json.Unmarshal(raw, dst)
+			}
+		}
+		if codeName == "" && totalQubits <= 0 {
+			return nil, false, "QEC memory simulation missing code metadata"
+		}
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections, fmt.Sprintf(
+			"Job %s (qec_memory_sim): %s (%d total qubits, decoder=%s, d_circ=%d) LER=%.6g [%.6g, %.6g].%s",
+			shortID, codeName, totalQubits, decoder, dCirc, ler, ciLow, ciHigh, citeSuffix(cite)))
+		appendCampaignExperiment(&state, CampaignExperiment{
+			JobID: jobID, Kind: jobType, Model: codeName, NSites: totalQubits,
+			Energy: floatPtr(ler), Uncertainty: floatPtr(ciHigh - ciLow),
+			Measured: true, Claimable: false, Status: "simulated",
+		}, jobID)
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "QEC memory simulation folded")
+
 	default:
 		return nil, false, "unknown job type " + jobType
 	}

@@ -516,6 +516,76 @@ func (s *Server) loadCompletedSimJob(sessionID, jobID, label string) (map[string
 	return res, nil
 }
 
+func extractSimPhysicalRate(res map[string]any) (float64, bool) {
+	if v, ok := asFloatField(res, "p_physical"); ok && v > 0 {
+		return v, true
+	}
+	if noise, ok := res["noise"].(map[string]any); ok {
+		for _, k := range []string{"p_2q", "p_physical", "p"} {
+			if v, ok := asFloatField(noise, k); ok && v > 0 {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func extractSimNoiseModel(res map[string]any) string {
+	if s := asStringField(res, "noise_model"); s != "" {
+		return strings.ToLower(s)
+	}
+	if noise, ok := res["noise"].(map[string]any); ok {
+		for _, k := range []string{"model", "name", "family"} {
+			if s := asStringField(noise, k); s != "" {
+				return strings.ToLower(s)
+			}
+		}
+	}
+	return ""
+}
+
+func simConditionsMismatch(a, b map[string]any) string {
+	if pA, okA := extractSimPhysicalRate(a); okA {
+		pB, okB := extractSimPhysicalRate(b)
+		if !okB {
+			return "p_physical_missing_on_peer"
+		}
+		diff := pA - pB
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > 1e-12 {
+			return fmt.Sprintf("p_physical_mismatch (a=%g, b=%g)", pA, pB)
+		}
+	} else if _, okB := extractSimPhysicalRate(b); okB {
+		return "p_physical_missing_on_candidate"
+	}
+	if rA, okA := asFloatField(a, "rounds"); okA {
+		rB, okB := asFloatField(b, "rounds")
+		if !okB || rA != rB {
+			return fmt.Sprintf("rounds_mismatch (a=%v, b=%v)", rA, rB)
+		}
+	} else if _, okB := asFloatField(b, "rounds"); okB {
+		return "rounds_missing_on_candidate"
+	}
+	nmA := extractSimNoiseModel(a)
+	nmB := extractSimNoiseModel(b)
+	if (nmA != "" || nmB != "") && nmA != nmB {
+		return fmt.Sprintf("noise_model_mismatch (a=%q, b=%q)", nmA, nmB)
+	}
+	basisA := strings.ToLower(asStringField(a, "basis"))
+	basisB := strings.ToLower(asStringField(b, "basis"))
+	if (basisA != "" || basisB != "") && basisA != basisB {
+		return fmt.Sprintf("basis_mismatch (a=%q, b=%q)", basisA, basisB)
+	}
+	metricA := strings.ToLower(asStringField(a, "metric_kind"))
+	metricB := strings.ToLower(asStringField(b, "metric_kind"))
+	if (metricA != "" || metricB != "") && metricA != metricB {
+		return fmt.Sprintf("metric_kind_mismatch (a=%q, b=%q)", metricA, metricB)
+	}
+	return ""
+}
+
 // deriveServerSideDiscoveryClaim computes artifact_sha256, gates_digest, and
 // gates_0_to_6_passed strictly from settled ledger jobs owned by sessionID
 // (N1 + N9 + N10). Never trusts client-supplied gate flags, hashes, unchecked
@@ -608,7 +678,9 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		return qec.DiscoveryClaimRecord{}, err
 	}
 
-	// N9 Gate 4: sim_job bound to evalCodeName, matched qubit budget, non-overlapping 95% CI vs baseline_sim_job
+	// N9 + M0 Gate 4: sim_job bound to evalCodeName, matched qubit budget,
+	// matched simulation conditions (p_physical/rounds/noise_model/basis/metric_kind),
+	// and non-overlapping CI vs baseline_sim_job.
 	g4 := false
 	g4Reason := "missing_sim_or_baseline"
 	baseLo := 0.0
@@ -621,10 +693,13 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		simQ, okSimQ := asFloatField(simRes, "total_qubits")
 		baseQ, okBaseQ := asFloatField(baseRes, "total_qubits")
 		budgetOK := !okSimQ || !okBaseQ || simQ <= baseQ
+		condMismatch := simConditionsMismatch(simRes, baseRes)
 		if simCode != evalCodeName {
 			g4Reason = fmt.Sprintf("code_name_mismatch (sim=%q, eval=%q)", simCode, evalCodeName)
 		} else if !budgetOK {
 			g4Reason = "qubit_budget_exceeded"
+		} else if condMismatch != "" {
+			g4Reason = condMismatch
 		} else if !okLer || !okSimHi || !okBaseLo {
 			g4Reason = "missing_ci_fields"
 		} else if simHi >= bLo {
@@ -637,7 +712,7 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		}
 	}
 
-	// N9 Gate 5: held-out sim bound to evalCodeName, matching held-out snapshot, non-overlapping 95% CI vs held-out baseline
+	// N9 Gate 5: held-out sim bound to evalCodeName, matching held-out snapshot, non-overlapping CI vs held-out baseline
 	g5 := false
 	g5Reason := "missing_held_out_or_baseline"
 	if heldOutRes != nil && heldOutBaseRes != nil && heldOutJobID != heldOutBaseJobID {
@@ -650,10 +725,13 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		hoBaseSnap := asStringField(hoBaseNoise, "calibration_snapshot_id")
 		hoHi, okHoHi := asFloatField(heldOutRes, "ci_high")
 		hoBaseLo, okHoBaseLo := asFloatField(heldOutBaseRes, "ci_low")
+		hoCondMismatch := simConditionsMismatch(heldOutRes, heldOutBaseRes)
 		if hoCode != evalCodeName {
 			g5Reason = fmt.Sprintf("code_name_mismatch (held_out=%q, eval=%q)", hoCode, evalCodeName)
 		} else if !hoIsHeldOut || !hoBaseIsHeldOut || hoSnap == "" || hoSnap != hoBaseSnap {
 			g5Reason = "held_out_snapshot_mismatch"
+		} else if hoCondMismatch != "" {
+			g5Reason = "held_out_" + hoCondMismatch
 		} else if !okHoHi || !okHoBaseLo {
 			g5Reason = "missing_ci_fields"
 		} else if hoHi >= hoBaseLo {
@@ -664,7 +742,9 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		}
 	}
 
-	// N9 Gate 6: distinct second-seed reproduction sim bound to evalCodeName with d_circ > 0 and CI below baseline
+	// N9 + M0 Gate 6: distinct second-seed reproduction sim bound to evalCodeName
+	// (fail-closed when seed is absent on either run), matched conditions vs sim_job,
+	// with d_circ > 0 and CI below baseline.
 	g6 := false
 	g6Reason := "missing_repro_sim"
 	if reproRes != nil && reproJobID != simJobID {
@@ -673,11 +753,18 @@ func (s *Server) deriveServerSideDiscoveryClaim(
 		reproHi, okReproHi := asFloatField(reproRes, "ci_high")
 		simSeed, okSimSeed := asFloatField(simRes, "seed")
 		reproSeed, okReproSeed := asFloatField(reproRes, "seed")
-		distinctSeed := !okSimSeed || !okReproSeed || simSeed != reproSeed
+		reproCondMismatch := ""
+		if simRes != nil {
+			reproCondMismatch = simConditionsMismatch(simRes, reproRes)
+		}
 		if reproCode != evalCodeName {
 			g6Reason = fmt.Sprintf("code_name_mismatch (repro=%q, eval=%q)", reproCode, evalCodeName)
-		} else if !distinctSeed {
+		} else if !okSimSeed || !okReproSeed {
+			g6Reason = "missing_repro_or_sim_seed"
+		} else if simSeed == reproSeed {
 			g6Reason = "repro_seed_not_distinct"
+		} else if reproCondMismatch != "" {
+			g6Reason = "repro_" + reproCondMismatch
 		} else if !okDC || reproDCirc <= 0 {
 			g6Reason = "d_circ_not_verified"
 		} else if !hasBaseLo || !okReproHi || reproHi >= baseLo {

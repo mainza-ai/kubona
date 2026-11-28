@@ -16,17 +16,43 @@ var stopwords = map[string]bool{
 	"the": true, "and": true, "for": true, "with": true, "from": true,
 	"that": true, "this": true, "are": true, "was": true, "were": true,
 	"into": true, "using": true, "via": true, "its": true, "their": true,
-	"has": true, "have": true, "had": true, "not": true, "but": true,
+	"has": true, "have": true, "had": true, "but": true,
 	"does": true, "did": true, "can": true, "could": true, "would": true,
 }
 
-// Tokens returns the sorted content tokens of a statement.
+// polarityNegators preserves negation polarity (M0 / Doc 2 Gap #1) so
+// "X was effective" and "X was not effective" (or "no improvement") never
+// collide onto the same SHA-256 fingerprint.
+var polarityNegators = map[string]bool{
+	"not": true, "no": true, "never": true, "none": true, "without": true,
+	"cannot": true, "cant": true, "dont": true, "doesnt": true, "didnt": true,
+	"wont": true, "failed": true, "fails": true, "failing": true, "worse": true,
+	"ineffective": true, "unable": true, "refuted": true, "false": true,
+}
+
+func rawWords(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
+	})
+}
+
+// HasNegation reports whether s contains an explicit negation or negative
+// outcome polarity token.
+func HasNegation(s string) bool {
+	for _, t := range rawWords(s) {
+		if polarityNegators[t] {
+			return true
+		}
+	}
+	return false
+}
+
+// Tokens returns the sorted content tokens of a statement, preserving negation
+// markers such as "not" and "no".
 func Tokens(s string) []string {
 	seen := map[string]bool{}
-	for _, t := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
-	}) {
-		if len(t) > 2 && !stopwords[t] {
+	for _, t := range rawWords(s) {
+		if polarityNegators[t] || (len(t) > 2 && !stopwords[t]) {
 			seen[t] = true
 		}
 	}
@@ -41,10 +67,14 @@ func Tokens(s string) []string {
 // Normalize joins the sorted content tokens with single spaces.
 func Normalize(s string) string { return strings.Join(Tokens(s), " ") }
 
-// Fingerprint is the SHA-256 of the normalised statement. Two rewordings that
-// share the same token set collide by design; that is the duplicate signal.
+// Fingerprint is the polarity-aware SHA-256 of the normalised statement.
+// Affirmations and negations of the same predicate always produce distinct hashes.
 func Fingerprint(s string) string {
-	sum := sha256.Sum256([]byte(Normalize(s)))
+	pol := "pos:"
+	if HasNegation(s) {
+		pol = "neg:"
+	}
+	sum := sha256.Sum256([]byte(pol + Normalize(s)))
 	return hex.EncodeToString(sum[:])
 }
 

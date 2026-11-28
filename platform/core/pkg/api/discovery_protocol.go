@@ -26,6 +26,7 @@ type discoveryStep struct {
 
 type discoveryRequest struct {
 	SessionID    string          `json:"session_id"`
+	PlanID       string          `json:"plan_id,omitempty"`
 	Goal         string          `json:"goal"`
 	Steps        []discoveryStep `json:"steps"`
 	StepTimeout  int             `json:"step_timeout_s"`
@@ -358,12 +359,39 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgentic(w, sid) {
 		return
 	}
-	// Phase 0 B11: enforce execute-stage autonomy policy on /api/discovery/run
-	// so a session in suggest mode cannot bypass DecideExecute.
+	// M0 (Doc 2 #4 / B11): enforce real approval status through the shared
+	// autonomy gate — never hardcode "approved". When plan_id is supplied,
+	// resolve its durable status from the ledger; ad-hoc runs are "proposed".
 	policy, _ := s.loadAutonomyPolicy(sid)
+	planStatus := "proposed"
+	if pid := strings.TrimSpace(req.PlanID); pid != "" {
+		planRec, pErr := s.ledger.GetPlan(sid, pid)
+		if pErr != nil || planRec == nil || planRec.SessionID != sid {
+			WriteAPIError(w, "not_found", fmt.Sprintf("plan %q not found in session %q", pid, sid), nil)
+			return
+		}
+		planStatus = planRec.Status
+	}
+
 	steps := req.Steps
 	plannedBy := "caller"
 	if len(steps) == 0 {
+		planDec := autonomy.DecideStage(policy, autonomy.StagePlan, planStatus, autonomy.RiskInput{
+			Method:          "discovery_plan",
+			Statement:       req.Goal,
+			MaxActBudgetUSD: policy.MaxActBudgetUSD,
+		})
+		if !planDec.Allowed {
+			code := planDec.Code
+			if code == "" {
+				code = "plan_not_approved"
+			}
+			WriteAPIError(w, code, planDec.Reason, map[string]any{
+				"risk":      planDec.Risk,
+				"plan_mode": policy.ModeFor(autonomy.StagePlan),
+			})
+			return
+		}
 		planned, reason, _, perr := planDiscoveryWithLLM(r.Context(), s.llmClient, req.Goal)
 		if perr != nil {
 			WriteAPIError(w, "bad_request", perr.Error(), nil)
@@ -377,7 +405,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, st := range steps {
-		dec := autonomy.DecideExecute(policy, "approved", autonomy.RiskInput{
+		dec := autonomy.DecideExecute(policy, planStatus, autonomy.RiskInput{
 			Method:          st.Kind,
 			Spec:            st.Spec,
 			BudgetUSD:       st.BudgetUSD,
@@ -391,6 +419,7 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 			}
 			WriteAPIError(w, code, dec.Reason, map[string]any{
 				"risk":               dec.Risk,
+				"plan_status":        planStatus,
 				"execute_mode":       policy.ModeFor(autonomy.StageExecute),
 				"max_act_budget_usd": policy.MaxActBudgetUSD,
 			})
@@ -417,11 +446,24 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	appendDiscoveryEvent := func(eventType string, evPayload map[string]any) error {
+		if err := s.ledger.AppendEvent(sid, eventType, evPayload); err != nil {
+			if idem != nil && idem.active {
+				_ = s.ledger.IdemDelete(idem.sessionID, idem.requestID)
+			}
+			WriteAPIError(w, "internal", fmt.Sprintf("failed to record ledger event %s: %v", eventType, err), nil)
+			return err
+		}
+		return nil
+	}
 	protocolID := fmt.Sprintf("disc-%d", time.Now().UTC().UnixNano())
-	_ = s.ledger.AppendEvent(sid, "discovery_protocol_started", map[string]any{
+	if err := appendDiscoveryEvent("discovery_protocol_started", map[string]any{
 		"protocol_id": protocolID, "goal": req.Goal, "planned_by": plannedBy,
+		"plan_id": strings.TrimSpace(req.PlanID), "plan_status": planStatus,
 		"steps": len(steps),
-	})
+	}); err != nil {
+		return
+	}
 	results := make([]discoveryStepResult, 0, len(steps))
 	stopped := false
 	for i, step := range steps {
@@ -432,10 +474,12 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		}
 		jobType, ok := experimentJobType(kind)
 		if !ok {
-			WriteAPIError(w, "bad_request", fmt.Sprintf("step %d: unknown experiment kind %q", i, kind), nil)
-			_ = s.ledger.AppendEvent(sid, "discovery_protocol_failed", map[string]any{
+			if err := appendDiscoveryEvent("discovery_protocol_failed", map[string]any{
 				"protocol_id": protocolID, "step": i, "reason": "unknown_kind",
-			})
+			}); err != nil {
+				return
+			}
+			WriteAPIError(w, "bad_request", fmt.Sprintf("step %d: unknown experiment kind %q", i, kind), nil)
 			if idem != nil && idem.active {
 				_ = s.ledger.IdemDelete(idem.sessionID, idem.requestID)
 			}
@@ -455,10 +499,12 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			result := discoveryStepResult{Kind: kind, Status: "refused", Error: err.Error()}
 			results = append(results, result)
-			_ = s.ledger.AppendEvent(sid, "discovery_step", map[string]any{
+			if aerr := appendDiscoveryEvent("discovery_step", map[string]any{
 				"protocol_id": protocolID, "step": i, "kind": kind,
 				"status": "refused", "error": err.Error(),
-			})
+			}); aerr != nil {
+				return
+			}
 			if !step.AllowFailure && !req.AllowFailure {
 				stopped = true
 				break
@@ -470,10 +516,12 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		if waitErr != nil {
 			result.Status = "timeout"
 			result.Error = waitErr.Error()
-			_ = s.ledger.AppendEvent(sid, "discovery_step", map[string]any{
+			if aerr := appendDiscoveryEvent("discovery_step", map[string]any{
 				"protocol_id": protocolID, "step": i, "kind": kind,
 				"job_id": job.ID, "status": "timeout", "error": waitErr.Error(),
-			})
+			}); aerr != nil {
+				return
+			}
 			results = append(results, result)
 			if !step.AllowFailure && !req.AllowFailure {
 				stopped = true
@@ -485,10 +533,12 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		if len(final.ResultJSON) > 0 {
 			result.Result = final.ResultJSON
 		}
-		_ = s.ledger.AppendEvent(sid, "discovery_step", map[string]any{
+		if aerr := appendDiscoveryEvent("discovery_step", map[string]any{
 			"protocol_id": protocolID, "step": i, "kind": kind,
 			"job_id": job.ID, "status": result.Status,
-		})
+		}); aerr != nil {
+			return
+		}
 		results = append(results, result)
 		if final.Status != pb.JobStatus_JOB_STATUS_COMPLETED && !step.AllowFailure && !req.AllowFailure {
 			stopped = true
@@ -545,12 +595,14 @@ func (s *Server) handleDiscoveryRun(w http.ResponseWriter, r *http.Request) {
 		"measured_results": measured, "claimable_results": claimable,
 		"stopped_on_failure": stopped, "results": results,
 	}
-	_ = s.ledger.AppendEvent(sid, "discovery_protocol_completed", map[string]any{
+	if err := appendDiscoveryEvent("discovery_protocol_completed", map[string]any{
 		"protocol_id": protocolID, "goal": req.Goal, "planned_by": plannedBy,
 		"completed": completed, "failed": failed,
 		"measured": measured, "claimable": claimable, "stopped": stopped,
 		"steps": stepReports,
-	})
+	}); err != nil {
+		return
+	}
 	if idem != nil && idem.active {
 		s.idemFinishJSON(w, idem, http.StatusOK, payload)
 		return

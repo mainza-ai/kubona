@@ -100,7 +100,7 @@ func MeasureNovelty(statement string, refs []PriorArt) (distance float64, method
 var noveltyStopwords = map[string]bool{
 	"the": true, "and": true, "for": true, "that": true, "with": true,
 	"from": true, "this": true, "these": true, "those": true, "are": true,
-	"was": true, "were": true, "not": true, "but": true, "have": true,
+	"was": true, "were": true, "but": true, "have": true,
 	"has": true, "had": true, "its": true, "their": true, "our": true,
 	"can": true, "could": true, "would": true, "should": true, "may": true,
 	"into": true, "than": true, "then": true, "when": true, "where": true,

@@ -144,90 +144,21 @@ def _build_circuit_from_edge_order(
     rounds: int,
     noise: CircuitNoiseModel,
 ) -> tuple[stim.Circuit, int]:
-    """Build a Stim memory circuit from explicit X/Z edge orderings; return (circuit, depth)."""
-    Hx, Hz = css_validate(hx, hz)
-    _, lz = css_logicals(Hx, Hz)
-    k = int(lz.shape[0])
-    rx_m, n = Hx.shape
-    rz_m, _ = Hz.shape
-    total_qubits = n + rx_m + rz_m
-    x_anc = list(range(n, n + rx_m))
-    z_anc = list(range(n + rx_m, total_qubits))
-    all_qubits = list(range(total_qubits))
-    data_qubits = list(range(n))
+    """Build a Stim memory circuit from explicit X/Z edge orderings; return (circuit, depth).
 
-    def _color(edges: Sequence[tuple[int, int]]) -> list[list[tuple[int, int]]]:
-        layers: list[list[tuple[int, int]]] = []
-        used_list: list[set[int]] = []
-        for u, v in edges:
-            placed = False
-            for layer, used in zip(layers, used_list):
-                if u not in used and v not in used:
-                    layer.append((u, v))
-                    used.add(u)
-                    used.add(v)
-                    placed = True
-                    break
-            if not placed:
-                layers.append([(u, v)])
-                used_list.append({u, v})
-        return layers
-
-    x_layers = _color(x_edges)
-    z_layers = _color(z_edges)
-    depth = len(x_layers) + len(z_layers)
-
-    c = stim.Circuit()
-    c.append("R", all_qubits)
-    if noise.p_reset > 0:
-        c.append("X_ERROR", all_qubits, noise.p_reset)
-    meas_per_round = rx_m + rz_m
-    for r_idx in range(rounds):
-        c.append("TICK")
-        if x_anc:
-            c.append("H", x_anc)
-        for layer in x_layers:
-            flat = [q for pair in layer for q in pair]
-            c.append("CX", flat)
-            if noise.p_2q > 0:
-                c.append("DEPOLARIZE2", flat, noise.p_2q)
-            c.append("TICK")
-        for layer in z_layers:
-            flat = [q for pair in layer for q in pair]
-            c.append("CX", flat)
-            if noise.p_2q > 0:
-                c.append("DEPOLARIZE2", flat, noise.p_2q)
-            c.append("TICK")
-        if x_anc:
-            c.append("H", x_anc)
-        if noise.p_idle > 0:
-            c.append("DEPOLARIZE1", data_qubits, noise.p_idle)
-        anc_all = x_anc + z_anc
-        if noise.p_meas > 0:
-            c.append("X_ERROR", anc_all, noise.p_meas)
-        c.append("MR", anc_all)
-        if r_idx == 0:
-            for zi in range(rz_m):
-                c.append("DETECTOR", [stim.target_rec(-(rz_m - zi))], [zi, 0])
-        else:
-            for xi in range(rx_m):
-                cur = -(meas_per_round - xi)
-                c.append("DETECTOR", [stim.target_rec(cur), stim.target_rec(cur - meas_per_round)], [xi, r_idx])
-            for zi in range(rz_m):
-                cur = -(rz_m - zi)
-                c.append("DETECTOR", [stim.target_rec(cur), stim.target_rec(cur - meas_per_round)], [rx_m + zi, r_idx])
-    if noise.p_meas > 0:
-        c.append("X_ERROR", data_qubits, noise.p_meas)
-    c.append("M", data_qubits)
-    for zi in range(rz_m):
-        supp = np.flatnonzero(Hz[zi]).tolist()
-        targets = [stim.target_rec(-(n - q)) for q in supp]
-        targets.append(stim.target_rec(-(n + (rz_m - zi))))
-        c.append("DETECTOR", targets, [rx_m + zi, rounds])
-    for li in range(k):
-        supp = np.flatnonzero(lz[li]).tolist()
-        c.append("OBSERVABLE_INCLUDE", [stim.target_rec(-(n - q)) for q in supp], li)
-    return c, depth
+    M0 (Q-A4): delegates directly to ``circuits.build_css_memory_circuit`` so
+    Campaign B applies the exact same 1Q Hadamard and post-MR reset noise model
+    as every other QEC simulation.
+    """
+    circuit, meta = build_css_memory_circuit(
+        hx,
+        hz,
+        rounds=rounds,
+        noise=noise,
+        x_edges=list(x_edges),
+        z_edges=list(z_edges),
+    )
+    return circuit, int(meta["cnot_layers_per_round"])
 
 
 def run_campaign_b_schedule_search(

@@ -99,10 +99,10 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 // queue; 15 = plan risk-category taxonomy; 16 = ordering indexes; 17 =
 // durable QEC discovery_claims lifecycle table (P0-3); 18 = durable
 // codesign_runs receipts (Phase 0) + unified discovery_claims.kind column
-// (Phase 1 CircuitClaim). Each bump
-// makes an existing ledger take a verified pre-migration snapshot before the
-// additive DDL, which is the production upgrade invariant.
-const CurrentSchemaVersion = 18
+// (Phase 1 CircuitClaim); 19 = durable calibration_snapshots table (M0 / Gap #3).
+// Each bump makes an existing ledger take a verified pre-migration snapshot
+// before the additive DDL, which is the production upgrade invariant.
+const CurrentSchemaVersion = 19
 
 const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 	version INTEGER PRIMARY KEY,
@@ -700,6 +700,17 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY (session_id, request_id)
 	);
+
+	-- M0 (Doc 2 Gap #3): durable frozen calibration snapshots queried by
+	-- kubona/qec/circuits.py (load_heron_calibration_from_ledger) instead of
+	-- scanning jobs.result_json with LIKE.
+	CREATE TABLE IF NOT EXISTS calibration_snapshots (
+		id TEXT PRIMARY KEY,
+		backend TEXT NOT NULL DEFAULT '',
+		payload_json TEXT NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_calibration_snapshots_backend ON calibration_snapshots(backend, created_at DESC);
 	` + obligationSchema + scoresSchema + manuscriptsSchema + hypothesesSchema + plansSchema + autonomySchema + knowledgeSchema + tenantAgenticSchema + toolApprovalsSchema + discoveryClaimsSchema + codesignRunsSchema
 
 	if _, err := db.Exec(initSchema); err != nil {

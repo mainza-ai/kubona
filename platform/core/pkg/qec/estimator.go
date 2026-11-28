@@ -102,16 +102,18 @@ func (e *ResourceEstimator) EstimateNeutralAtom(spec QECResourceSpec) (*QECResou
 	if err != nil {
 		return nil, err
 	}
-	if spec.NumLogicalQubits > 48 {
-		return nil, errors.New("exceeds neutral-atom logical capacity (max 48 logical qubits, 280 physical atoms)")
-	}
-
-	// Neutral atom color codes / transversal gates: ~6 physical atoms per logical qubit at distance 3
+	// Distance-3 Steane [[7,1,3]] color code requires 7 data + 6 syndrome ancillae = 13 physical atoms per logical qubit.
+	// On a 280-atom neutral-atom device, this caps capacity at 21 logical qubits (273 <= 280 physical atoms).
+	const maxPhysicalAtoms = 280
 	distance := 3
-	atomsPerLogical := 6
-	dataQubits := spec.NumLogicalQubits * atomsPerLogical
-	syndromeQubits := spec.NumLogicalQubits * 2
+	dataPerLogical := 7
+	syndromePerLogical := 6
+	dataQubits := spec.NumLogicalQubits * dataPerLogical
+	syndromeQubits := spec.NumLogicalQubits * syndromePerLogical
 	totalPhysical := dataQubits + syndromeQubits
+	if totalPhysical > maxPhysicalAtoms {
+		return nil, errors.New("exceeds neutral-atom physical capacity (max 21 d=3 Steane logical qubits / 280 physical atoms)")
+	}
 
 	threshold := 0.01 // ~1% neutral-atom tweezer threshold
 

@@ -229,6 +229,8 @@ def build_css_memory_circuit(
     *,
     rounds: int = 3,
     noise: CircuitNoiseModel | None = None,
+    x_edges: list[tuple[int, int]] | None = None,
+    z_edges: list[tuple[int, int]] | None = None,
 ) -> Tuple[stim.Circuit, dict[str, Any]]:
     """Build a noisy Stim Z-memory circuit for any CSS code (Hx, Hz).
 
@@ -237,6 +239,8 @@ def build_css_memory_circuit(
       - X-check ancillas: n .. n + rx - 1
       - Z-check ancillas: n + rx .. n + rx + rz - 1
 
+    Optional ``x_edges`` / ``z_edges`` override the default CNOT edge orderings
+    while keeping identical gate/idle/measurement/reset noise physics.
     Returns (stim.Circuit, schedule_metadata).
     """
     Hx, Hz = css_validate(hx, hz)
@@ -254,10 +258,10 @@ def build_css_memory_circuit(
     data_qubits = list(range(n))
 
     # Build collision-free parallel CNOT layers for X checks (anc -> data) and Z checks (data -> anc)
-    x_edges = [(x_anc[r], int(c)) for r in range(rx_m) for c in np.flatnonzero(Hx[r]).tolist()]
-    z_edges = [(int(c), z_anc[r]) for r in range(rz_m) for c in np.flatnonzero(Hz[r]).tolist()]
-    x_layers = _greedy_edge_color(x_edges)
-    z_layers = _greedy_edge_color(z_edges)
+    xe = list(x_edges) if x_edges is not None else [(x_anc[r], int(c)) for r in range(rx_m) for c in np.flatnonzero(Hx[r]).tolist()]
+    ze = list(z_edges) if z_edges is not None else [(int(c), z_anc[r]) for r in range(rz_m) for c in np.flatnonzero(Hz[r]).tolist()]
+    x_layers = _greedy_edge_color(xe)
+    z_layers = _greedy_edge_color(ze)
 
     c = stim.Circuit()
     c.append("R", all_qubits)

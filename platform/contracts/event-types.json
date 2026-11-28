@@ -387,6 +387,49 @@
       "payload": "Discovery pipeline evaluation outcome.",
       "required": []
     },
+    "discovery_protocol_completed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Bounded measured-discovery protocol completed.",
+      "required": [
+        "protocol_id",
+        "completed",
+        "failed"
+      ]
+    },
+    "discovery_protocol_failed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Bounded measured-discovery protocol failed before completion.",
+      "required": [
+        "protocol_id",
+        "reason"
+      ]
+    },
+    "discovery_protocol_started": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Bounded measured-discovery protocol started.",
+      "required": [
+        "protocol_id",
+        "steps"
+      ]
+    },
+    "discovery_step": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Single step outcome inside a discovery protocol run.",
+      "required": [
+        "protocol_id",
+        "step",
+        "kind",
+        "status"
+      ]
+    },
     "disk_blocked": {
       "emitters": [
         "go"

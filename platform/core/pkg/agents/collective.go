@@ -677,7 +677,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		ancestorNote,
 		fmt.Sprintf("Analyze target %s for prompt: %s.%s Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt, memoryContext),
 	})
-	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
+	scoutContent := fmt.Sprintf("No ansatz proposal was authored for %s (LLM unavailable); no active space, qubit count, or expressibility claim is made.", target)
 	if llmClient != nil && !breached1 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
@@ -712,12 +712,16 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		logTurn(1, "ansatz-scout", turn1Prompt, reply, turnDur1, err, authored1,
 			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleAnsatzScout].SystemPrompt)))))
 	}
+	v1 := "TURN_FAILED"
+	if authored1 {
+		v1 = "PROPOSED"
+	}
 	t1 := TribunalTurn{
 		TurnIndex: 1,
 		Role:      RoleAnsatzScout,
 		Name:      "Ansatz Scout",
 		Content:   scoutContent,
-		Verdict:   "PROPOSED",
+		Verdict:   v1,
 		Timestamp: time.Now().UTC(),
 		Observed:  obs1,
 		Coverage:  map[string]CoverageDecl{FacetAnsatz: authoredCoverage(authored1)},
@@ -735,7 +739,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	turn2Prompt, breached2 := projectTurn(2, "turn-2 officer", []string{
 		fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, Summarize(ev1, 1500), fciAnchor),
 	})
-	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
+	discContent := fmt.Sprintf("No disconfirmation review was authored for %s (LLM unavailable). Classical anchor label: %s; gradient variance and barren-plateau risk remain unverified.", target, fciAnchor)
 	var llmMeta2 *llm.InvocationMeta
 	if llmClient != nil && !breached2 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
@@ -768,12 +772,16 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		logTurn(2, "disconfirmation-officer", turn2Prompt, reply, turnDur2, err, authored2,
 			fmt.Sprintf("sys_runes=%d anchor_live=%v anchor=%q", len([]rune(string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt))), anchorLive, fciAnchor))
 	}
+	v2 := "TURN_FAILED"
+	if authored2 {
+		v2 = "ANCHORED"
+	}
 	t2 := TribunalTurn{
 		TurnIndex: 2,
 		Role:      RoleDisconfirmationOfficer,
 		Name:      "Disconfirmation Officer",
 		Content:   discContent,
-		Verdict:   "ANCHORED",
+		Verdict:   v2,
 		Timestamp: time.Now().UTC(),
 		Observed:  obs2,
 		Coverage:  map[string]CoverageDecl{FacetAnchor: anchorCoverage(authored2, anchorLive)},
@@ -848,12 +856,16 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			logTurn(3, "device-auditor", turn3Prompt, reply, turnDur3, err, authored3,
 				fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleDeviceAuditor].SystemPrompt)))))
 		}
+		v3 := "TURN_FAILED"
+		if authored3 {
+			v3 = "AUDITED"
+		}
 		t3 := TribunalTurn{
 			TurnIndex: 3,
 			Role:      RoleDeviceAuditor,
 			Name:      "Device Auditor",
 			Content:   auditContent,
-			Verdict:   "AUDITED",
+			Verdict:   v3,
 			Timestamp: time.Now().UTC(),
 			Observed:  obs3,
 			Coverage:  map[string]CoverageDecl{FacetAudit: authoredCoverage(authored3)},
@@ -880,7 +892,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			fmt.Sprintf("Prior evidence:\n%s\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500), Summarize(ev3, 1500)),
 			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```. Tag every verdict claim on its own line outside the proposal block: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id), 'inferred:' for conclusions, 'unknown:' for unestablished facts (never assert absence). Do not call tools in this turn; use the supplied evidence.", target, target, mol, budget, tier, fciAnchor, escapedQASM),
 		})
-		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```\nseen: proposal block above (this transcript, template fallback — no turn was LLM-authored).\ninferred: P_corr collapse bookkeeping from template values, not measurement.\nunknown: live ab-initio anchor status; hardware noise on the target backend; whether any future turn will be authored.", target, mol, budget, tier, fciAnchor, escapedQASM)
+		scribeContent = fmt.Sprintf("Tribunal synthesis failed for %s (LLM unavailable — review_failed; no consensus reached, no credibility collapse).\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```\nseen: unauthored fallback proposal shell only (review_failed — zero turns LLM-authored).\ninferred: no consensus reached and no credibility collapse occurred.\nunknown: live ab-initio anchor status; hardware noise on the target backend; LLM-authored specialist reviews.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
 		var llmMeta4 *llm.InvocationMeta
 		if llmClient != nil && !breached4 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
@@ -913,12 +925,16 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			logTurn(4, "epistemic-scribe", turn4Prompt, reply, turnDur4, err, authored4,
 				fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleEpistemicScribe].SystemPrompt)))))
 		}
+		v4 := "TURN_FAILED"
+		if authored4 {
+			v4 = "COLLAPSED"
+		}
 		t4 := TribunalTurn{
 			TurnIndex: 4,
 			Role:      RoleEpistemicScribe,
 			Name:      "Epistemic Scribe",
 			Content:   scribeContent,
-			Verdict:   "COLLAPSED",
+			Verdict:   v4,
 			Timestamp: time.Now().UTC(),
 			Observed:  obs4,
 			LLM:       llmMeta4,

@@ -29,3 +29,19 @@ func TestSimilarity(t *testing.T) {
 		t.Fatalf("partial similarity = %v", partial)
 	}
 }
+
+func TestFingerprintIsPolarityAware(t *testing.T) {
+	pos := "BP-OSD decoding was effective on the gross code."
+	neg := "BP-OSD decoding was not effective on the gross code."
+	if Fingerprint(pos) == Fingerprint(neg) {
+		t.Fatalf("M0 regression: negation collided onto same fingerprint: %s", Fingerprint(pos))
+	}
+	if !HasNegation(neg) || HasNegation(pos) {
+		t.Fatalf("HasNegation mismatch: pos=%v neg=%v", HasNegation(pos), HasNegation(neg))
+	}
+	noImp := "No improvement observed at p=0.001"
+	imp := "Improvement observed at p=0.001"
+	if Fingerprint(noImp) == Fingerprint(imp) {
+		t.Fatalf("M0 regression: 'no' negation collided onto same fingerprint")
+	}
+}

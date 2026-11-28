@@ -308,14 +308,16 @@ type Decision struct {
 	Risk             Risk
 }
 
-// DecideExecute applies the session policy and the plan's approval status.
-func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
-	mode := policy.ModeFor(StageExecute)
+// DecideStage enforces the session policy for any autonomy stage
+// (hypothesize, plan, execute, collapse) through one shared gate.
+// High-risk actions always require explicit human approval in every mode.
+func DecideStage(policy Policy, stage Stage, planStatus string, in RiskInput) Decision {
+	mode := policy.ModeFor(stage)
 	risk := Classify(in)
 	if policy.AgenticLocked || !policy.Agentic() {
 		return Decision{
 			Allowed: false, RequiresApproval: true, Risk: risk, Code: "agentic_disabled",
-			Reason: "session agentic mode is disabled or locked: autonomous plan execution is refused",
+			Reason: "session agentic mode is disabled or locked: autonomous " + string(stage) + " is refused",
 		}
 	}
 	status := strings.ToLower(strings.TrimSpace(planStatus))
@@ -330,7 +332,7 @@ func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
 	if mode == ModeSuggest {
 		return Decision{
 			Allowed: false, RequiresApproval: true, Risk: risk, Code: "autonomy_suggest_only",
-			Reason: "session autonomy is suggest for the execute stage: a human must execute this plan through the manual experiment rail",
+			Reason: fmt.Sprintf("session autonomy is suggest for the %s stage: a human must execute this step manually", stage),
 		}
 	}
 	if risk.Level == RiskHigh && !approved {
@@ -345,7 +347,7 @@ func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
 	if mode == ModeApprove {
 		return Decision{
 			Allowed: false, RequiresApproval: true, Risk: risk, Code: "plan_not_approved",
-			Reason: "session autonomy is approve: the plan must be approved before execution",
+			Reason: fmt.Sprintf("session autonomy is approve for the %s stage: explicit approval is required before running", stage),
 		}
 	}
 	if mode == ModeNotify {
@@ -358,6 +360,11 @@ func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
 		Allowed: true, AutoApprove: true, Risk: risk,
 		Reason: "act mode: low/medium-risk plan inside the act budget",
 	}
+}
+
+// DecideExecute applies the session policy and the plan's approval status.
+func DecideExecute(policy Policy, planStatus string, in RiskInput) Decision {
+	return DecideStage(policy, StageExecute, planStatus, in)
 }
 
 func truthy(v any) bool {

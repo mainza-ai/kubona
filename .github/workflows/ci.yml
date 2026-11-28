@@ -436,7 +436,7 @@ jobs:
           enable-cache: true
       - name: Sync locked Python environment
         working-directory: platform
-        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry
+        run: uv sync --locked --python 3.11 --extra dev --extra qiskit --extra chemistry --extra qec
       - name: Python vulnerabilities
         working-directory: platform
         run: |
